@@ -1,0 +1,99 @@
+#!/usr/bin/python
+
+import os
+import datetime
+import time
+import sys
+import csv
+import hashlib
+import subprocess
+import requests
+from datetime import date
+from subprocess import call
+from requests.packages.urllib3.util import Retry
+from requests.adapters import HTTPAdapter
+from requests import Session, exceptions
+
+if len(sys.argv)<2 :
+	print "First parameter should be the number of years to grab"
+	sys.exit()
+
+yearsToGrab = int(sys.argv[1])
+
+# static paths
+dataHome = "/blueHorseshoe/"
+csvHome = dataHome+"csvs/"
+jsonHome = dataHome+"json/"
+csvFileName = dataHome+"currentCSV.csv"
+allSymbolsFile = dataHome+"allSymbols.txt"
+
+def convertCSVtoJSON(symbol) :
+	csvFileName = csvHome+symbol+".csv"
+	for line in open(csvFileName,"r"):
+		if "doctype" in line:
+			call(["rm",csvHome+symbol+".csv"])
+			return;
+	with open(csvFileName, 'r') as infile, open(jsonHome+symbol+".json",'w') as outfile:
+		reader = csv.DictReader(infile)
+		for line in reader:
+			openString = '{:08.2f}'.format(float(line["Open"]))
+			highString = '{:08.2f}'.format(float(line["High"]))
+			lowString = '{:08.2f}'.format(float(line["Low"]))
+			closeString = '{:08.2f}'.format(float(line["Close"]))
+			volumeString = '{:010d}'.format(int(line["Volume"]))
+			linestring = symbol+line["Date"]+openString+highString+lowString+closeString+volumeString
+			idVal = str(int(hashlib.md5(linestring.encode('utf-8')).hexdigest(),16))
+			outfile.write( '{ "_id":"'+idVal+'", "date":"'+line["Date"]+'", "symbol":"'+symbol+'", "open":"'+openString+'", "high":"'+highString+'", "low":"'+lowString+'", "close":"'+closeString+'", "volume":"'+volumeString+'"}\n')
+	call(["rm",csvFileName])
+	
+
+def importJSON(symbol) :
+#	subprocess.call('/usr/bin/mongoimport -d blueHorseshoe -c history < /blueHorseshoe/json/'+symbol+'.json',shell=True)
+	call(["rm",jsonHome+symbol+".json"])
+
+#os.system("mongod --smallfiles &")
+
+# get the latest symbols
+call(["/usr/bin/python","/blueHorseshoe/getSymbolList.py"])
+
+# re-initialize the stats file
+call(["rm","stats.txt"])
+statsFile = open(dataHome+"stats.txt","a",0)
+
+# open files to be used for processing
+outFile = open(dataHome+"allHistoricalData.csv","w") 
+errFile = open(dataHome+"error.txt","w") 
+
+# initialize our date variables
+today = date.today()
+month = str(today.month)
+day = str(today.day)
+lastYear = str(today.year)
+firstYear = str(today.year - yearsToGrab)
+with open(allSymbolsFile, "r") as ins:
+	for line in ins:
+		singleSymbol = line.split("|")[0][:-1]
+		statsFile.write("Symbol - "+singleSymbol+" : Time - "+str(datetime.datetime.now().time())+"\n")
+		if "File Creation Time" not in singleSymbol and "Symbol|Security Name" not in line:
+			payload = { 's' : singleSymbol, 'd' : month, 'e' : day, 'f' : lastYear, 'g':'d', 'a':month, 'b':day, 'c':firstYear, 'ignore':'.csv' }
+			headers = {}
+			url     = "http://real-chart.finance.yahoo.com/table.csv"
+			s = requests.Session()
+			s.mount('http://', HTTPAdapter( max_retries=Retry(total=5, status_forcelist=[500, 503])))
+			r=s.get(url, params=payload, headers=headers, timeout=None)
+			print r.url
+			if r.status_code == requests.codes.ok:
+				print "Good Symbol " + singleSymbol
+				with open(csvHome+singleSymbol+".csv", 'w') as fd:
+					fd.write(r.text)
+
+				convertCSVtoJSON(singleSymbol)
+				importJSON(singleSymbol)
+			else:
+				errFile.write(singleSymbol+"\n")
+errFile.close()
+outFile.close()
+statsFile.close()
+
+#os.system("mongod --shutdown")
+#			call(["curl", "-o "+csvHome+singleSymbol+".csv "+parameters+" | iconv -f windows-1251 | tr -d '\n'"

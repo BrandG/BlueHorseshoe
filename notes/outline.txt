@@ -1,0 +1,52 @@
+allSymbols.txt is a list of symbols. It's got 7847 entries, so I'm guessing that's most of them.
+getSymbolList.py reads a list of symbols from nasdaqtrader.com
+getToday.py goes through the list of allSymbols.txt and grabs the latest data from yahoo.
+mysql.py goes through the list of allSymbols.txt and puts the data from yahoo into a mysql table.
+grabYears.py.bak has code for getting all the data from yahoo and puts it into a mongoDB table.
+	inside this py file, it creates the error.txt file, which holds all the symbols that returned a null value.
+
+data format
+	ID (which could be assigned as a combination of all the other info)
+	symbol
+	date
+	high
+	low
+	open
+	close
+	volume
+	midpoint
+	suggestedHigh
+	suggestedLow
+	Confidence
+
+Steps used in making this program:
+I. Input
+	A. Daily retrieval
+		1. Yahoo
+		2. Quote Endpoint
+		3. Simple Moving Average
+		4. Weighted Moving Average
+		5. Volume Weighted Average
+		6. Midpoint
+	B. Historical retrieval
+		1. Backup data csv file
+		2. Alpha Vantage
+	A. Redis?
+	B. MongoDB
+		1. start server in bashrc?
+		2. insert one
+		3. insert many
+		4. find one
+		5. find many
+II. Processing
+	A. Grab a month
+	B. Get Average Low (returns average Low value, as well as how often the low is that value or lower)
+	C. Get Average High (returns average Hight value, as well as how often the hight is that value or high)
+	D. Get Average Delta (average high-low, as well as how often the delta is greater than that)
+	E. Get Midpoint Slope (get average slope as a distance from a given day's midpoint to the first day's midpoint. Return that and the total difference of each day's midpoint and the expected midpoint)
+	F. Get Suggestion (receive monthData, avgDelta, midpointSlope, validators (how close these values stayed to their average), and return the expected high, low, and confidence)
+	G. Get Final Suggestions (call getSuggestion for all the current symbols, and store the top 10 results)
+III. Output
+	A. Retrieve the top 10 results
+	B. Create a web page that shows the results
+	C. Create a PDF with the results
