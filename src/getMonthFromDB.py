@@ -21,7 +21,7 @@ startDate = sys.argv[2] #"1998-10-01"
 
 result = db.history.find({"date" : {"$gte" : startDate}, "symbol" : symbol}, {"_id":0,"date":1,"high":1,"low":1,"open":1,"close":1,"volume":1}).limit(20)
 with open(dataPath+sys.argv[0]+".dat","w") as outfile:
-    outfile.write("{\"days\": [")
+    outfile.write("{\""+symbol+"\": [")
     documentCount = 19
     for document in result:
         tempResult=json.dumps(document)
