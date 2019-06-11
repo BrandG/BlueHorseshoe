@@ -1,5 +1,9 @@
 #!/usr/bin/python
 
+# This code grabs from the BlueHorseshoe database, history collection.
+# Given a specific date, the program will return 20 days worth of information
+# with the date, high, low, open, close, and volume
+
 import os
 import csv
 import hashlib
@@ -19,7 +23,7 @@ if len(sys.argv) < 3:
 symbol = sys.argv[1]
 startDate = sys.argv[2] #"1998-10-01"
 
-result = db.history.find({"date" : {"$gte" : startDate}, "symbol" : symbol}, {"_id":0,"date":1,"high":1,"low":1,"open":1,"close":1,"volume":1}).limit(20)
+result = db.history.find({"date" : {"$gte" : startDate}, "symbol" : symbol}, {"_id":0,"date":1,"high":1,"low":1,"open":1,"close":1,"volume":1}).sort("date",1).limit(20)
 with open(dataPath+sys.argv[0]+".dat","w") as outfile:
     outfile.write("{\""+symbol+"\": [")
     documentCount = 19

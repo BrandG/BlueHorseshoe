@@ -4,6 +4,9 @@
 # This program takes the month of data stored in /home/paperspace/BlueHorseshoe/data and returns a file with the next day's prediction (high and low), the average delta, and the strength (how often it is higher than the expected high and lower than the expected low).
 
 import json
+from pymongo import MongoClient
+import pymongo
+import hashlib
 
 dataPath = "/home/paperspace/BlueHorseshoe/data/"
 incomingJSON = 0
@@ -65,3 +68,13 @@ predictionHigh=predictionMidpoint+lastHalfDelta
 predictionLow=predictionMidpoint-lastHalfDelta
 
 print 'prediction : {0: .2f} , {1: .2f}'.format(predictionHigh,predictionLow)
+
+client = MongoClient()
+db = client["blueHorseshoe"]
+predictions = db["predictions"]
+try:
+    print incomingJSON[symbol][daycount-1]
+    idVal = str(int(hashlib.md5(str(incomingJSON[symbol][daycount-1])).hexdigest(),16))
+    result = predictions.insert_one({"_id":idVal,"date" : incomingJSON[symbol][daycount-1]["date"], "symbol" : symbol, "delta" : deltaPercent, "strength" : strength, "predictionLow" : predictionLow, "predictionHigh" : predictionHigh})
+except pymongo.errors.DuplicateKeyError:
+    print "Duplicate Entry"
