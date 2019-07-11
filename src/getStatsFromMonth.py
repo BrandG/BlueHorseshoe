@@ -19,7 +19,7 @@ def getMonth(symbol, startDate) :
     readArray = []
     for document in range(20,0,-1) :
         readArray.append(result[document])
-    print readArray
+#    print readArray
     return readArray
 
 if len(sys.argv) < 3:
@@ -30,32 +30,31 @@ startDate = sys.argv[2] #"1998-10-01"
 
 
 average={'high':0, 'low':0, 'open':0, 'close':0, 'volume':0}
-lowest={'high':99999, 'low':99999, 'open':99999, 'close':99999, 'volume':99999}
 categories=['high','low','open','close','volume']
 midpointSlope = 0.0
 
 monthData = getMonth(symbol, startDate)
 daycount=len(monthData)
-# Get averages for basic categories
-for category in categories:
-    for i in range(daycount):
-        day = monthData[i]
-        localValue = float(day[category])
-        if lowest[category]>localValue: lowest[category] = localValue
-        average[category]+=localValue
-
-    average[category]/=float(daycount)
-
-# Get Midpoint Slope
 for i in range(daycount):
-    if i < (daycount-1):
-        day = monthData[i]
+    day = monthData[i]
+    # Get averages for basic categories
+    for category in categories:
+        average[category] += float(day[category])
+
+    if i < daycount -1:
+        # Get Midpoint Slope
         nextday = monthData[i+1]
-        currentMidpoint = ((float(day['high'])-float(day['low'])) / 2.0) + float(day['low'])
-        nextMidpoint = ((float(nextday['high'])-float(nextday['low'])) / 2.0) + float(nextday['low'])
-        midpointSlope += nextMidpoint-currentMidpoint
+        #midpoint = (( high - low ) / 2 ) + low
+        todayMidpoint = ((float(day['high'])-float(day['low'])) / 2.0) + float(day['low'])
+        tomorrowMidpoint = ((float(nextday['high'])-float(nextday['low'])) / 2.0) + float(nextday['low'])
+        midpointSlope += todayMidpoint - tomorrowMidpoint
+
 midpointSlope/=daycount - 1
 
+
+#deal with averages (high, low, delta)
+for category in categories:
+    average[category]/=float(daycount)
 delta = average['high']-average['low']
 deltaPercent = delta/float(monthData[daycount-1]['close'])*100.0
 halfDelta = delta/2.0
@@ -74,19 +73,17 @@ for i in range(daycount-1):
 
 print 'strength : '+str(strength)+"\t",
 
-lastHigh = float(monthData[daycount-1]['high'])
-lastLow = float(monthData[daycount-1]['low'])
-lastHalfDelta = (lastHigh-lastLow)/2.0
-lastMidpoint = lastHalfDelta+lastLow
-predictionMidpoint = lastMidpoint + midpointSlope
+#Delta = (high-low)
+lastHalfDelta = (float(monthData[daycount-1]['high'])-float(monthData[daycount-1]['low']))/2.0
+#midpoint = low + (delta / 2) + prediction
+predictionMidpoint = float(monthData[daycount-1]['low']) + lastHalfDelta + midpointSlope
 predictionHigh=predictionMidpoint+lastHalfDelta
 predictionLow=predictionMidpoint-lastHalfDelta
 
 print 'prediction : {0: .2f} , {1: .2f}'.format(predictionHigh,predictionLow)
 
 client = MongoClient()
-db = client["blueHorseshoe"]
-predictions = db["predictions"]
+predictions = client["blueHorseshoe"]["predictions"]
 try:
     print monthData[daycount-1]
     idVal = str(int(hashlib.md5(str(monthData[daycount-1])).hexdigest(),16))
