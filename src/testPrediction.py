@@ -21,16 +21,26 @@ symbol = sys.argv[1]
 startDate = sys.argv[2]
 
 datetime_object = datetime.strptime(startDate, '%Y-%m-%d')
-newDate = datetime_object + timedelta(days=20)
+newDate = datetime_object + timedelta(days=-1) # Note: We need to account for weekends here
 newDateString = newDate.strftime('%Y-%m-%d')
 
-print newDateString
+print "For the date " + startDate
 
-result = historyDB.find({"date" : {"$gte" : newDateString}, "symbol" : symbol}, {"_id":0,"date":1,"high":1,"low":1,"open":1,"close":1,"volume":1}).sort("date",1).limit(1)
+result = historyDB.find({"date" : startDate, "symbol" : symbol}, {"_id":0,"date":1,"high":1,"low":1,"open":1,"close":1,"volume":1})
 
 correctResult = {}
 for document in result:
     correctResult = document
     print(document)
 
-#result = predictionDB.find({"date" :
+print "Prediction from the date " + newDateString
+
+result = predictionDB.find({"date" : newDateString, "symbol" : symbol})
+for document in result:
+    prediction = document
+    print(document)
+
+if (correctResult["high"] > prediction["predictionHigh"]) or (correctResult["low"] < prediction["predictionLow"]):
+    print "Failed"
+else:
+    print "Success"
