@@ -11,7 +11,14 @@ import hashlib
 import sys
 
 
-def getMonth(symbol, startDate) :
+#//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--
+def readMonth(symbol, startDate) :
+    # Note: We swap the dates, then swap them again because, when we ask for
+    # "less than this date", we get the first entries in the DB, when what we
+    # want is to have the last entries before that date. However, since we need
+    # those entries in the oldest-to-youngest format, we have to reverse that
+    # result
+
     #get a month of data
     result = MongoClient().blueHorseshoe.history.find({"date" : {"$lt" : startDate}, "symbol" : symbol}, {"_id":0,"date":1,"high":1,"low":1,"open":1,"close":1,"volume":1}).sort("date",-1).limit(20)
 
@@ -19,74 +26,96 @@ def getMonth(symbol, startDate) :
     readArray = []
     for document in range(20,0,-1) :
         readArray.append(result[document])
-#    print readArray
-    return readArray
-
-if len(sys.argv) < 3:
-    print "usage ./getMonthFromDB.py <<symbol>> <<Year>>-<<Month>>-<<Day>>"
-    exit(0)
-symbol = sys.argv[1]
-startDate = sys.argv[2] #"1998-10-01"
+    return readArray, len(readArray) #    print readArray
 
 
-average={'high':0, 'low':0, 'open':0, 'close':0, 'volume':0}
-categories=['high','low','open','close','volume']
-midpointSlope = 0.0
+#//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--
+def writePrediction(predictionHigh, predictionLow, day, symbol, deltaPercent, strength) :
+    print 'prediction : High {0: .2f}, Low {1: .2f}, Delta {2: 0.2f}%, Strength {3: 0.2f}'.format(predictionHigh,predictionLow,deltaPercent,strength)
 
-monthData = getMonth(symbol, startDate)
-daycount=len(monthData)
-for i in range(daycount):
-    day = monthData[i]
-    # Get averages for basic categories
-    for category in categories:
-        average[category] += float(day[category])
+    # print day
+    idVal = str(int(hashlib.md5(str(day)).hexdigest(),16))
+    try:
+        MongoClient().blueHorseshoe.predictions.insert_one({"_id":idVal,"date" : day["date"], "symbol" : symbol, "delta" : deltaPercent, "strength" : strength, "predictionLow" : predictionLow, "predictionHigh" : predictionHigh})
+    except pymongo.errors.DuplicateKeyError:
+        print "Duplicate Entry"
 
-    if i < daycount -1:
-        # Get Midpoint Slope
+
+#//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--
+def getStrength(daycount, monthData) :
+    strength = 0
+    for i in range(daycount-1):
+        day = monthData[i]
+        nextMidpointGuess = ((float(day['high'])-float(day['low']))/2.0)+float(day['low'])+midpointSlope
+        nextHighGuess=nextMidpointGuess+halfDelta
+        nextLowGuess=nextMidpointGuess-halfDelta
         nextday = monthData[i+1]
-        #midpoint = (( high - low ) / 2 ) + low
+        strength+=1 if nextHighGuess < float(nextday['high']) else 0
+        strength+=1 if nextLowGuess > float(nextday['low']) else 0
+    return strength
+
+
+#//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--
+def getAverages(daycount, monthData, average) :
+    categories=['high','low','open','close','volume']
+    for i in range(daycount):
+        day = monthData[i]
+        for category in categories:
+            average[category] += float(day[category])
+
+    for category in categories:
+        average[category]/=float(daycount)
+
+#//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--
+def getMidpointSlope(daycount, monthData) :
+    midpointSlope = 0
+    testSlope = 0
+    for i in range(daycount-1):
+        day = monthData[i]
+        nextday = monthData[i+1]
+        # midpoint = (( high - low ) / 2 ) + low
         todayMidpoint = ((float(day['high'])-float(day['low'])) / 2.0) + float(day['low'])
         tomorrowMidpoint = ((float(nextday['high'])-float(nextday['low'])) / 2.0) + float(nextday['low'])
         midpointSlope += todayMidpoint - tomorrowMidpoint
 
-midpointSlope/=daycount - 1
+    midpointSlope/=daycount - 1
+    return midpointSlope
 
 
-#deal with averages (high, low, delta)
-for category in categories:
-    average[category]/=float(daycount)
+#//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--
+def getParameters() :
+    if len(sys.argv) < 3:
+        print "usage ./getStatsFromMonth.py <<symbol>> <<Year>>-<<Month>>-<<Day>>"
+        exit(0)
+    return sys.argv[1], sys.argv[2]
+
+
+
+# Main functionality
+
+symbol, startDate = getParameters() #"1998-10-01"
+
+monthData, daycount = readMonth(symbol, startDate)
+
+midpointSlope = getMidpointSlope(daycount, monthData)
+
+average={'high':0, 'low':0, 'open':0, 'close':0, 'volume':0}
+getAverages(daycount,monthData,average)
+
 delta = average['high']-average['low']
 deltaPercent = delta/float(monthData[daycount-1]['close'])*100.0
-halfDelta = delta/2.0
+halfDelta = delta/2.0 #print 'delta'+" : {0: .2f}".format(deltaPercent)+"\t",
 
-print 'delta'+" : {0: .2f}".format(deltaPercent)+"\t",
+strength = getStrength(daycount, monthData) #print 'strength : '+str(strength)+"\t",
 
-strength = 0
-for i in range(daycount-1):
-    day = monthData[i]
-    nextday = monthData[i+1]
-    nextMidpointGuess = ((float(day['high'])-float(day['low']))/2.0)+float(day['low'])+midpointSlope
-    nextHighGuess=nextMidpointGuess+halfDelta
-    nextLowGuess=nextMidpointGuess-halfDelta
-    strength+=1 if nextHighGuess < float(nextday['high']) else 0
-    strength+=1 if nextLowGuess > float(nextday['low']) else 0
-
-print 'strength : '+str(strength)+"\t",
-
-#Delta = (high-low)
+# This gives the midpoint of the last day
 lastHalfDelta = (float(monthData[daycount-1]['high'])-float(monthData[daycount-1]['low']))/2.0
-#midpoint = low + (delta / 2) + prediction
+# This is the guess at where the midpoint tomorrow will be
 predictionMidpoint = float(monthData[daycount-1]['low']) + lastHalfDelta + midpointSlope
-predictionHigh=predictionMidpoint+lastHalfDelta
-predictionLow=predictionMidpoint-lastHalfDelta
 
-print 'prediction : {0: .2f} , {1: .2f}'.format(predictionHigh,predictionLow)
-
-client = MongoClient()
-predictions = client["blueHorseshoe"]["predictions"]
-try:
-    print monthData[daycount-1]
-    idVal = str(int(hashlib.md5(str(monthData[daycount-1])).hexdigest(),16))
-    result = predictions.insert_one({"_id":idVal,"date" : monthData[daycount-1]["date"], "symbol" : symbol, "delta" : deltaPercent, "strength" : strength, "predictionLow" : predictionLow, "predictionHigh" : predictionHigh})
-except pymongo.errors.DuplicateKeyError:
-    print "Duplicate Entry"
+writePrediction(predictionMidpoint+lastHalfDelta, #high value guess
+    predictionMidpoint-lastHalfDelta, # low value guess
+    monthData[daycount-1], # last day loaded
+    symbol,
+    deltaPercent,
+    strength)
