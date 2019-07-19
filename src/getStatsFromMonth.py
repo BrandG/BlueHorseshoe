@@ -35,8 +35,15 @@ def writePrediction(predictionHigh, predictionLow, day, symbol, deltaPercent, st
 
     # print day
     idVal = str(int(hashlib.md5(str(day)).hexdigest(),16))
+    insertDict = {"_id":idVal,
+        "date" : day["date"],
+        "symbol" : symbol,
+        "delta" : deltaPercent,
+        "strength" : strength,
+        "predictionLow" : predictionLow,
+        "predictionHigh" : predictionHigh}
     try:
-        MongoClient().blueHorseshoe.predictions.insert_one({"_id":idVal,"date" : day["date"], "symbol" : symbol, "delta" : deltaPercent, "strength" : strength, "predictionLow" : predictionLow, "predictionHigh" : predictionHigh})
+        MongoClient().blueHorseshoe.predictions.insert_one(insertDict)
     except pymongo.errors.DuplicateKeyError:
         print "Duplicate Entry"
 

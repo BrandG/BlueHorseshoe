@@ -8,14 +8,14 @@ from datetime import timedelta
 from pprint import pprint
 
 
-dataPath = "/home/paperspace/BlueHorseshoe/data/"
-client = MongoClient()
-predictionDB = client.blueHorseshoe.predictions
-historyDB = client.blueHorseshoe.history
-
 if len(sys.argv) < 3:
     print "usage ./testPrediction.py <<symbol>> <<Year-Month-Day>>"
     exit(0)
+
+dataPath = "/home/paperspace/BlueHorseshoe/data/"
+blueHorseshoe = MongoClient().blueHorseshoe
+predictionDB = blueHorseshoe.predictions
+historyDB = blueHorseshoe.history
 
 symbol = sys.argv[1]
 startDate = sys.argv[2]
@@ -25,22 +25,20 @@ newDate = datetime_object + timedelta(days=-1) # Note: We need to account for we
 newDateString = newDate.strftime('%Y-%m-%d')
 
 print "For the date " + startDate
+correctResult = historyDB.find_one({"date" : startDate, "symbol" : symbol}, {"_id":0,"date":1,"high":1,"low":1,"open":1,"close":1,"volume":1})
+print correctResult
+if correctResult == None :
+    print "Invalid Date"
+    sys.exit(0)
 
-result = historyDB.find({"date" : startDate, "symbol" : symbol}, {"_id":0,"date":1,"high":1,"low":1,"open":1,"close":1,"volume":1})
+print "\nPrediction from the date " + newDateString
+prediction = predictionDB.find_one({"date" : newDateString, "symbol" : symbol})
+print prediction
+if prediction == None :
+    print "Invalid Date"
+    sys.exit(0)
 
-correctResult = {}
-for document in result:
-    correctResult = document
-    print(document)
-
-print "Prediction from the date " + newDateString
-
-result = predictionDB.find({"date" : newDateString, "symbol" : symbol})
-for document in result:
-    prediction = document
-    print(document)
-
-if (correctResult["high"] > prediction["predictionHigh"]) or (correctResult["low"] < prediction["predictionLow"]):
+if (float(correctResult["high"]) < float(prediction["predictionHigh"])) or (float(correctResult["low"]) > float(prediction["predictionLow"])):
     print "Failed"
 else:
     print "Success"
