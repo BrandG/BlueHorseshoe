@@ -2,7 +2,8 @@
 
 # getStatsFromMonth
 # This program takes the month of data stored in /home/paperspace/BlueHorseshoe/data and returns a file with the next day's prediction (high and low), the average delta, and the strength (how often it is higher than the expected high and lower than the expected low).
-# The prediction made will be stored with the previous day's date (it is the prediction made based on the month before the given date.
+# The prediction made will be stored with the previous day's date (it is the prediction made based on the month before the given date).
+# So, if the day passed is x, then the prediction is made of the (daycount) days beforehand, and the prediction is for day x. The test takes the day passed and uses that day for both the prediction and the history.
 
 import json
 from pymongo import MongoClient
@@ -12,7 +13,7 @@ import sys
 
 
 #//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--
-def readMonth(symbol, startDate) :
+def readMonth(symbol, startDate, daycount) :
     # Note: We swap the dates, then swap them again because, when we ask for
     # "less than this date", we get the first entries in the DB, when what we
     # want is to have the last entries before that date. However, since we need
@@ -20,23 +21,23 @@ def readMonth(symbol, startDate) :
     # result
 
     #get a month of data
-    result = MongoClient().blueHorseshoe.history.find({"date" : {"$lt" : startDate}, "symbol" : symbol}, {"_id":0,"date":1,"high":1,"low":1,"open":1,"close":1,"volume":1}).sort("date",-1).limit(20)
+    result = MongoClient().blueHorseshoe.history.find({"date" : {"$lt" : startDate}, "symbol" : symbol}, {"_id":0,"date":1,"high":1,"low":1,"open":1,"close":1,"volume":1}).sort("date",-1).limit(daycount)
 
     #populate and reverse the array (based on date)
     readArray = []
-    for document in range(20,0,-1) :
+    for document in range(daycount,0,-1) :
         readArray.append(result[document])
     return readArray, len(readArray) #    print readArray
 
 
 #//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--
-def writePrediction(predictionHigh, predictionLow, day, symbol, deltaPercent, strength) :
+def writePrediction(predictionHigh, predictionLow, startDate, symbol, deltaPercent, strength) :
     print 'prediction : High {0: .2f}, Low {1: .2f}, Delta {2: 0.2f}%, Strength {3: 0.2f}'.format(predictionHigh,predictionLow,deltaPercent,strength)
 
     # print day
-    idVal = str(int(hashlib.md5(str(day)).hexdigest(),16))
+    idVal = str(int(hashlib.md5(startDate+symbol).hexdigest(),16))
     insertDict = {"_id":idVal,
-        "date" : day["date"],
+        "date" : startDate,
         "symbol" : symbol,
         "delta" : deltaPercent,
         "strength" : strength,
@@ -49,7 +50,7 @@ def writePrediction(predictionHigh, predictionLow, day, symbol, deltaPercent, st
 
 
 #//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--
-def getStrength(daycount, monthData) :
+def getStrength(daycount, monthData, halfDelta) :
     strength = 0
     for i in range(daycount-1):
         day = monthData[i]
@@ -99,30 +100,29 @@ def getParameters() :
 
 
 # Main functionality
+daycount = 40
 
 symbol, startDate = getParameters() #"1998-10-01"
 
-monthData, daycount = readMonth(symbol, startDate)
+monthData, daycount = readMonth(symbol, startDate, daycount)
 
 midpointSlope = getMidpointSlope(daycount, monthData)
 
 average={'high':0, 'low':0, 'open':0, 'close':0, 'volume':0}
 getAverages(daycount,monthData,average)
 
-delta = average['high']-average['low']
-deltaPercent = delta/float(monthData[daycount-1]['close'])*100.0
-halfDelta = delta/2.0 #print 'delta'+" : {0: .2f}".format(deltaPercent)+"\t",
+standardDelta = average['high']-average['low']
+standardDeltaPercent = standardDelta/float(monthData[daycount-1]['close'])*100.0
+halfDelta = standardDelta/2.0 #print 'delta'+" : {0: .2f}".format(deltaPercent)+"\t",
 
-strength = getStrength(daycount, monthData) #print 'strength : '+str(strength)+"\t",
+strength = getStrength(daycount, monthData, halfDelta) #print 'strength : '+str(strength)+"\t",
 
 # This gives the midpoint of the last day
-lastHalfDelta = (float(monthData[daycount-1]['high'])-float(monthData[daycount-1]['low']))/2.0
-# This is the guess at where the midpoint tomorrow will be
-predictionMidpoint = float(monthData[daycount-1]['low']) + lastHalfDelta + midpointSlope
+lastMidpoint = float(monthData[daycount-1]['close'])
 
-writePrediction(predictionMidpoint+lastHalfDelta, #high value guess
-    predictionMidpoint-lastHalfDelta, # low value guess
-    monthData[daycount-1], # last day loaded
+writePrediction(lastMidpoint+lastMidpoint*0.005, # half a percent above midpoint
+    lastMidpoint-lastMidpoint*0.005,
+    startDate, # last day loaded
     symbol,
-    deltaPercent,
+    standardDeltaPercent,
     strength)
