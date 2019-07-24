@@ -5,6 +5,8 @@
 # The prediction made will be stored with the previous day's date (it is the prediction made based on the month before the given date).
 # So, if the day passed is x, then the prediction is made of the (daycount) days beforehand, and the prediction is for day x. The test takes the day passed and uses that day for both the prediction and the history.
 
+from datetime import datetime
+from datetime import timedelta
 import json
 from pymongo import MongoClient
 import pymongo
@@ -104,25 +106,33 @@ daycount = 40
 
 symbol, startDate = getParameters() #"1998-10-01"
 
-monthData, daycount = readMonth(symbol, startDate, daycount)
+for i in range(daycount) :
+    datetime_object = datetime.strptime(startDate, '%Y-%m-%d')
+    newDate = datetime_object - timedelta(days=i)
+    dayOfWeek = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+    if newDate.weekday() < 5:
+        print dayOfWeek[newDate.weekday()]
+        newDateString = newDate.strftime('%Y-%m-%d')
 
-midpointSlope = getMidpointSlope(daycount, monthData)
+        monthData, daycount = readMonth(symbol, newDateString, daycount)
 
-average={'high':0, 'low':0, 'open':0, 'close':0, 'volume':0}
-getAverages(daycount,monthData,average)
+        midpointSlope = getMidpointSlope(daycount, monthData)
 
-standardDelta = average['high']-average['low']
-standardDeltaPercent = standardDelta/float(monthData[daycount-1]['close'])*100.0
-halfDelta = standardDelta/2.0 #print 'delta'+" : {0: .2f}".format(deltaPercent)+"\t",
+        average={'high':0, 'low':0, 'open':0, 'close':0, 'volume':0}
+        getAverages(daycount,monthData,average)
 
-strength = getStrength(daycount, monthData, halfDelta) #print 'strength : '+str(strength)+"\t",
+        standardDelta = average['high']-average['low']
+        standardDeltaPercent = standardDelta/float(monthData[daycount-1]['close'])*100.0
+        halfDelta = standardDelta/2.0 #print 'delta'+" : {0: .2f}".format(deltaPercent)+"\t",
 
-# This gives the midpoint of the last day
-lastMidpoint = float(monthData[daycount-1]['close'])
+        strength = getStrength(daycount, monthData, halfDelta) #print 'strength : '+str(strength)+"\t",
 
-writePrediction(lastMidpoint+lastMidpoint*0.005, # half a percent above midpoint
-    lastMidpoint-lastMidpoint*0.005,
-    startDate, # last day loaded
-    symbol,
-    standardDeltaPercent,
-    strength)
+        # This gives the midpoint of the last day
+        lastMidpoint = float(monthData[daycount-1]['close'])
+
+        writePrediction(lastMidpoint+lastMidpoint*0.005, # half a percent above midpoint
+            lastMidpoint-lastMidpoint*0.005,
+            newDateString, # last day loaded
+            symbol,
+            standardDeltaPercent,
+            strength)

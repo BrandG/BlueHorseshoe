@@ -42,23 +42,26 @@ def getPrediction (sd, s, pDB) :
 
 success = 0
 failure = 0
-for i in range(20) :
+for i in range(40) :
     datetime_object = datetime.strptime(startDate, '%Y-%m-%d')
     newDate = datetime_object - timedelta(days=i)
-    newDateString = newDate.strftime('%Y-%m-%d')
-    correctResult = getActual(newDateString, symbol, historyDB)
-    prediction = getPrediction(newDateString, symbol, predictionDB)
+    dayOfWeek = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+    if newDate.weekday() < 5:
+        print dayOfWeek[newDate.weekday()]
+        newDateString = newDate.strftime('%Y-%m-%d')
+        correctResult = getActual(newDateString, symbol, historyDB)
+        prediction = getPrediction(newDateString, symbol, predictionDB)
 
-    if (correctResult != None) and (prediction != None) :
-        if (float(correctResult["high"]) < float(prediction["predictionHigh"])) or (float(correctResult["low"]) > float(prediction["predictionLow"])):
-            success += 1
-            print "Success!!!"
-        else :
-            failure += 1
-            print "failure"
-    print ""
-    print ""
-    print ""
+        if (correctResult != None) and (prediction != None) :
+            if (float(correctResult["high"]) < float(prediction["predictionHigh"])) or (float(correctResult["low"]) > float(prediction["predictionLow"])):
+                success += 1
+                print "Success!!!"
+            else :
+                failure += 1
+                print "failure"
+        print ""
+        print ""
+        print ""
 
 print "Successes = "+str(success)
 print "Failures = "+str(failure)
