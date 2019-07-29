@@ -23,20 +23,20 @@ def readMonth(symbol, startDate, daycount) :
     # result
 
     #get a month of data
-    result = MongoClient().blueHorseshoe.history.find({"date" : {"$lt" : startDate}, "symbol" : symbol}, {"_id":0,"date":1,"high":1,"low":1,"open":1,"close":1,"volume":1}).sort("date",-1).limit(daycount)
+    result = MongoClient().blueHorseshoe.history.find({"date" : {"$lte" : startDate}, "symbol" : symbol}, {"_id":0,"date":1,"high":1,"low":1,"close":1}).sort("date",-1).limit(daycount)
 
     #populate and reverse the array (based on date)
     readArray = []
     for document in range(daycount,0,-1) :
         readArray.append(result[document])
+        print result[document]
     return readArray, len(readArray) #    print readArray
 
 
 #//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--
 def writePrediction(predictionHigh, predictionLow, startDate, symbol, deltaPercent, strength) :
-    print 'prediction : High {0: .2f}, Low {1: .2f}, Delta {2: 0.2f}%, Strength {3: 0.2f}'.format(predictionHigh,predictionLow,deltaPercent,strength)
+    # print 'prediction : High {0: .2f}, Low {1: .2f}, Delta {2: 0.2f}%, Strength {3: 0.2f}'.format(predictionHigh,predictionLow,deltaPercent,strength)
 
-    # print day
     idVal = str(int(hashlib.md5(startDate+symbol).hexdigest(),16))
     insertDict = {"_id":idVal,
         "date" : startDate,
@@ -66,15 +66,17 @@ def getStrength(daycount, monthData, halfDelta) :
 
 
 #//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--
-def getAverages(daycount, monthData, average) :
-    categories=['high','low','open','close','volume']
+def getAverages(daycount, monthData) :
+    averageHigh = 0
+    averageLow = 0
     for i in range(daycount):
         day = monthData[i]
-        for category in categories:
-            average[category] += float(day[category])
+        averageHigh += float(day["high"])
+        averageLow += float(day["low"])
 
-    for category in categories:
-        average[category]/=float(daycount)
+    averageHigh /= float(daycount)
+    averageLow /= float(daycount)
+    return averageHigh, averageLow
 
 #//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--
 def getMidpointSlope(daycount, monthData) :
@@ -102,37 +104,33 @@ def getParameters() :
 
 
 # Main functionality
-daycount = 40
+daycount = 30
 
 symbol, startDate = getParameters() #"1998-10-01"
 
-for i in range(daycount) :
-    datetime_object = datetime.strptime(startDate, '%Y-%m-%d')
-    newDate = datetime_object - timedelta(days=i)
-    dayOfWeek = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
-    if newDate.weekday() < 5:
-        print dayOfWeek[newDate.weekday()]
-        newDateString = newDate.strftime('%Y-%m-%d')
+datetime_object = datetime.strptime(startDate, '%Y-%m-%d')
+dayOfWeek = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+if datetime_object.weekday() < 5:
+    print dayOfWeek[datetime_object.weekday()] + " " + startDate
 
-        monthData, daycount = readMonth(symbol, newDateString, daycount)
+    monthData, daycount = readMonth(symbol, startDate, daycount)
 
-        midpointSlope = getMidpointSlope(daycount, monthData)
+    midpointSlope = getMidpointSlope(daycount, monthData)
 
-        average={'high':0, 'low':0, 'open':0, 'close':0, 'volume':0}
-        getAverages(daycount,monthData,average)
+    averageHigh, averageLow = getAverages(daycount,monthData)
+    standardDelta = averageHigh-averageLow
 
-        standardDelta = average['high']-average['low']
-        standardDeltaPercent = standardDelta/float(monthData[daycount-1]['close'])*100.0
-        halfDelta = standardDelta/2.0 #print 'delta'+" : {0: .2f}".format(deltaPercent)+"\t",
+    standardDeltaPercent = standardDelta/float(monthData[daycount-1]['close'])*100.0
+    halfDelta = standardDelta/2.0 #print 'delta'+" : {0: .2f}".format(deltaPercent)+"\t",
 
-        strength = getStrength(daycount, monthData, halfDelta) #print 'strength : '+str(strength)+"\t",
+    strength = getStrength(daycount, monthData, halfDelta) #print 'strength : '+str(strength)+"\t",
 
-        # This gives the midpoint of the last day
-        lastMidpoint = float(monthData[daycount-1]['close'])
+    # This gives the midpoint of the last day
+    lastMidpoint = float(monthData[daycount-1]['close'])
 
-        writePrediction(lastMidpoint+lastMidpoint*0.005, # half a percent above midpoint
-            lastMidpoint-lastMidpoint*0.005,
-            newDateString, # last day loaded
-            symbol,
-            standardDeltaPercent,
-            strength)
+    writePrediction(lastMidpoint+lastMidpoint*0.005, # half a percent above midpoint
+        lastMidpoint-lastMidpoint*0.005,
+        startDate,
+        symbol,
+        standardDeltaPercent,
+        strength)

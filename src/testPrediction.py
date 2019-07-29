@@ -21,9 +21,9 @@ predictionDB = blueHorseshoe.predictions
 historyDB = blueHorseshoe.history
 
 def getActual (sd, s, hDB) :
-    print "For the date " + sd
-    correctResult = hDB.find_one({"date" : sd, "symbol" : s}, {"_id":0,"date":1,"high":1,"low":1,"open":1,"close":1,"volume":1})
-    print correctResult
+#    print "For the date " + sd
+    correctResult = hDB.find_one({"date" : sd, "symbol" : s}, {"_id":0,"date":1,"high":1,"low":1})
+#    print correctResult
     if correctResult == None :
         print "Invalid Date"
         return
@@ -31,9 +31,8 @@ def getActual (sd, s, hDB) :
 
 
 def getPrediction (sd, s, pDB) :
-    print "\nPrediction from the date " + sd
+#    print "\nPrediction from the date " + sd
     prediction = pDB.find_one({"date" : sd, "symbol" : s})
-    print prediction
     if prediction == None :
         print "Invalid Date"
         return
@@ -42,26 +41,17 @@ def getPrediction (sd, s, pDB) :
 
 success = 0
 failure = 0
-for i in range(40) :
-    datetime_object = datetime.strptime(startDate, '%Y-%m-%d')
-    newDate = datetime_object - timedelta(days=i)
-    dayOfWeek = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
-    if newDate.weekday() < 5:
-        print dayOfWeek[newDate.weekday()]
-        newDateString = newDate.strftime('%Y-%m-%d')
-        correctResult = getActual(newDateString, symbol, historyDB)
-        prediction = getPrediction(newDateString, symbol, predictionDB)
+datetime_object = datetime.strptime(startDate, '%Y-%m-%d')
+dayOfWeek = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+if datetime_object.weekday() < 5:
+    correctResult = getActual(startDate, symbol, historyDB)
+    prediction = getPrediction(startDate, symbol, predictionDB)
+    print dayOfWeek[datetime_object.weekday()] + " " + startDate
 
-        if (correctResult != None) and (prediction != None) :
-            if (float(correctResult["high"]) < float(prediction["predictionHigh"])) or (float(correctResult["low"]) > float(prediction["predictionLow"])):
-                success += 1
-                print "Success!!!"
-            else :
-                failure += 1
-                print "failure"
-        print ""
-        print ""
-        print ""
-
-print "Successes = "+str(success)
-print "Failures = "+str(failure)
+    if (correctResult != None) and (prediction != None) :
+        print "high ("+str(prediction["predictionHigh"])+","+str(correctResult["high"])+") low (" + str(prediction["predictionLow"])+","+ str(correctResult["low"])+")"
+        if (float(correctResult["high"]) > float(prediction["predictionHigh"])) and (float(correctResult["low"]) < float(prediction["predictionLow"])):
+            print "Success!!!"
+        else :
+            print "failure"
+    print ""
