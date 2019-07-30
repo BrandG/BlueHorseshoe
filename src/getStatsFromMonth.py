@@ -104,9 +104,9 @@ def getParameters() :
 
 
 # Main functionality
-daycount = 30
+daycount = 20
 
-symbol, startDate = getParameters() #"1998-10-01"
+symbol, startDate = getParameters() #"IBM 1998-10-01"
 
 datetime_object = datetime.strptime(startDate, '%Y-%m-%d')
 dayOfWeek = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
@@ -114,6 +114,8 @@ if datetime_object.weekday() < 5:
     print dayOfWeek[datetime_object.weekday()] + " " + startDate
 
     monthData, daycount = readMonth(symbol, startDate, daycount)
+#    for i in range(daycount) :
+#        print monthData[i]["low"]
 
     midpointSlope = getMidpointSlope(daycount, monthData)
 
