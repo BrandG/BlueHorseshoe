@@ -22,11 +22,19 @@ def readMonth(symbol, startDate, daycount) :
     # those entries in the oldest-to-youngest format, we have to reverse that
     # result
 
+    # need to find a way to have it skip over this after the first few.
+    # Other times than that, this is just wasting a call
+    result = MongoClient().blueHorseshoe.history.count_documents({"date" : {"$lte" : startDate}, "symbol" : symbol})
+    print result
+    if int(result) < daycount+1 :
+        sys.exit(0)
+
     #get a month of data
     result = MongoClient().blueHorseshoe.history.find({"date" : {"$lte" : startDate}, "symbol" : symbol}, {"_id":0,"date":1,"high":1,"low":1,"close":1}).sort("date",-1).limit(daycount)
 
     #populate and reverse the array (based on date)
     readArray = []
+
     for document in range(daycount,0,-1) :
         readArray.append(result[document])
         print result[document]
@@ -96,8 +104,9 @@ def getMidpointSlope(daycount, monthData) :
 
 #//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--
 def getParameters() :
+    print sys.argv
     if len(sys.argv) < 3:
-        print "usage ./getStatsFromMonth.py <<symbol>> <<Year>>-<<Month>>-<<Day>>"
+        print "usage ./makeOnePredictionOneSymbol.py <<symbol>> <<Year>>-<<Month>>-<<Day>>"
         exit(0)
     return sys.argv[1], sys.argv[2]
 
