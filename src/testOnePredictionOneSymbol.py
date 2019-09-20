@@ -52,6 +52,8 @@ if datetime_object.weekday() < 5:
         print "high ("+str(prediction["predictionHigh"])+","+str(correctResult["high"])+") low (" + str(prediction["predictionLow"])+","+ str(correctResult["low"])+")"
         if (float(correctResult["high"]) > float(prediction["predictionHigh"])) and (float(correctResult["low"]) < float(prediction["predictionLow"])):
             print "Success!!!"
+            sys.exit(1)
         else :
             print "failure"
+            sys.exit(2)
     print ""
