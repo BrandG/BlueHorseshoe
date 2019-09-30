@@ -14,7 +14,7 @@ from subprocess import call
 #//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--
 def getParameters() :
     if len(sys.argv) < 2:
-        print "usage ./getStatsFromMonth.py <<symbol>> "
+        print "usage ./makeAllPredictionsOneSymbol.py <<symbol>> "
         exit(0)
     return sys.argv[1]
 
@@ -29,8 +29,8 @@ def getLatestDate(symbol) :
 
 symbol = getParameters()
 startDate = getEarliestDate(symbol)
-#endDate = getEarliestDate(symbol) + timedelta(days=1)
-endDate = getLatestDate(symbol)
+endDate = getEarliestDate(symbol) + timedelta(days=40)
+#endDate = getLatestDate(symbol)
 currentDate = startDate
 
 while currentDate < endDate :

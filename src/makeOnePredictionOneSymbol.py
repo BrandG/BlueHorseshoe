@@ -25,7 +25,7 @@ def readMonth(symbol, startDate, daycount) :
     # need to find a way to have it skip over this after the first few.
     # Other times than that, this is just wasting a call
     result = MongoClient().blueHorseshoe.history.count_documents({"date" : {"$lte" : startDate}, "symbol" : symbol})
-    print result
+#    print result
     if int(result) < daycount+1 :
         sys.exit(0)
 
@@ -37,7 +37,7 @@ def readMonth(symbol, startDate, daycount) :
 
     for document in range(daycount,0,-1) :
         readArray.append(result[document])
-        print result[document]
+#        print result[document]
     return readArray, len(readArray) #    print readArray
 
 
