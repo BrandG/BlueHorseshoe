@@ -7,60 +7,12 @@
 
 from datetime import datetime
 from datetime import timedelta
-import json
-from pymongo import MongoClient
-import pymongo
-import hashlib
-import sys
+from myMongo import getMonth
+from myMongo import writePrediction
 
 
 #//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--
-def readMonth(symbol, startDate, daycount) :
-    # Note: We swap the dates, then swap them again because, when we ask for
-    # "less than this date", we get the first entries in the DB, when what we
-    # want is to have the last entries before that date. However, since we need
-    # those entries in the oldest-to-youngest format, we have to reverse that
-    # result
-
-    # need to find a way to have it skip over this after the first few.
-    # Other times than that, this is just wasting a call
-    result = MongoClient().blueHorseshoe.history.count_documents({"date" : {"$lte" : startDate}, "symbol" : symbol})
-#    print result
-    if int(result) < daycount+1 :
-        sys.exit(0)
-
-    #get a month of data
-    result = MongoClient().blueHorseshoe.history.find({"date" : {"$lte" : startDate}, "symbol" : symbol}, {"_id":0,"date":1,"high":1,"low":1,"close":1}).sort("date",-1).limit(daycount)
-
-    #populate and reverse the array (based on date)
-    readArray = []
-
-    for document in range(daycount,0,-1) :
-        readArray.append(result[document])
-#        print result[document]
-    return readArray, len(readArray) #    print readArray
-
-
-#//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--
-def writePrediction(predictionHigh, predictionLow, startDate, symbol, deltaPercent, strength) :
-    # print 'prediction : High {0: .2f}, Low {1: .2f}, Delta {2: 0.2f}%, Strength {3: 0.2f}'.format(predictionHigh,predictionLow,deltaPercent,strength)
-
-    idVal = str(int(hashlib.md5(startDate+symbol).hexdigest(),16))
-    insertDict = {"_id":idVal,
-        "date" : startDate,
-        "symbol" : symbol,
-        "delta" : deltaPercent,
-        "strength" : strength,
-        "predictionLow" : predictionLow,
-        "predictionHigh" : predictionHigh}
-    try:
-        MongoClient().blueHorseshoe.predictions.insert_one(insertDict)
-    except pymongo.errors.DuplicateKeyError:
-        print "Duplicate Entry"
-
-
-#//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--
-def getStrength(daycount, monthData, halfDelta) :
+def getStrength(daycount, monthData, halfDelta, midpointSlope) :
     strength = 0
     for i in range(daycount-1):
         day = monthData[i]
@@ -103,45 +55,35 @@ def getMidpointSlope(daycount, monthData) :
 
 
 #//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--
-def getParameters() :
-    print sys.argv
-    if len(sys.argv) < 3:
-        print "usage ./makeOnePredictionOneSymbol.py <<symbol>> <<Year>>-<<Month>>-<<Day>>"
-        exit(0)
-    return sys.argv[1], sys.argv[2]
+def makeOnePredictionOneSymbol(startDate, symbol) :
+    # Main functionality
+    daycount = 20
 
+    datetime_object = datetime.strptime(startDate, '%Y-%m-%d')
+    dayOfWeek = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+    if datetime_object.weekday() < 5:
+        print dayOfWeek[datetime_object.weekday()] + " " + startDate
 
+        monthData = getMonth(startDate, symbol, daycount)
+        if monthData == 0 :
+            return
 
-# Main functionality
-daycount = 20
+        midpointSlope = getMidpointSlope(daycount, monthData)
 
-symbol, startDate = getParameters() #"IBM 1998-10-01"
+        averageHigh, averageLow = getAverages(daycount,monthData)
+        standardDelta = averageHigh-averageLow
 
-datetime_object = datetime.strptime(startDate, '%Y-%m-%d')
-dayOfWeek = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
-if datetime_object.weekday() < 5:
-    print dayOfWeek[datetime_object.weekday()] + " " + startDate
+        standardDeltaPercent = standardDelta/float(monthData[daycount-1]['close'])*100.0
+        halfDelta = standardDelta/2.0 #print 'delta'+" : {0: .2f}".format(deltaPercent)+"\t",
 
-    monthData, daycount = readMonth(symbol, startDate, daycount)
-#    for i in range(daycount) :
-#        print monthData[i]["low"]
+        strength = getStrength(daycount, monthData, halfDelta, midpointSlope) #print 'strength : '+str(strength)+"\t",
 
-    midpointSlope = getMidpointSlope(daycount, monthData)
+        # This gives the midpoint of the last day
+        lastMidpoint = float(monthData[daycount-1]['close'])
 
-    averageHigh, averageLow = getAverages(daycount,monthData)
-    standardDelta = averageHigh-averageLow
-
-    standardDeltaPercent = standardDelta/float(monthData[daycount-1]['close'])*100.0
-    halfDelta = standardDelta/2.0 #print 'delta'+" : {0: .2f}".format(deltaPercent)+"\t",
-
-    strength = getStrength(daycount, monthData, halfDelta) #print 'strength : '+str(strength)+"\t",
-
-    # This gives the midpoint of the last day
-    lastMidpoint = float(monthData[daycount-1]['close'])
-
-    writePrediction(lastMidpoint+lastMidpoint*0.005, # half a percent above midpoint
-        lastMidpoint-lastMidpoint*0.005,
-        startDate,
-        symbol,
-        standardDeltaPercent,
-        strength)
+        writePrediction(lastMidpoint+lastMidpoint*0.005, # half a percent above midpoint
+            lastMidpoint-lastMidpoint*0.005,
+            startDate,
+            symbol,
+            standardDeltaPercent,
+            strength)
