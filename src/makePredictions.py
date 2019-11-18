@@ -28,46 +28,62 @@ def predictAllDatesOneSymbol(symbol) :
             oneDateOneSymbol(currentDate.strftime("%Y-%m-%d"), symbol)
 
 #//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--
-def getStrength(daycount, monthData, halfDelta, midpointSlope) :
-    strength = 0
-    for i in range(daycount-1):
-        day = monthData[i]
-        nextMidpointGuess = ((float(day['high'])-float(day['low']))/2.0)+float(day['low'])+midpointSlope
-        nextHighGuess=nextMidpointGuess+halfDelta
-        nextLowGuess=nextMidpointGuess-halfDelta
-        nextday = monthData[i+1]
-        strength+=1 if nextHighGuess < float(nextday['high']) else 0
-        strength+=1 if nextLowGuess > float(nextday['low']) else 0
-    return strength
+# This corresponds to the D column from the BlueHorseshoe sheet
+#
+def getDailyDeltas(daycount, monthData) :
+    dailyDeltas = []
+    for i in range(daycount) :
+        dailyDeltas.append((float(monthData[i]['high'])-float(monthData[i]['low']))/2.0)
+    return dailyDeltas
 
 
 #//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--
-def getAverages(daycount, monthData) :
-    averageHigh = 0
-    averageLow = 0
-    for i in range(daycount):
-        day = monthData[i]
-        averageHigh += float(day["high"])
-        averageLow += float(day["low"])
+# This corresponds to the E column from the BlueHorseshoe sheet
+#
+def getMidpoints(daycount, monthData) :
+    midpoints = []
+    for i in monthData :
+        midpoints.append((float(i['high'])+float(i['low']))/2.0)
+    return midpoints
 
-    averageHigh /= float(daycount)
-    averageLow /= float(daycount)
-    return averageHigh, averageLow
 
 #//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--
-def getMidpointSlope(daycount, monthData) :
-    midpointSlope = 0
-    testSlope = 0
-    for i in range(daycount-1):
-        day = monthData[i]
-        nextday = monthData[i+1]
-        # midpoint = (( high - low ) / 2 ) + low
-        todayMidpoint = ((float(day['high'])-float(day['low'])) / 2.0) + float(day['low'])
-        tomorrowMidpoint = ((float(nextday['high'])-float(nextday['low'])) / 2.0) + float(nextday['low'])
-        midpointSlope += todayMidpoint - tomorrowMidpoint
+# This corresponds to the F column from the BlueHorseshoe sheet
+#
+def getMidpointDeltas(daycount, midpoints) :
+    midpointDeltas = []
+    for i in range(daycount-1) :
+        midpointDeltas.append(midpoints[i+1]-midpoints[i])
+    return midpointDeltas
 
-    midpointSlope/=daycount - 1
-    return midpointSlope
+
+#//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--
+# This corresponds to the last entry in the G column from the BlueHorseshoe sheet
+#
+def getTomorrowMidpoint(daycount, midpoints, midpointDeltas) :
+    midpointAverage = 0.0
+    for i in midpointDeltas :
+        midpointAverage += i
+    midpointAverage /= daycount
+    return midpointAverage + midpoints[daycount-1]
+
+#//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--
+# This corresponds to the final value of averageDelta from the BlueHorseshoe sheet
+#
+def getAverageDelta(daycount, dailyDeltas) :
+    averageDelta = 0.0
+    for i in dailyDeltas:
+        averageDelta += i
+    return averageDelta / daycount
+
+#//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--
+# This corresponds to the final value of averageMidpoint from the BlueHorseshoe sheet
+#
+def getAverageMidpoint(daycount, midpoints) :
+    averageMidpoint = 0.0
+    for i in midpoints:
+        averageMidpoint += i
+    return averageMidpoint / daycount
 
 
 #//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--
@@ -83,26 +99,21 @@ def predictOneDateOneSymbol(startDate, symbol) :
         monthData = getMonth(startDate, symbol, daycount)
         if monthData == 0 :
             return
+        dailyDeltas = getDailyDeltas(daycount, monthData)
+        midpoints = getMidpoints(daycount, monthData)
+        midpointDeltas = getMidpointDeltas(daycount, midpoints)
+        tomorrowMidpoint = getTomorrowMidpoint(daycount, midpoints, midpointDeltas)
+        print "tomorrowMidpoint = "+str(tomorrowMidpoint)
 
-        midpointSlope = getMidpointSlope(daycount, monthData)
+        averageDelta = str(100.0*getAverageDelta(daycount, dailyDeltas)/getAverageMidpoint(daycount, midpoints))
+        print "Average delta % = " + averageDelta
 
-        averageHigh, averageLow = getAverages(daycount,monthData)
-        standardDelta = averageHigh-averageLow
-
-        standardDeltaPercent = standardDelta/float(monthData[daycount-1]['close'])*100.0
-        halfDelta = standardDelta/2.0 #print 'delta'+" : {0: .2f}".format(deltaPercent)+"\t",
-
-        strength = getStrength(daycount, monthData, halfDelta, midpointSlope) #print 'strength : '+str(strength)+"\t",
-
-        # This gives the midpoint of the last day
-        lastMidpoint = float(monthData[daycount-1]['close'])
-
-        writePrediction(lastMidpoint+lastMidpoint*0.005, # half a percent above midpoint
-            lastMidpoint-lastMidpoint*0.005,
-            startDate,
-            symbol,
-            standardDeltaPercent,
-            strength)
+#         writePrediction(lastMidpoint+lastMidpoint*0.005, # half a percent above midpoint
+#             lastMidpoint-lastMidpoint*0.005,
+#             startDate,
+#             symbol,
+#             standardDeltaPercent,
+#             strength)
 
 #//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--
 
