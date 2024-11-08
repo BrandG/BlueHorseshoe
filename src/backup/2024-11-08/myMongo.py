@@ -1,11 +1,11 @@
 #!/usr/bin/python
 
-from pymongo import MongoClient
+import pymongo
 import hashlib
 from datetime import datetime
 from datetime import timedelta
 
-db = MongoClient().blueHorseshoe
+db = pymongo.MongoClient().blueHorseshoe
 historyColl = db.history
 predictionColl = db.predictions
 validityColl = db.validity
@@ -21,7 +21,7 @@ def exportSymbolList():
 def getOneDate (sd, s) :
     correctResult = historyColl.find_one({"date" : sd, "symbol" : s}, {"_id":0,"date":1,"high":1,"low":1})
     if correctResult == None :
-        print "Invalid Date"
+        print("Invalid Date")
         return
     return correctResult
 
@@ -32,14 +32,14 @@ def getEarliestDate(symbol,daycount) :
 
 #//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--
 def getLatestDate(symbol) :
-    result = MongoClient().blueHorseshoe.history.find({"symbol" : symbol}).sort("date",-1).limit(1)
+    result = pymongo.MongoClient().blueHorseshoe.history.find({"symbol" : symbol}).sort("date",-1).limit(1)
     return datetime.strptime(result[0]["date"], '%Y-%m-%d')
 
 #//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--
 def getPrediction (sd, s) :
     prediction = predictionColl.find_one({"date" : sd, "symbol" : s})
     if prediction == None :
-        print "Invalid Date"
+        print("Invalid Date")
         return
     return prediction
 
@@ -77,7 +77,7 @@ def writePrediction(predictionHigh, predictionLow, startDate, symbol, deltaPerce
     try:
         predictionColl.replace_one({"_id":idVal},insertDict,upsert=True)
     except pymongo.errors.DuplicateKeyError:
-        print "Duplicate Entry"
+        print("Duplicate Entry")
 
 
 #//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--
@@ -91,7 +91,7 @@ def writeValidity(startDate,symbol,successes,failures) :
     try:
         validityColl.replace_one({"_id":idVal},insertDict,upsert=True)
     except pymongo.errors.DuplicateKeyError:
-        print "Duplicate Entry"
+        print ("Duplicate Entry")
 
 
 

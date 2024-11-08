@@ -4,15 +4,14 @@ import sys
 from datetime import timedelta
 from datetime import datetime
 from myMongo import getEarliestDate
-from myMongo import getLatestDate
 from myMongo import getMonth
-from myMongo import writePrediction
+from testPredictions import allDatesOneSymbol, oneDateOneSymbol
 
 def predictAllDatesAllSymbols() :
     with open("/home/paperspace/BlueHorseshoe/data/symbollist.txt","r") as f :
         for symbolItem in f :
             symbol = symbolItem[:-1]
-            print symbol
+            print ("symbol")
             allDatesOneSymbol(symbol)
 
 def predictAllDatesOneSymbol(symbol) :
@@ -24,7 +23,7 @@ def predictAllDatesOneSymbol(symbol) :
     while currentDate < endDate :
         currentDate = currentDate + timedelta(days=1)
         if currentDate.weekday() < 5:
-            print currentDate
+            print(currentDate)
             oneDateOneSymbol(currentDate.strftime("%Y-%m-%d"), symbol)
 
 #//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--
@@ -94,7 +93,7 @@ def predictOneDateOneSymbol(startDate, symbol) :
     datetime_object = datetime.strptime(startDate, '%Y-%m-%d')
     dayOfWeek = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
     if datetime_object.weekday() < 5:
-        print dayOfWeek[datetime_object.weekday()] + " " + startDate
+        print('dayOfWeek[datetime_object.weekday()] + " " + startDate')
 
         monthData = getMonth(startDate, symbol, daycount)
         if monthData == 0 :
@@ -103,10 +102,10 @@ def predictOneDateOneSymbol(startDate, symbol) :
         midpoints = getMidpoints(daycount, monthData)
         midpointDeltas = getMidpointDeltas(daycount, midpoints)
         tomorrowMidpoint = getTomorrowMidpoint(daycount, midpoints, midpointDeltas)
-        print "tomorrowMidpoint = "+str(tomorrowMidpoint)
+        print("tomorrowMidpoint = "+str(tomorrowMidpoint))
 
         averageDelta = str(100.0*getAverageDelta(daycount, dailyDeltas)/getAverageMidpoint(daycount, midpoints))
-        print "Average delta % = " + averageDelta
+        print("Average delta % = " + averageDelta)
 
 #         writePrediction(lastMidpoint+lastMidpoint*0.005, # half a percent above midpoint
 #             lastMidpoint-lastMidpoint*0.005,
