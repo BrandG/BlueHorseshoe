@@ -6,7 +6,6 @@ import time
 import io
 import csv
 from datetime import datetime, timedelta
-from historicalData import load_historical_data_from_file
 
 
 # Constants
@@ -203,7 +202,7 @@ def get_symbol_list():
 
 
 
-def get_symbol_sublist(listType, historical_data=None, symbol=''):
+def get_symbol_sublist(listType, historical_data=None):
     """
     Generates a sublist of specific financial data from historical data.
 
@@ -226,7 +225,6 @@ def get_symbol_sublist(listType, historical_data=None, symbol=''):
 
     Usage:
         get_symbol_sublist('high', historical_data=historical_data)
-        get_symbol_sublist('midpoint', symbol='QGEN')
         get_symbol_sublist('low', historical_data = load_historical_data_from_file('QGEN')['days'])
 
     Notes:
@@ -234,9 +232,8 @@ def get_symbol_sublist(listType, historical_data=None, symbol=''):
         - If an invalid listType is provided, the function will print "Invalid listType" and continue.
     """
     if historical_data is None:
-        if symbol == '':
-            return retVal
-        historical_data = load_historical_data_from_file(symbol)['days']
+        print("No historical data provided. Please provide historical data or a symbol.")
+        return []
 
     retVal = []
     for day in historical_data:
@@ -271,7 +268,7 @@ def get_symbol_sublist(listType, historical_data=None, symbol=''):
     return retVal
 
 
-def clip_data_to_dates(symbol='', price_data=None, end_date='', daterange=100):
+def clip_data_to_dates(price_data=None, end_date='', daterange=100):
     """
     Clips the given price data list to a specified date range ending at the given end date.
 
@@ -289,7 +286,7 @@ def clip_data_to_dates(symbol='', price_data=None, end_date='', daterange=100):
         end_date = datetime.today().strftime("%Y-%m-%d")
     end_date_dt = datetime.strptime(end_date, '%Y-%m-%d')
     if price_data is None:
-        price_data = load_historical_data_from_file(symbol)['days']
+        return results
     for day in price_data:
         current_date_dt = datetime.strptime(day['date'], '%Y-%m-%d')
         start_date_dt = end_date_dt - timedelta(days=daterange)

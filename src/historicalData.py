@@ -35,12 +35,7 @@ def get_history_from_net(stock_symbol, recent=False):
     symbol = {'name': stock_symbol}
 
     outputsize = 'full' if not recent else 'compact'
-    api_key = os.getenv('ALPHA_VANTAGE_API_KEY', '')  # Use environment variable for API key
-    if not api_key:
-        print("Error: API key not found. Please set the ALPHA_VANTAGE_API_KEY environment variable.")
-        return None
-
-    url = f"https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&outputsize={outputsize}&symbol={stock_symbol}&apikey={api_key}"
+    url = f"https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&outputsize={outputsize}&symbol={stock_symbol}&apikey=JFRQJ8YWSX8UK50X"
 
     response = requests.get(url)
     response.raise_for_status()  # Raise an exception for bad status codes
