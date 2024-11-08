@@ -6,12 +6,8 @@ import time
 import io
 import csv
 from datetime import datetime, timedelta
+from historicalData import load_historical_data_from_file
 
-
-# Mount Google Drive
-# import os
-# if not os.path.isdir('/content/drive'):
-#     drive.mount('/content/drive')
 
 # Constants
 
@@ -31,7 +27,7 @@ stability_score_modifier = 0.50 # default = 0.35
 
 combined_score_mul=[0.75,0.25]
 
-base_path = '/content/drive/MyDrive/Projects/Programming/BlueHorseshoe/Historical Data/'
+base_path = '/workspaces/BlueHorseshoe/historical_data/'
 
 
 # Functions
@@ -106,42 +102,6 @@ def graph(xLabel = 'x', yLabel = 'y', title = 'title', curves = None, lines = No
         plt.show()
     except Exception as e:
         print(f"An error occurred while plotting the graph: {e}")
-
-
-
-def load_historical_data_from_file(symbol):
-    """
-    Loads historical stock price data from a JSON file for a given symbol.
-
-    Usage:
-        print(load_historical_data_from_file('QGEN'))
-
-    Args:
-        symbol (str): The stock symbol for which to load historical data.
-
-    Returns:
-        dict: A dictionary containing the historical data if the file is found and successfully read.
-        None: If the file is not found or an error occurs during reading.
-
-    Raises:
-        FileNotFoundError: If the file does not exist at the specified path.
-    """
-    file_name = os.path.join(base_path, f'StockPrice-{symbol}.json')
-
-    try:
-        with open(file_name, 'r') as file:
-            data = json.load(file)
-            return data
-    except FileNotFoundError:
-        print(f"Error: File not found at {file_name}. Please check the file ID and path.")
-    except json.JSONDecodeError:
-        print(f"Error: Failed to decode JSON from file {file_name}. The file may be corrupted.")
-    except PermissionError:
-        print(f"Error: Permission denied when trying to read file {file_name}.")
-    except Exception as e:
-        print(f"An unexpected error occurred: {e}")
-    return None
-
 
 
 
