@@ -1,4 +1,7 @@
-from Globals import const_date_range, get_symbol_sublist
+from Globals import calculate_ewma_delta, clip_data_to_dates, const_date_range, get_symbol_list, get_symbol_sublist
+from Globals import adjusted_rolling_close_open_modifier, adjusted_weighted_price_stability_modifier, adjusted_modified_atr_modifier, combined_score_mul, stability_score_modifier
+from StandardDeviation import calculate_stability_score
+from historicalData import load_historical_data
 
 
 def get_rolling_close_open_delta_percentage(price_data=None, daterange=const_date_range, window_size=5):
@@ -114,6 +117,19 @@ def get_MATR_stability(price_data=None, daterange=const_date_range):
     """
     Calculate the Modified Average True Range (MATR) stability for a given set of price data.
 
+    The Modified Average True Range (ATR) is an adaptation of the traditional Average True Range 
+    (ATR), a widely used indicator in technical analysis for measuring market volatility. The 
+    traditional ATR calculates the average range between the high and low prices over a specified 
+    period, incorporating gaps by considering the previous close as well. The Modified ATR makes 
+    adjustments to this calculation to tailor it for specific trading strategies or to smooth out 
+    anomalies in volatility.
+
+    This version is the EMA modification (exponential moving average). It should prioritize recent 
+    price changes over older data. Maybe we try one of the others like Relative ATR 
+    (percentage-based. Good for comparing to other stocks), or Volume weighted. 🤷
+
+    Note: I did make some changes to make it return a stability percentage.
+
     Parameters:
     price_data (list of dict): A list of dictionaries containing price information with keys 'high', 'low', and 'close'.
     daterange (int): The number of days to consider for the calculation.
@@ -170,3 +186,41 @@ def get_MATR_stability(price_data=None, daterange=const_date_range):
 
     return sum(modified_atr[:daterange]) / daterange
     
+
+    
+def get_stability_score(historical_data):
+    adjusted_rolling_close_open_delta = get_rolling_close_open_delta_percentage(historical_data) * adjusted_rolling_close_open_modifier
+    adjusted_weighted_price_stability = get_weighted_price_stability(historical_data) * adjusted_weighted_price_stability_modifier
+    adjusted_modified_atr = get_MATR_stability(historical_data) * adjusted_modified_atr_modifier
+    stability_score = calculate_stability_score(historical_data) * stability_score_modifier
+
+    return (adjusted_rolling_close_open_delta + \
+                            adjusted_weighted_price_stability + \
+                            adjusted_modified_atr + \
+                            stability_score) / 4
+
+
+def get_top_ten_stability_scores():
+    results=[]
+    for symbol in get_symbol_list():
+        price_data = load_historical_data(symbol['symbol'])
+        if price_data is None:
+            print(f'No data found for {symbol["symbol"]}')
+            continue
+        price_data = clip_data_to_dates(price_data["days"], '2024-10-15',40)
+        stability_score = get_stability_score(price_data)
+        delta = calculate_ewma_delta(price_data)
+
+        results.append({'symbol':symbol,
+                        'dailyDelta':delta,
+                        'stability':stability_score,
+                        'combinedScore': delta * combined_score_mul[0] + stability_score * combined_score_mul[1]})
+
+    # Filter out the bad data
+    results = [result for result in results if result['stability'] < 100.0 and result['dailyDelta'] > 0.012 and result['symbol']['name'] != '']
+
+    # Sort by stabiility and delta
+    results.sort(key=lambda x:(x['combinedScore']), reverse=False)
+    print(f'Returning top 10 stability scores {results[:10]}')
+
+    return results[:10]

@@ -3,7 +3,7 @@ import time
 import os
 import json
 
-from Globals import get_symbol_list_from_net, base_path
+from Globals import get_symbol_list, base_path
 
 def get_history_from_net(stock_symbol, recent=False):
     """
@@ -32,6 +32,7 @@ def get_history_from_net(stock_symbol, recent=False):
     Raises:
         requests.exceptions.HTTPError: If the HTTP request returned an unsuccessful status code.
     """
+    time.sleep(1)  # Ensure we don't exceed API rate limits
     symbol = {'name': stock_symbol}
 
     outputsize = 'full' if not recent else 'compact'
@@ -72,9 +73,9 @@ def get_history_from_net(stock_symbol, recent=False):
                 'close_open_delta_percentage': close_open_delta_percentage
             })
     else:
-        raise ValueError(f"'Time Series (Daily)' key not found in response for {stock_symbol}. Response: {json_data}")
+        print(f"'Time Series (Daily)' key not found in response for {stock_symbol}. Response: {json_data}")
+        return None
 
-    time.sleep(1)  # Ensure we don't exceed API rate limits
     return symbol
 
 
@@ -125,7 +126,7 @@ def build_all_symbols_history(starting_at=''):
 
     This function retrieves a list of stock symbols from the network and iterates through each symbol to fetch its historical data. The data is then saved as a JSON file in a specified directory. If a starting symbol is provided, the function skips all symbols until it reaches the specified starting symbol.
     """
-    symbol_list = get_symbol_list_from_net()
+    symbol_list = get_symbol_list()
     index = 0
 
     skip = True if starting_at else False
@@ -195,11 +196,15 @@ def load_historical_data_from_file(symbol):
         print(f"An unexpected error occurred: {e}")
     return None
 
+def load_historical_data(symbol):
+    data = load_historical_data_from_file(symbol)
+    if data is None:
+        data = get_history_from_net(symbol)
+    return data
 
-
-if __name__ == "__main__":
-    print('Running historicalData.py')
-    print(get_history_from_net('AAPL'))
-    print(merge_data({'days': []}, {'name': 'AAPL', 'days': []}))
-    build_all_symbols_history()
-    print(load_historical_data_from_file('AAPL'))
+# if __name__ == "__main__":
+#     print('Running historicalData.py')
+    # print(get_history_from_net('AAPL'))
+    # print(merge_data({'days': []}, {'name': 'AAPL', 'days': []}))
+    # build_all_symbols_history()
+    # print(load_historical_data_from_file('AAPL'))

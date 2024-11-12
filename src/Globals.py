@@ -141,24 +141,6 @@ def get_symbol_list_from_net():
 
 
 
-
-def write_symbol_list_to_file(symbol_list):
-    """
-    Writes a list of symbols to a JSON file.
-
-    Args:
-        symbol_list (list): A list of symbols to be written to the file.
-
-    The file is saved to the following path:
-    '/content/drive/MyDrive/Projects/Programming/BlueHorseshoe/Historical Data/symbol_list.json'
-    """
-    file_name = '/content/drive/MyDrive/Projects/Programming/BlueHorseshoe/Historical Data/symbol_list.json'
-    with open(file_name, 'w') as file:
-        json.dump(symbol_list, file)
-
-
-
-
 def read_symbol_list_from_file():
     """
     Reads a list of symbols from a JSON file.
@@ -172,7 +154,7 @@ def read_symbol_list_from_file():
         list: A list of symbols if the file is successfully read and parsed.
         None: If an error occurs during file reading or parsing.
     """
-    file_name = '/content/drive/MyDrive/Projects/Programming/BlueHorseshoe/Historical Data/symbol_list.json'
+    file_name = os.path.join(base_path, 'symbol_list.json')
     try:
         with open(file_name, 'r') as file:
             return json.load(file)
@@ -197,7 +179,16 @@ def get_symbol_list():
     symbol_list = read_symbol_list_from_file()
     if symbol_list is None:
         symbol_list = get_symbol_list_from_net()
-        write_symbol_list_to_file(symbol_list)
+        file_name = os.path.join(base_path, 'symbol_list.json')
+
+        # Create the directory if it does not exist
+        os.makedirs(base_path, exist_ok=True)
+
+        try:
+            with open(file_name, 'w') as file:
+                json.dump(symbol_list, file)
+        except Exception as e:
+            print(f"An error occurred while writing the symbol list to file: {e}")
     return symbol_list
 
 
@@ -293,3 +284,45 @@ def clip_data_to_dates(price_data=None, end_date='', daterange=100):
         if current_date_dt < end_date_dt and current_date_dt > start_date_dt:
             results.append(day)
     return results
+
+
+def calculate_ewma_delta(price_data, period=20):
+    """
+    Calculates the Exponentially Weighted Moving Average (EWMA) of daily deltas for the given price data.
+
+    Args:
+        price_data (list): A list of dictionaries containing 'high' and 'low' price data.
+        period (int): The period for calculating the EWMA. Default is 20.
+
+    Returns:
+        float: The EWMA of daily deltas. Returns 0 if there is insufficient data.
+    """
+    if not isinstance(price_data, list) or not all(isinstance(item, dict) for item in price_data):
+        raise ValueError("price_data must be a list of dictionaries")
+
+    daily_deltas = []
+    for price_obj in price_data:
+        if 'high' in price_obj and 'low' in price_obj:
+            try:
+                high = float(price_obj['high'])
+                low = float(price_obj['low'])
+            except ValueError:
+                continue  # Skip this entry if conversion fails
+            average_price = (high + low) / 2  # Optionally use close price as the baseline
+            daily_delta = ((high - low) / average_price)  # Convert to percentage
+            daily_deltas.append(daily_delta)
+
+    if len(daily_deltas) == 0:
+        return 0
+
+    # Set smoothing factor
+    alpha = 2 / (period + 1)
+
+    # Initialize EWMA with the first delta value
+    ewma = daily_deltas[0]
+
+    # Apply EWMA formula for each subsequent delta
+    for delta in daily_deltas[1:]:
+        ewma = (delta * alpha) + (ewma * (1 - alpha))
+
+    return ewma

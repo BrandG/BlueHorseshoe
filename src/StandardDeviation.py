@@ -59,7 +59,7 @@ def drawStdev(midpoints):
 
 
 
-def calculate_stability_score(price_data):
+def calculate_stability_score(price_data = None):
     """
     Calculate the stability score for a given symbol based on its price data.
 
@@ -69,7 +69,7 @@ def calculate_stability_score(price_data):
     in a higher stability score.
 
     Args:
-        price_data (list, optional): A list of price data points. Defaults to an empty list.
+        price_data (list): A list of price data points. Defaults to an empty list.
 
     Returns:
         float: The calculated stability score. Returns 0 if there is no data or if the 
@@ -81,6 +81,9 @@ def calculate_stability_score(price_data):
         print(calculate_stability_score(load_historical_data_from_file('A')['days'][:40]))
 
     """
+    if not price_data:
+        return 0
+    
     midpoints = get_symbol_sublist('midpoint', historical_data=price_data)
     stdev = get_stdev(midpoints)
 
@@ -221,9 +224,3 @@ def analyze_symbol_stability(symbols):
         graph(xLabel="date", yLabel="Value", title="Graph of midpoints",
               curves=[{'curve':midpoints},{'curve':highpoints, 'color':'pink'},{'curve':lowpoints, 'color':'purple'}],
               lines=[ {'y':midpointMean, 'color':'r', 'linestyle':'-'}, ])
-
-
-
-
-if __name__ == '__main__':
-    print("Analyzing symbol stability...")
