@@ -2,16 +2,12 @@ import os
 import matplotlib.pyplot as plt
 import json
 import requests
-import time
 import io
 import csv
 from datetime import datetime, timedelta
+from ratelimit import limits, sleep_and_retry
+import logging
 
-
-# Mount Google Drive
-# import os
-# if not os.path.isdir('/content/drive'):
-#     drive.mount('/content/drive')
 
 # Constants
 
@@ -31,8 +27,11 @@ stability_score_modifier = 0.50 # default = 0.35
 
 combined_score_mul=[0.75,0.25]
 
-base_path = '/content/drive/MyDrive/Projects/Programming/BlueHorseshoe/Historical Data/'
+base_path = '/workspaces/BlueHorseshoe/historical_data/'
 
+invalid_symbols = ['AJXA','APGB','AQNA','ARGO','BBLN','BCPA','BCPB', 'BFX','BOAC','BODY','CBX','CCV',
+                   'CPTK','CSTA','ECG','EOCW','GCTSW','HT','INGM','ISG','JHAA','LHC','OSG','PNSTWS',
+                   'PRMB','SCU','SIX','TMAC','USX','VMW']
 
 # Functions
 
@@ -105,46 +104,12 @@ def graph(xLabel = 'x', yLabel = 'y', title = 'title', curves = None, lines = No
             plt.scatter(point['x'], point['y'], color=color)
         plt.show()
     except Exception as e:
-        print(f"An error occurred while plotting the graph: {e}")
+        logging.error(f"An error occurred while plotting the graph: {e}")
 
 
 
-def load_historical_data_from_file(symbol):
-    """
-    Loads historical stock price data from a JSON file for a given symbol.
-
-    Usage:
-        print(load_historical_data_from_file('QGEN'))
-
-    Args:
-        symbol (str): The stock symbol for which to load historical data.
-
-    Returns:
-        dict: A dictionary containing the historical data if the file is found and successfully read.
-        None: If the file is not found or an error occurs during reading.
-
-    Raises:
-        FileNotFoundError: If the file does not exist at the specified path.
-    """
-    file_name = os.path.join(base_path, f'StockPrice-{symbol}.json')
-
-    try:
-        with open(file_name, 'r') as file:
-            data = json.load(file)
-            return data
-    except FileNotFoundError:
-        print(f"Error: File not found at {file_name}. Please check the file ID and path.")
-    except json.JSONDecodeError:
-        print(f"Error: Failed to decode JSON from file {file_name}. The file may be corrupted.")
-    except PermissionError:
-        print(f"Error: Permission denied when trying to read file {file_name}.")
-    except Exception as e:
-        print(f"An unexpected error occurred: {e}")
-    return None
-
-
-
-
+@sleep_and_retry
+@limits(calls=1, period=1)
 def get_symbol_list_from_net():
     """
     Fetches a list of active stock symbols from the NYSE exchange using the Alpha Vantage API.
@@ -159,8 +124,7 @@ def get_symbol_list_from_net():
     Raises:
         requests.exceptions.HTTPError: If the HTTP request returned an unsuccessful status code.
     """
-    retval = []
-    response = requests.get(f"https://www.alphavantage.co/query?function=LISTING_STATUS&apikey=JFRQJ8YWSX8UK50X")
+    response = requests.get("https://www.alphavantage.co/query?function=LISTING_STATUS&apikey=JFRQJ8YWSX8UK50X")
 
     response.raise_for_status()  # Raise an exception for bad status codes
 
@@ -173,30 +137,13 @@ def get_symbol_list_from_net():
 
     final_data = []
     for row in loaded_data:
-        if row['status'] == 'Active' and row['exchange'] == 'NYSE' and row['assetType'] == 'Stock' and '-' not in row['symbol']:
+        if (row['status'] == 'Active' and 
+            row['exchange'] == 'NYSE' and 
+            row['assetType'] == 'Stock' and 
+            '-' not in row['symbol']):
             final_data.append({ 'symbol': row['symbol'].replace("/", ""), 'name': row['name']})
 
-    # We shouldn't make more than one call per second. This certifies it.
-    time.sleep(1)
     return final_data
-
-
-
-
-def write_symbol_list_to_file(symbol_list):
-    """
-    Writes a list of symbols to a JSON file.
-
-    Args:
-        symbol_list (list): A list of symbols to be written to the file.
-
-    The file is saved to the following path:
-    '/content/drive/MyDrive/Projects/Programming/BlueHorseshoe/Historical Data/symbol_list.json'
-    """
-    file_name = '/content/drive/MyDrive/Projects/Programming/BlueHorseshoe/Historical Data/symbol_list.json'
-    with open(file_name, 'w') as file:
-        json.dump(symbol_list, file)
-
 
 
 
@@ -213,16 +160,20 @@ def read_symbol_list_from_file():
         list: A list of symbols if the file is successfully read and parsed.
         None: If an error occurs during file reading or parsing.
     """
-    file_name = '/content/drive/MyDrive/Projects/Programming/BlueHorseshoe/Historical Data/symbol_list.json'
+    file_path = os.path.join(base_path, 'symbol_list.json')
     try:
-        with open(file_name, 'r') as file:
+        with open(file_path, 'r') as file:
             return json.load(file)
     except FileNotFoundError:
-        print(f"Error: File not found at {file_name}. Please check the file ID and path.")
+        logging.error(f"Error: File not found at {file_path}. Please check the file path.")
+    except UnicodeDecodeError:
+        logging.error(f"Error: Unable to decode the file {file_path}. Please check the file encoding.")
     except json.JSONDecodeError:
-        print(f"Error: Invalid JSON data in {file_name}.")
+        logging.error(f"Error: Invalid JSON data in {file_path}.")
     except Exception as e:
-        print(f"An unexpected error occurred: {e}")
+        logging.error(f"An unexpected error of type {type(e).__name__} occurred: {e}")
+        
+    print(f"Error: Could not open file {file_path}. Please check the logs.")
     return None
 
 
@@ -238,12 +189,22 @@ def get_symbol_list():
     symbol_list = read_symbol_list_from_file()
     if symbol_list is None:
         symbol_list = get_symbol_list_from_net()
-        write_symbol_list_to_file(symbol_list)
+        file_path = os.path.join(base_path, 'symbol_list.json')
+
+        # Create the directory if it does not exist
+        os.makedirs(base_path, exist_ok=True)
+
+        try:
+            with open(file_path, 'w') as file:
+                json.dump(symbol_list, file)
+        except Exception as e:
+            logging.error(f"An error occurred while writing the symbol list to file: {e}")
+    symbol_list = [symbol for symbol in symbol_list if symbol['symbol'] not in invalid_symbols]
     return symbol_list
 
 
 
-def get_symbol_sublist(listType, historical_data=None, symbol=''):
+def get_symbol_sublist(listType, historical_data=None):
     """
     Generates a sublist of specific financial data from historical data.
 
@@ -266,17 +227,15 @@ def get_symbol_sublist(listType, historical_data=None, symbol=''):
 
     Usage:
         get_symbol_sublist('high', historical_data=historical_data)
-        get_symbol_sublist('midpoint', symbol='QGEN')
         get_symbol_sublist('low', historical_data = load_historical_data_from_file('QGEN')['days'])
 
     Notes:
         - If both historical_data and symbol are not provided, the function will return an empty list.
-        - If an invalid listType is provided, the function will print "Invalid listType" and continue.
+        - If an invalid listType is provided, the function will write a warning to the log and return an empty list.
     """
     if historical_data is None:
-        if symbol == '':
-            return retVal
-        historical_data = load_historical_data_from_file(symbol)['days']
+        logging.warning("No historical data provided. Please provide historical data or a symbol.")
+        return []
 
     retVal = []
     for day in historical_data:
@@ -303,15 +262,15 @@ def get_symbol_sublist(listType, historical_data=None, symbol=''):
                 case 'close_open_delta_percentage':
                     retVal.append(float(day['close_open_delta_percentage']))
                 case _:
-                    print("Invalid listType")
+                    logging.warning("Invalid listType")
         except (ValueError, TypeError) as e:
-            print(f"Invalid historical data. Making a list of {listType}, but the data was {e}")
+            logging.warning(f"Invalid historical data. Making a list of {listType}, but the data was {e}")
             continue
 
     return retVal
 
 
-def clip_data_to_dates(symbol='', price_data=None, end_date='', daterange=100):
+def clip_data_to_dates(price_data=None, end_date='', daterange=100):
     """
     Clips the given price data list to a specified date range ending at the given end date.
 
@@ -329,10 +288,55 @@ def clip_data_to_dates(symbol='', price_data=None, end_date='', daterange=100):
         end_date = datetime.today().strftime("%Y-%m-%d")
     end_date_dt = datetime.strptime(end_date, '%Y-%m-%d')
     if price_data is None:
-        price_data = load_historical_data_from_file(symbol)['days']
+        return results
     for day in price_data:
         current_date_dt = datetime.strptime(day['date'], '%Y-%m-%d')
         start_date_dt = end_date_dt - timedelta(days=daterange)
-        if current_date_dt < end_date_dt and current_date_dt > start_date_dt:
+        if current_date_dt <= end_date_dt and current_date_dt > start_date_dt:
             results.append(day)
     return results
+
+
+def calculate_ewma_delta(price_data, period=20):
+    """
+    Calculates the Exponentially Weighted Moving Average (EWMA) of daily deltas for the given price data.
+
+    Args:
+        price_data (list): A list of dictionaries containing 'high' and 'low' price data.
+        period (int): The period for calculating the EWMA. Default is 20.
+
+    Returns:
+        float: The EWMA of daily deltas. Returns 0 if there is insufficient data.
+    """
+    if not isinstance(price_data, list) or not all(isinstance(item, dict) for item in price_data) or len(price_data) == 0:
+        raise ValueError("price_data must be a non-empty list of dictionaries")
+
+    daily_deltas = []
+    for price_obj in price_data:
+        try:
+            high = float(price_obj.get('high', 0))
+            low = float(price_obj.get('low', 0))
+        except (ValueError, TypeError):
+            logging.warning("Invalid price data. Skipping entry.")
+            continue  # Skip this entry if conversion fails
+        if high == 0 and low == 0:
+            logging.warning("Both high and low prices are zero. Skipping entry.")
+            continue  # Skip if both high and low are zero
+        average_price = (high + low) / 2  # Optionally use close price as the baseline
+        daily_delta = ((high - low) / average_price)  # Convert to percentage
+        daily_deltas.append(daily_delta)
+
+    if len(daily_deltas) == 0:
+        return 0
+
+    # Set smoothing factor
+    alpha = 2 / (period + 1)
+
+    # Initialize EWMA with the first delta value
+    ewma = daily_deltas[0]
+
+    # Apply EWMA formula for each subsequent delta
+    for delta in daily_deltas[1:]:
+        ewma = (delta * alpha) + (ewma * (1 - alpha))
+
+    return ewma
