@@ -7,9 +7,8 @@ import csv
 from datetime import datetime, timedelta
 from ratelimit import limits, sleep_and_retry
 import logging
+from pymongo import MongoClient
 
-
-# Constants
 
 # When calculating the stability score (2.B.1), set these to determine which is more important
 # for finding a good stability value.
@@ -33,7 +32,20 @@ invalid_symbols = ['AJXA','APGB','AQNA','ARGO','BBLN','BCPA','BCPB', 'BFX','BOAC
                    'CPTK','CSTA','ECG','EOCW','GCTSW','HT','INGM','ISG','JHAA','LHC','OSG','PNSTWS',
                    'PRMB','SCU','SIX','TMAC','USX','VMW']
 
-# Functions
+def get_mongo_client(uri="mongodb://localhost:27017/", db_name="blueHorseshoe"):
+    """
+    Creates and returns a MongoDB client connected to the specified URI and database.
+
+    Args:
+        uri (str): The URI for the MongoDB connection. Default is "mongodb://localhost:27017/".
+        db_name (str): The name of the database to connect to. Default is "blueHorseshoe".
+
+    Returns:
+        pymongo.database.Database: The database client connected to the specified database.
+    """
+    client = MongoClient(uri)
+    db = client[db_name]
+    return db
 
 def graph(xLabel = 'x', yLabel = 'y', title = 'title', curves = None, lines = None, points = None):
     """
@@ -141,7 +153,10 @@ def get_symbol_list_from_net():
             row['exchange'] == 'NYSE' and 
             row['assetType'] == 'Stock' and 
             '-' not in row['symbol']):
-            final_data.append({ 'symbol': row['symbol'].replace("/", ""), 'name': row['name']})
+            final_data.append({
+                'symbol': row['symbol'].replace("/", ""),
+                'name': row['name']
+            })
 
     return final_data
 

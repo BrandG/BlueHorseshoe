@@ -4,7 +4,7 @@ import json
 from ratelimit import limits, sleep_and_retry
 import heapq
 
-from Globals import get_symbol_list, base_path
+from Globals import get_mongo_client, get_symbol_list, base_path
 
 @sleep_and_retry
 @limits(calls=60, period=60)  # 60 calls per 60 seconds
@@ -59,8 +59,8 @@ def get_history_from_net(stock_symbol, recent=False):
             midpoint = round((open_price + close) / 2, 4)
             high_low_delta = round(abs(high - low), 4)
             open_close_delta = round(abs(open_price - close), 4)
-            high_low_delta_percentage = round(abs((high - low) / (close + 1e-6)), 4)
-            close_open_delta_percentage = round(abs(close - open_price) / (close + 1e-6), 4)
+            high_low_delta_percentage = round(abs((high - low) / (close if close != 0 else 1e-6)), 4)
+            close_open_delta_percentage = round(abs(close - open_price) / (close if close != 0 else 1e-6), 4)
 
             symbol['days'].append({
                 'date': date,
@@ -81,6 +81,37 @@ def get_history_from_net(stock_symbol, recent=False):
 
     return symbol
 
+def load_historical_data_from_mongo(symbol, db):
+    """
+    Loads historical stock price data from MongoDB for a given symbol.
+
+    Args:
+        symbol (str): The stock symbol for which to load historical data.
+        db (Database): The MongoDB database instance.
+
+    Returns:
+        dict: A dictionary containing the historical data if found, None otherwise.
+        None: If no data is found for the given symbol.
+    """
+    collection = db['historical_data']
+    data = collection.find_one({"symbol": symbol})
+    return data
+
+def save_historical_data_to_mongo(symbol, data, db):
+    """
+    Saves historical stock price data to MongoDB for a given symbol, performing an upsert operation.
+    Saves historical stock price data to MongoDB for a given symbol.
+
+    Args:
+        symbol (str): The stock symbol for which to save historical data.
+        data (dict): The historical data to save.
+        db (Database): The MongoDB database instance.
+
+    Returns:
+        None
+    """
+    collection = db['historical_data']
+    collection.update_one({"symbol": symbol}, {"$set": data}, upsert=True)
 
 def merge_data(historical_data, recent_data):
     """
@@ -113,7 +144,7 @@ def merge_data(historical_data, recent_data):
 
 
 
-def build_all_symbols_history(starting_at=''):
+def build_all_symbols_history(starting_at='', save_to_file=False):
     """
     Builds historical data for all stock symbols and saves them as JSON files.
 
@@ -151,12 +182,15 @@ def build_all_symbols_history(starting_at=''):
                 continue
             net_data['full_name'] = name
 
-            new_data_json = json.dumps(net_data)
-            # write out new_data_json to file
-            file_name = os.path.join(base_path, f'StockPrice-{symbol}.json')
-            with open(f'{file_name}', 'w', encoding='utf-8') as file:
-                file.write(new_data_json)
-                print(f"Saved data for {symbol} to {file_name}")
+            save_historical_data_to_mongo(symbol, net_data, get_mongo_client())
+
+            if save_to_file:
+                new_data_json = json.dumps(net_data)
+                # write out new_data_json to file
+                file_path = os.path.join(base_path, f'StockPrice-{symbol}.json')
+                with open(f'{file_path}', 'w', encoding='utf-8') as file:
+                    file.write(new_data_json)
+                    print(f"Saved data for {symbol} to {file_path}")
         except Exception as e:
             print(f"Error: {e}")
             continue
@@ -179,20 +213,20 @@ def load_historical_data_from_file(symbol):
     Raises:
         FileNotFoundError: If the file does not exist at the specified path.
     """
-    file_name = os.path.join(base_path, f'StockPrice-{symbol}.json')
+    file_path = os.path.join(base_path, f'StockPrice-{symbol}.json')
 
     try:
-        with open(file_name, 'r') as file:
+        with open(file_path, 'r', encoding='utf-8') as file:
             data = json.load(file)
             return data
     except FileNotFoundError:
-        print(f"Error: File not found at {file_name}. Please check the file ID and path.")
+        print(f"File not found: {file_path}")
     except json.JSONDecodeError:
-        print(f"Error: Failed to decode JSON from file {file_name}. The file may be corrupted.")
+        print(f"Error: Invalid JSON in {file_path}.")
     except PermissionError:
-        print(f"Error: Permission denied when trying to read file {file_name}.")
+        print(f"Permission denied: {file_path}")
     except Exception as e:
-        print(f"An unexpected error occurred: {e}")
+        print(f"Error: {e}")
     return None
 
 def load_historical_data(symbol):
@@ -205,7 +239,9 @@ def load_historical_data(symbol):
     Returns:
         dict: A dictionary containing the historical data.
     """
-    data = load_historical_data_from_file(symbol)
+    data = load_historical_data_from_mongo(symbol, get_mongo_client())
+    if data is None:
+        data = load_historical_data_from_file(symbol)
     if data is None:
         data = get_history_from_net(symbol, recent=False)
     return data
