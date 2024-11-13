@@ -29,6 +29,9 @@ combined_score_mul=[0.75,0.25]
 
 base_path = '/workspaces/BlueHorseshoe/historical_data/'
 
+invalid_symbols = ['AJXA','APGB','AQNA','ARGO','BBLN','BCPA','BCPB', 'BFX','BOAC','BODY','CBX','CCV',
+                   'CPTK','CSTA','ECG','EOCW','GCTSW','HT','INGM','ISG','JHAA','LHC','OSG','PNSTWS',
+                   'PRMB','SCU','SIX','TMAC','USX','VMW']
 
 # Functions
 
@@ -196,6 +199,7 @@ def get_symbol_list():
                 json.dump(symbol_list, file)
         except Exception as e:
             logging.error(f"An error occurred while writing the symbol list to file: {e}")
+    symbol_list = [symbol for symbol in symbol_list if symbol['symbol'] not in invalid_symbols]
     return symbol_list
 
 

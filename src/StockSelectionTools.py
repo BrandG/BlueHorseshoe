@@ -223,7 +223,10 @@ def get_top_ten_stability_scores():
         if price_data is None:
             print(f'No data found for {symbol["symbol"]}')
             continue
-        price_data = clip_data_to_dates(price_data["days"], '2024-10-15', 40)
+        price_data = clip_data_to_dates(price_data["days"], '2024-11-12', 40)
+        if len(price_data) == 0:
+            logging.warning(f'No data found for {symbol["symbol"]} within the date range')
+            continue
         stability_score = get_stability_score(price_data)
         delta = calculate_ewma_delta(price_data)
 
@@ -239,6 +242,8 @@ def get_top_ten_stability_scores():
 
     # Sort by stabiility and delta
     results.sort(key=lambda x:(x['combined_score']), reverse=True)
-    print(f'Returning top 10 stability scores {results[:10]}')
+    print("Top 10 stability scores:")
+    for result in results[:10]:
+        print(f"Symbol: {result['symbol']['symbol']}, Name: {result['symbol']['name']}, Stability: {result['stability']:.2f}, Daily Delta: {result['dailyDelta']:.4f}, Combined Score: {result['combined_score']:.2f}")
 
     return results[:10]

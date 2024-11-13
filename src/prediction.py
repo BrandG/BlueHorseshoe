@@ -118,7 +118,7 @@ def get_gaussian_predictions():
         if len(price_data) == 0:
             continue
         try:
-            predicted_midpoint, uncertainty = forecast_next_midpoint_with_gaussian_process(symbol, price_data, n_days=n_days)
+            predicted_midpoint, uncertainty = forecast_next_midpoint_with_gaussian_process(price_data, n_days=n_days)
             compare_midpoint = (float(price_data[0]["high"]) + float(price_data[0]["low"])) / 2
             compare_percent = abs(compare_midpoint - predicted_midpoint) / compare_midpoint
             valid_choice = predicted_midpoint * 1.01 < float(price_data[0]["high"]) and predicted_midpoint * 0.999 > float(price_data[0]['low'])

@@ -15,6 +15,6 @@ if __name__ == "__main__":
     elif "-p" in sys.argv:
         results = get_gaussian_predictions()
         for result in results:
-            print(f'{result["symbol"]} - delta = {result["dailyDelta"]:.2%} - stability = {result["stability"]:.2%} - combinedScore = {result["combinedScore"]}')
+            print(f'{result["symbol"]} - forecasted = {result["forecasted"]} - uncertainty = {result["uncertainty"]} - actual = {result["actual"]} - validity = {result["validity"]} - valid_choice = {result["valid_choice"]}')
     end_time = time.time()
     print(f'Execution time: {end_time - start_time:.2f} seconds')
