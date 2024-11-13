@@ -6,6 +6,7 @@ import io
 import csv
 from datetime import datetime, timedelta
 from ratelimit import limits, sleep_and_retry
+import logging
 
 
 # Constants
@@ -100,7 +101,7 @@ def graph(xLabel = 'x', yLabel = 'y', title = 'title', curves = None, lines = No
             plt.scatter(point['x'], point['y'], color=color)
         plt.show()
     except Exception as e:
-        print(f"An error occurred while plotting the graph: {e}")
+        logging.error(f"An error occurred while plotting the graph: {e}")
 
 
 
@@ -161,13 +162,15 @@ def read_symbol_list_from_file():
         with open(file_path, 'r') as file:
             return json.load(file)
     except FileNotFoundError:
-        print(f"Error: File not found at {file_path}. Please check the file path.")
+        logging.error(f"Error: File not found at {file_path}. Please check the file path.")
     except UnicodeDecodeError:
-        print(f"Error: Unable to decode the file {file_path}. Please check the file encoding.")
+        logging.error(f"Error: Unable to decode the file {file_path}. Please check the file encoding.")
     except json.JSONDecodeError:
-        print(f"Error: Invalid JSON data in {file_path}.")
+        logging.error(f"Error: Invalid JSON data in {file_path}.")
     except Exception as e:
-        print(f"An unexpected error of type {type(e).__name__} occurred: {e}")
+        logging.error(f"An unexpected error of type {type(e).__name__} occurred: {e}")
+        
+    print(f"Error: Could not open file {file_path}. Please check the logs.")
     return None
 
 
@@ -192,7 +195,7 @@ def get_symbol_list():
             with open(file_path, 'w') as file:
                 json.dump(symbol_list, file)
         except Exception as e:
-            print(f"An error occurred while writing the symbol list to file: {e}")
+            logging.error(f"An error occurred while writing the symbol list to file: {e}")
     return symbol_list
 
 
@@ -224,10 +227,10 @@ def get_symbol_sublist(listType, historical_data=None):
 
     Notes:
         - If both historical_data and symbol are not provided, the function will return an empty list.
-        - If an invalid listType is provided, the function will print "Invalid listType" and continue.
+        - If an invalid listType is provided, the function will write a warning to the log and return an empty list.
     """
     if historical_data is None:
-        print("No historical data provided. Please provide historical data or a symbol.")
+        logging.warning("No historical data provided. Please provide historical data or a symbol.")
         return []
 
     retVal = []
@@ -255,9 +258,9 @@ def get_symbol_sublist(listType, historical_data=None):
                 case 'close_open_delta_percentage':
                     retVal.append(float(day['close_open_delta_percentage']))
                 case _:
-                    print("Invalid listType")
+                    logging.warning("Invalid listType")
         except (ValueError, TypeError) as e:
-            print(f"Invalid historical data. Making a list of {listType}, but the data was {e}")
+            logging.warning(f"Invalid historical data. Making a list of {listType}, but the data was {e}")
             continue
 
     return retVal
@@ -285,7 +288,7 @@ def clip_data_to_dates(price_data=None, end_date='', daterange=100):
     for day in price_data:
         current_date_dt = datetime.strptime(day['date'], '%Y-%m-%d')
         start_date_dt = end_date_dt - timedelta(days=daterange)
-        if current_date_dt < end_date_dt and current_date_dt > start_date_dt:
+        if current_date_dt <= end_date_dt and current_date_dt > start_date_dt:
             results.append(day)
     return results
 
@@ -301,20 +304,23 @@ def calculate_ewma_delta(price_data, period=20):
     Returns:
         float: The EWMA of daily deltas. Returns 0 if there is insufficient data.
     """
-    if not isinstance(price_data, list) or not all(isinstance(item, dict) for item in price_data):
-        raise ValueError("price_data must be a list of dictionaries")
+    if not isinstance(price_data, list) or not all(isinstance(item, dict) for item in price_data) or len(price_data) == 0:
+        raise ValueError("price_data must be a non-empty list of dictionaries")
 
     daily_deltas = []
     for price_obj in price_data:
-        if 'high' in price_obj and 'low' in price_obj:
-            try:
-                high = float(price_obj['high'])
-                low = float(price_obj['low'])
-            except ValueError:
-                continue  # Skip this entry if conversion fails
-            average_price = (high + low) / 2  # Optionally use close price as the baseline
-            daily_delta = ((high - low) / average_price)  # Convert to percentage
-            daily_deltas.append(daily_delta)
+        try:
+            high = float(price_obj.get('high', 0))
+            low = float(price_obj.get('low', 0))
+        except (ValueError, TypeError):
+            logging.warning("Invalid price data. Skipping entry.")
+            continue  # Skip this entry if conversion fails
+        if high == 0 and low == 0:
+            logging.warning("Both high and low prices are zero. Skipping entry.")
+            continue  # Skip if both high and low are zero
+        average_price = (high + low) / 2  # Optionally use close price as the baseline
+        daily_delta = ((high - low) / average_price)  # Convert to percentage
+        daily_deltas.append(daily_delta)
 
     if len(daily_deltas) == 0:
         return 0

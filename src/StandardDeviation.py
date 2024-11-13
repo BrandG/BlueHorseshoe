@@ -159,13 +159,16 @@ def calculate_stability_scores_for_last_month(symbol, price_data=None):
     MIN_SCORE = 0
     MAX_SCORE = 100
 
-    is_all_midpoints_close = all(abs(element['midpoint'] - data_subset[0]['midpoint']) < 0.00001 for element in data_subset)
-    is_data_subset_too_short = len(data_subset) < MIN_DATA_LENGTH
-    if is_all_midpoints_close or is_data_subset_too_short:
+    for i in range(0, MIN_DATA_LENGTH):
         data_subset = price_data[i:]
-    score = calculate_stability_score(data_subset)
-    if MIN_SCORE < score < MAX_SCORE:
-        scores.append(score)
+
+        is_all_midpoints_close = all(abs(element['midpoint'] - data_subset[0]['midpoint']) < 0.00001 for element in data_subset)
+        is_data_subset_too_short = len(data_subset) < MIN_DATA_LENGTH
+        if is_all_midpoints_close or is_data_subset_too_short:
+            continue
+        score = calculate_stability_score(data_subset)
+        if MIN_SCORE < score < MAX_SCORE:
+            scores.append(score)
 
     if scores:
         mean_score = round(sum(scores) / len(scores), 3)

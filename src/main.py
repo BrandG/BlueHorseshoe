@@ -1,13 +1,3 @@
-from Globals import (
-    combined_score_mul,
-    adjusted_rolling_close_open_modifier,
-    adjusted_weighted_price_stability_modifier,
-    adjusted_modified_atr_modifier,
-    calculate_ewma_delta,
-    clip_data_to_dates,
-    get_symbol_list,
-    stability_score_modifier
-)
 import sys
 import time
 
