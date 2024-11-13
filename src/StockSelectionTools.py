@@ -1,3 +1,4 @@
+import logging
 from Globals import calculate_ewma_delta, clip_data_to_dates, const_date_range, get_symbol_list, get_symbol_sublist
 from Globals import adjusted_rolling_close_open_modifier, adjusted_weighted_price_stability_modifier, adjusted_modified_atr_modifier, combined_score_mul, stability_score_modifier
 from StandardDeviation import calculate_stability_score
@@ -38,7 +39,11 @@ def get_rolling_close_open_delta_percentage(price_data=None, daterange=const_dat
         rolling_delta.append(window_sum / window_size)
         window_sum -= deltas[i - window_size + 1]
 
-    return sum(rolling_delta[:window_size]) / window_size
+    if len(rolling_delta) < window_size:
+        logging.warning('Not enough data points to calculate rolling average')
+        return 0.0  # Return 0.0 if there are not enough data points for the rolling average
+        
+    return sum(rolling_delta) / len(rolling_delta)
 
 
 
@@ -184,7 +189,8 @@ def get_MATR_stability(price_data=None, daterange=const_date_range):
         ema_value = (true_range[i] * alpha) + (modified_atr[-1] * (1 - alpha))
         modified_atr.append(ema_value)
 
-    return sum(modified_atr[:daterange]) / daterange
+    # return sum(modified_atr[:daterange]) / daterange
+    return modified_atr[-1]
     
 
     
@@ -201,26 +207,38 @@ def get_stability_score(historical_data):
 
 
 def get_top_ten_stability_scores():
+    """
+    Calculate and return the top ten stability scores for stocks.
+
+    This function retrieves historical price data for each stock symbol, calculates the stability score,
+    and combines it with the daily delta to produce a combined score. It then filters out invalid data,
+    sorts the results by the combined score, and returns the top ten results.
+
+    Returns:
+        list: A list of dictionaries containing the top ten stability scores and related information.
+    """
     results=[]
     for symbol in get_symbol_list():
         price_data = load_historical_data(symbol['symbol'])
         if price_data is None:
             print(f'No data found for {symbol["symbol"]}')
             continue
-        price_data = clip_data_to_dates(price_data["days"], '2024-10-15',40)
+        price_data = clip_data_to_dates(price_data["days"], '2024-10-15', 40)
         stability_score = get_stability_score(price_data)
         delta = calculate_ewma_delta(price_data)
 
-        results.append({'symbol':symbol,
-                        'dailyDelta':delta,
-                        'stability':stability_score,
-                        'combinedScore': delta * combined_score_mul[0] + stability_score * combined_score_mul[1]})
+        results.append({
+            'symbol': symbol,
+            'dailyDelta': delta,
+            'stability': stability_score,
+            'combined_score': delta * combined_score_mul[0] + stability_score * combined_score_mul[1]
+        })
 
-    # Filter out the bad data
+    # Filter out the bad data: stability score should be less than 100.0, daily delta should be greater than 0.012, and symbol name should not be empty
     results = [result for result in results if result['stability'] < 100.0 and result['dailyDelta'] > 0.012 and result['symbol']['name'] != '']
 
     # Sort by stabiility and delta
-    results.sort(key=lambda x:(x['combinedScore']), reverse=False)
+    results.sort(key=lambda x:(x['combined_score']), reverse=True)
     print(f'Returning top 10 stability scores {results[:10]}')
 
     return results[:10]

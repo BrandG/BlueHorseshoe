@@ -1,10 +1,13 @@
 import requests
-import time
 import os
 import json
+from ratelimit import limits, sleep_and_retry
+import heapq
 
 from Globals import get_symbol_list, base_path
 
+@sleep_and_retry
+@limits(calls=60, period=60)  # 60 calls per 60 seconds
 def get_history_from_net(stock_symbol, recent=False):
     """
     Fetch historical stock data from Alpha Vantage API.
@@ -32,7 +35,7 @@ def get_history_from_net(stock_symbol, recent=False):
     Raises:
         requests.exceptions.HTTPError: If the HTTP request returned an unsuccessful status code.
     """
-    time.sleep(1)  # Ensure we don't exceed API rate limits
+    # Rate limiting is handled by the @limits decorator
     symbol = {'name': stock_symbol}
 
     outputsize = 'full' if not recent else 'compact'
@@ -73,7 +76,7 @@ def get_history_from_net(stock_symbol, recent=False):
                 'close_open_delta_percentage': close_open_delta_percentage
             })
     else:
-        print(f"'Time Series (Daily)' key not found in response for {stock_symbol}. Response: {json_data}")
+        print(f"'Time Series (Daily)' key not found in response for {stock_symbol}. URL: {url}. Response: {json_data}")
         return None
 
     return symbol
@@ -96,15 +99,11 @@ def merge_data(historical_data, recent_data):
     existing_dates = {day['date'] for day in final_data['days']}  # Use a set for existing dates
 
     # Merge the days with unique dates
-    for day in recent_data['days']:
-        if day['date'] not in existing_dates:
-            final_data['days'].append(day)
-            # Print out acknowledgement that we added that particular day
-            print(f"Added {day['date']} to {symbol_name}")
+    new_days = [day for day in recent_data['days'] if day['date'] not in existing_dates]
+    final_data['days'].extend(new_days)
 
-    # Sort historical_data by date
-    final_data['days'] = sorted(final_data['days'], key=lambda x: x['date'], reverse=True)
-
+    # Sort historical_data by date using heapq for efficiency
+    final_data['days'] = list(heapq.nlargest(len(final_data['days']), final_data['days'], key=lambda x: x['date']))
     # Remove the data['metadata'] entry
     if 'metadata' in final_data:
         del final_data['metadata']
@@ -155,7 +154,7 @@ def build_all_symbols_history(starting_at=''):
             new_data_json = json.dumps(net_data)
             # write out new_data_json to file
             file_name = os.path.join(base_path, f'StockPrice-{symbol}.json')
-            with open(f'{file_name}', 'w') as file:
+            with open(f'{file_name}', 'w', encoding='utf-8') as file:
                 file.write(new_data_json)
                 print(f"Saved data for {symbol} to {file_name}")
         except Exception as e:
@@ -197,9 +196,18 @@ def load_historical_data_from_file(symbol):
     return None
 
 def load_historical_data(symbol):
+    """
+    Loads historical stock price data for a given symbol from a file or the network.
+
+    Args:
+        symbol (str): The stock symbol for which to load historical data.
+
+    Returns:
+        dict: A dictionary containing the historical data.
+    """
     data = load_historical_data_from_file(symbol)
     if data is None:
-        data = get_history_from_net(symbol)
+        data = get_history_from_net(symbol, recent=False)
     return data
 
 # if __name__ == "__main__":

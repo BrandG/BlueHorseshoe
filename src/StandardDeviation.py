@@ -3,7 +3,10 @@ from datetime import datetime, timedelta
 import statistics
 import matplotlib.pyplot as plt
 
-from Globals import get_symbol_sublist, graph, stdevMultiplier, ratioMultiplier
+from Globals import get_symbol_sublist
+from Globals import graph
+from Globals import stdevMultiplier
+from Globals import ratioMultiplier
 from historicalData import load_historical_data_from_file
 
 
@@ -26,8 +29,13 @@ def get_stdev(data):
     if n == 0:
         return 0
 
-    mean = sum(data) / n
-    variance = sum([(x - mean) ** 2 for x in data]) / n
+    mean = 0
+    variance = 0
+    for i, x in enumerate(data):
+        delta = x - mean
+        mean += delta / (i + 1)
+        variance += delta * (x - mean)
+    variance /= (n - 1)
     stdev = math.sqrt(variance)
     return stdev
 
@@ -68,6 +76,8 @@ def calculate_stability_score(price_data = None):
     standard deviation and a higher ratio of points within one standard deviation result 
     in a higher stability score.
 
+    You might need to adjust the weights based on your specific needs
+
     Args:
         price_data (list): A list of price data points. Defaults to an empty list.
 
@@ -91,12 +101,11 @@ def calculate_stability_score(price_data = None):
       return 0
 
     midpoint_mean = sum(midpoints) / len(midpoints)
-    within_stdev_count = sum(1 for midpoint in midpoints if abs(midpoint - midpoint_mean) <= stdev)
+    within_stdev_count = sum(1 for x in midpoints if abs(x - midpoint_mean) <= stdev)
+    stdev_component = stdevMultiplier * stdev / (midpoint_mean + 1e-6)
+    ratio_component = within_stdev_count * ratioMultiplier / len(midpoints)
+    stability_score = 1 - (stdev_component * ratio_component)
 
-    # Stability score: Combine standard deviation and ratio of points within one standard deviation
-    # The lower the standard deviation and the higher the ratio, the higher the stability score.
-    # You might need to adjust the weights based on your specific needs
-    stability_score = 1-(stdevMultiplier * stdev/ (midpoint_mean + 1e-6)) * (within_stdev_count * ratioMultiplier / len(midpoints))
     return stability_score
 
 
@@ -147,17 +156,19 @@ def calculate_stability_scores_for_last_month(symbol, price_data=None):
         price_data = load_historical_data_from_file(symbol)['days'][:40]
     
     MIN_DATA_LENGTH = 20
+    MIN_SCORE = 0
+    MAX_SCORE = 100
 
-    for i in range(0, MIN_DATA_LENGTH):
+    is_all_midpoints_close = all(abs(element['midpoint'] - data_subset[0]['midpoint']) < 0.00001 for element in data_subset)
+    is_data_subset_too_short = len(data_subset) < MIN_DATA_LENGTH
+    if is_all_midpoints_close or is_data_subset_too_short:
         data_subset = price_data[i:]
-        if all(abs(element['midpoint'] - data_subset[0]['midpoint']) < 0.00001 for element in data_subset) or len(data_subset) < MIN_DATA_LENGTH:
-            continue
-        score = calculate_stability_score(data_subset)
-        if 0 < score < 100:
-            scores.append(score)
+    score = calculate_stability_score(data_subset)
+    if MIN_SCORE < score < MAX_SCORE:
+        scores.append(score)
 
     if scores:
-        mean_score = math.floor((sum(scores) / len(scores)) * 1000) / 1000.0
+        mean_score = round(sum(scores) / len(scores), 3)
         print(f"Mean stability score for {symbol} over the last month: {mean_score}")
         return mean_score
     else:
@@ -210,7 +221,7 @@ def analyze_symbol_stability(symbols):
     # Sort by stability score in descending order
     symbol_stability.sort(key=lambda x: x[1], reverse=True)
 
-    print(f"\n{TOP_N} 10 Most Stable Symbols:")
+    print(f"\n{TOP_N} Most Stable Symbols:")
     for i in range(min(TOP_N, len(symbol_stability))):
         print(f"{i+1}. {symbol_stability[i][0]}: {symbol_stability[i][1]}")
         price_data = load_historical_data_from_file(symbol_stability[i][0])['days'][:SLICE_LENGTH]

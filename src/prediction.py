@@ -3,6 +3,7 @@ from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import RBF, ConstantKernel as C
 from statsmodels.tsa.arima.model import ARIMA
 from Globals import get_symbol_sublist
+from StockSelectionTools import get_top_ten_stability_scores
 from historicalData import load_historical_data
 import logging
 
@@ -41,7 +42,7 @@ def forecast_next_midpoint(price_data=None, arima_order=(1, 1, 1)):
 
 
 
-def forecast_next_midpoint_gaussian(price_data = None, n_days=10):
+def forecast_next_midpoint_with_gaussian_process(price_data=None, n_days=10):
     """
     Forecasts the next midpoint for a given symbol using a Gaussian Process model.
 
@@ -50,29 +51,32 @@ def forecast_next_midpoint_gaussian(price_data = None, n_days=10):
         n_days (int): The number of days to use for fitting the Gaussian Process model. Default is 10.
 
     Returns:
-        tuple: The forecasted next midpoint and the standard deviation. Returns (0, 0) if there is insufficient data.
+        tuple: The forecasted next midpoint and the standard deviation. Returns (np.nan, np.nan) if there is insufficient data.
     """
     # Validate price_data
     if not isinstance(price_data, list) or not all(isinstance(item, dict) for item in price_data):
-        raise ValueError("price_data must be a list of dictionaries")
+        raise ValueError("price_data must be a list of dictionaries, each containing price data")
 
     # Step 1: Calculate daily midpoints
     midpoints = get_symbol_sublist('midpoint', price_data)
     if len(midpoints) < n_days:
         logging.warning("Not enough data to fit the model")
-        return 0, 0
+        return np.nan, np.nan
 
     # Step 2: Normalize the midpoints
     mean_midpoints = np.mean(midpoints)
     std_midpoints = np.std(midpoints)
-    normalized_midpoints = (midpoints - mean_midpoints) / (std_midpoints + 1e-6)
+    if std_midpoints == 0:
+        logging.warning("Midpoints have zero standard deviation")
+        return np.nan, np.nan
+    normalized_midpoints = (midpoints - mean_midpoints) / std_midpoints
 
     # Prepare the training data
-    X_train = np.arange(len(normalized_midpoints[-n_days:])).reshape(-1, 1)  # Last n_days as training points
+    X_train = np.arange(len(normalized_midpoints[-n_days:])).reshape(-1, 1)  # Use the last n_days of normalized midpoints as training points
     y_train = normalized_midpoints[-n_days:]
 
     # Step 3: Define the Gaussian Process model with updated kernel bounds
-    kernel = C(1.0, (1e-4, 1e2)) * RBF(length_scale=1, length_scale_bounds=(1e-4, 1e1))
+    kernel = C(1.0, (0.0001, 100.0)) * RBF(length_scale=1, length_scale_bounds=(0.0001, 10.0))
     gp = GaussianProcessRegressor(kernel=kernel, n_restarts_optimizer=10, alpha=1e-2)
 
     # Step 4: Fit the model on the training data
@@ -86,7 +90,7 @@ def forecast_next_midpoint_gaussian(price_data = None, n_days=10):
     y_pred = normalized_y_pred * std_midpoints + mean_midpoints
     sigma = normalized_sigma * std_midpoints
 
-    return y_pred[0], sigma[0]  # Predicted midpoint and standard deviation
+    return y_pred[0], sigma[0]  # Predicted midpoint and its associated uncertainty (standard deviation)
 
 
 
@@ -114,7 +118,7 @@ def get_gaussian_predictions():
         if len(price_data) == 0:
             continue
         try:
-            predicted_midpoint, uncertainty = forecast_next_midpoint_gaussian(symbol, price_data, n_days=n_days)
+            predicted_midpoint, uncertainty = forecast_next_midpoint_with_gaussian_process(symbol, price_data, n_days=n_days)
             compare_midpoint = (float(price_data[0]["high"]) + float(price_data[0]["low"])) / 2
             compare_percent = abs(compare_midpoint - predicted_midpoint) / compare_midpoint
             valid_choice = predicted_midpoint * 1.01 < float(price_data[0]["high"]) and predicted_midpoint * 0.999 > float(price_data[0]['low'])

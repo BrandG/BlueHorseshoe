@@ -2,10 +2,10 @@ import os
 import matplotlib.pyplot as plt
 import json
 import requests
-import time
 import io
 import csv
 from datetime import datetime, timedelta
+from ratelimit import limits, sleep_and_retry
 
 
 # Constants
@@ -104,6 +104,8 @@ def graph(xLabel = 'x', yLabel = 'y', title = 'title', curves = None, lines = No
 
 
 
+@sleep_and_retry
+@limits(calls=1, period=1)
 def get_symbol_list_from_net():
     """
     Fetches a list of active stock symbols from the NYSE exchange using the Alpha Vantage API.
@@ -118,8 +120,7 @@ def get_symbol_list_from_net():
     Raises:
         requests.exceptions.HTTPError: If the HTTP request returned an unsuccessful status code.
     """
-    retval = []
-    response = requests.get(f"https://www.alphavantage.co/query?function=LISTING_STATUS&apikey=JFRQJ8YWSX8UK50X")
+    response = requests.get("https://www.alphavantage.co/query?function=LISTING_STATUS&apikey=JFRQJ8YWSX8UK50X")
 
     response.raise_for_status()  # Raise an exception for bad status codes
 
@@ -132,11 +133,12 @@ def get_symbol_list_from_net():
 
     final_data = []
     for row in loaded_data:
-        if row['status'] == 'Active' and row['exchange'] == 'NYSE' and row['assetType'] == 'Stock' and '-' not in row['symbol']:
+        if (row['status'] == 'Active' and 
+            row['exchange'] == 'NYSE' and 
+            row['assetType'] == 'Stock' and 
+            '-' not in row['symbol']):
             final_data.append({ 'symbol': row['symbol'].replace("/", ""), 'name': row['name']})
 
-    # We shouldn't make more than one call per second. This certifies it.
-    time.sleep(1)
     return final_data
 
 
@@ -154,16 +156,18 @@ def read_symbol_list_from_file():
         list: A list of symbols if the file is successfully read and parsed.
         None: If an error occurs during file reading or parsing.
     """
-    file_name = os.path.join(base_path, 'symbol_list.json')
+    file_path = os.path.join(base_path, 'symbol_list.json')
     try:
-        with open(file_name, 'r') as file:
+        with open(file_path, 'r') as file:
             return json.load(file)
     except FileNotFoundError:
-        print(f"Error: File not found at {file_name}. Please check the file ID and path.")
+        print(f"Error: File not found at {file_path}. Please check the file path.")
+    except UnicodeDecodeError:
+        print(f"Error: Unable to decode the file {file_path}. Please check the file encoding.")
     except json.JSONDecodeError:
-        print(f"Error: Invalid JSON data in {file_name}.")
+        print(f"Error: Invalid JSON data in {file_path}.")
     except Exception as e:
-        print(f"An unexpected error occurred: {e}")
+        print(f"An unexpected error of type {type(e).__name__} occurred: {e}")
     return None
 
 
@@ -179,13 +183,13 @@ def get_symbol_list():
     symbol_list = read_symbol_list_from_file()
     if symbol_list is None:
         symbol_list = get_symbol_list_from_net()
-        file_name = os.path.join(base_path, 'symbol_list.json')
+        file_path = os.path.join(base_path, 'symbol_list.json')
 
         # Create the directory if it does not exist
         os.makedirs(base_path, exist_ok=True)
 
         try:
-            with open(file_name, 'w') as file:
+            with open(file_path, 'w') as file:
                 json.dump(symbol_list, file)
         except Exception as e:
             print(f"An error occurred while writing the symbol list to file: {e}")
