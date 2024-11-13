@@ -1,3 +1,4 @@
+import logging
 import sys
 import time
 
@@ -5,6 +6,8 @@ from historicalData import build_all_symbols_history
 from prediction import get_gaussian_predictions
 
 if __name__ == "__main__":
+    logging.basicConfig(filename='blueHorseshoe.log', filemode='w', level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
+
     start_time = time.time()
     if "-u" in sys.argv:
         build_all_symbols_history()

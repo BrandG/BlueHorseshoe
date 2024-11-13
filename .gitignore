@@ -1,3 +1,4 @@
 historical_data/
 *.pyc
 secrets.sh
+blueHorseshoe.log
