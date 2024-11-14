@@ -30,13 +30,8 @@ def get_stdev(data):
     if n == 0:
         return 0
 
-    mean = 0
-    variance = 0
-    for i, x in enumerate(data):
-        delta = x - mean
-        mean += delta / (i + 1)
-        variance += delta * (x - mean)
-    variance /= (n - 1)
+    mean = sum(data) / n
+    variance = sum((x - mean) ** 2 for x in data) / (n - 1)
     stdev = math.sqrt(variance)
     return stdev
 
@@ -103,9 +98,9 @@ def calculate_stability_score(price_data = None):
 
     midpoint_mean = statistics.mean(midpoints)
     within_stdev_count = sum(1 for x in midpoints if abs(x - midpoint_mean) <= stdev)
-    stdev_component = stdevMultiplier * stdev / (midpoint_mean + 1e-6)
+    stdev_component = stdevMultiplier * stdev / (midpoint_mean if midpoint_mean != 0 else 1)
     ratio_component = within_stdev_count * ratioMultiplier / len(midpoints)
-    stability_score = 1 - (stdev_component * ratio_component)
+    stability_score = max(0, 1 - (stdev_component + ratio_component))
 
     return stability_score
 
@@ -160,12 +155,12 @@ def calculate_stability_scores_for_last_month(symbol, price_data=None):
     MIN_SCORE = 0
     MAX_SCORE = 100
 
-    for i in range(0, MIN_DATA_LENGTH):
-        data_subset = price_data[i:]
+    for i in range(len(price_data) - MIN_DATA_LENGTH + 1):
+        data_subset = price_data[i:i + MIN_DATA_LENGTH]
 
-        is_all_midpoints_close = all(abs(element['midpoint'] - data_subset[0]['midpoint']) < 0.00001 for element in data_subset)
+        all_midpoints_within_tolerance = all(abs(element['midpoint'] - data_subset[0]['midpoint']) < 0.00001 for element in data_subset)
         is_data_subset_too_short = len(data_subset) < MIN_DATA_LENGTH
-        if is_all_midpoints_close or is_data_subset_too_short:
+        if all_midpoints_within_tolerance or is_data_subset_too_short:
             continue
         score = calculate_stability_score(data_subset)
         if MIN_SCORE < score < MAX_SCORE:
@@ -176,7 +171,7 @@ def calculate_stability_scores_for_last_month(symbol, price_data=None):
         logging.info(f"Mean stability score for {symbol} over the last month: {mean_score}")
         return mean_score
     else:
-        print(f"No valid scores for {symbol} calculated.")
+        logging.warning(f"No valid scores for {symbol} calculated.")
         return None
     
 
@@ -216,6 +211,7 @@ def analyze_symbol_stability(symbols):
     symbol_stability = []
     for symbol in symbols:
         try:
+            # filter out symbols with low daily volatility
             price_data = load_historical_data(symbol['symbol'])['days'][:SLICE_LENGTH]
             daily_deltas = [(day['high'] - day['low']) / day['low'] for day in price_data if day['low'] > 0]
             mean_daily_delta = statistics.mean(daily_deltas) if daily_deltas else 0
@@ -224,10 +220,15 @@ def analyze_symbol_stability(symbols):
                 continue
 
             mean_score = calculate_stability_scores_for_last_month(symbol['symbol'])
-            if mean_score is not None:
-                symbol_stability.append((symbol['symbol'], mean_score))
+
+            # Adjust the score based on the number of days that volatility was greater than 1%
+            daily_delta_percentage = sum(1 for delta in daily_deltas if delta > 0.01) / len(daily_deltas) 
+            adjusted_score = mean_score * daily_delta_percentage 
+
+            if adjusted_score is not None:
+                symbol_stability.append((symbol['symbol'], adjusted_score))
         except Exception as e:
-            print(f"Error analyzing symbol {symbol}: {e}")
+            logging.warning(f"Error analyzing symbol {symbol}: {e}")
 
     # Sort by stability score in descending order
     symbol_stability.sort(key=lambda x: x[1], reverse=True)
