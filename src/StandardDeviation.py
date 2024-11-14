@@ -101,7 +101,7 @@ def calculate_stability_score(price_data = None):
     if not midpoints or stdev == 0:  # Handle cases with no data or zero standard deviation
       return 0
 
-    midpoint_mean = sum(midpoints) / len(midpoints)
+    midpoint_mean = statistics.mean(midpoints)
     within_stdev_count = sum(1 for x in midpoints if abs(x - midpoint_mean) <= stdev)
     stdev_component = stdevMultiplier * stdev / (midpoint_mean + 1e-6)
     ratio_component = within_stdev_count * ratioMultiplier / len(midpoints)

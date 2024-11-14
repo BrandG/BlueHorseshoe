@@ -13,7 +13,7 @@ from pymongo import MongoClient
 # When calculating the stability score (2.B.1), set these to determine which is more important
 # for finding a good stability value.
 stdevMultiplier = 1.0   # The size of the stdev
-ratioMultiplier = 2.0   # The ratio of midpoints that fall within the stdev
+ratioMultiplier = 1.0   # The ratio of midpoints that fall within the stdev
 
 const_grab_recent_dates = True # When updating symbols, this tells whether to grab the whole range, or just recent data
 
@@ -30,7 +30,7 @@ base_path = '/workspaces/BlueHorseshoe/historical_data/'
 
 invalid_symbols = ['AJXA','APGB','AQNA','ARGO','BBLN','BCPA','BCPB', 'BFX','BMAC','BOAC','BODY','CBX','CCV',
                    'CPTK','CSTA','CTEST','ECG','EOCW','FSNB','GCTSW','HT','HYLN','INGM','ISG','JHAA','LHC','OSG','PNSTWS',
-                   'PRMB','ROSS','SCU','SIX','TMAC','USX','VMW']
+                   'PRMB','ROSS','SCU','SIX','TMAC','USX','VMW','MTEST','NTEST']
 
 def get_mongo_client(uri="mongodb://localhost:27017/", db_name="blueHorseshoe"):
     """
