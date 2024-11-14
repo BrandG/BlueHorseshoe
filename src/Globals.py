@@ -30,7 +30,7 @@ base_path = '/workspaces/BlueHorseshoe/historical_data/'
 
 invalid_symbols = ['AJXA','APGB','AQNA','ARGO','BBLN','BCPA','BCPB', 'BFX','BMAC','BOAC','BODY','CBX','CCV',
                    'CPTK','CSTA','CTEST','ECG','EOCW','FSNB','GCTSW','HT','HYLN','INGM','ISG','JHAA','LHC','OSG','PNSTWS',
-                   'PRMB','ROSS','SCU','SIX','TMAC','USX','VMW','MTEST','NTEST']
+                   'PRMB','ROSS','SCU','SIX','TMAC','USX','VMW','MTEST','NTEST','ASGI','CMSA']
 
 def get_mongo_client(uri="mongodb://localhost:27017/", db_name="blueHorseshoe"):
     """

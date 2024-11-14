@@ -216,6 +216,13 @@ def analyze_symbol_stability(symbols):
     symbol_stability = []
     for symbol in symbols:
         try:
+            price_data = load_historical_data(symbol['symbol'])['days'][:SLICE_LENGTH]
+            daily_deltas = [(day['high'] - day['low']) / day['low'] for day in price_data if day['low'] > 0]
+            mean_daily_delta = statistics.mean(daily_deltas) if daily_deltas else 0
+
+            if mean_daily_delta < 0.01:
+                continue
+
             mean_score = calculate_stability_scores_for_last_month(symbol['symbol'])
             if mean_score is not None:
                 symbol_stability.append((symbol['symbol'], mean_score))
