@@ -2,6 +2,8 @@ import logging
 import sys
 import time
 
+from Globals import get_symbol_list
+from StandardDeviation import analyze_symbol_stability
 from historicalData import build_all_symbols_history
 from prediction import get_gaussian_predictions
 
@@ -16,5 +18,9 @@ if __name__ == "__main__":
         results = get_gaussian_predictions()
         for result in results:
             print(f'{result["symbol"]} - forecasted = {result["forecasted"]} - uncertainty = {result["uncertainty"]} - actual = {result["actual"]} - validity = {result["validity"]} - valid_choice = {result["valid_choice"]}')
+
+    symbols = get_symbol_list()
+    analyze_symbol_stability(symbols)
+    
     end_time = time.time()
     print(f'Execution time: {end_time - start_time:.2f} seconds')

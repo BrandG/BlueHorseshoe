@@ -28,9 +28,9 @@ combined_score_mul=[0.75,0.25]
 
 base_path = '/workspaces/BlueHorseshoe/historical_data/'
 
-invalid_symbols = ['AJXA','APGB','AQNA','ARGO','BBLN','BCPA','BCPB', 'BFX','BOAC','BODY','CBX','CCV',
-                   'CPTK','CSTA','ECG','EOCW','GCTSW','HT','INGM','ISG','JHAA','LHC','OSG','PNSTWS',
-                   'PRMB','SCU','SIX','TMAC','USX','VMW']
+invalid_symbols = ['AJXA','APGB','AQNA','ARGO','BBLN','BCPA','BCPB', 'BFX','BMAC','BOAC','BODY','CBX','CCV',
+                   'CPTK','CSTA','CTEST','ECG','EOCW','FSNB','GCTSW','HT','HYLN','INGM','ISG','JHAA','LHC','OSG','PNSTWS',
+                   'PRMB','ROSS','SCU','SIX','TMAC','USX','VMW']
 
 def get_mongo_client(uri="mongodb://localhost:27017/", db_name="blueHorseshoe"):
     """

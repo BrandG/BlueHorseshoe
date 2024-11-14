@@ -1,3 +1,4 @@
+import logging
 import math
 from datetime import datetime, timedelta
 import statistics
@@ -7,7 +8,7 @@ from Globals import get_symbol_sublist
 from Globals import graph
 from Globals import stdevMultiplier
 from Globals import ratioMultiplier
-from historicalData import load_historical_data_from_file
+from historicalData import load_historical_data
 
 
 
@@ -153,7 +154,7 @@ def calculate_stability_scores_for_last_month(symbol, price_data=None):
     """
     scores = []
     if price_data is None:
-        price_data = load_historical_data_from_file(symbol)['days'][:40]
+        price_data = load_historical_data(symbol)['days'][:40]
     
     MIN_DATA_LENGTH = 20
     MIN_SCORE = 0
@@ -172,10 +173,10 @@ def calculate_stability_scores_for_last_month(symbol, price_data=None):
 
     if scores:
         mean_score = round(sum(scores) / len(scores), 3)
-        print(f"Mean stability score for {symbol} over the last month: {mean_score}")
+        logging.info(f"Mean stability score for {symbol} over the last month: {mean_score}")
         return mean_score
     else:
-        print("No valid scores calculated.")
+        print(f"No valid scores for {symbol} calculated.")
         return None
     
 
@@ -215,9 +216,9 @@ def analyze_symbol_stability(symbols):
     symbol_stability = []
     for symbol in symbols:
         try:
-            mean_score = calculate_stability_scores_for_last_month(symbol)
+            mean_score = calculate_stability_scores_for_last_month(symbol['symbol'])
             if mean_score is not None:
-                symbol_stability.append((symbol, mean_score))
+                symbol_stability.append((symbol['symbol'], mean_score))
         except Exception as e:
             print(f"Error analyzing symbol {symbol}: {e}")
 
@@ -227,7 +228,7 @@ def analyze_symbol_stability(symbols):
     print(f"\n{TOP_N} Most Stable Symbols:")
     for i in range(min(TOP_N, len(symbol_stability))):
         print(f"{i+1}. {symbol_stability[i][0]}: {symbol_stability[i][1]}")
-        price_data = load_historical_data_from_file(symbol_stability[i][0])['days'][:SLICE_LENGTH]
+        price_data = load_historical_data(symbol_stability[i][0])['days'][:SLICE_LENGTH]
 
         midpoints = get_symbol_sublist('midpoint',historical_data=price_data)
         highpoints = get_symbol_sublist('high',historical_data=price_data)
