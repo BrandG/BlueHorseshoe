@@ -37,32 +37,6 @@ def get_stdev(data):
 
 
 
-def drawStdev(midpoints):
-    """
-    Draws a graph of midpoints with standard deviation lines.
-
-    Parameters:
-    midpoints (list of float): A list of midpoint values.
-    stdev (float): The standard deviation value.
-
-    The function calculates the mean of the midpoints and plots a graph with:
-    - The midpoints as a curve.
-    - A red line representing the mean of the midpoints.
-    - Two green lines representing the mean plus and minus the standard deviation.
-    """
-    stdev = get_stdev(midpoints)
-    midpointMean = sum(midpoints)/len(midpoints)
-    graph(xLabel="date", yLabel="Value", title="Graph of midpoints",
-          curves=[{'curve':midpoints}],
-          lines=[
-              {'y':midpointMean, 'color':'r', 'linestyle':'-'},
-              {'y':midpointMean+stdev, 'color':'g', 'linestyle':'-'},
-              {'y':midpointMean-stdev, 'color':'g', 'linestyle':'-'},
-              ])
-
-
-
-
 def calculate_stability_score(price_data = None):
     """
     Calculate the stability score for a given symbol based on its price data.
@@ -244,6 +218,6 @@ def analyze_symbol_stability(symbols):
         if len(midpoints) <= 0:
             continue
         midpointMean = statistics.mean(midpoints)
-        graph(xLabel="date", yLabel="Value", title="Graph of midpoints",
+        graph(xLabel="date", yLabel="Value", title=f'{symbol_stability[i][0]} midpoints',
               curves=[{'curve':midpoints},{'curve':highpoints, 'color':'pink'},{'curve':lowpoints, 'color':'purple'}],
               lines=[ {'y':midpointMean, 'color':'r', 'linestyle':'-'}, ])

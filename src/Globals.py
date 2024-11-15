@@ -114,7 +114,10 @@ def graph(xLabel = 'x', yLabel = 'y', title = 'title', curves = None, lines = No
         for point in points:
             color = point.get('color', 'r')
             plt.scatter(point['x'], point['y'], color=color)
-        plt.show()
+        current_time_ms = int(datetime.now().timestamp() * 1000)
+        plt.savefig(f'graphs/{title}_{current_time_ms}.png')
+        # plt.show()
+        plt.clf()
     except Exception as e:
         logging.error(f"An error occurred while plotting the graph: {e}")
 

@@ -6,9 +6,24 @@ from Globals import get_symbol_list
 from StandardDeviation import analyze_symbol_stability
 from historicalData import build_all_symbols_history
 from prediction import get_gaussian_predictions
+import os
 
 if __name__ == "__main__":
     logging.basicConfig(filename='blueHorseshoe.log', filemode='w', level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
+    logging.getLogger('pymongo').setLevel(logging.WARNING)
+    
+    # Clear the graphs directory
+    graphs_dir = 'graphs'
+    for filename in os.listdir(graphs_dir):
+        file_path = os.path.join(graphs_dir, filename)
+        try:
+            if os.path.isfile(file_path) or os.path.islink(file_path):
+                os.unlink(file_path)
+            elif os.path.isdir(file_path):
+                os.rmdir(file_path)
+        except Exception as e:
+            logging.error(f'Failed to delete {file_path}. Reason: {e}')
+
 
     start_time = time.time()
     if "-u" in sys.argv:
