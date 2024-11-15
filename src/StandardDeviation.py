@@ -1,3 +1,4 @@
+import logging
 import math
 from datetime import datetime, timedelta
 import statistics
@@ -7,7 +8,7 @@ from Globals import get_symbol_sublist
 from Globals import graph
 from Globals import stdevMultiplier
 from Globals import ratioMultiplier
-from historicalData import load_historical_data_from_file
+from historicalData import load_historical_data
 
 
 
@@ -29,41 +30,10 @@ def get_stdev(data):
     if n == 0:
         return 0
 
-    mean = 0
-    variance = 0
-    for i, x in enumerate(data):
-        delta = x - mean
-        mean += delta / (i + 1)
-        variance += delta * (x - mean)
-    variance /= (n - 1)
+    mean = sum(data) / n
+    variance = sum((x - mean) ** 2 for x in data) / (n - 1)
     stdev = math.sqrt(variance)
     return stdev
-
-
-
-def drawStdev(midpoints):
-    """
-    Draws a graph of midpoints with standard deviation lines.
-
-    Parameters:
-    midpoints (list of float): A list of midpoint values.
-    stdev (float): The standard deviation value.
-
-    The function calculates the mean of the midpoints and plots a graph with:
-    - The midpoints as a curve.
-    - A red line representing the mean of the midpoints.
-    - Two green lines representing the mean plus and minus the standard deviation.
-    """
-    stdev = get_stdev(midpoints)
-    midpointMean = sum(midpoints)/len(midpoints)
-    graph(xLabel="date", yLabel="Value", title="Graph of midpoints",
-          curves=[{'curve':midpoints}],
-          lines=[
-              {'y':midpointMean, 'color':'r', 'linestyle':'-'},
-              {'y':midpointMean+stdev, 'color':'g', 'linestyle':'-'},
-              {'y':midpointMean-stdev, 'color':'g', 'linestyle':'-'},
-              ])
-
 
 
 
@@ -100,11 +70,11 @@ def calculate_stability_score(price_data = None):
     if not midpoints or stdev == 0:  # Handle cases with no data or zero standard deviation
       return 0
 
-    midpoint_mean = sum(midpoints) / len(midpoints)
+    midpoint_mean = statistics.mean(midpoints)
     within_stdev_count = sum(1 for x in midpoints if abs(x - midpoint_mean) <= stdev)
-    stdev_component = stdevMultiplier * stdev / (midpoint_mean + 1e-6)
+    stdev_component = stdevMultiplier * stdev / (midpoint_mean if midpoint_mean != 0 else 1)
     ratio_component = within_stdev_count * ratioMultiplier / len(midpoints)
-    stability_score = 1 - (stdev_component * ratio_component)
+    stability_score = max(0, 1 - (stdev_component + ratio_component))
 
     return stability_score
 
@@ -153,18 +123,18 @@ def calculate_stability_scores_for_last_month(symbol, price_data=None):
     """
     scores = []
     if price_data is None:
-        price_data = load_historical_data_from_file(symbol)['days'][:40]
+        price_data = load_historical_data(symbol)['days'][:40]
     
     MIN_DATA_LENGTH = 20
     MIN_SCORE = 0
     MAX_SCORE = 100
 
-    for i in range(0, MIN_DATA_LENGTH):
-        data_subset = price_data[i:]
+    for i in range(len(price_data) - MIN_DATA_LENGTH + 1):
+        data_subset = price_data[i:i + MIN_DATA_LENGTH]
 
-        is_all_midpoints_close = all(abs(element['midpoint'] - data_subset[0]['midpoint']) < 0.00001 for element in data_subset)
+        all_midpoints_within_tolerance = all(abs(element['midpoint'] - data_subset[0]['midpoint']) < 0.00001 for element in data_subset)
         is_data_subset_too_short = len(data_subset) < MIN_DATA_LENGTH
-        if is_all_midpoints_close or is_data_subset_too_short:
+        if all_midpoints_within_tolerance or is_data_subset_too_short:
             continue
         score = calculate_stability_score(data_subset)
         if MIN_SCORE < score < MAX_SCORE:
@@ -172,10 +142,10 @@ def calculate_stability_scores_for_last_month(symbol, price_data=None):
 
     if scores:
         mean_score = round(sum(scores) / len(scores), 3)
-        print(f"Mean stability score for {symbol} over the last month: {mean_score}")
+        logging.info(f"Mean stability score for {symbol} over the last month: {mean_score}")
         return mean_score
     else:
-        print("No valid scores calculated.")
+        logging.warning(f"No valid scores for {symbol} calculated.")
         return None
     
 
@@ -215,11 +185,24 @@ def analyze_symbol_stability(symbols):
     symbol_stability = []
     for symbol in symbols:
         try:
-            mean_score = calculate_stability_scores_for_last_month(symbol)
-            if mean_score is not None:
-                symbol_stability.append((symbol, mean_score))
+            # filter out symbols with low daily volatility
+            price_data = load_historical_data(symbol['symbol'])['days'][:SLICE_LENGTH]
+            daily_deltas = [(day['high'] - day['low']) / day['low'] for day in price_data if day['low'] > 0]
+            mean_daily_delta = statistics.mean(daily_deltas) if daily_deltas else 0
+
+            if mean_daily_delta < 0.01:
+                continue
+
+            mean_score = calculate_stability_scores_for_last_month(symbol['symbol'])
+
+            # Adjust the score based on the number of days that volatility was greater than 1%
+            daily_delta_percentage = sum(1 for delta in daily_deltas if delta > 0.01) / len(daily_deltas) 
+            adjusted_score = mean_score * daily_delta_percentage 
+
+            if adjusted_score is not None:
+                symbol_stability.append((symbol['symbol'], adjusted_score))
         except Exception as e:
-            print(f"Error analyzing symbol {symbol}: {e}")
+            logging.warning(f"Error analyzing symbol {symbol}: {e}")
 
     # Sort by stability score in descending order
     symbol_stability.sort(key=lambda x: x[1], reverse=True)
@@ -227,7 +210,7 @@ def analyze_symbol_stability(symbols):
     print(f"\n{TOP_N} Most Stable Symbols:")
     for i in range(min(TOP_N, len(symbol_stability))):
         print(f"{i+1}. {symbol_stability[i][0]}: {symbol_stability[i][1]}")
-        price_data = load_historical_data_from_file(symbol_stability[i][0])['days'][:SLICE_LENGTH]
+        price_data = load_historical_data(symbol_stability[i][0])['days'][:SLICE_LENGTH]
 
         midpoints = get_symbol_sublist('midpoint',historical_data=price_data)
         highpoints = get_symbol_sublist('high',historical_data=price_data)
@@ -235,6 +218,6 @@ def analyze_symbol_stability(symbols):
         if len(midpoints) <= 0:
             continue
         midpointMean = statistics.mean(midpoints)
-        graph(xLabel="date", yLabel="Value", title="Graph of midpoints",
+        graph(xLabel="date", yLabel="Value", title=f'{symbol_stability[i][0]} midpoints',
               curves=[{'curve':midpoints},{'curve':highpoints, 'color':'pink'},{'curve':lowpoints, 'color':'purple'}],
               lines=[ {'y':midpointMean, 'color':'r', 'linestyle':'-'}, ])

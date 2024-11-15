@@ -1,4 +1,8 @@
 historical_data/
+graphs/
 *.pyc
 secrets.sh
 blueHorseshoe.log
+.devcontainer/devcontainer.json
+.devcontainer/Dockerfile
+start_mongo.sh

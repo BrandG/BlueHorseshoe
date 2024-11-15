@@ -13,7 +13,7 @@ from pymongo import MongoClient
 # When calculating the stability score (2.B.1), set these to determine which is more important
 # for finding a good stability value.
 stdevMultiplier = 1.0   # The size of the stdev
-ratioMultiplier = 2.0   # The ratio of midpoints that fall within the stdev
+ratioMultiplier = 1.0   # The ratio of midpoints that fall within the stdev
 
 const_grab_recent_dates = True # When updating symbols, this tells whether to grab the whole range, or just recent data
 
@@ -28,9 +28,9 @@ combined_score_mul=[0.75,0.25]
 
 base_path = '/workspaces/BlueHorseshoe/historical_data/'
 
-invalid_symbols = ['AJXA','APGB','AQNA','ARGO','BBLN','BCPA','BCPB', 'BFX','BOAC','BODY','CBX','CCV',
-                   'CPTK','CSTA','ECG','EOCW','GCTSW','HT','INGM','ISG','JHAA','LHC','OSG','PNSTWS',
-                   'PRMB','SCU','SIX','TMAC','USX','VMW']
+invalid_symbols = ['AJXA','APGB','AQNA','ARGO','BBLN','BCPA','BCPB', 'BFX','BMAC','BOAC','BODY','CBX','CCV',
+                   'CPTK','CSTA','CTEST','ECG','EOCW','FSNB','GCTSW','HT','HYLN','INGM','ISG','JHAA','LHC','OSG','PNSTWS',
+                   'PRMB','ROSS','SCU','SIX','TMAC','USX','VMW','MTEST','NTEST','ASGI','CMSA']
 
 def get_mongo_client(uri="mongodb://localhost:27017/", db_name="blueHorseshoe"):
     """
@@ -114,7 +114,10 @@ def graph(xLabel = 'x', yLabel = 'y', title = 'title', curves = None, lines = No
         for point in points:
             color = point.get('color', 'r')
             plt.scatter(point['x'], point['y'], color=color)
-        plt.show()
+        current_time_ms = int(datetime.now().timestamp() * 1000)
+        plt.savefig(f'graphs/{title}_{current_time_ms}.png')
+        # plt.show()
+        plt.clf()
     except Exception as e:
         logging.error(f"An error occurred while plotting the graph: {e}")
 
