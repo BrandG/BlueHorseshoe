@@ -47,7 +47,7 @@ def get_mongo_client(uri="mongodb://localhost:27017/", db_name="blueHorseshoe"):
     db = client[db_name]
     return db
 
-def graph(xLabel = 'x', yLabel = 'y', title = 'title', curves = None, lines = None, points = None):
+def graph(xLabel = 'x', yLabel = 'y', title = 'title', curves = None, lines = None, points = None, x_values = None):
     """
     Plots a graph with the given labels, title, curves, lines, and points.
 
@@ -102,6 +102,8 @@ def graph(xLabel = 'x', yLabel = 'y', title = 'title', curves = None, lines = No
     if points is None:
         points = []
     try:
+        if x_values is not None and len(x_values) != 0:
+            plt.xticks(ticks=range(len(x_values)), labels=x_values, rotation=45)
         plt.xlabel(xLabel)
         plt.ylabel(yLabel)
         plt.title(title)

@@ -20,6 +20,7 @@ def forecast_next_midpoint(price_data=None, arima_order=(1, 1, 1)):
     """
     # Validate price_data
     if not isinstance(price_data, list) or not all(isinstance(item, dict) for item in price_data):
+        logging.error("price_data must be a list of dictionaries, each containing price data")
         return np.nan
 
     # Step 1: Calculate daily midpoints

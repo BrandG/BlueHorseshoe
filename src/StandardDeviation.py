@@ -151,7 +151,7 @@ def calculate_stability_scores_for_last_month(symbol, price_data=None):
 
 
 
-def analyze_symbol_stability(symbols):
+def analyze_symbol_stability(symbols, show_graphs=False):
     """
     Analyzes the stability of a list of symbols based on their stability scores over the last month.
 
@@ -210,14 +210,16 @@ def analyze_symbol_stability(symbols):
     print(f"\n{TOP_N} Most Stable Symbols:")
     for i in range(min(TOP_N, len(symbol_stability))):
         print(f"{i+1}. {symbol_stability[i][0]}: {symbol_stability[i][1]}")
-        price_data = load_historical_data(symbol_stability[i][0])['days'][:SLICE_LENGTH]
+        if (show_graphs):
+            price_data = load_historical_data(symbol_stability[i][0])['days'][:SLICE_LENGTH]
 
-        midpoints = get_symbol_sublist('midpoint',historical_data=price_data)
-        highpoints = get_symbol_sublist('high',historical_data=price_data)
-        lowpoints = get_symbol_sublist('low',historical_data=price_data)
-        if len(midpoints) <= 0:
-            continue
-        midpointMean = statistics.mean(midpoints)
-        graph(xLabel="date", yLabel="Value", title=f'{symbol_stability[i][0]} midpoints',
-              curves=[{'curve':midpoints},{'curve':highpoints, 'color':'pink'},{'curve':lowpoints, 'color':'purple'}],
-              lines=[ {'y':midpointMean, 'color':'r', 'linestyle':'-'}, ])
+            midpoints = get_symbol_sublist('midpoint',historical_data=price_data)
+            highpoints = get_symbol_sublist('high',historical_data=price_data)
+            lowpoints = get_symbol_sublist('low',historical_data=price_data)
+            if len(midpoints) <= 0:
+                continue
+            midpointMean = statistics.mean(midpoints)
+            graph(xLabel="date", yLabel="Value", title=f'{symbol_stability[i][0]} midpoints',
+                curves=[{'curve':midpoints},{'curve':highpoints, 'color':'pink'},{'curve':lowpoints, 'color':'purple'}],
+                lines=[ {'y':midpointMean, 'color':'r', 'linestyle':'-'}, ])
+    return symbol_stability
