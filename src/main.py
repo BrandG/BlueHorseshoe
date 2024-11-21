@@ -1,56 +1,66 @@
 import logging
+import statistics
 import sys
 import time
 import warnings
 
 from sklearn.exceptions import ConvergenceWarning
 
-from Globals import close_report_file, get_mongo_client, get_symbol_list, open_report_file, report
+from Globals import close_report_file, get_mongo_client, get_symbol_list, get_symbol_sublist, graph, open_report_file, report
 from StandardDeviation import analyze_symbol_stability
-from historicalData import build_all_symbols_history
-from prediction import get_gaussian_predictions
+from historicalData import build_all_symbols_history, load_historical_data
+from prediction import forecast_next_midpoint, get_gaussian_predictions
 import os
+
+from flatness import analyze_midpoints
 
 sys.argv = ["-d"]
 
-def runDebugTest():
-    print("Running debug test")
+def debugTest():
     symbols = get_symbol_list()
-    report(f"Symbols Loaded: {len(symbols)}")
-    sorted_symbols = analyze_symbol_stability(symbols, show_graphs=False)
-
+    results = []
+    for symbol in symbols:
+        price_data = load_historical_data(symbol['symbol'])
+        midpoints = get_symbol_sublist('midpoint', historical_data=price_data['days'])
+        avg_delta = sum(get_symbol_sublist('high_low_delta_percentage', historical_data=price_data['days']))/len(price_data['days'])
+        flatness = analyze_midpoints(midpoints)
+        results.append({'symbol':symbol['symbol'],'flatness':flatness, 'avg_delta':avg_delta})
+    results.sort(key=lambda x: x['flatness'])
+    results = list(filter(lambda x: x['avg_delta'] > 0.01, results))
     validCount = 0
     invalidCount = 0
     for index in range(10):
-        symbol_name = sorted_symbols[index][0]
-    #     price_data = load_historical_data(symbol_name)['days'][:20]
-    #     next_midpoint = round(forecast_next_midpoint(price_data[1:],(1,1,4)), 2)
+        result=results[index]
+        symbol_name = result['symbol']
+        print(f"Symbol: {symbol_name}, Flatness: {result['flatness']}, Avg Delta: {result['avg_delta']}")
+        price_data = load_historical_data(symbol_name)['days'][:20]
+        next_midpoint = round(forecast_next_midpoint(price_data[1:],(1,1,4)), 2)
 
-    #     last_high = round(price_data[0]['high'], 2)
-    #     last_low = round(price_data[0]['low'], 2)
+        last_high = round(price_data[0]['high'], 2)
+        last_low = round(price_data[0]['low'], 2)
 
-    #     next_high = round(next_midpoint+(0.005 * next_midpoint), 2)
-    #     next_low = round(next_midpoint-(0.005 * next_midpoint), 2)
-    #     chosen = (next_high - next_low)/((next_high+next_low)/2) > 0.01
-    #     if not chosen:
-    #         invalidCount += 1
-    #     valid = next_high <= last_high and next_low >= last_low
-    #     if valid:
-    #         validCount += 1
-    #     print(f'{index}. {'Chosen' if chosen else 'Not Chosen'} - {'Valid' if valid else 'Invalid'} - {symbol_name}: Next midpoint {next_midpoint:2} ({next_low:2},{next_high:2}) last ({last_low:2}, {last_high:2}).')
+        next_high = round(next_midpoint+(0.005 * next_midpoint), 2)
+        next_low = round(next_midpoint-(0.005 * next_midpoint), 2)
+        chosen = (next_high - next_low)/((next_high+next_low)/2) > 0.01
+        if not chosen:
+            invalidCount += 1
+        valid = next_high <= last_high and next_low >= last_low
+        if valid:
+            validCount += 1
+        print(f'{index}. {'Chosen' if chosen else 'Not Chosen'} - {'Valid' if valid else 'Invalid'} - {symbol_name}: Next midpoint {next_midpoint:2} ({next_low:2},{next_high:2}) last ({last_low:2}, {last_high:2}).')
 
-    #     price_data = price_data[:-1]
-    #     x_values = [data['date'] for data in price_data]
-    #     midpoints = get_symbol_sublist('midpoint',historical_data=price_data)
-    #     highpoints = get_symbol_sublist('high',historical_data=price_data)
-    #     lowpoints = get_symbol_sublist('low',historical_data=price_data)
-    #     if len(midpoints) <= 0:
-    #         continue
-    #     midpointMean = statistics.mean(midpoints)
-    #     graph(xLabel="date", yLabel="Value", title=f'{index}_{symbol_name} midpoints', x_values=x_values,
-    #         curves=[{'curve':midpoints},{'curve':highpoints, 'color':'pink'},{'curve':lowpoints, 'color':'purple'}],
-    #         lines=[ {'y':midpointMean, 'color':'r', 'linestyle':'-'}, ],
-    #         points=[{'x':19, 'y':next_midpoint, 'color':'g', 'marker':'x'},{'x':19, 'y':next_high, 'color':'orange', 'marker':'x'},{'x':19, 'y':next_low, 'color':'orange', 'marker':'x'},])
+        price_data = price_data[:-1]
+        x_values = [data['date'] for data in price_data]
+        midpoints = get_symbol_sublist('midpoint',historical_data=price_data)
+        highpoints = get_symbol_sublist('high',historical_data=price_data)
+        lowpoints = get_symbol_sublist('low',historical_data=price_data)
+        if len(midpoints) <= 0:
+            continue
+        midpointMean = statistics.mean(midpoints)
+        graph(xLabel="date", yLabel="Value", title=f'{index}_{symbol_name} midpoints', x_values=x_values,
+            curves=[{'curve':midpoints},{'curve':highpoints, 'color':'pink'},{'curve':lowpoints, 'color':'purple'}],
+            lines=[ {'y':midpointMean, 'color':'r', 'linestyle':'-'}, ],
+            points=[{'x':19, 'y':next_midpoint, 'color':'g', 'marker':'x'},{'x':19, 'y':next_high, 'color':'orange', 'marker':'x'},{'x':19, 'y':next_low, 'color':'orange', 'marker':'x'},])
     print(f'Valid percentage: {validCount/(10-invalidCount)*100}%')
 
 if __name__ == "__main__":
@@ -59,7 +69,7 @@ if __name__ == "__main__":
     logging.basicConfig(filename='blueHorseshoe.log', filemode='w', level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
     logging.getLogger('pymongo').setLevel(logging.WARNING)
     
-    if not get_mongo_client():
+    if get_mongo_client() == None:
         sys.exit(1)
 
     # Suppress specific warnings
@@ -90,7 +100,7 @@ if __name__ == "__main__":
         for result in results:
             print(f'{result["symbol"]} - forecasted = {result["forecasted"]} - uncertainty = {result["uncertainty"]} - actual = {result["actual"]} - validity = {result["validity"]} - valid_choice = {result["valid_choice"]}')
     elif "-d" in sys.argv:
-        runDebugTest()
+        debugTest()
 
     close_report_file()    
     end_time = time.time()

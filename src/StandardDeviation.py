@@ -12,31 +12,6 @@ from historicalData import load_historical_data
 
 
 
-def get_stdev(data):
-    """
-    Calculate the standard deviation of a list of numbers.
-
-    Parameters:
-    data (list of float): A list of numerical values.
-
-    Returns:
-    float: The standard deviation of the input list. Returns 0 if the list is empty.
-
-    Example:
-    >>> get_stdev([1, 2, 3, 4, 5])
-    1.4142135623730951
-    """
-    n = len(data)
-    if n == 0:
-        return 0
-
-    mean = sum(data) / n
-    variance = sum((x - mean) ** 2 for x in data) / (n - 1)
-    stdev = math.sqrt(variance)
-    return stdev
-
-
-
 def calculate_stability_score(price_data = None):
     """
     Calculate the stability score for a given symbol based on its price data.
@@ -68,13 +43,9 @@ def calculate_stability_score(price_data = None):
     if not midpoints:
         return 0
     
-    stat_stdev = round(statistics.stdev(midpoints), 8)
-    stdev = round(get_stdev(midpoints), 8)
+    stdev = round(statistics.stdev(midpoints), 8)
     if stdev == 0:  # Handle cases with no data or zero standard deviation
       return 0
-
-    if stat_stdev != stdev:
-        report(f"Midpoints stdev : {stdev}, statistics.stdev : {stat_stdev}")
 
     midpoint_mean = statistics.mean(midpoints)
     within_stdev_count = sum(1 for x in midpoints if abs(x - midpoint_mean) <= stdev)
