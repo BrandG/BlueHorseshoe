@@ -1,7 +1,11 @@
 import logging
 import statistics
+import subprocess
 import sys
 import time
+import warnings
+
+from sklearn.exceptions import ConvergenceWarning
 
 from Globals import get_symbol_list, get_symbol_sublist, graph
 from StandardDeviation import analyze_symbol_stability
@@ -9,10 +13,28 @@ from historicalData import build_all_symbols_history, load_historical_data
 from prediction import forecast_next_midpoint, get_gaussian_predictions
 import os
 
+sys.argv = ["-d"]
+
+def start_mongo_server():
+    try:
+        subprocess.run(["mongod", "--dbpath", "/path/to/your/db"], check=True)
+    except subprocess.CalledProcessError as e:
+        print(f"Failed to start MongoDB server: {e}")
+        sys.exit(1)
+
+def runDebugTest():
+    print("Running debug test")
+
 if __name__ == "__main__":
     logging.basicConfig(filename='blueHorseshoe.log', filemode='w', level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
     logging.getLogger('pymongo').setLevel(logging.WARNING)
     
+    # Suppress specific warnings
+    warnings.filterwarnings("ignore", category=UserWarning, message="Non-invertible starting MA parameters found. Using zeros as starting parameters.")
+    warnings.filterwarnings("ignore", category=UserWarning, message="Non-stationary starting autoregressive parameters found. Using zeros as starting parameters.")
+    warnings.filterwarnings("ignore", category=ConvergenceWarning, message="Maximum Likelihood optimization failed to converge. Check mle_retvals")
+    warnings.filterwarnings("ignore", category=ConvergenceWarning)
+
     # Clear the graphs directory
     graphs_dir = 'graphs'
     for filename in os.listdir(graphs_dir):
@@ -34,29 +56,8 @@ if __name__ == "__main__":
         results = get_gaussian_predictions()
         for result in results:
             print(f'{result["symbol"]} - forecasted = {result["forecasted"]} - uncertainty = {result["uncertainty"]} - actual = {result["actual"]} - validity = {result["validity"]} - valid_choice = {result["valid_choice"]}')
-
-    # Temp code to test general stability of symbols and predictions
-    symbols = get_symbol_list()
-    sorted_symbols = analyze_symbol_stability(symbols)
-
-    for index in range(10):
-        symbol_name = sorted_symbols[index][0]
-        price_data = load_historical_data(symbol_name)['days'][:20]
-        next_midpoint = forecast_next_midpoint(price_data[1:])
-        print(f'{symbol_name} - next midpoint: {next_midpoint}')
-
-        x_values = [data['date'] for data in price_data][::-1]
-        print(f'{symbol_name} - x_values: {x_values}')
-        midpoints = get_symbol_sublist('midpoint',historical_data=price_data)
-        highpoints = get_symbol_sublist('high',historical_data=price_data)
-        lowpoints = get_symbol_sublist('low',historical_data=price_data)
-        if len(midpoints) <= 0:
-            continue
-        midpointMean = statistics.mean(midpoints)
-        graph(xLabel="date", yLabel="Value", title=f'{index}_{symbol_name} midpoints', x_values=x_values,
-            curves=[{'curve':midpoints},{'curve':highpoints, 'color':'pink'},{'curve':lowpoints, 'color':'purple'}],
-            lines=[ {'y':midpointMean, 'color':'r', 'linestyle':'-'}, ],
-            points=[{'x':20, 'y':next_midpoint, 'color':'g', 'marker':'x'}])
+    elif "-d" in sys.argv:
+        runDebugTest()
     
     end_time = time.time()
     print(f'Execution time: {end_time - start_time:.2f} seconds')

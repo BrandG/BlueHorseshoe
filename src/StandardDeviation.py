@@ -163,7 +163,7 @@ def analyze_symbol_stability(symbols, show_graphs=False):
         symbols (list): A list of symbols to analyze.
 
     Returns:
-        None
+        A list of tuples containing the symbol and its stability score, sorted in descending order.
 
     Raises:
         Exception: If there is an error in calculating the stability score for a symbol, it will be caught
