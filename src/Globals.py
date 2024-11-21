@@ -8,6 +8,7 @@ from datetime import datetime, timedelta
 from ratelimit import limits, sleep_and_retry
 import logging
 from pymongo import MongoClient
+from pymongo.errors import ConfigurationError
 
 
 # When calculating the stability score (2.B.1), set these to determine which is more important
@@ -32,6 +33,8 @@ invalid_symbols = ['AJXA','APGB','AQNA','ARGO','BBLN','BCPA','BCPB', 'BFX','BMAC
                    'CPTK','CSTA','CTEST','ECG','EOCW','FSNB','GCTSW','HT','HYLN','INGM','ISG','JHAA','LHC','OSG','PNSTWS',
                    'PRMB','ROSS','SCU','SIX','TMAC','USX','VMW','MTEST','NTEST','ASGI','CMSA']
 
+MyMongoClient = None
+
 def get_mongo_client(uri="mongodb://localhost:27017/", db_name="blueHorseshoe"):
     """
     Creates and returns a MongoDB client connected to the specified URI and database.
@@ -43,9 +46,17 @@ def get_mongo_client(uri="mongodb://localhost:27017/", db_name="blueHorseshoe"):
     Returns:
         pymongo.database.Database: The database client connected to the specified database.
     """
-    client = MongoClient(uri)
-    db = client[db_name]
-    return db
+    global MyMongoClient
+    if MyMongoClient is None:
+        try:
+            MyMongoClient = MongoClient(uri, connectTimeoutMS=1000, serverSelectionTimeoutMS=1000)
+            server_info = MyMongoClient.server_info()
+            logging.info(f"Connected to MongoDB server version {server_info['version']}")
+        except (ConnectionError, ConfigurationError) as e:
+            logging.error(f"An error occurred while connecting to MongoDB: {e}")
+            return None
+
+    return MyMongoClient[db_name]
 
 def graph(xLabel = 'x', yLabel = 'y', title = 'title', curves = None, lines = None, points = None, x_values = None):
     """
@@ -360,3 +371,37 @@ def calculate_ewma_delta(price_data, period=20):
         ewma = (delta * alpha) + (ewma * (1 - alpha))
 
     return ewma
+
+def open_report_file():
+    """
+    Opens a file to write reports.
+
+    Returns:
+        None
+    """
+    global reportFile
+    reportFile = open('report.txt', 'w')
+
+def close_report_file():
+    """
+    Closes the report file.
+
+    Returns:
+        None
+    """
+    global reportFile
+    reportFile.close()
+
+def report(newLine = ''):
+    """
+    Prints a report to the console.
+
+    Args:
+        newLine (str): The text to print. Defaults to an empty string.
+
+    Returns:
+        None
+    """
+    global reportFile
+    reportFile.write(newLine + '\n')
+    reportFile.flush()

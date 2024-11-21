@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 import statistics
 import matplotlib.pyplot as plt
 
-from Globals import get_symbol_sublist
+from Globals import get_symbol_sublist, report
 from Globals import graph
 from Globals import stdevMultiplier
 from Globals import ratioMultiplier
@@ -65,10 +65,16 @@ def calculate_stability_score(price_data = None):
         return 0
     
     midpoints = get_symbol_sublist('midpoint', historical_data=price_data)
-    stdev = get_stdev(midpoints)
-
-    if not midpoints or stdev == 0:  # Handle cases with no data or zero standard deviation
+    if not midpoints:
+        return 0
+    
+    stat_stdev = round(statistics.stdev(midpoints), 8)
+    stdev = round(get_stdev(midpoints), 8)
+    if stdev == 0:  # Handle cases with no data or zero standard deviation
       return 0
+
+    if stat_stdev != stdev:
+        report(f"Midpoints stdev : {stdev}, statistics.stdev : {stat_stdev}")
 
     midpoint_mean = statistics.mean(midpoints)
     within_stdev_count = sum(1 for x in midpoints if abs(x - midpoint_mean) <= stdev)
@@ -121,28 +127,25 @@ def calculate_stability_scores_for_last_month(symbol, price_data=None):
         float: The mean stability score for the last month if valid scores are found, rounded to three
                decimal places. Returns None if no valid scores are calculated.
     """
+    report(f"*** Calculating stability scores for {symbol} over the last month...")
     scores = []
     if price_data is None:
         price_data = load_historical_data(symbol)['days'][:40]
+    report(f"Price data entries for {symbol}: {len(price_data)}")
     
+    if all(abs(element['midpoint'] - price_data[0]['midpoint']) < 0.00001 for element in price_data):
+        report("All midpoints are the same. Skipping...")
+        return None
+
     MIN_DATA_LENGTH = 20
-    MIN_SCORE = 0
-    MAX_SCORE = 100
 
     for i in range(len(price_data) - MIN_DATA_LENGTH + 1):
-        data_subset = price_data[i:i + MIN_DATA_LENGTH]
-
-        all_midpoints_within_tolerance = all(abs(element['midpoint'] - data_subset[0]['midpoint']) < 0.00001 for element in data_subset)
-        is_data_subset_too_short = len(data_subset) < MIN_DATA_LENGTH
-        if all_midpoints_within_tolerance or is_data_subset_too_short:
-            continue
-        score = calculate_stability_score(data_subset)
-        if MIN_SCORE < score < MAX_SCORE:
-            scores.append(score)
+        report(f"Processing data subset {i}/{len(price_data) - MIN_DATA_LENGTH}...")
+        scores.append(calculate_stability_score(price_data[i:i + MIN_DATA_LENGTH]))
 
     if scores:
-        mean_score = round(sum(scores) / len(scores), 3)
-        logging.info(f"Mean stability score for {symbol} over the last month: {mean_score}")
+        mean_score = statistics.mean(scores)
+        report(f"Mean stability score for {symbol} over the last month: {mean_score}")
         return mean_score
     else:
         logging.warning(f"No valid scores for {symbol} calculated.")
@@ -185,19 +188,21 @@ def analyze_symbol_stability(symbols, show_graphs=False):
     symbol_stability = []
     for symbol in symbols:
         try:
+            report(f"\n\nAnalyzing stability for symbol {symbol}...")
             # filter out symbols with low daily volatility
             price_data = load_historical_data(symbol['symbol'])['days'][:SLICE_LENGTH]
             daily_deltas = [(day['high'] - day['low']) / day['low'] for day in price_data if day['low'] > 0]
             mean_daily_delta = statistics.mean(daily_deltas) if daily_deltas else 0
+            report(f"Mean daily delta for {symbol['symbol']}: {mean_daily_delta}")
 
             if mean_daily_delta < 0.01:
+                report(f"Symbol {symbol['symbol']} has low daily volatility. Skipping...")
                 continue
-
-            mean_score = calculate_stability_scores_for_last_month(symbol['symbol'])
 
             # Adjust the score based on the number of days that volatility was greater than 1%
             daily_delta_percentage = sum(1 for delta in daily_deltas if delta > 0.01) / len(daily_deltas) 
-            adjusted_score = mean_score * daily_delta_percentage 
+            report(f'Daily delta percentage for {symbol["symbol"]}: {daily_delta_percentage}')
+            adjusted_score = calculate_stability_scores_for_last_month(symbol['symbol']) * daily_delta_percentage 
 
             if adjusted_score is not None:
                 symbol_stability.append((symbol['symbol'], adjusted_score))

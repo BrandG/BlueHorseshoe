@@ -6,3 +6,4 @@ blueHorseshoe.log
 .devcontainer/devcontainer.json
 .devcontainer/Dockerfile
 start_mongo.sh
+report.txt

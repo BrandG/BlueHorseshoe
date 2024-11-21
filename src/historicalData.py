@@ -124,8 +124,6 @@ def merge_data(historical_data, recent_data):
     Returns:
         dict: The merged stock data with unique dates, sorted in descending order by date.
     """
-    symbol_name = recent_data['name']
-
     final_data = historical_data.copy()
     existing_dates = {day['date'] for day in final_data['days']}  # Use a set for existing dates
 
