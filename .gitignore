@@ -7,3 +7,5 @@ blueHorseshoe.log
 .devcontainer/Dockerfile
 start_mongo.sh
 report.txt
+linting.txt
+.coverage

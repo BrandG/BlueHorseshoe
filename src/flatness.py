@@ -1,7 +1,7 @@
 import numpy as np
 from scipy import stats
 
-def analyze_midpoints(midpoints):
+def analyze_midpoints(midpoints, weights=None, acceptable_ranges=None):
     """
     Analyzes a list of midpoints to calculate statistical metrics.
 
@@ -42,20 +42,6 @@ def analyze_midpoints(midpoints):
         'slope': slope
     }
 
-    return compute_flatness_score_single_dataset(results)
-
-def compute_flatness_score_single_dataset(results, weights=None, acceptable_ranges=None):
-    """
-    Computes the flatness score for a single dataset based on its statistical metrics.
-
-    Parameters:
-        results (dict): Metrics for the dataset.
-        weights (dict): Weights for each metric.
-        acceptable_ranges (dict): Acceptable min and max values for each metric.
-
-    Returns:
-        float: Flatness score for the dataset.
-    """
     # Default weights
     if weights is None:
         weights = {

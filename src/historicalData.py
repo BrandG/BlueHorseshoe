@@ -2,13 +2,12 @@ import requests
 import os
 import json
 from ratelimit import limits, sleep_and_retry
-import heapq
 
 from Globals import get_mongo_client, get_symbol_list, base_path
 
 @sleep_and_retry
 @limits(calls=60, period=60)  # 60 calls per 60 seconds
-def get_history_from_net(stock_symbol, recent=False):
+def load_historical_data_from_net(stock_symbol, recent=False):
     """
     Fetch historical stock data from Alpha Vantage API.
 
@@ -30,7 +29,7 @@ def get_history_from_net(stock_symbol, recent=False):
                 Returns None if the 'Time Series (Daily)' key is not found in the response.
 
     Usage:
-        print(get_history_from_net('QGEN', const_grab_recent_dates))
+        print(load_historical_data_from_net('QGEN', const_grab_recent_dates))
 
     Raises:
         requests.exceptions.HTTPError: If the HTTP request returned an unsuccessful status code.
@@ -113,31 +112,31 @@ def save_historical_data_to_mongo(symbol, data, db):
     collection = db['historical_data']
     collection.update_one({"symbol": symbol}, {"$set": data}, upsert=True)
 
-def merge_data(historical_data, recent_data):
-    """
-    Merges recent stock data into historical stock data, ensuring no duplicate dates.
+# def merge_data(historical_data, recent_data):
+#     """
+#     Merges recent stock data into historical stock data, ensuring no duplicate dates.
 
-    Args:
-        historical_data (dict): The historical stock data containing a list of days.
-        recent_data (dict): The recent stock data containing a list of days and a name.
+#     Args:
+#         historical_data (dict): The historical stock data containing a list of days.
+#         recent_data (dict): The recent stock data containing a list of days and a name.
 
-    Returns:
-        dict: The merged stock data with unique dates, sorted in descending order by date.
-    """
-    final_data = historical_data.copy()
-    existing_dates = {day['date'] for day in final_data['days']}  # Use a set for existing dates
+#     Returns:
+#         dict: The merged stock data with unique dates, sorted in descending order by date.
+#     """
+#     final_data = historical_data.copy()
+#     existing_dates = {day['date'] for day in final_data['days']}  # Use a set for existing dates
 
-    # Merge the days with unique dates
-    new_days = [day for day in recent_data['days'] if day['date'] not in existing_dates]
-    final_data['days'].extend(new_days)
+#     # Merge the days with unique dates
+#     new_days = [day for day in recent_data['days'] if day['date'] not in existing_dates]
+#     final_data['days'].extend(new_days)
 
-    # Sort historical_data by date using heapq for efficiency
-    final_data['days'] = list(heapq.nlargest(len(final_data['days']), final_data['days'], key=lambda x: x['date']))
-    # Remove the data['metadata'] entry
-    if 'metadata' in final_data:
-        del final_data['metadata']
+#     # Sort historical_data by date using heapq for efficiency
+#     final_data['days'] = list(heapq.nlargest(len(final_data['days']), final_data['days'], key=lambda x: x['date']))
+#     # Remove the data['metadata'] entry
+#     if 'metadata' in final_data:
+#         del final_data['metadata']
 
-    return final_data
+#     return final_data
 
 
 
@@ -174,7 +173,7 @@ def build_all_symbols_history(starting_at='', save_to_file=False):
         name = row['name']
 
         try:
-            net_data = get_history_from_net(stock_symbol=symbol, recent=False)
+            net_data = load_historical_data_from_net(stock_symbol=symbol, recent=False)
             if net_data is None:
                 print(f"No data for {symbol}")
                 continue
@@ -241,12 +240,12 @@ def load_historical_data(symbol):
     if data is None:
         data = load_historical_data_from_file(symbol)
     if data is None:
-        data = get_history_from_net(symbol, recent=False)
+        data = load_historical_data_from_net(symbol, recent=False)
     return data
 
 # if __name__ == "__main__":
 #     print('Running historicalData.py')
-    # print(get_history_from_net('AAPL'))
+    # print(load_historical_data_from_net('AAPL'))
     # print(merge_data({'days': []}, {'name': 'AAPL', 'days': []}))
     # build_all_symbols_history()
-    # print(load_historical_data_from_file('AAPL'))
+    # print(load_historical_data('AAPL'))

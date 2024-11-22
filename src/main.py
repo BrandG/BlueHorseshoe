@@ -7,9 +7,8 @@ import warnings
 from sklearn.exceptions import ConvergenceWarning
 
 from Globals import close_report_file, get_mongo_client, get_symbol_list, get_symbol_sublist, graph, open_report_file, report
-from StandardDeviation import analyze_symbol_stability
 from historicalData import build_all_symbols_history, load_historical_data
-from prediction import forecast_next_midpoint, get_gaussian_predictions
+from prediction import forecast_next_midpoint
 import os
 
 from flatness import analyze_midpoints
@@ -32,7 +31,6 @@ def debugTest():
     for index in range(10):
         result=results[index]
         symbol_name = result['symbol']
-        print(f"Symbol: {symbol_name}, Flatness: {result['flatness']}, Avg Delta: {result['avg_delta']}")
         price_data = load_historical_data(symbol_name)['days'][:20]
         next_midpoint = round(forecast_next_midpoint(price_data[1:],(1,1,4)), 2)
 
@@ -47,7 +45,7 @@ def debugTest():
         valid = next_high <= last_high and next_low >= last_low
         if valid:
             validCount += 1
-        print(f'{index}. {'Chosen' if chosen else 'Not Chosen'} - {'Valid' if valid else 'Invalid'} - {symbol_name}: Next midpoint {next_midpoint:2} ({next_low:2},{next_high:2}) last ({last_low:2}, {last_high:2}).')
+        report(f'{index}. {'Chosen' if chosen else 'Not Chosen'} - {'Valid' if valid else 'Invalid'} - {symbol_name}: Next midpoint {next_midpoint:2} ({next_low:2},{next_high:2}) last ({last_low:2}, {last_high:2}).')
 
         price_data = price_data[:-1]
         x_values = [data['date'] for data in price_data]
@@ -61,7 +59,7 @@ def debugTest():
             curves=[{'curve':midpoints},{'curve':highpoints, 'color':'pink'},{'curve':lowpoints, 'color':'purple'}],
             lines=[ {'y':midpointMean, 'color':'r', 'linestyle':'-'}, ],
             points=[{'x':19, 'y':next_midpoint, 'color':'g', 'marker':'x'},{'x':19, 'y':next_high, 'color':'orange', 'marker':'x'},{'x':19, 'y':next_low, 'color':'orange', 'marker':'x'},])
-    print(f'Valid percentage: {validCount/(10-invalidCount)*100}%')
+    report(f'Valid percentage: {validCount/(10-invalidCount)*100}%')
 
 if __name__ == "__main__":
     open_report_file()
@@ -69,13 +67,13 @@ if __name__ == "__main__":
     logging.basicConfig(filename='blueHorseshoe.log', filemode='w', level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
     logging.getLogger('pymongo').setLevel(logging.WARNING)
     
-    if get_mongo_client() == None:
+    if get_mongo_client() is None:
         sys.exit(1)
 
     # Suppress specific warnings
     warnings.filterwarnings("ignore", category=UserWarning, message="Non-invertible starting MA parameters found. Using zeros as starting parameters.")
     warnings.filterwarnings("ignore", category=UserWarning, message="Non-stationary starting autoregressive parameters found. Using zeros as starting parameters.")
-    warnings.filterwarnings("ignore", category=ConvergenceWarning, message="Maximum Likelihood optimization failed to converge. Check mle_retvals")
+    warnings.filterwarnings("ignore", category=ConvergenceWarning, message="Maximum Likelihood optimization failed to ")
     warnings.filterwarnings("ignore", category=ConvergenceWarning)
 
     # Clear the graphs directory

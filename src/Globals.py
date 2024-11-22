@@ -8,7 +8,6 @@ from datetime import datetime, timedelta
 from ratelimit import limits, sleep_and_retry
 import logging
 from pymongo import MongoClient
-from pymongo.errors import ConfigurationError
 
 
 # When calculating the stability score (2.B.1), set these to determine which is more important
@@ -52,7 +51,7 @@ def get_mongo_client(uri="mongodb://localhost:27017/", db_name="blueHorseshoe"):
             MyMongoClient = MongoClient(uri, connectTimeoutMS=1000, serverSelectionTimeoutMS=1000)
             server_info = MyMongoClient.server_info()
             logging.info(f"Connected to MongoDB server version {server_info['version']}")
-        except (ConnectionError, ConfigurationError) as e:
+        except Exception as e:
             logging.error(f"An error occurred while connecting to MongoDB: {e}")
             return None
 
@@ -178,7 +177,7 @@ def get_symbol_list_from_net():
 
 
 
-def read_symbol_list_from_file():
+def get_symbol_list_from_file():
     """
     Reads a list of symbols from a JSON file.
 
@@ -217,7 +216,7 @@ def get_symbol_list():
     Returns:
         list: A list of symbols.
     """
-    symbol_list = read_symbol_list_from_file()
+    symbol_list = get_symbol_list_from_file()
     if symbol_list is None:
         symbol_list = get_symbol_list_from_net()
         file_path = os.path.join(base_path, 'symbol_list.json')
@@ -258,7 +257,7 @@ def get_symbol_sublist(listType, historical_data=None):
 
     Usage:
         get_symbol_sublist('high', historical_data=historical_data)
-        get_symbol_sublist('low', historical_data = load_historical_data_from_file('QGEN')['days'])
+        get_symbol_sublist('low', historical_data = load_historical_data('QGEN')['days'])
 
     Notes:
         - If both historical_data and symbol are not provided, the function will return an empty list.
@@ -301,76 +300,76 @@ def get_symbol_sublist(listType, historical_data=None):
     return retVal
 
 
-def clip_data_to_dates(price_data=None, end_date='', daterange=100):
-    """
-    Clips the given price data list to a specified date range ending at the given end date.
+# def clip_data_to_dates(price_data=None, end_date='', daterange=100):
+#     """
+#     Clips the given price data list to a specified date range ending at the given end date.
 
-    Args:
-        symbol (str, optional): The symbol for which to load historical data if price_data is not provided. Defaults to an empty string.
-        price_data (list): A list of dictionaries containing price data with 'date' keys.
-        end_date (str, optional): The end date for the date range in 'YYYY-MM-DD' format. Defaults to today's date.
-        daterange (int, optional): The number of days before the end date to include in the results. Defaults to 100.
+#     Args:
+#         symbol (str, optional): The symbol for which to load historical data if price_data is not provided. Defaults to an empty string.
+#         price_data (list): A list of dictionaries containing price data with 'date' keys.
+#         end_date (str, optional): The end date for the date range in 'YYYY-MM-DD' format. Defaults to today's date.
+#         daterange (int, optional): The number of days before the end date to include in the results. Defaults to 100.
 
-    Returns:
-        list: A list of dictionaries containing price data within the specified date range.
-    """
-    results= []
-    if end_date == '':
-        end_date = datetime.today().strftime("%Y-%m-%d")
-    end_date_dt = datetime.strptime(end_date, '%Y-%m-%d')
-    if price_data is None:
-        return results
-    for day in price_data:
-        current_date_dt = datetime.strptime(day['date'], '%Y-%m-%d')
-        start_date_dt = end_date_dt - timedelta(days=daterange)
-        if current_date_dt <= end_date_dt and current_date_dt > start_date_dt:
-            results.append(day)
-    return results
+#     Returns:
+#         list: A list of dictionaries containing price data within the specified date range.
+#     """
+#     results= []
+#     if end_date == '':
+#         end_date = datetime.today().strftime("%Y-%m-%d")
+#     end_date_dt = datetime.strptime(end_date, '%Y-%m-%d')
+#     if price_data is None:
+#         return results
+#     for day in price_data:
+#         current_date_dt = datetime.strptime(day['date'], '%Y-%m-%d')
+#         start_date_dt = end_date_dt - timedelta(days=daterange)
+#         if current_date_dt <= end_date_dt and current_date_dt > start_date_dt:
+#             results.append(day)
+#     return results
 
 
-def calculate_ewma_delta(price_data, period=20):
-    """
-    Calculates the Exponentially Weighted Moving Average (EWMA) of daily deltas for the given price data.
+# def calculate_ewma_delta(price_data, period=20):
+#     """
+#     Calculates the Exponentially Weighted Moving Average (EWMA) of daily deltas for the given price data.
 
-    Args:
-        price_data (list): A list of dictionaries containing 'high' and 'low' price data.
-        period (int): The period for calculating the EWMA. Default is 20.
+#     Args:
+#         price_data (list): A list of dictionaries containing 'high' and 'low' price data.
+#         period (int): The period for calculating the EWMA. Default is 20.
 
-    Returns:
-        float: The EWMA of daily deltas. Returns 0 if there is insufficient data.
-    """
-    if not isinstance(price_data, list) or not all(isinstance(item, dict) for item in price_data) or len(price_data) == 0:
-        raise ValueError("price_data must be a non-empty list of dictionaries")
+#     Returns:
+#         float: The EWMA of daily deltas. Returns 0 if there is insufficient data.
+#     """
+#     if not isinstance(price_data, list) or not all(isinstance(item, dict) for item in price_data) or len(price_data) == 0:
+#         raise ValueError("price_data must be a non-empty list of dictionaries")
 
-    daily_deltas = []
-    for price_obj in price_data:
-        try:
-            high = float(price_obj.get('high', 0))
-            low = float(price_obj.get('low', 0))
-        except (ValueError, TypeError):
-            logging.warning("Invalid price data. Skipping entry.")
-            continue  # Skip this entry if conversion fails
-        if high == 0 and low == 0:
-            logging.warning("Both high and low prices are zero. Skipping entry.")
-            continue  # Skip if both high and low are zero
-        average_price = (high + low) / 2  # Optionally use close price as the baseline
-        daily_delta = ((high - low) / average_price)  # Convert to percentage
-        daily_deltas.append(daily_delta)
+#     daily_deltas = []
+#     for price_obj in price_data:
+#         try:
+#             high = float(price_obj.get('high', 0))
+#             low = float(price_obj.get('low', 0))
+#         except (ValueError, TypeError):
+#             logging.warning("Invalid price data. Skipping entry.")
+#             continue  # Skip this entry if conversion fails
+#         if high == 0 and low == 0:
+#             logging.warning("Both high and low prices are zero. Skipping entry.")
+#             continue  # Skip if both high and low are zero
+#         average_price = (high + low) / 2  # Optionally use close price as the baseline
+#         daily_delta = ((high - low) / average_price)  # Convert to percentage
+#         daily_deltas.append(daily_delta)
 
-    if len(daily_deltas) == 0:
-        return 0
+#     if len(daily_deltas) == 0:
+#         return 0
 
-    # Set smoothing factor
-    alpha = 2 / (period + 1)
+#     # Set smoothing factor
+#     alpha = 2 / (period + 1)
 
-    # Initialize EWMA with the first delta value
-    ewma = daily_deltas[0]
+#     # Initialize EWMA with the first delta value
+#     ewma = daily_deltas[0]
 
-    # Apply EWMA formula for each subsequent delta
-    for delta in daily_deltas[1:]:
-        ewma = (delta * alpha) + (ewma * (1 - alpha))
+#     # Apply EWMA formula for each subsequent delta
+#     for delta in daily_deltas[1:]:
+#         ewma = (delta * alpha) + (ewma * (1 - alpha))
 
-    return ewma
+#     return ewma
 
 def open_report_file():
     """
