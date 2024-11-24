@@ -30,8 +30,38 @@ base_path = '/workspaces/BlueHorseshoe/historical_data/'
 
 invalid_symbols = ['AJXA','APGB','AQNA','ARGO','BBLN','BCPA','BCPB', 'BFX','BMAC','BOAC','BODY','CBX','CCV',
                    'CPTK','CSTA','CTEST','ECG','EOCW','FSNB','GCTSW','HT','HYLN','INGM','ISG','JHAA','LHC','OSG','PNSTWS',
-                   'PRMB','ROSS','SCU','SIX','TMAC','USX','VMW','MTEST','NTEST','ASGI','CMSA']
-
+                   'PRMB','ROSS','SCU','SIX','TMAC','USX','VMW','MTEST','NTEST','ASGI','CMSA', 'RBCP', 'GFR', 'GOOS', 
+                   'HBI', 'HOMB', 'QTWO', 'ZBH', 'INST','RCFA','SAVE', 'DLY', 'AEVA', 'GFL', 'CARR', 'OTIS', 'RFM', 'BIPC', 
+                   'MPLN', 'SPHR', 'RSI', 'SKLZ', 'APG', 'ADCT', 'SLQT', 'DNMR', 'AFGD', 'FOUR', 'SBBA', 'AZEK', 'ETWO', 
+                   'HAFN', 'MP', 'ACI', 'FTHY', 'SII', 'DNB', 'LMND', 'BFLY', 'ALIT', 'MEG', 'BEPC', 'RKT', 'SST', 'BEKE', 
+                   'NTST', 'ML', 'QS', 'NYC', 'UZD', 'MIR', 'NUVB', 'NDMO', 'XPEV', 'GB', 'PFH', 'RBOT', 'SNOW', 'AMWL', 'U', 
+                   'GETY', 'SOJE', 'BCAT', 'VNT', 'MGRB', 'ASAN', 'BQ', 'PLTR', 'YALA', 'ATIP', 'DTB', 'MKFG', 'STEM', 'IH', 
+                   'OUST', 'PSFE', 'MNSO', 'TIMB', 'BNH', 'GHLD', 'CRC', 'GATO', 'MAX', 'PTA', 'LU', 'SPIR', 'OWLT', 'GRNT', 
+                   'JOBY', 'UP', 'LICY', 'BKKT', 'YSG', 'OPFI', 'GBTG', 'AIZN', 'SDHY', 'NRDY', 'NOTE', 'AI', 'SMR', 'OPAD', 
+                   'OWL', 'UZE', 'ACHR', 'BARK', 'GWH', 'IONQ', 'EVEX', 'KUKE', 'GRND', 'DFH', 'MYTE', 'RLX', 'ZIM', 'AMPS', 
+                   'FRGE', 'ONTF', 'TIXT', 'SMRT', 'LDI', 'TFSA', 'PKST', 'RCC', 'BWSN', 'RFMZ', 'PERF', 'SES', 'OSCR', 'UWMC', 
+                   'ASAI', 'CSAN', 'RBLX', 'CPNG', 'HAYW', 'LANV', 'OLO', 'NAPA', 'TUYA', 'BNL', 'DOCN', 'KIND', 'SEMR', 
+                   'VZIO', 'BIGZ', 'ZH', 'ECCW', 'NXU', 'COUR', 'COMP', 'HTFB', 'AGL', 'BEPH', 'DNA', 'LOCL', 'DV', 'GENI', 
+                   'KKRS', 'PATH', 'BOWL', 'PL', 'EDR', 'NPCT', 'BRCC', 'BRW', 'LEV', 'WDH', 'SMWB', 'GROV', 'OGN', 'GPOR', 
+                   'PCOR', 'BIPH', 'NBXG', 'PAY', 'UZF', 'ZIP', 'FCRX', 'FIGS', 'HGTY', 'NE', 'ZETA', 'ECCC', 'TPTA', 'AOMR', 
+                   'RERE', 'YMM', 'CXM', 'DOCS', 'NEUE', 'MCW', 'WDI', 'BNT', 'DDL', 'S', 'YOU', 'CURV', 'DTM', 'PSQH', 'FREY', 
+                   'OKLO', 'SHCO', 'BLND', 'BRDG', 'STVN', 'FLYX', 'NABL', 'LAW', 'VSCO', 'VTEX', 'CNM', 'GXO', 'RYAN', 'ZVIA', 
+                   'MGRD', 'XPOF', 'MLNK', 'COOK', 'RSKD', 'DOLE', 'ECVT', 'HIPO', 'AMBP', 'MIO', 'NPWR', 'JXN', 'RDW', 'BROS', 
+                   'ONON', 'MTAL', 'AKA', 'TOST', 'SLVM', 'CWAN', 'ECAT', 'WRBY', 'BHIL', 'TFPM', 'KORE', 'VLN', 'WBX', 'CION', 
+                   'LTH', 'IHS', 'FNA', 'EICA', 'FBRT', 'ENFN', 'PX', 'ARIS', 'KD', 'INFA', 'MEGI', 'BXSL', 'DTC', 'CBL', 'CMTG', 
+                   'CDRE', 'NXDT', 'PRM', 'CINT', 'WEAV', 'ONL', 'SG', 'NMAI', 'GUG', 'DTG', 'CTV', 'CRGY', 'NU', 'BEPI', 'EVTL', 
+                   'IOT', 'NPFD', 'BBAI', 'BWNB', 'ZGN', 'DOUG', 'DMA', 'MNTN', 'WEL', 'SOAR', 'BIPI', 'ECCV', 'PAXS', 'SGHC', 
+                   'BFAC', 'MDV', 'RMMZ', 'NRGV', 'RLTY', 'BBUC', 'PNST', 'KMPB', 'PGRU', 'ESAB', 'STEW', 'EE', 'SAT', 'BLCO', 
+                   'HTFC', 'EHAB', 'HKD', 'HLN', 'QBTS', 'HLLY', 'AMPX', 'CRBG', 'XPER', 'BHVN', 'LVWR', 'RZC', 'SDRL', 'HSHP', 
+                   'BMN', 'RXO', 'NXG', 'SAJ', 'FSCO', 'BKDT', 'FG', 'BAM', 'MBC', 'SAY', 'VTS', 'TXO', 'ASBA', 'AESI', 'CLCO', 
+                   'CR', 'MSGE', 'SAZ', 'KVUE', 'ATMU', 'KNF', 'AACT', 'CAVA', 'PHIN', 'FIHL', 'KGS', 'SVV', 'VTMX', 'LZM', 'SRFM', 
+                   'EICB', 'SN', 'ALUR', 'ECO', 'EXTO', 'BETR', 'APOS', 'TKO', 'HYAC', 'KVYO', 'KLG', 'PMTU', 'LAC', 'LAAC', 'VLTO', 
+                   'VSTS', 'BIRK', 'MNR', 'CCIA', 'NLOP', 'HG', 'WS', 'FGN', 'ZKH', 'DEC', 'CDLR', 'IROHU', 'ELPC', 'ALTM', 'CLBR', 
+                   'SDHC', 'PSBD', 'MFAN', 'MSDL', 'NCDL', 'OBDE', 'AS', 'ANRO', 'RWTN', 'MITN', 'AHR', 'TBBB', 'SOC', 'BODI', 'ATHS', 
+                   'CTOS', 'RDDT', 'AUNA', 'DXYZ', 'SOLV', 'BEPJ', 'GCTS', 'GEV', 'MGRE', 'WNS', 'PACS', 'ULS', 'CTRI', 'IBTA', 
+                   'MFAO', 'LOAR', 'RBRK', 'VIK', 'ZK', 'MITP', 'KBDC', 'BOW', 'CIMN', 'BIPJ', 'SPMC', 'RWTO', 'TBN', 'LB', 'SW', 
+                   'ARDT', 'PDCC', 'CON', 'AOMN', 'SMC', 'CIMO', 'AAM', 'AMTM', 'BKV', 'CURB', 'GRDN', 'EQV', 'FVR', 'SARO', 'CBNA', 
+                   'SBXD', 'CICB', 'KLC']
 MyMongoClient = None
 
 def get_mongo_client(uri="mongodb://localhost:27017/", db_name="blueHorseshoe"):
@@ -206,7 +236,9 @@ def get_symbol_list_from_file():
     print(f"Error: Could not open file {file_path}. Please check the logs.")
     return None
 
-
+def get_symbol_name_list():
+    symbol_list = get_symbol_list()
+    return [symbol['symbol'] for symbol in symbol_list]
 
 def get_symbol_list():
     """

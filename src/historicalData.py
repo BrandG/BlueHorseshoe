@@ -161,7 +161,7 @@ def build_all_symbols_history(starting_at='', save_to_file=False):
     for row in symbol_list:
         index += 1
         percentage = round(index/len(symbol_list)*100)
-        print(f'{index} - ({percentage}%)')
+        print(f'{index} - {row['symbol']} ({percentage}%)')
 
         if skip:
             if row['symbol'] == starting_at:
