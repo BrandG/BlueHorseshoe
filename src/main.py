@@ -16,26 +16,34 @@ import os
 from flatness import analyze_midpoints
 from nnPrediction import get_nn_prediction
 
-sys.argv = ["-d"]
+sys.argv = ["-u"]
 
 def debugTest():
 
-    price_data = load_historical_data('IBM')
-    newData = [{'open':val['open'], 'high':val['high'], 'low':val['low'], 'close':val['close'], 'volume':val['volume'], 'date':val['date']} for val in price_data['days']][1:]
-    data = pd.DataFrame(newData[::-1])
+    symbols = get_symbol_name_list()
+    results = []
+    for symbol in symbols:
+        price_data = load_historical_data(symbol)
+        newData = [{'open':val['open'], 'high':val['high'], 'low':val['low'], 'close':val['close'], 'volume':val['volume'], 'date':val['date']} for val in price_data['days']][1:]
+        data = pd.DataFrame(newData[::-1])
 
-    # Initialize and train the model
-    predictor = StockMidpointPredictor(lookback_period=30)
-    predictor.train(data)
+        # Initialize and train the model
+        predictor = StockMidpointPredictor(lookback_period=30)
+        predictor.train(data)
 
-    # Get prediction for next day
-    next_day_midpoint = predictor.predict(data)
-    print(f"Next day's midpoint: {next_day_midpoint:.2f}")
+        # Get prediction for next day
+        next_day_midpoint = predictor.predict(data)
+        print(f"Next day's midpoint: {next_day_midpoint:.2f}")
 
-    # Evaluate model performance
-    metrics = predictor.evaluate(data)
-    print(f"RMSE: {metrics}")
+        # Evaluate model performance
+        metrics = predictor.evaluate(data)
+        print(f"RMSE: {metrics['rmse']:.2f}")
 
+        results.append({'symbol':symbol,'next_midpoiunt':next_day_midpoint, 'rmse':metrics['rmse']})
+        logging.info(f"Symbol: {symbol} - Next day's midpoint: {next_day_midpoint:.2f} - RMSE: {metrics['rmse']:.2f}")
+
+    results.sort(key=lambda x: x['rmse'])
+    print(f'10 Best RMSE: {results[:10]}')
     # price_data = load_historical_data('IBM')
     # print(price_data['days'][0])
     # get_nn_prediction(price_data['days'][::-1])
