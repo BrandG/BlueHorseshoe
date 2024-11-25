@@ -16,7 +16,7 @@ import os
 from flatness import analyze_midpoints
 from nnPrediction import get_nn_prediction
 
-sys.argv = ["-u"]
+sys.argv = ["-d"]
 
 def debugTest():
 
