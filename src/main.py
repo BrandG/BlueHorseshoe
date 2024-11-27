@@ -7,7 +7,7 @@ import pandas as pd
 
 from sklearn.exceptions import ConvergenceWarning
 
-from Globals import close_report_file, get_mongo_client, get_symbol_list, get_symbol_name_list, get_symbol_sublist, graph, open_report_file, report
+from globals import ReportSingleton, get_mongo_client
 from StockMidpointPredictor import StockMidpointPredictor
 from historicalData import build_all_symbols_history, load_historical_data
 from prediction import forecast_next_midpoint
@@ -69,7 +69,7 @@ def debugTest():
     #     valid = next_high <= last_high and next_low >= last_low
     #     if valid:
     #         validCount += 1
-    #     report(f'{index}. {'Chosen' if chosen else 'Not Chosen'} - {'Valid' if valid else 'Invalid'} - {symbol_name}: Next midpoint {next_midpoint:2} ({next_low:2},{next_high:2}) last ({last_low:2}, {last_high:2}).')
+    #     ReportSingleton().write(f'{index}. {'Chosen' if chosen else 'Not Chosen'} - {'Valid' if valid else 'Invalid'} - {symbol_name}: Next midpoint {next_midpoint:2} ({next_low:2},{next_high:2}) last ({last_low:2}, {last_high:2}).')
 
     #     price_data = price_data[:-1]
     #     x_values = [data['date'] for data in price_data]
@@ -79,15 +79,18 @@ def debugTest():
     #     if len(midpoints) <= 0:
     #         continue
     #     midpointMean = statistics.mean(midpoints)
-    #     graph(xLabel="date", yLabel="Value", title=f'{index}_{symbol_name} midpoints', x_values=x_values,
-    #         curves=[{'curve':midpoints},{'curve':highpoints, 'color':'pink'},{'curve':lowpoints, 'color':'purple'}],
-    #         lines=[ {'y':midpointMean, 'color':'r', 'linestyle':'-'}, ],
-    #         points=[{'x':19, 'y':next_midpoint, 'color':'g', 'marker':'x'},{'x':19, 'y':next_high, 'color':'orange', 'marker':'x'},{'x':19, 'y':next_low, 'color':'orange', 'marker':'x'},])
-    # report(f'Valid percentage: {validCount/(10-invalidCount)*100}%')
+    #     graph_data : GraphData = {'x_label':'date', 'y_label':'Value', 'title':f'{index}_{symbol_name} midpoints', 'x_values':x_values,
+    #         'curves': [{'curve':midpoints},{'curve':highpoints, 'color':'pink'},{'curve':lowpoints, 'color':'purple'}],
+    #         'lines': [ {'y':midpointMean, 'color':'r', 'linestyle':'-'}, ],
+    #         'points': [{'x':19, 'y':next_midpoint, 'color':'g', 'marker':'x'},
+    #                    {'x':19, 'y':next_high, 'color':'orange', 'marker':'x'},
+    #                    {'x':19, 'y':next_low, 'color':'orange', 'marker':'x'},],
+    #     }
+    #     graph(graph_data)
+    # ReportSingleton().write('f'Valid percentage: {validCount/(10-invalidCount)*100}%')
 
 if __name__ == "__main__":
     start_time = time.time()
-    open_report_file()
 
     logging.basicConfig(filename='blueHorseshoe.log', filemode='w', level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
     logging.getLogger('pymongo').setLevel(logging.WARNING)
@@ -125,6 +128,6 @@ if __name__ == "__main__":
     elif "-d" in sys.argv:
         debugTest()
 
-    close_report_file()    
+    ReportSingleton().close()
     end_time = time.time()
     print(f'Execution time: {end_time - start_time:.2f} seconds')

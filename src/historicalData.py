@@ -3,7 +3,7 @@ import os
 import json
 from ratelimit import limits, sleep_and_retry
 
-from Globals import get_mongo_client, get_symbol_list, base_path
+from globals import get_mongo_client, get_symbol_list, BASE_PATH
 
 @sleep_and_retry
 @limits(calls=60, period=60)  # 60 calls per 60 seconds
@@ -29,7 +29,7 @@ def load_historical_data_from_net(stock_symbol, recent=False):
                 Returns None if the 'Time Series (Daily)' key is not found in the response.
 
     Usage:
-        print(load_historical_data_from_net('QGEN', const_grab_recent_dates))
+        print(load_historical_data_from_net('QGEN', CONST_GRAB_RECENT_DATES))
 
     Raises:
         requests.exceptions.HTTPError: If the HTTP request returned an unsuccessful status code.
@@ -184,7 +184,7 @@ def build_all_symbols_history(starting_at='', save_to_file=False):
             if save_to_file:
                 new_data_json = json.dumps(net_data)
                 # write out new_data_json to file
-                file_path = os.path.join(base_path, f'StockPrice-{symbol}.json')
+                file_path = os.path.join(BASE_PATH, f'StockPrice-{symbol}.json')
                 with open(f'{file_path}', 'w', encoding='utf-8') as file:
                     file.write(new_data_json)
                     print(f"Saved data for {symbol} to {file_path}")
@@ -210,7 +210,7 @@ def load_historical_data_from_file(symbol):
     Raises:
         FileNotFoundError: If the file does not exist at the specified path.
     """
-    file_path = os.path.join(base_path, f'StockPrice-{symbol}.json')
+    file_path = os.path.join(BASE_PATH, f'StockPrice-{symbol}.json')
 
     try:
         with open(file_path, 'r', encoding='utf-8') as file:

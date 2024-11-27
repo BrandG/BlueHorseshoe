@@ -2,7 +2,7 @@ import numpy as np
 from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import RBF, ConstantKernel as C
 from statsmodels.tsa.arima.model import ARIMA
-from Globals import get_symbol_sublist
+from globals import get_symbol_sublist
 # from StockSelectionTools import get_top_ten_stability_scores
 from historicalData import load_historical_data
 import logging

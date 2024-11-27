@@ -9,7 +9,7 @@ from torch import lstm
 from sklearn.metrics import mean_squared_error
 import matplotlib.pyplot as plt
 
-from Globals import report
+from globals import ReportSingleton
 
 
 # Select features for scaling
@@ -45,19 +45,6 @@ def compute_RSI(data, time_window):
     rsi = 100 - (100 / (1 + rs))
     return rsi
 
-def get_nn_prediction(price_data):
-
-    scaled_df = getFeatures(price_data)
-    report(f'price_data size = {len(price_data)}')
-    report(f'Original Price data - {price_data[:5]}\n\n')
-    report(f'Scaled Price data - {scaled_df[:5]}')
-
-    model = buildModel(scaled_df)
-
-    next_midpoint = predictNextMidpoint(model, scaled_df)
-
-    return next_midpoint
-
 def getFeatures(price_data):
     # Convert to DataFrame
     df = pd.DataFrame(price_data)
@@ -76,12 +63,12 @@ def getFeatures(price_data):
 
     df['RSI14'] = compute_RSI(df['close'], 14)
 
-    report(f'Price data - {df[:5]}')
+    ReportSingleton().write(f'Price data - {df[:5]}')
 
     # Drop NaN values resulting from indicators
     df.dropna(inplace=True)
 
-    report(f'Price data - nans removed - {df[:5]}')
+    ReportSingleton().write(f'Price data - nans removed - {df[:5]}')
 
     # Initialize the scaler
     scaler = MinMaxScaler()
@@ -100,6 +87,18 @@ def getFeatures(price_data):
     print(f"Original data shape: {df.shape}")
 
     return scaled_df
+
+def get_nn_prediction(price_data):
+    scaled_df = getFeatures(price_data)
+    ReportSingleton().write(f'price_data size = {len(price_data)}')
+    ReportSingleton().write(f'Original Price data - {price_data[:5]}\n\n')
+    ReportSingleton().write(f'Scaled Price data - {scaled_df[:5]}')
+
+    model = buildModel(scaled_df)
+
+    next_midpoint = predictNextMidpoint(model, scaled_df)
+
+    return next_midpoint
 
 def buildModel(scaled_df):
     # Define the proportion of data to be used for training

@@ -1,11 +1,11 @@
 # import logging
-# from Globals import calculate_ewma_delta, clip_data_to_dates, const_date_range, get_symbol_list, get_symbol_sublist
-# from Globals import adjusted_rolling_close_open_modifier, adjusted_weighted_price_stability_modifier, adjusted_modified_atr_modifier, combined_score_mul, stability_score_modifier
+# from Globals import calculate_ewma_delta, clip_data_to_dates, CONST_DATE_RANGE, get_symbol_list, get_symbol_sublist
+# from Globals import ADJUSTED_ROLLING_CLOSE_OPEN_MODIFIER, ADJUSTED_WEIGHTED_PRICE_STABILITY_MODIFIER, ADJUSTED_MODIFIED_ATR_MODIFIER, combined_score_mul, STABILITY_SCORE_MODIFIER
 # from StandardDeviation import calculate_stability_score
 # from historicalData import load_historical_data
 
 
-# def get_rolling_close_open_delta_percentage(price_data=None, daterange=const_date_range, window_size=5):
+# def get_rolling_close_open_delta_percentage(price_data=None, daterange=CONST_DATE_RANGE, window_size=5):
 #     """
 #     Calculate the rolling average of the close-open delta percentage over a specified window size.
 #     This can help filter for stocks with stable price behavior while retaining tradable daily ranges.
@@ -14,7 +14,7 @@
 #     Args:
 #         price_data (list, optional): A list of price data dictionaries. Each dictionary should contain
 #                                      'close_open_delta_percentage' key. Defaults to None.
-#         daterange (int, optional): The number of days to consider from the price data. Defaults to const_date_range.
+#         daterange (int, optional): The number of days to consider from the price data. Defaults to CONST_DATE_RANGE.
 #         window_size (int, optional): The size of the rolling window to calculate the average. Defaults to 5.
 
 #     Returns:
@@ -49,7 +49,7 @@
 
 
 
-# def get_weighted_price_stability(price_data, volume_window_size=const_date_range):
+# def get_weighted_price_stability(price_data, volume_window_size=CONST_DATE_RANGE):
 #     """
 #     Calculate the weighted price stability of a stock based on its price data and volume.
 
@@ -118,7 +118,7 @@
 
 
 
-# def get_MATR_stability(price_data=None, daterange=const_date_range):
+# def get_MATR_stability(price_data=None, daterange=CONST_DATE_RANGE):
 #     """
 #     Calculate the Modified Average True Range (MATR) stability for a given set of price data.
 
@@ -195,10 +195,10 @@
 
     
 # def get_stability_score(historical_data):
-#     adjusted_rolling_close_open_delta = get_rolling_close_open_delta_percentage(historical_data) * adjusted_rolling_close_open_modifier
-#     adjusted_weighted_price_stability = get_weighted_price_stability(historical_data) * adjusted_weighted_price_stability_modifier
-#     adjusted_modified_atr = get_MATR_stability(historical_data) * adjusted_modified_atr_modifier
-#     stability_score = calculate_stability_score(historical_data) * stability_score_modifier
+#     adjusted_rolling_close_open_delta = get_rolling_close_open_delta_percentage(historical_data) * ADJUSTED_ROLLING_CLOSE_OPEN_MODIFIER
+#     adjusted_weighted_price_stability = get_weighted_price_stability(historical_data) * ADJUSTED_WEIGHTED_PRICE_STABILITY_MODIFIER
+#     adjusted_modified_atr = get_MATR_stability(historical_data) * ADJUSTED_MODIFIED_ATR_MODIFIER
+#     stability_score = calculate_stability_score(historical_data) * STABILITY_SCORE_MODIFIER
 
 #     return (adjusted_rolling_close_open_delta + \
 #                             adjusted_weighted_price_stability + \

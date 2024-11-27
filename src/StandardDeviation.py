@@ -1,10 +1,5 @@
-import logging
-import statistics
-
-from Globals import get_symbol_sublist, report
-from Globals import stdevMultiplier
-from Globals import ratioMultiplier
-from historicalData import load_historical_data
+from globals import STDEV_MULTIPLIER
+from globals import RATIO_MULTIPLIER
 
 
 
@@ -45,8 +40,8 @@ from historicalData import load_historical_data
 
 #     midpoint_mean = statistics.mean(midpoints)
 #     within_stdev_count = sum(1 for x in midpoints if abs(x - midpoint_mean) <= stdev)
-#     stdev_component = stdevMultiplier * stdev / (midpoint_mean if midpoint_mean != 0 else 1)
-#     ratio_component = within_stdev_count * ratioMultiplier / len(midpoints)
+#     stdev_component = STDEV_MULTIPLIER * stdev / (midpoint_mean if midpoint_mean != 0 else 1)
+#     ratio_component = within_stdev_count * RATIO_MULTIPLIER / len(midpoints)
 #     stability_score = max(0, 1 - (stdev_component + ratio_component))
 
 #     return stability_score
@@ -94,25 +89,25 @@ from historicalData import load_historical_data
 #         float: The mean stability score for the last month if valid scores are found, rounded to three
 #                decimal places. Returns None if no valid scores are calculated.
 #     """
-#     report(f"*** Calculating stability scores for {symbol} over the last month...")
+#     ReportSingleton().write('f"*** Calculating stability scores for {symbol} over the last month...")
 #     scores = []
 #     if price_data is None:
 #         price_data = load_historical_data(symbol)['days'][:40]
-#     report(f"Price data entries for {symbol}: {len(price_data)}")
+#     ReportSingleton().write('f"Price data entries for {symbol}: {len(price_data)}")
     
 #     if all(abs(element['midpoint'] - price_data[0]['midpoint']) < 0.00001 for element in price_data):
-#         report("All midpoints are the same. Skipping...")
+#         ReportSingleton().write('"All midpoints are the same. Skipping...")
 #         return None
 
 #     MIN_DATA_LENGTH = 20
 
 #     for i in range(len(price_data) - MIN_DATA_LENGTH + 1):
-#         report(f"Processing data subset {i}/{len(price_data) - MIN_DATA_LENGTH}...")
+#         ReportSingleton().write('f"Processing data subset {i}/{len(price_data) - MIN_DATA_LENGTH}...")
 #         scores.append(calculate_stability_score(price_data[i:i + MIN_DATA_LENGTH]))
 
 #     if scores:
 #         mean_score = statistics.mean(scores)
-#         report(f"Mean stability score for {symbol} over the last month: {mean_score}")
+#         ReportSingleton().write('f"Mean stability score for {symbol} over the last month: {mean_score}")
 #         return mean_score
 #     else:
 #         logging.warning(f"No valid scores for {symbol} calculated.")
@@ -147,7 +142,7 @@ from historicalData import load_historical_data
 #             - calculate_stability_scores_for_last_month(symbol): Calculates the stability score for the given symbol.
 #             - load_historical_data(symbol): Loads historical data for the given symbol.
 #             - get_symbol_sublist(key, historical_data): Extracts a sublist of values from the historical data based on the key.
-#             - graph(xLabel, yLabel, title, curves, lines): Generates and displays a graph with the given parameters.
+#             - graph(x_label, y_label, title, curves, lines): Generates and displays a graph with the given parameters.
 #     """
 #     TOP_N = 10
 #     SLICE_LENGTH = 40
@@ -155,20 +150,20 @@ from historicalData import load_historical_data
 #     symbol_stability = []
 #     for symbol in symbols:
 #         try:
-#             report(f"\n\nAnalyzing stability for symbol {symbol}...")
+#             ReportSingleton().write('f"\n\nAnalyzing stability for symbol {symbol}...")
 #             # filter out symbols with low daily volatility
 #             price_data = load_historical_data(symbol['symbol'])['days'][:SLICE_LENGTH]
 #             daily_deltas = [(day['high'] - day['low']) / day['low'] for day in price_data if day['low'] > 0]
 #             mean_daily_delta = statistics.mean(daily_deltas) if daily_deltas else 0
-#             report(f"Mean daily delta for {symbol['symbol']}: {mean_daily_delta}")
+#             ReportSingleton().write('f"Mean daily delta for {symbol['symbol']}: {mean_daily_delta}")
 
 #             if mean_daily_delta < 0.01:
-#                 report(f"Symbol {symbol['symbol']} has low daily volatility. Skipping...")
+#                 ReportSingleton().write('f"Symbol {symbol['symbol']} has low daily volatility. Skipping...")
 #                 continue
 
 #             # Adjust the score based on the number of days that volatility was greater than 1%
 #             daily_delta_percentage = sum(1 for delta in daily_deltas if delta > 0.01) / len(daily_deltas) 
-#             report(f'Daily delta percentage for {symbol["symbol"]}: {daily_delta_percentage}')
+#             ReportSingleton().write('f'Daily delta percentage for {symbol["symbol"]}: {daily_delta_percentage}')
 #             adjusted_score = calculate_stability_scores_for_last_month(symbol['symbol']) * daily_delta_percentage 
 
 #             if adjusted_score is not None:
@@ -191,7 +186,7 @@ from historicalData import load_historical_data
 #             if len(midpoints) <= 0:
 #                 continue
 #             midpointMean = statistics.mean(midpoints)
-#             graph(xLabel="date", yLabel="Value", title=f'{symbol_stability[i][0]} midpoints',
+#             graph(x_label="date", y_label="Value", title=f'{symbol_stability[i][0]} midpoints',
 #                 curves=[{'curve':midpoints},{'curve':highpoints, 'color':'pink'},{'curve':lowpoints, 'color':'purple'}],
 #                 lines=[ {'y':midpointMean, 'color':'r', 'linestyle':'-'}, ])
 #     return symbol_stability
