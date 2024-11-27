@@ -1,6 +1,7 @@
 # import logging
 # from Globals import calculate_ewma_delta, clip_data_to_dates, CONST_DATE_RANGE, get_symbol_list, get_symbol_sublist
-# from Globals import ADJUSTED_ROLLING_CLOSE_OPEN_MODIFIER, ADJUSTED_WEIGHTED_PRICE_STABILITY_MODIFIER, ADJUSTED_MODIFIED_ATR_MODIFIER, combined_score_mul, STABILITY_SCORE_MODIFIER
+# from Globals import ADJUSTED_ROLLING_CLOSE_OPEN_MODIFIER, ADJUSTED_WEIGHTED_PRICE_STABILITY_MODIFIER,
+#   ADJUSTED_MODIFIED_ATR_MODIFIER, combined_score_mul, STABILITY_SCORE_MODIFIER
 # from StandardDeviation import calculate_stability_score
 # from historicalData import load_historical_data
 
@@ -42,7 +43,7 @@
 #     if len(rolling_delta) < window_size:
 #         logging.warning('Not enough data points to calculate rolling average')
 #         return 0.0  # Return 0.0 if there are not enough data points for the rolling average
-        
+
 #     return sum(rolling_delta) / len(rolling_delta)
 
 
@@ -53,15 +54,15 @@
 #     """
 #     Calculate the weighted price stability of a stock based on its price data and volume.
 
-#     This function computes the weighted price stability by considering the absolute 
-#     percentage change between the open and close prices, weighted by the relative volume 
+#     This function computes the weighted price stability by considering the absolute
+#     percentage change between the open and close prices, weighted by the relative volume
 #     over a specified window size.
 
-#     The Weighted Price Stability calculation multiplies each day's close-open delta by the 
-#     relative volume, giving greater importance to high-volume days. This weighting allows 
-#     us to focus on price stability under conditions of higher liquidity, as those are 
+#     The Weighted Price Stability calculation multiplies each day's close-open delta by the
+#     relative volume, giving greater importance to high-volume days. This weighting allows
+#     us to focus on price stability under conditions of higher liquidity, as those are
 #     typically more meaningful for consistent trading behavior.
-    
+
 #     Args:
 #         price_data (list): A list of dictionaries containing 'open', 'close', and 'volume' keys.
 #         volume_window_size (int): The size of the window to calculate the rolling average volume.
@@ -122,15 +123,15 @@
 #     """
 #     Calculate the Modified Average True Range (MATR) stability for a given set of price data.
 
-#     The Modified Average True Range (ATR) is an adaptation of the traditional Average True Range 
-#     (ATR), a widely used indicator in technical analysis for measuring market volatility. The 
-#     traditional ATR calculates the average range between the high and low prices over a specified 
-#     period, incorporating gaps by considering the previous close as well. The Modified ATR makes 
-#     adjustments to this calculation to tailor it for specific trading strategies or to smooth out 
+#     The Modified Average True Range (ATR) is an adaptation of the traditional Average True Range
+#     (ATR), a widely used indicator in technical analysis for measuring market volatility. The
+#     traditional ATR calculates the average range between the high and low prices over a specified
+#     period, incorporating gaps by considering the previous close as well. The Modified ATR makes
+#     adjustments to this calculation to tailor it for specific trading strategies or to smooth out
 #     anomalies in volatility.
 
-#     This version is the EMA modification (exponential moving average). It should prioritize recent 
-#     price changes over older data. Maybe we try one of the others like Relative ATR 
+#     This version is the EMA modification (exponential moving average). It should prioritize recent
+#     price changes over older data. Maybe we try one of the others like Relative ATR
 #     (percentage-based. Good for comparing to other stocks), or Volume weighted. 🤷
 
 #     Note: I did make some changes to make it return a stability percentage.
@@ -191,9 +192,9 @@
 
 #     # return sum(modified_atr[:daterange]) / daterange
 #     return modified_atr[-1]
-    
 
-    
+
+
 # def get_stability_score(historical_data):
 #     adjusted_rolling_close_open_delta = get_rolling_close_open_delta_percentage(historical_data) * ADJUSTED_ROLLING_CLOSE_OPEN_MODIFIER
 #     adjusted_weighted_price_stability = get_weighted_price_stability(historical_data) * ADJUSTED_WEIGHTED_PRICE_STABILITY_MODIFIER
@@ -237,13 +238,15 @@
 #             'combined_score': delta * combined_score_mul[0] + stability_score * combined_score_mul[1]
 #         })
 
-#     # Filter out the bad data: stability score should be less than 100.0, daily delta should be greater than 0.012, and symbol name should not be empty
+#     # Filter out the bad data: stability score should be less than 100.0, daily delta should be greater than 0.012,
+#     #     and symbol name should not be empty
 #     results = [result for result in results if result['stability'] < 100.0 and result['dailyDelta'] > 0.012 and result['symbol']['name'] != '']
 
 #     # Sort by stabiility and delta
 #     results.sort(key=lambda x:(x['combined_score']), reverse=True)
 #     print("Top 10 stability scores:")
 #     for result in results[:10]:
-#         print(f"Symbol: {result['symbol']['symbol']}, Name: {result['symbol']['name']}, Stability: {result['stability']:.2f}, Daily Delta: {result['dailyDelta']:.4f}, Combined Score: {result['combined_score']:.2f}")
+#         print(f"Symbol: {result['symbol']['symbol']}, Name: {result['symbol']['name']}, Stability: " +
+#           f"{result['stability']:.2f}, Daily Delta: {result['dailyDelta']:.4f}, Combined Score: {result['combined_score']:.2f}")
 
 #     return results[:10]

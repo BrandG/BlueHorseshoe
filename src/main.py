@@ -46,7 +46,7 @@ import pandas as pd
 from sklearn.exceptions import ConvergenceWarning
 
 from globals import ReportSingleton, get_mongo_client
-from StockMidpointPredictor import StockMidpointPredictor
+from stock_midpoint_predictor import StockMidpointPredictor
 from historical_data import build_all_symbols_history, load_historical_data
 
 sys.argv = ["-d"]

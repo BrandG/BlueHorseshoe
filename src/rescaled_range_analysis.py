@@ -30,9 +30,9 @@
 #     # Perform a linear fit on the log-log plot of lags vs. tau
 #     log_tau = np.log(np.sqrt([np.std(diff) for diff in differences]))
 #     fit_coefficients = np.polyfit(log_lags, log_tau, 1)
-    
+
 #     # The Hurst exponent is calculated as twice the slope of the log-log plot of the variances of the lagged differences (fit_coefficients[0])
 #     # The Hurst exponent is twice the slope of the log-log plot of the variances of the lagged differences
 #     hurst_exponent = fit_coefficients[0] * 2.0
-    
+
 #     return hurst_exponent

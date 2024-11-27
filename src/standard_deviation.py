@@ -1,15 +1,13 @@
-from globals import STDEV_MULTIPLIER
-from globals import RATIO_MULTIPLIER
-
-
+# from globals import STDEV_MULTIPLIER
+# from globals import RATIO_MULTIPLIER
 
 # def calculate_stability_score(price_data = None):
 #     """
 #     Calculate the stability score for a given symbol based on its price data.
 
 #     The stability score is determined by combining the standard deviation of the midpoints
-#     and the ratio of points within one standard deviation of the mean midpoint. A lower 
-#     standard deviation and a higher ratio of points within one standard deviation result 
+#     and the ratio of points within one standard deviation of the mean midpoint. A lower
+#     standard deviation and a higher ratio of points within one standard deviation result
 #     in a higher stability score.
 
 #     You might need to adjust the weights based on your specific needs
@@ -18,7 +16,7 @@ from globals import RATIO_MULTIPLIER
 #         price_data (list): A list of price data points. Defaults to an empty list.
 
 #     Returns:
-#         float: The calculated stability score. Returns 0 if there is no data or if the 
+#         float: The calculated stability score. Returns 0 if there is no data or if the
 #                standard deviation is zero.
 
 #     Example:
@@ -29,11 +27,11 @@ from globals import RATIO_MULTIPLIER
 #     """
 #     if not price_data:
 #         return 0
-    
+
 #     midpoints = get_symbol_sublist('midpoint', historical_data=price_data)
 #     if not midpoints:
 #         return 0
-    
+
 #     stdev = round(statistics.stdev(midpoints), 8)
 #     if stdev == 0:  # Handle cases with no data or zero standard deviation
 #       return 0
@@ -94,7 +92,7 @@ from globals import RATIO_MULTIPLIER
 #     if price_data is None:
 #         price_data = load_historical_data(symbol)['days'][:40]
 #     ReportSingleton().write('f"Price data entries for {symbol}: {len(price_data)}")
-    
+
 #     if all(abs(element['midpoint'] - price_data[0]['midpoint']) < 0.00001 for element in price_data):
 #         ReportSingleton().write('"All midpoints are the same. Skipping...")
 #         return None
@@ -162,9 +160,9 @@ from globals import RATIO_MULTIPLIER
 #                 continue
 
 #             # Adjust the score based on the number of days that volatility was greater than 1%
-#             daily_delta_percentage = sum(1 for delta in daily_deltas if delta > 0.01) / len(daily_deltas) 
+#             daily_delta_percentage = sum(1 for delta in daily_deltas if delta > 0.01) / len(daily_deltas)
 #             ReportSingleton().write('f'Daily delta percentage for {symbol["symbol"]}: {daily_delta_percentage}')
-#             adjusted_score = calculate_stability_scores_for_last_month(symbol['symbol']) * daily_delta_percentage 
+#             adjusted_score = calculate_stability_scores_for_last_month(symbol['symbol']) * daily_delta_percentage
 
 #             if adjusted_score is not None:
 #                 symbol_stability.append((symbol['symbol'], adjusted_score))
