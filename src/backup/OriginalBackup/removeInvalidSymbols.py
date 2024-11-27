@@ -1,8 +1,5 @@
 #!/usr/bin/python
 
-import os
-import datetime
-from subprocess import check_call
 
 symbolList = []
 with open("error.txt","r") as errFile:

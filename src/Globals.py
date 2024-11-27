@@ -30,7 +30,39 @@ base_path = '/workspaces/BlueHorseshoe/historical_data/'
 
 invalid_symbols = ['AJXA','APGB','AQNA','ARGO','BBLN','BCPA','BCPB', 'BFX','BMAC','BOAC','BODY','CBX','CCV',
                    'CPTK','CSTA','CTEST','ECG','EOCW','FSNB','GCTSW','HT','HYLN','INGM','ISG','JHAA','LHC','OSG','PNSTWS',
-                   'PRMB','ROSS','SCU','SIX','TMAC','USX','VMW','MTEST','NTEST','ASGI','CMSA']
+                   'PRMB','ROSS','SCU','SIX','TMAC','USX','VMW','MTEST','NTEST','ASGI','CMSA', 'RBCP', 'GFR', 'GOOS', 
+                   'HBI', 'HOMB', 'QTWO', 'ZBH', 'INST','RCFA','SAVE', 'DLY', 'AEVA', 'GFL', 'CARR', 'OTIS', 'RFM', 'BIPC', 
+                   'MPLN', 'SPHR', 'RSI', 'SKLZ', 'APG', 'ADCT', 'SLQT', 'DNMR', 'AFGD', 'FOUR', 'SBBA', 'AZEK', 'ETWO', 
+                   'HAFN', 'MP', 'ACI', 'FTHY', 'SII', 'DNB', 'LMND', 'BFLY', 'ALIT', 'MEG', 'BEPC', 'RKT', 'SST', 'BEKE', 
+                   'NTST', 'ML', 'QS', 'NYC', 'UZD', 'MIR', 'NUVB', 'NDMO', 'XPEV', 'GB', 'PFH', 'RBOT', 'SNOW', 'AMWL', 'U', 
+                   'GETY', 'SOJE', 'BCAT', 'VNT', 'MGRB', 'ASAN', 'BQ', 'PLTR', 'YALA', 'ATIP', 'DTB', 'MKFG', 'STEM', 'IH', 
+                   'OUST', 'PSFE', 'MNSO', 'TIMB', 'BNH', 'GHLD', 'CRC', 'GATO', 'MAX', 'PTA', 'LU', 'SPIR', 'OWLT', 'GRNT', 
+                   'JOBY', 'UP', 'LICY', 'BKKT', 'YSG', 'OPFI', 'GBTG', 'AIZN', 'SDHY', 'NRDY', 'NOTE', 'AI', 'SMR', 'OPAD', 
+                   'OWL', 'UZE', 'ACHR', 'BARK', 'GWH', 'IONQ', 'EVEX', 'KUKE', 'GRND', 'DFH', 'MYTE', 'RLX', 'ZIM', 'AMPS', 
+                   'FRGE', 'ONTF', 'TIXT', 'SMRT', 'LDI', 'TFSA', 'PKST', 'RCC', 'BWSN', 'RFMZ', 'PERF', 'SES', 'OSCR', 'UWMC', 
+                   'ASAI', 'CSAN', 'RBLX', 'CPNG', 'HAYW', 'LANV', 'OLO', 'NAPA', 'TUYA', 'BNL', 'DOCN', 'KIND', 'SEMR', 
+                   'VZIO', 'BIGZ', 'ZH', 'ECCW', 'NXU', 'COUR', 'COMP', 'HTFB', 'AGL', 'BEPH', 'DNA', 'LOCL', 'DV', 'GENI', 
+                   'KKRS', 'PATH', 'BOWL', 'PL', 'EDR', 'NPCT', 'BRCC', 'BRW', 'LEV', 'WDH', 'SMWB', 'GROV', 'OGN', 'GPOR', 
+                   'PCOR', 'BIPH', 'NBXG', 'PAY', 'UZF', 'ZIP', 'FCRX', 'FIGS', 'HGTY', 'NE', 'ZETA', 'ECCC', 'TPTA', 'AOMR', 
+                   'RERE', 'YMM', 'CXM', 'DOCS', 'NEUE', 'MCW', 'WDI', 'BNT', 'DDL', 'S', 'YOU', 'CURV', 'DTM', 'PSQH', 'FREY', 
+                   'OKLO', 'SHCO', 'BLND', 'BRDG', 'STVN', 'FLYX', 'NABL', 'LAW', 'VSCO', 'VTEX', 'CNM', 'GXO', 'RYAN', 'ZVIA', 
+                   'MGRD', 'XPOF', 'MLNK', 'COOK', 'RSKD', 'DOLE', 'ECVT', 'HIPO', 'AMBP', 'MIO', 'NPWR', 'JXN', 'RDW', 'BROS', 
+                   'ONON', 'MTAL', 'AKA', 'TOST', 'SLVM', 'CWAN', 'ECAT', 'WRBY', 'BHIL', 'TFPM', 'KORE', 'VLN', 'WBX', 'CION', 
+                   'LTH', 'IHS', 'FNA', 'EICA', 'FBRT', 'ENFN', 'PX', 'ARIS', 'KD', 'INFA', 'MEGI', 'BXSL', 'DTC', 'CBL', 'CMTG', 
+                   'CDRE', 'NXDT', 'PRM', 'CINT', 'WEAV', 'ONL', 'SG', 'NMAI', 'GUG', 'DTG', 'CTV', 'CRGY', 'NU', 'BEPI', 'EVTL', 
+                   'IOT', 'NPFD', 'BBAI', 'BWNB', 'ZGN', 'DOUG', 'DMA', 'MNTN', 'WEL', 'SOAR', 'BIPI', 'ECCV', 'PAXS', 'SGHC', 
+                   'BFAC', 'MDV', 'RMMZ', 'NRGV', 'RLTY', 'BBUC', 'PNST', 'KMPB', 'PGRU', 'ESAB', 'STEW', 'EE', 'SAT', 'BLCO', 
+                   'HTFC', 'EHAB', 'HKD', 'HLN', 'QBTS', 'HLLY', 'AMPX', 'CRBG', 'XPER', 'BHVN', 'LVWR', 'RZC', 'SDRL', 'HSHP', 
+                   'BMN', 'RXO', 'NXG', 'SAJ', 'FSCO', 'BKDT', 'FG', 'BAM', 'MBC', 'SAY', 'VTS', 'TXO', 'ASBA', 'AESI', 'CLCO', 
+                   'CR', 'MSGE', 'SAZ', 'KVUE', 'ATMU', 'KNF', 'AACT', 'CAVA', 'PHIN', 'FIHL', 'KGS', 'SVV', 'VTMX', 'LZM', 'SRFM', 
+                   'EICB', 'SN', 'ALUR', 'ECO', 'EXTO', 'BETR', 'APOS', 'TKO', 'HYAC', 'KVYO', 'KLG', 'PMTU', 'LAC', 'LAAC', 'VLTO', 
+                   'VSTS', 'BIRK', 'MNR', 'CCIA', 'NLOP', 'HG', 'WS', 'FGN', 'ZKH', 'DEC', 'CDLR', 'IROHU', 'ELPC', 'ALTM', 'CLBR', 
+                   'SDHC', 'PSBD', 'MFAN', 'MSDL', 'NCDL', 'OBDE', 'AS', 'ANRO', 'RWTN', 'MITN', 'AHR', 'TBBB', 'SOC', 'BODI', 'ATHS', 
+                   'CTOS', 'RDDT', 'AUNA', 'DXYZ', 'SOLV', 'BEPJ', 'GCTS', 'GEV', 'MGRE', 'WNS', 'PACS', 'ULS', 'CTRI', 'IBTA', 
+                   'MFAO', 'LOAR', 'RBRK', 'VIK', 'ZK', 'MITP', 'KBDC', 'BOW', 'CIMN', 'BIPJ', 'SPMC', 'RWTO', 'TBN', 'LB', 'SW', 
+                   'ARDT', 'PDCC', 'CON', 'AOMN', 'SMC', 'CIMO', 'AAM', 'AMTM', 'BKV', 'CURB', 'GRDN', 'EQV', 'FVR', 'SARO', 'CBNA', 
+                   'SBXD', 'CICB', 'KLC']
+MyMongoClient = None
 
 def get_mongo_client(uri="mongodb://localhost:27017/", db_name="blueHorseshoe"):
     """
@@ -43,11 +75,19 @@ def get_mongo_client(uri="mongodb://localhost:27017/", db_name="blueHorseshoe"):
     Returns:
         pymongo.database.Database: The database client connected to the specified database.
     """
-    client = MongoClient(uri)
-    db = client[db_name]
-    return db
+    global MyMongoClient
+    if MyMongoClient is None:
+        try:
+            MyMongoClient = MongoClient(uri, connectTimeoutMS=1000, serverSelectionTimeoutMS=1000)
+            server_info = MyMongoClient.server_info()
+            logging.info(f"Connected to MongoDB server version {server_info['version']}")
+        except Exception as e:
+            logging.error(f"An error occurred while connecting to MongoDB: {e}")
+            return None
 
-def graph(xLabel = 'x', yLabel = 'y', title = 'title', curves = None, lines = None, points = None):
+    return MyMongoClient[db_name]
+
+def graph(xLabel = 'x', yLabel = 'y', title = 'title', curves = None, lines = None, points = None, x_values = None):
     """
     Plots a graph with the given labels, title, curves, lines, and points.
 
@@ -102,6 +142,8 @@ def graph(xLabel = 'x', yLabel = 'y', title = 'title', curves = None, lines = No
     if points is None:
         points = []
     try:
+        if x_values is not None and len(x_values) != 0:
+            plt.xticks(ticks=range(len(x_values)), labels=x_values, rotation=45)
         plt.xlabel(xLabel)
         plt.ylabel(yLabel)
         plt.title(title)
@@ -165,7 +207,7 @@ def get_symbol_list_from_net():
 
 
 
-def read_symbol_list_from_file():
+def get_symbol_list_from_file():
     """
     Reads a list of symbols from a JSON file.
 
@@ -194,7 +236,9 @@ def read_symbol_list_from_file():
     print(f"Error: Could not open file {file_path}. Please check the logs.")
     return None
 
-
+def get_symbol_name_list():
+    symbol_list = get_symbol_list()
+    return [symbol['symbol'] for symbol in symbol_list]
 
 def get_symbol_list():
     """
@@ -204,7 +248,7 @@ def get_symbol_list():
     Returns:
         list: A list of symbols.
     """
-    symbol_list = read_symbol_list_from_file()
+    symbol_list = get_symbol_list_from_file()
     if symbol_list is None:
         symbol_list = get_symbol_list_from_net()
         file_path = os.path.join(base_path, 'symbol_list.json')
@@ -245,7 +289,7 @@ def get_symbol_sublist(listType, historical_data=None):
 
     Usage:
         get_symbol_sublist('high', historical_data=historical_data)
-        get_symbol_sublist('low', historical_data = load_historical_data_from_file('QGEN')['days'])
+        get_symbol_sublist('low', historical_data = load_historical_data('QGEN')['days'])
 
     Notes:
         - If both historical_data and symbol are not provided, the function will return an empty list.
@@ -288,73 +332,107 @@ def get_symbol_sublist(listType, historical_data=None):
     return retVal
 
 
-def clip_data_to_dates(price_data=None, end_date='', daterange=100):
-    """
-    Clips the given price data list to a specified date range ending at the given end date.
+# def clip_data_to_dates(price_data=None, end_date='', daterange=100):
+#     """
+#     Clips the given price data list to a specified date range ending at the given end date.
 
-    Args:
-        symbol (str, optional): The symbol for which to load historical data if price_data is not provided. Defaults to an empty string.
-        price_data (list): A list of dictionaries containing price data with 'date' keys.
-        end_date (str, optional): The end date for the date range in 'YYYY-MM-DD' format. Defaults to today's date.
-        daterange (int, optional): The number of days before the end date to include in the results. Defaults to 100.
+#     Args:
+#         symbol (str, optional): The symbol for which to load historical data if price_data is not provided. Defaults to an empty string.
+#         price_data (list): A list of dictionaries containing price data with 'date' keys.
+#         end_date (str, optional): The end date for the date range in 'YYYY-MM-DD' format. Defaults to today's date.
+#         daterange (int, optional): The number of days before the end date to include in the results. Defaults to 100.
+
+#     Returns:
+#         list: A list of dictionaries containing price data within the specified date range.
+#     """
+#     results= []
+#     if end_date == '':
+#         end_date = datetime.today().strftime("%Y-%m-%d")
+#     end_date_dt = datetime.strptime(end_date, '%Y-%m-%d')
+#     if price_data is None:
+#         return results
+#     for day in price_data:
+#         current_date_dt = datetime.strptime(day['date'], '%Y-%m-%d')
+#         start_date_dt = end_date_dt - timedelta(days=daterange)
+#         if current_date_dt <= end_date_dt and current_date_dt > start_date_dt:
+#             results.append(day)
+#     return results
+
+
+# def calculate_ewma_delta(price_data, period=20):
+#     """
+#     Calculates the Exponentially Weighted Moving Average (EWMA) of daily deltas for the given price data.
+
+#     Args:
+#         price_data (list): A list of dictionaries containing 'high' and 'low' price data.
+#         period (int): The period for calculating the EWMA. Default is 20.
+
+#     Returns:
+#         float: The EWMA of daily deltas. Returns 0 if there is insufficient data.
+#     """
+#     if not isinstance(price_data, list) or not all(isinstance(item, dict) for item in price_data) or len(price_data) == 0:
+#         raise ValueError("price_data must be a non-empty list of dictionaries")
+
+#     daily_deltas = []
+#     for price_obj in price_data:
+#         try:
+#             high = float(price_obj.get('high', 0))
+#             low = float(price_obj.get('low', 0))
+#         except (ValueError, TypeError):
+#             logging.warning("Invalid price data. Skipping entry.")
+#             continue  # Skip this entry if conversion fails
+#         if high == 0 and low == 0:
+#             logging.warning("Both high and low prices are zero. Skipping entry.")
+#             continue  # Skip if both high and low are zero
+#         average_price = (high + low) / 2  # Optionally use close price as the baseline
+#         daily_delta = ((high - low) / average_price)  # Convert to percentage
+#         daily_deltas.append(daily_delta)
+
+#     if len(daily_deltas) == 0:
+#         return 0
+
+#     # Set smoothing factor
+#     alpha = 2 / (period + 1)
+
+#     # Initialize EWMA with the first delta value
+#     ewma = daily_deltas[0]
+
+#     # Apply EWMA formula for each subsequent delta
+#     for delta in daily_deltas[1:]:
+#         ewma = (delta * alpha) + (ewma * (1 - alpha))
+
+#     return ewma
+
+def open_report_file():
+    """
+    Opens a file to write reports.
 
     Returns:
-        list: A list of dictionaries containing price data within the specified date range.
+        None
     """
-    results= []
-    if end_date == '':
-        end_date = datetime.today().strftime("%Y-%m-%d")
-    end_date_dt = datetime.strptime(end_date, '%Y-%m-%d')
-    if price_data is None:
-        return results
-    for day in price_data:
-        current_date_dt = datetime.strptime(day['date'], '%Y-%m-%d')
-        start_date_dt = end_date_dt - timedelta(days=daterange)
-        if current_date_dt <= end_date_dt and current_date_dt > start_date_dt:
-            results.append(day)
-    return results
+    global reportFile
+    reportFile = open('report.txt', 'w')
 
-
-def calculate_ewma_delta(price_data, period=20):
+def close_report_file():
     """
-    Calculates the Exponentially Weighted Moving Average (EWMA) of daily deltas for the given price data.
-
-    Args:
-        price_data (list): A list of dictionaries containing 'high' and 'low' price data.
-        period (int): The period for calculating the EWMA. Default is 20.
+    Closes the report file.
 
     Returns:
-        float: The EWMA of daily deltas. Returns 0 if there is insufficient data.
+        None
     """
-    if not isinstance(price_data, list) or not all(isinstance(item, dict) for item in price_data) or len(price_data) == 0:
-        raise ValueError("price_data must be a non-empty list of dictionaries")
+    global reportFile
+    reportFile.close()
 
-    daily_deltas = []
-    for price_obj in price_data:
-        try:
-            high = float(price_obj.get('high', 0))
-            low = float(price_obj.get('low', 0))
-        except (ValueError, TypeError):
-            logging.warning("Invalid price data. Skipping entry.")
-            continue  # Skip this entry if conversion fails
-        if high == 0 and low == 0:
-            logging.warning("Both high and low prices are zero. Skipping entry.")
-            continue  # Skip if both high and low are zero
-        average_price = (high + low) / 2  # Optionally use close price as the baseline
-        daily_delta = ((high - low) / average_price)  # Convert to percentage
-        daily_deltas.append(daily_delta)
+def report(newLine = ''):
+    """
+    Prints a report to the console.
 
-    if len(daily_deltas) == 0:
-        return 0
+    Args:
+        newLine (str): The text to print. Defaults to an empty string.
 
-    # Set smoothing factor
-    alpha = 2 / (period + 1)
-
-    # Initialize EWMA with the first delta value
-    ewma = daily_deltas[0]
-
-    # Apply EWMA formula for each subsequent delta
-    for delta in daily_deltas[1:]:
-        ewma = (delta * alpha) + (ewma * (1 - alpha))
-
-    return ewma
+    Returns:
+        None
+    """
+    global reportFile
+    reportFile.write(newLine + '\n')
+    reportFile.flush()
