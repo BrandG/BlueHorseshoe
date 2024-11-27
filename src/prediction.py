@@ -4,7 +4,7 @@ from sklearn.gaussian_process.kernels import RBF, ConstantKernel as C
 from statsmodels.tsa.arima.model import ARIMA
 from globals import get_symbol_sublist
 # from StockSelectionTools import get_top_ten_stability_scores
-from historicalData import load_historical_data
+from historical_data import load_historical_data
 import logging
 
 def forecast_next_midpoint(price_data=None, arima_order=(1, 1, 1)):

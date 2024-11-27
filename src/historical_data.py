@@ -1,6 +1,24 @@
-import requests
+"""
+This module provides functions to load, save, and manage historical stock price data
+from various sources including Alpha Vantage API, MongoDB, and JSON files.
+
+Functions:
+    load_historical_data_from_net(stock_symbol, recent=False):
+        Fetches historical stock data from Alpha Vantage API.
+
+    load_historical_data_from_mongo(symbol, db):
+
+    load_historical_data_from_file(symbol):
+
+    load_historical_data(symbol):
+
+    save_historical_data_to_mongo(symbol, data, db):
+
+    build_all_symbols_history(starting_at='', save_to_file=False):
+"""
 import os
 import json
+import requests
 from ratelimit import limits, sleep_and_retry
 
 from globals import get_mongo_client, get_symbol_list, BASE_PATH
@@ -40,7 +58,7 @@ def load_historical_data_from_net(stock_symbol, recent=False):
     outputsize = 'full' if not recent else 'compact'
     url = f"https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&outputsize={outputsize}&symbol={stock_symbol}&apikey=JFRQJ8YWSX8UK50X"
 
-    response = requests.get(url)
+    response = requests.get(url, timeout=10)
     response.raise_for_status()  # Raise an exception for bad status codes
 
     json_data = response.json()
@@ -50,30 +68,23 @@ def load_historical_data_from_net(stock_symbol, recent=False):
         symbol['days'] = []
 
         for date, daily_record in time_series.items():
-            high = round(float(daily_record['2. high']), 4)
-            low = round(float(daily_record['3. low']), 4)
-            open_price = round(float(daily_record['1. open']), 4)  # Renamed to avoid conflict with built-in open
-            close = round(float(daily_record['4. close']), 4)
-            volume = int(daily_record['5. volume'])
-            midpoint = round((open_price + close) / 2, 4)
-            high_low_delta = round(abs(high - low), 4)
-            open_close_delta = round(abs(open_price - close), 4)
-            high_low_delta_percentage = round(abs((high - low) / (close if close != 0 else 1e-6)), 4)
-            close_open_delta_percentage = round(abs(close - open_price) / (close if close != 0 else 1e-6), 4)
-
-            symbol['days'].append({
+            daily_data = {
                 'date': date,
-                'open': open_price,
-                'high': high,
-                'low': low,
-                'close': close,
-                'volume': volume,
-                'midpoint': midpoint,
-                'high_low_delta': high_low_delta,
-                'open_close_delta': open_close_delta,
-                'high_low_delta_percentage': high_low_delta_percentage,
-                'close_open_delta_percentage': close_open_delta_percentage
-            })
+                'open': round(float(daily_record['1. open']), 4),
+                'high': round(float(daily_record['2. high']), 4),
+                'low': round(float(daily_record['3. low']), 4),
+                'close': round(float(daily_record['4. close']), 4),
+                'volume': int(daily_record['5. volume']),
+            }
+            daily_data['midpoint'] = round((daily_data['open'] + daily_data['close']) / 2, 4)
+            daily_data['high_low_delta'] = round(abs(daily_data['high'] - daily_data['low']), 4)
+            daily_data['open_close_delta'] = round(abs(daily_data['open'] - daily_data['close']), 4)
+            daily_data['high_low_delta_percentage'] = round(abs((daily_data['high'] - daily_data['low']) /
+                                                                (daily_data['close'] if daily_data['close'] != 0 else 1e-6)), 4)
+            daily_data['close_open_delta_percentage'] = round(abs(daily_data['close'] - daily_data['open']) /
+                                                              (daily_data['close'] if daily_data['close'] != 0 else 1e-6), 4)
+
+            symbol['days'].append(daily_data)
     else:
         print(f"'Time Series (Daily)' key not found in response for {stock_symbol}. URL: {url}. Response: {json_data}")
         return None
@@ -146,17 +157,23 @@ def build_all_symbols_history(starting_at='', save_to_file=False):
     Builds historical data for all stock symbols and saves them as JSON files.
 
     Args:
-        starting_at (str, optional): The stock symbol to start processing from. If not provided, processing starts from the beginning of the symbol list.
+        starting_at (str, optional): The stock symbol to start processing from. 
+            If not provided, processing starts from the beginning of the symbol 
+            list.
 
     Returns:
         None
 
-    This function retrieves a list of stock symbols from the network and iterates through each symbol to fetch its historical data. The data is then saved as a JSON file in a specified directory. If a starting symbol is provided, the function skips all symbols until it reaches the specified starting symbol.
-    """
+    This function retrieves a list of stock symbols from the network and iterates
+        through each symbol to fetch its historical data. The data is then saved
+        as a JSON file in a specified directory. If a starting symbol is provided,
+        the function skips all symbols until it reaches the specified starting
+        symbol.
+"""
     symbol_list = get_symbol_list()
     index = 0
 
-    skip = True if starting_at else False
+    skip = bool(starting_at)
 
     for row in symbol_list:
         index += 1
@@ -188,8 +205,14 @@ def build_all_symbols_history(starting_at='', save_to_file=False):
                 with open(f'{file_path}', 'w', encoding='utf-8') as file:
                     file.write(new_data_json)
                     print(f"Saved data for {symbol} to {file_path}")
-        except Exception as e:
-            print(f"Error: {e}")
+        except requests.exceptions.RequestException as e:
+            print("Network error: %s", e)
+            continue
+        except json.JSONDecodeError as e:
+            print("JSON decode error: %s", e)
+            continue
+        except OSError as e:
+            print("OS error: %s", e)
             continue
 
 
@@ -222,8 +245,6 @@ def load_historical_data_from_file(symbol):
         print(f"Error: Invalid JSON in {file_path}.")
     except PermissionError:
         print(f"Permission denied: {file_path}")
-    except Exception as e:
-        print(f"Error: {e}")
     return None
 
 def load_historical_data(symbol):

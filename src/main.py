@@ -9,7 +9,7 @@ from sklearn.exceptions import ConvergenceWarning
 
 from globals import ReportSingleton, get_mongo_client
 from StockMidpointPredictor import StockMidpointPredictor
-from historicalData import build_all_symbols_history, load_historical_data
+from historical_data import build_all_symbols_history, load_historical_data
 from prediction import forecast_next_midpoint
 import os
 
