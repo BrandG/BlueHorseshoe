@@ -6,7 +6,9 @@ import warnings
 import pandas as pd
 
 from sklearn.exceptions import ConvergenceWarning
+import talib
 
+import ClaudePrediction
 from Globals import close_report_file, get_mongo_client, get_symbol_list, get_symbol_name_list, get_symbol_sublist, graph, open_report_file, report
 from StockMidpointPredictor import StockMidpointPredictor
 from historicalData import build_all_symbols_history, load_historical_data
@@ -21,25 +23,38 @@ sys.argv = ["-d"]
 def debugTest():
 
     price_data = load_historical_data('IBM')
-    newData = [{'open':val['open'], 'high':val['high'], 'low':val['low'], 'close':val['close'], 'volume':val['volume'], 'date':val['date']} for val in price_data['days']][1:]
-    data = pd.DataFrame(newData[::-1])
+    newData = [{'open':val['open'], 'high':val['high'], 'low':val['low'], 'close':val['close'], 'volume':val['volume'], 'date':val['date']} for val in price_data['days'][::-1]]
+    data = pd.DataFrame(newData)
+    cp = ClaudePrediction.ClaudePrediction(data)
+    cp.get_mfis()
+    # mfi = cp.money_flow_index()
+    # obv = cp.on_balance_volume()
+    # vwap = cp.volume_weighted_average_price()
+    # print(f'MFI: {mfi}, OBV: {obv}, VWAP: {vwap}')
+    
+    # //--\\==//--\\==//--\\==//--\\==//--\\==//--\\==//--\\==//--\\==//--\\==
+    # price_data = load_historical_data('IBM')
+    # newData = [{'open':val['open'], 'high':val['high'], 'low':val['low'], 'close':val['close'], 'volume':val['volume'], 'date':val['date']} for val in price_data['days']][1:]
+    # data = pd.DataFrame(newData[::-1])
 
-    # Initialize and train the model
-    predictor = StockMidpointPredictor(lookback_period=30)
-    predictor.train(data)
+    # # Initialize and train the model
+    # predictor = StockMidpointPredictor(lookback_period=30)
+    # predictor.train(data)
 
-    # Get prediction for next day
-    next_day_midpoint = predictor.predict(data)
-    print(f"Next day's midpoint: {next_day_midpoint:.2f}")
+    # # Get prediction for next day
+    # next_day_midpoint = predictor.predict(data)
+    # print(f"Next day's midpoint: {next_day_midpoint:.2f}")
 
-    # Evaluate model performance
-    metrics = predictor.evaluate(data)
-    print(f"RMSE: {metrics}")
+    # # Evaluate model performance
+    # metrics = predictor.evaluate(data)
+    # print(f"RMSE: {metrics}")
 
+    # //--\\==//--\\==//--\\==//--\\==//--\\==//--\\==//--\\==//--\\==//--\\==
     # price_data = load_historical_data('IBM')
     # print(price_data['days'][0])
     # get_nn_prediction(price_data['days'][::-1])
 
+    # //--\\==//--\\==//--\\==//--\\==//--\\==//--\\==//--\\==//--\\==//--\\==
     # symbols = get_symbol_name_list()
     # results = []
     # for symbol in symbols:
@@ -58,6 +73,7 @@ def debugTest():
     #     price_data = load_historical_data(symbol_name)['days'][:20]
     #     next_midpoint = round(forecast_next_midpoint(price_data[1:],(1,1,4)), 2)
 
+    # //--\\==//--\\==//--\\==//--\\==//--\\==//--\\==//--\\==//--\\==//--\\==
     #     last_high = round(price_data[0]['high'], 2)
     #     last_low = round(price_data[0]['low'], 2)
 
