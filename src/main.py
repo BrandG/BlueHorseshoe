@@ -22,16 +22,25 @@ sys.argv = ["-d"]
 
 def debugTest():
 
-    price_data = load_historical_data('IBM')
-    newData = [{'open':val['open'], 'high':val['high'], 'low':val['low'], 'close':val['close'], 'volume':val['volume'], 'date':val['date']} for val in price_data['days'][::-1]]
-    data = pd.DataFrame(newData)
+    price_data = load_historical_data('IBM')['days'][:240]
+    clipped_price_data = price_data[::-1]
+    data = pd.DataFrame([{
+        'open':val['open'],
+        'high':val['high'],
+        'low':val['low'],
+        'close':val['close'],
+        'volume':val['volume'],
+        'date':val['date']}
+        for val in clipped_price_data])
     cp = ClaudePrediction.ClaudePrediction(data)
-    cp.get_mfis()
-    # mfi = cp.money_flow_index()
-    # obv = cp.on_balance_volume()
-    # vwap = cp.volume_weighted_average_price()
-    # print(f'MFI: {mfi}, OBV: {obv}, VWAP: {vwap}')
-    
+    mfi_result = cp.get_mfi()
+    obv_result = cp.get_obv()
+    vwap_result = cp.volume_weighted_average_price()
+
+    print(f'MFI: {mfi_result}')
+    print(f'OBV: {obv_result}')
+    print(f'VWAP: {vwap_result}')
+
     # //--\\==//--\\==//--\\==//--\\==//--\\==//--\\==//--\\==//--\\==//--\\==
     # price_data = load_historical_data('IBM')
     # newData = [{'open':val['open'], 'high':val['high'], 'low':val['low'], 'close':val['close'], 'volume':val['volume'], 'date':val['date']} for val in price_data['days']][1:]

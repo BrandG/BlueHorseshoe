@@ -103,18 +103,19 @@ def graph(xLabel = 'x', yLabel = 'y', title = 'title', curves = None, lines = No
         Each curve is a dictionary with the
             curve: list of y values
             color: color of the curve
-    lines (list): List of dictionaries, each containing 'y' (float) for the y-coordinate of the horizontal line, 
-                    and optional 'color' (str) and 'linestyle' (str) for the line.
+            label: label for the legend (optional)
+    lines (list): List of dictionaries, each containing 'y' (float) for the y-coordinate of the horizontal line,
         Each line is a dictionary with the
-            y: y value of the line
-            color: color of the line
-            linestyle: style of the line
-    points (list): List of dictionaries, each containing 'x' (float) and 'y' (float) for the coordinates of the point, 
-                    and optional 'color' (str) for the point.
+            y: y-coordinate of the line
+            color: color of the line (optional)
+            linestyle: style of the line (optional)
+            label: label for the legend (optional)
+    points (list): List of dictionaries, each containing 'x' (float) and 'y' (float) for the coordinates of the point.
         Each point is a dictionary with the
-            x: x value of the point
-            y: y value of the point
+            x: x-coordinate of the point
+            y: y-coordinate of the point
             color: color of the point
+            label: label for the legend (optional)
 
     The color is a string that represents the color of the curve, line, or point. It can be any of the following:
         b: blue
@@ -148,14 +149,15 @@ def graph(xLabel = 'x', yLabel = 'y', title = 'title', curves = None, lines = No
         plt.ylabel(yLabel)
         plt.title(title)
         for curve in curves:
-            plt.plot(curve.get('curve',[]), color=curve.get('color', 'b'))
+            plt.plot(curve.get('curve', []), color=curve.get('color', 'b'), label=curve.get('label', 'Curve'))
         for line in lines:
             linestyle = line.get('linestyle', '-')
             color = line.get('color', 'g')
-            plt.axhline(y=line['y'], color=color, linestyle=linestyle)
+            plt.axhline(y=line['y'], color=color, linestyle=linestyle, label=line.get('label', 'Line'))
         for point in points:
             color = point.get('color', 'r')
-            plt.scatter(point['x'], point['y'], color=color)
+            plt.scatter(point['x'], point['y'], color=color, label=point.get('label', 'Point'))
+        plt.legend()  # Add this line to show the legend
         current_time_ms = int(datetime.now().timestamp() * 1000)
         plt.savefig(f'graphs/{title}_{current_time_ms}.png')
         # plt.show()
