@@ -1,11 +1,19 @@
-import numpy as np
-from sklearn.gaussian_process import GaussianProcessRegressor
-from sklearn.gaussian_process.kernels import RBF, ConstantKernel as C
-from statsmodels.tsa.arima.model import ARIMA
-from Globals import get_symbol_sublist
-# from StockSelectionTools import get_top_ten_stability_scores
-from historicalData import load_historical_data
+"""
+This module provides functions for forecasting the next midpoint of a given symbol using ARIMA models.
+It also includes commented-out functions for Gaussian Process-based forecasting and generating predictions
+for symbols with top stability scores.
+
+Functions:
+    forecast_next_midpoint(price_data=None, arima_order=(1, 1, 1)):
+
+"""
 import logging
+import numpy as np
+# from sklearn.gaussian_process import GaussianProcessRegressor
+# from sklearn.gaussian_process.kernels import RBF, ConstantKernel as C
+from statsmodels.tsa.arima.model import ARIMA
+from globals import get_symbol_sublist
+# from StockSelectionTools import get_top_ten_stability_scores
 
 def forecast_next_midpoint(price_data=None, arima_order=(1, 1, 1)):
     """
@@ -34,8 +42,8 @@ def forecast_next_midpoint(price_data=None, arima_order=(1, 1, 1)):
         # Step 3: Forecast the next midpoint
         forecast = model_fit.forecast(steps=1)
         next_midpoint = forecast[0]  # Extract the predicted value for the next day
-    except Exception as e:
-        logging.error(f"Error fitting ARIMA model: {e}")
+    except (ValueError, np.linalg.LinAlgError) as e:
+        logging.error("Error fitting ARIMA model: %s", e)
         next_midpoint = np.nan  # Return NaN if model fitting fails
 
     return next_midpoint

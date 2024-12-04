@@ -1,26 +1,75 @@
+"""
+Main module for the BlueHorseshoe project.
+
+This module handles the initialization, training, and prediction of stock midpoints using historical data.
+It also provides functionality for debugging, updating historical data, and predicting next midpoints.
+
+Modules:
+    logging: Provides logging capabilities.
+    statistics: Provides functions for mathematical statistics.
+    sys: Provides access to some variables used or maintained by the interpreter.
+    time: Provides time-related functions.
+    warnings: Provides a way to handle warnings.
+    pandas: Provides data structures and data analysis tools.
+    sklearn.exceptions: Provides exceptions for scikit-learn.
+    globals: Provides global variables and functions.
+    StockMidpointPredictor: Provides the StockMidpointPredictor class for stock midpoint prediction.
+    historical_data: Provides functions to build and load historical data.
+    prediction: Provides functions to forecast the next midpoint.
+    os: Provides a way of using operating system dependent functionality.
+    flatness: Provides functions to analyze midpoints.
+    nnPrediction: Provides functions to get neural network predictions.
+
+Functions:
+    debug_test(): Loads historical data for IBM, trains the StockMidpointPredictor model, and evaluates its performance.
+
+    Loads historical data for IBM, trains the StockMidpointPredictor model, and evaluates its performance.
+
+    This function performs the following steps:
+    1. Loads historical data for IBM.
+    2. Prepares the data for training.
+    3. Initializes and trains the StockMidpointPredictor model.
+    4. Predicts the next day's midpoint.
+    5. Evaluates the model's performance and prints the RMSE.
+
+    Returns:
+        None
+
+"""
 import logging
-import statistics
 import sys
 import time
 import warnings
+import os
 import pandas as pd
 
 from sklearn.exceptions import ConvergenceWarning
-import talib
 
-import ClaudePrediction
-from Globals import close_report_file, get_mongo_client, get_symbol_list, get_symbol_name_list, get_symbol_sublist, graph, open_report_file, report
-from StockMidpointPredictor import StockMidpointPredictor
-from historicalData import build_all_symbols_history, load_historical_data
-from prediction import forecast_next_midpoint
-import os
-
-from flatness import analyze_midpoints
-from nnPrediction import get_nn_prediction
+from claude_prediction import ClaudePrediction
+from globals import ReportSingleton, get_mongo_client
+from historical_data import build_all_symbols_history, load_historical_data
 
 sys.argv = ["-d"]
 
-def debugTest():
+def debug_test():
+    """
+    Debug function to test the StockMidpointPredictor model.
+
+    This function performs the following steps:
+    1. Loads historical price data for IBM.
+    2. Prepares the data for model training.
+    3. Initializes and trains the StockMidpointPredictor model with a lookback period of 30 days.
+    4. Predicts the next day's midpoint price.
+    5. Evaluates the model's performance using RMSE (Root Mean Square Error).
+
+    The function also contains commented-out code for additional analysis and forecasting of stock symbols,
+    including calculating flatness, average delta, and generating graphical representations of midpoints.
+
+    Note: The commented-out code is not executed but provides a template for further analysis and reporting.
+
+    Returns:
+        None
+    """
 
     price_data = load_historical_data('IBM')['days'][:240]
     clipped_price_data = price_data[::-1]
@@ -33,7 +82,7 @@ def debugTest():
         'volume':val['volume'],
         'date':val['date']}
         for val in clipped_price_data])
-    cp = ClaudePrediction.ClaudePrediction(data)
+    cp = ClaudePrediction(data)
     mfi_result = cp.get_mfi()
     obv_result = cp.get_obv()
     vwap_result = cp.volume_weighted_average_price()
@@ -50,7 +99,13 @@ def debugTest():
 
     # //--\\==//--\\==//--\\==//--\\==//--\\==//--\\==//--\\==//--\\==//--\\==
     # price_data = load_historical_data('IBM')
-    # newData = [{'open':val['open'], 'high':val['high'], 'low':val['low'], 'close':val['close'], 'volume':val['volume'], 'date':val['date']} for val in price_data['days']][1:]
+    # newData = [{
+    #     'open':val['open'],
+    #     'high':val['high'],
+    #     'low':val['low'],
+    #     'close':val['close'],
+    #     'volume':val['volume'],
+    #     'date':val['date']} for val in price_data['days']][1:]
     # data = pd.DataFrame(newData[::-1])
 
     # # Initialize and train the model
@@ -101,7 +156,10 @@ def debugTest():
     #     valid = next_high <= last_high and next_low >= last_low
     #     if valid:
     #         validCount += 1
-    #     report(f'{index}. {'Chosen' if chosen else 'Not Chosen'} - {'Valid' if valid else 'Invalid'} - {symbol_name}: Next midpoint {next_midpoint:2} ({next_low:2},{next_high:2}) last ({last_low:2}, {last_high:2}).')
+    #     ReportSingleton().write(f'{index}. {'Chosen' if chosen else 'Not Chosen'} -
+    #                             {'Valid' if valid else 'Invalid'} - {symbol_name}:
+    #                             Next midpoint {next_midpoint:2} ({next_low:2},
+    #                             {next_high:2}) last ({last_low:2}, {last_high:2}).')
 
     #     price_data = price_data[:-1]
     #     x_values = [data['date'] for data in price_data]
@@ -111,39 +169,44 @@ def debugTest():
     #     if len(midpoints) <= 0:
     #         continue
     #     midpointMean = statistics.mean(midpoints)
-    #     graph(xLabel="date", yLabel="Value", title=f'{index}_{symbol_name} midpoints', x_values=x_values,
-    #         curves=[{'curve':midpoints},{'curve':highpoints, 'color':'pink'},{'curve':lowpoints, 'color':'purple'}],
-    #         lines=[ {'y':midpointMean, 'color':'r', 'linestyle':'-'}, ],
-    #         points=[{'x':19, 'y':next_midpoint, 'color':'g', 'marker':'x'},{'x':19, 'y':next_high, 'color':'orange', 'marker':'x'},{'x':19, 'y':next_low, 'color':'orange', 'marker':'x'},])
-    # report(f'Valid percentage: {validCount/(10-invalidCount)*100}%')
+    #     graph_data : GraphData = {'x_label':'date', 'y_label':'Value', 'title':f'{index}_{symbol_name} midpoints', 'x_values':x_values,
+    #         'curves': [{'curve':midpoints},{'curve':highpoints, 'color':'pink'},{'curve':lowpoints, 'color':'purple'}],
+    #         'lines': [ {'y':midpointMean, 'color':'r', 'linestyle':'-'}, ],
+    #         'points': [{'x':19, 'y':next_midpoint, 'color':'g', 'marker':'x'},
+    #                    {'x':19, 'y':next_high, 'color':'orange', 'marker':'x'},
+    #                    {'x':19, 'y':next_low, 'color':'orange', 'marker':'x'},],
+    #     }
+    #     graph(graph_data)
+    # ReportSingleton().write('f'Valid percentage: {validCount/(10-invalidCount)*100}%')
 
 if __name__ == "__main__":
     start_time = time.time()
-    open_report_file()
 
     logging.basicConfig(filename='blueHorseshoe.log', filemode='w', level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
     logging.getLogger('pymongo').setLevel(logging.WARNING)
-    
+
     if get_mongo_client() is None:
         sys.exit(1)
 
     # Suppress specific warnings
-    warnings.filterwarnings("ignore", category=UserWarning, message="Non-invertible starting MA parameters found. Using zeros as starting parameters.")
-    warnings.filterwarnings("ignore", category=UserWarning, message="Non-stationary starting autoregressive parameters found. Using zeros as starting parameters.")
+    warnings.filterwarnings("ignore", category=UserWarning, message="Non-invertible starting MA parameters found. " +
+                            "Using zeros as starting parameters.")
+    warnings.filterwarnings("ignore", category=UserWarning, message="Non-stationary starting autoregressive parameters " +
+                            "found. Using zeros as starting parameters.")
     warnings.filterwarnings("ignore", category=ConvergenceWarning, message="Maximum Likelihood optimization failed to ")
     warnings.filterwarnings("ignore", category=ConvergenceWarning)
 
     # Clear the graphs directory
-    graphs_dir = 'graphs'
-    for filename in os.listdir(graphs_dir):
-        file_path = os.path.join(graphs_dir, filename)
+    GRAPHS_DIR = 'graphs'
+    for filename in os.listdir(GRAPHS_DIR):
+        file_path = os.path.join(GRAPHS_DIR, filename)
         try:
             if os.path.isfile(file_path) or os.path.islink(file_path):
                 os.unlink(file_path)
             elif os.path.isdir(file_path):
                 os.rmdir(file_path)
-        except Exception as e:
-            logging.error(f'Failed to delete {file_path}. Reason: {e}')
+        except (OSError, IOError) as e:
+            logging.error('Failed to delete %s. Reason: %s', file_path, e)
 
 
     if "-u" in sys.argv:
@@ -153,10 +216,14 @@ if __name__ == "__main__":
         print('Predicting next midpoints...')
         # results = get_gaussian_predictions()
         # for result in results:
-        #     print(f'{result["symbol"]} - forecasted = {result["forecasted"]} - uncertainty = {result["uncertainty"]} - actual = {result["actual"]} - validity = {result["validity"]} - valid_choice = {result["valid_choice"]}')
+            # print(f'{result["symbol"]} - forecasted = ' +
+            #       f'{result["forecasted"]} - uncertainty = ' +
+            #       f'{result["uncertainty"]} - actual = ' +
+            #       f'{result["actual"]} - validity = {result["validity"]} ' +
+            #       f'- valid_choice = {result["valid_choice"]}')
     elif "-d" in sys.argv:
-        debugTest()
+        debug_test()
 
-    close_report_file()    
+    ReportSingleton().close()
     end_time = time.time()
     print(f'Execution time: {end_time - start_time:.2f} seconds')
