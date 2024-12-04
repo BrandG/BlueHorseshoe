@@ -156,8 +156,10 @@ def graph(xLabel = 'x', yLabel = 'y', title = 'title', curves = None, lines = No
             plt.axhline(y=line['y'], color=color, linestyle=linestyle, label=line.get('label', 'Line'))
         for point in points:
             color = point.get('color', 'r')
-            plt.scatter(point['x'], point['y'], color=color, label=point.get('label', 'Point'))
+            plt.scatter(point['x'], point['y'], color=color)
         plt.legend()  # Add this line to show the legend
+        plt.gca().xaxis.set_major_locator(plt.MultipleLocator(20))
+        plt.grid(which='both', linestyle='--', linewidth=0.5)
         current_time_ms = int(datetime.now().timestamp() * 1000)
         plt.savefig(f'graphs/{title}_{current_time_ms}.png')
         # plt.show()

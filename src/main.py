@@ -24,6 +24,7 @@ def debugTest():
 
     price_data = load_historical_data('IBM')['days'][:240]
     clipped_price_data = price_data[::-1]
+    # clipped_price_data = clipped_price_data[:-21]
     data = pd.DataFrame([{
         'open':val['open'],
         'high':val['high'],
@@ -36,10 +37,16 @@ def debugTest():
     mfi_result = cp.get_mfi()
     obv_result = cp.get_obv()
     vwap_result = cp.volume_weighted_average_price()
+    rsi_result = cp.get_rsi()
+    stochastic_oscillator_result = cp.get_stochastic_oscillator()
+    macd_result = cp.get_macd()
 
     print(f'MFI: {mfi_result}')
     print(f'OBV: {obv_result}')
     print(f'VWAP: {vwap_result}')
+    print(f'RSI: {rsi_result}')
+    print(f'Stochastic Oscillator: {stochastic_oscillator_result}')
+    print(f'MACD: {macd_result}')
 
     # //--\\==//--\\==//--\\==//--\\==//--\\==//--\\==//--\\==//--\\==//--\\==
     # price_data = load_historical_data('IBM')
