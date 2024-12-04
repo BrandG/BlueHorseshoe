@@ -44,11 +44,9 @@ import os
 import pandas as pd
 
 from sklearn.exceptions import ConvergenceWarning
-import talib
 
-import ClaudePrediction
+from claude_prediction import ClaudePrediction
 from globals import ReportSingleton, get_mongo_client
-from stock_midpoint_predictor import StockMidpointPredictor
 from historical_data import build_all_symbols_history, load_historical_data
 
 sys.argv = ["-d"]
@@ -84,7 +82,7 @@ def debug_test():
         'volume':val['volume'],
         'date':val['date']}
         for val in clipped_price_data])
-    cp = ClaudePrediction.ClaudePrediction(data)
+    cp = ClaudePrediction(data)
     mfi_result = cp.get_mfi()
     obv_result = cp.get_obv()
     vwap_result = cp.volume_weighted_average_price()
@@ -101,7 +99,13 @@ def debug_test():
 
     # //--\\==//--\\==//--\\==//--\\==//--\\==//--\\==//--\\==//--\\==//--\\==
     # price_data = load_historical_data('IBM')
-    # newData = [{'open':val['open'], 'high':val['high'], 'low':val['low'], 'close':val['close'], 'volume':val['volume'], 'date':val['date']} for val in price_data['days']][1:]
+    # newData = [{
+    #     'open':val['open'],
+    #     'high':val['high'],
+    #     'low':val['low'],
+    #     'close':val['close'],
+    #     'volume':val['volume'],
+    #     'date':val['date']} for val in price_data['days']][1:]
     # data = pd.DataFrame(newData[::-1])
 
     # # Initialize and train the model
