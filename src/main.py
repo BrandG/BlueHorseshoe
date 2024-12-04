@@ -89,6 +89,9 @@ def debug_test():
     rsi_result = cp.get_rsi()
     stochastic_oscillator_result = cp.get_stochastic_oscillator()
     macd_result = cp.get_macd()
+    atr_result = cp.get_atr()
+    bb_result = cp.get_bollinger_bands()
+    stdev_result = cp.get_standard_deviation_volatility()
 
     print(f'MFI: {mfi_result}')
     print(f'OBV: {obv_result}')
@@ -96,6 +99,10 @@ def debug_test():
     print(f'RSI: {rsi_result}')
     print(f'Stochastic Oscillator: {stochastic_oscillator_result}')
     print(f'MACD: {macd_result}')
+    print('     Volatility Indicators:')
+    print(f'ATR: {atr_result['volatility']}')
+    print(f'Bollinger Bands: {bb_result['volatility']}')
+    print(f'Standard Deviation Volatility: {stdev_result['volatility']}')
 
     # //--\\==//--\\==//--\\==//--\\==//--\\==//--\\==//--\\==//--\\==//--\\==
     # price_data = load_historical_data('IBM')

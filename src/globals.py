@@ -43,7 +43,7 @@ import csv
 import logging
 import os
 from datetime import datetime
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import requests
 import matplotlib.pyplot as plt
 from ratelimit import limits, sleep_and_retry
@@ -200,13 +200,13 @@ class GraphData:
     x_values : list
         A list to store x-axis values (default is an empty list)
     """
-    x_label = 'x'
-    y_label = 'y'
-    title = 'title'
-    curves = []
-    lines = []
-    points = []
-    x_values = []
+    curves : list = field(default_factory=list)
+    points : list = field(default_factory=list)
+    x_values : list = field(default_factory=list)
+    lines : list = field(default_factory=list)
+    x_label : str = 'x'
+    y_label : str = 'y'
+    title : str = 'title'
 
 
 def graph(graph_data: GraphData):
