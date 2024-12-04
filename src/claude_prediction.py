@@ -69,7 +69,7 @@ class ClaudePrediction:
                   oversold threshold, otherwise 'false'. The value for 'sell' is 'true' if the MFI is above the
                   overbought threshold, otherwise 'false'.
         """
-        mfi_data = ta.MFI(self._data['high'], self._data['low'], self._data['close'], self._data['volume'], timeperiod=14).tolist()
+        mfi_data = ta.MFI(self._data['high'], self._data['low'], self._data['close'], self._data['volume'], timeperiod=14).tolist() # type: ignore
         mfi = mfi_data[-1]
 
         overbought_threshold = np.percentile(mfi_data, 85)
@@ -89,7 +89,7 @@ class ClaudePrediction:
             dict: A dictionary containing the direction of the OBV movement with the key 'direction' and
                   value 'up' if the OBV is increasing, otherwise 'down'.
         """
-        obv = ta.OBV(self._data['close'], self._data['volume'])
+        obv = ta.OBV(self._data['close'], self._data['volume']) # type: ignore
         return {'direction': 'up' if obv[0] > obv[1] else 'down'}
 
     def volume_weighted_average_price(self):
@@ -117,7 +117,7 @@ class ClaudePrediction:
                   'buy' is 'true' if the RSI is below the oversold threshold, otherwise 'false'.
                   'sell' is 'true' if the RSI is above the overbought threshold, otherwise 'false'.
         """
-        rsi_data = ta.RSI(self._data['close'], timeperiod=14).dropna()
+        rsi_data = ta.RSI(self._data['close'], timeperiod=14).dropna() # type: ignore
 
         rsi = rsi_data.tolist()[-1]
 
@@ -139,7 +139,7 @@ class ClaudePrediction:
                 - 'sell' (bool): True if a sell signal is generated, otherwise False.
                 - 'hold' (bool): True if a hold signal is generated, otherwise False.
         """
-        slowk, slowd = ta.STOCH(self._data['high'], self._data['low'],self._data['close'],
+        slowk, slowd = ta.STOCH(self._data['high'], self._data['low'],self._data['close'], # type: ignore
                                 fastk_period=5, slowk_period=3, slowk_matype=0,
                                 slowd_period=3, slowd_matype=0)
         slowd = slowd.tolist()
@@ -166,7 +166,7 @@ class ClaudePrediction:
                 - 'buy' (bool): True if a buy signal is generated, False otherwise.
                 - 'sell' (bool): True if a sell signal is generated, False otherwise.
         """
-        macd, signal, _ = ta.MACD(self._data['close'], fastperiod=12, slowperiod=26, signalperiod=9)
+        macd, signal, _ = ta.MACD(self._data['close'], fastperiod=12, slowperiod=26, signalperiod=9) # type: ignore
         macd_list = macd.tolist()
         signal_list = signal.tolist()
 
@@ -213,7 +213,7 @@ class ClaudePrediction:
                   'sell' is 'true' if a sell signal is generated, otherwise 'false'.
                   'high_volatility' is 'true' if the current ATR is higher than the midpoint of the ATR list, otherwise 'false'.
         """
-        atr = ta.ATR(self._data['high'], self._data['low'], self._data['close'], timeperiod=14)
+        atr = ta.ATR(self._data['high'], self._data['low'], self._data['close'], timeperiod=14) # type: ignore
 
         atr_value = atr.iloc[-1]
         close_price = self._data['close'].iloc[-1]
@@ -275,7 +275,7 @@ class ClaudePrediction:
                 - 'buy' (bool): True if a buy signal is generated, False otherwise.
                 - 'sell' (bool): True if a sell signal is generated, False otherwise.
         """
-        upper_band, _, lower_band = ta.BBANDS(self._data['close'], timeperiod=window, nbdevup=num_std, nbdevdn=num_std, matype=0)
+        upper_band, _, lower_band = ta.BBANDS(self._data['close'], timeperiod=window, nbdevup=num_std, nbdevdn=num_std, matype=0) # type: ignore
 
         buy = bool(self._data['close'].iloc[-1] < lower_band.iloc[-1])
         sell = bool(self._data['close'].iloc[-1] > upper_band.iloc[-1])
@@ -317,14 +317,8 @@ class ClaudePrediction:
         Returns:
             dict: A dictionary containing the current volatility value and a volatility level ('high' or 'low').
         """
-        # Calculate the standard deviation
-        std_deviation = ta.STDDEV(self._data['close'], timeperiod=period)
-
-        # Determine the current volatility
+        std_deviation = ta.STDDEV(self._data['close'], timeperiod=period) # type: ignore
         current_volatility = std_deviation.iloc[-1]
-
-        print(f"Current Volatility: {current_volatility}, Mean Volatility: {std_deviation.mean()}")
-        # Determine the volatility level
         volatility_level = 'high' if current_volatility > std_deviation.mean() else 'low'
 
         # pylint: disable=unused-variable
@@ -339,3 +333,55 @@ class ClaudePrediction:
         # graph_this(std_deviation)
 
         return {'current_stdev': current_volatility, 'volatility': volatility_level}
+
+    # Short-Term Trend Indicators
+    
+    def get_ema_signals(self):
+        """
+        Determine buy/sell signals based on the 5-day and 20-day Exponential Moving Averages (EMAs).
+
+        A buy signal is generated when the 5-day EMA crosses above the 20-day EMA.
+        A sell signal is generated when the 5-day EMA crosses below the 20-day EMA.
+
+        Returns:
+            dict: A dictionary containing 'buy' and 'sell' signals.
+                  'buy' is 'true' if a buy signal is generated, otherwise 'false'.
+                  'sell' is 'true' if a sell signal is generated, otherwise 'false'.
+        """
+        ema_5 = ta.EMA(self._data['close'], timeperiod=5) # type: ignore
+        ema_20 = ta.EMA(self._data['close'], timeperiod=15) # type: ignore
+
+        # pylint: disable=unused-variable
+        def graph_this(ema_5, ema_20):
+            ema_5_list = ema_5.tolist()
+            ema_20_list = ema_20.tolist()
+
+            buy_points = []
+            sell_points = []
+            for i in range(len(self._data['close'])):
+                if ema_5_list[i] > ema_20_list[i] and ema_5_list[i-1] <= ema_20_list[i-1]:
+                    buy_points.append({'x': i, 'y': self._data['close'].iloc[i-1], 'color': 'green'})
+                elif ema_5_list[i] < ema_20_list[i] and ema_5_list[i-1] >= ema_20_list[i-1]:
+                    sell_points.append({'x': i, 'y': self._data['close'].iloc[i-1], 'color': 'red'})
+            points = buy_points + sell_points
+
+            x_values = [pd.to_datetime(date).strftime('%Y-%m') for date in self._data['date']]
+            graph(GraphData(x_label='Date',
+                y_label='Price',
+                title='EMAs',
+                x_values=x_values,
+                curves=[
+                    {'curve': self._data['close'].tolist(),'label': 'Close', 'color': 'blue'},
+                    {'curve': ema_5.tolist(),'label': 'EMA-5', 'color': 'orange'},
+                    {'curve': ema_20.tolist(),'label': 'EMA-20', 'color': 'red'},
+                    ],
+                points=points))
+        graph_this(ema_5, ema_20)
+
+        buy_signal = ema_5.iloc[-1] > ema_20.iloc[-1] and ema_5.iloc[-2] <= ema_20.iloc[-2]
+        sell_signal = ema_5.iloc[-1] < ema_20.iloc[-1] and ema_5.iloc[-2] >= ema_20.iloc[-2]
+
+        return {'buy': buy_signal, 'sell': sell_signal}
+
+    # Ichimoku Cloud
+    # Pivot Points

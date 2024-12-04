@@ -71,7 +71,11 @@ def debug_test():
         None
     """
 
-    price_data = load_historical_data('IBM')['days'][:240]
+    price_data = load_historical_data('IBM')
+    if price_data is None:
+        print("Failed to load historical data for IBM.")
+        return
+    price_data = price_data['days'][:240]
     clipped_price_data = price_data[::-1]
     # clipped_price_data = clipped_price_data[:-21]
     data = pd.DataFrame([{
@@ -92,6 +96,7 @@ def debug_test():
     atr_result = cp.get_atr()
     bb_result = cp.get_bollinger_bands()
     stdev_result = cp.get_standard_deviation_volatility()
+    emas_result = cp.get_ema_signals()
 
     print(f'MFI: {mfi_result}')
     print(f'OBV: {obv_result}')
@@ -103,6 +108,8 @@ def debug_test():
     print(f'ATR: {atr_result['volatility']}')
     print(f'Bollinger Bands: {bb_result['volatility']}')
     print(f'Standard Deviation Volatility: {stdev_result['volatility']}')
+    print('     Short-Term Trend Indicators:')
+    print(f'EMA Signals: {emas_result}')
 
     # //--\\==//--\\==//--\\==//--\\==//--\\==//--\\==//--\\==//--\\==//--\\==
     # price_data = load_historical_data('IBM')
