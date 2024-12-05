@@ -99,43 +99,6 @@ def debug_test():
     sorted_candidates = sorted(candidates, key=lambda x: (-x['buy'], -x['direction'], -x['volatility']))
     print(sorted_candidates[:10])
 
-    # //--\\==//--\\==//--\\==//--\\==//--\\==//--\\==//--\\==//--\\==//--\\==
-
-    # //--\\==//--\\==//--\\==//--\\==//--\\==//--\\==//--\\==//--\\==//--\\==
-    #     last_high = round(price_data[0]['high'], 2)
-    #     last_low = round(price_data[0]['low'], 2)
-
-    #     next_high = round(next_midpoint+(0.005 * next_midpoint), 2)
-    #     next_low = round(next_midpoint-(0.005 * next_midpoint), 2)
-    #     chosen = (next_high - next_low)/((next_high+next_low)/2) > 0.01
-    #     if not chosen:
-    #         invalidCount += 1
-    #     valid = next_high <= last_high and next_low >= last_low
-    #     if valid:
-    #         validCount += 1
-    #     ReportSingleton().write(f'{index}. {'Chosen' if chosen else 'Not Chosen'} -
-    #                             {'Valid' if valid else 'Invalid'} - {symbol_name}:
-    #                             Next midpoint {next_midpoint:2} ({next_low:2},
-    #                             {next_high:2}) last ({last_low:2}, {last_high:2}).')
-
-    #     price_data = price_data[:-1]
-    #     x_values = [data['date'] for data in price_data]
-    #     midpoints = get_symbol_sublist('midpoint',historical_data=price_data)
-    #     highpoints = get_symbol_sublist('high',historical_data=price_data)
-    #     lowpoints = get_symbol_sublist('low',historical_data=price_data)
-    #     if len(midpoints) <= 0:
-    #         continue
-    #     midpointMean = statistics.mean(midpoints)
-    #     graph_data : GraphData = {'x_label':'date', 'y_label':'Value', 'title':f'{index}_{symbol_name} midpoints', 'x_values':x_values,
-    #         'curves': [{'curve':midpoints},{'curve':highpoints, 'color':'pink'},{'curve':lowpoints, 'color':'purple'}],
-    #         'lines': [ {'y':midpointMean, 'color':'r', 'linestyle':'-'}, ],
-    #         'points': [{'x':19, 'y':next_midpoint, 'color':'g', 'marker':'x'},
-    #                    {'x':19, 'y':next_high, 'color':'orange', 'marker':'x'},
-    #                    {'x':19, 'y':next_low, 'color':'orange', 'marker':'x'},],
-    #     }
-    #     graph(graph_data)
-    # ReportSingleton().write('f'Valid percentage: {validCount/(10-invalidCount)*100}%')
-
 if __name__ == "__main__":
     start_time = time.time()
 
@@ -165,19 +128,11 @@ if __name__ == "__main__":
         except (OSError, IOError) as e:
             logging.error('Failed to delete %s. Reason: %s', file_path, e)
 
-
     if "-u" in sys.argv:
         build_all_symbols_history()
         print("Historical data updated.")
     elif "-p" in sys.argv:
         print('Predicting next midpoints...')
-        # results = get_gaussian_predictions()
-        # for result in results:
-            # print(f'{result["symbol"]} - forecasted = ' +
-            #       f'{result["forecasted"]} - uncertainty = ' +
-            #       f'{result["uncertainty"]} - actual = ' +
-            #       f'{result["actual"]} - validity = {result["validity"]} ' +
-            #       f'- valid_choice = {result["valid_choice"]}')
     elif "-d" in sys.argv:
         debug_test()
 
