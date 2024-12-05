@@ -21,6 +21,7 @@ Classes:
 import numpy as np
 import pandas as pd
 import talib as ta
+import matplotlib.pyplot as plt
 
 from globals import GraphData, graph
 
@@ -335,7 +336,7 @@ class ClaudePrediction:
         return {'current_stdev': current_volatility, 'volatility': volatility_level}
 
     # Short-Term Trend Indicators
-    
+
     def get_ema_signals(self):
         """
         Determine buy/sell signals based on the 5-day and 20-day Exponential Moving Averages (EMAs).
@@ -349,7 +350,7 @@ class ClaudePrediction:
                   'sell' is 'true' if a sell signal is generated, otherwise 'false'.
         """
         ema_5 = ta.EMA(self._data['close'], timeperiod=5) # type: ignore
-        ema_20 = ta.EMA(self._data['close'], timeperiod=15) # type: ignore
+        ema_20 = ta.EMA(self._data['close'], timeperiod=20) # type: ignore
 
         # pylint: disable=unused-variable
         def graph_this(ema_5, ema_20):
@@ -376,12 +377,78 @@ class ClaudePrediction:
                     {'curve': ema_20.tolist(),'label': 'EMA-20', 'color': 'red'},
                     ],
                 points=points))
-        graph_this(ema_5, ema_20)
+        # graph_this(ema_5, ema_20)
 
-        buy_signal = ema_5.iloc[-1] > ema_20.iloc[-1] and ema_5.iloc[-2] <= ema_20.iloc[-2]
-        sell_signal = ema_5.iloc[-1] < ema_20.iloc[-1] and ema_5.iloc[-2] >= ema_20.iloc[-2]
+        buy_signal = bool(ema_5.iloc[-1] > ema_20.iloc[-1] and ema_5.iloc[-2] <= ema_20.iloc[-2])
+        sell_signal = bool(ema_5.iloc[-1] < ema_20.iloc[-1] and ema_5.iloc[-2] >= ema_20.iloc[-2])
 
         return {'buy': buy_signal, 'sell': sell_signal}
 
     # Ichimoku Cloud
+    def get_ichimoku_cloud(self):
+        """
+        Calculate the Ichimoku Cloud components for the given data.
+
+        The Ichimoku Cloud is a technical analysis indicator that defines support and resistance,
+        identifies trend direction, gauges momentum, and provides trading signals.
+
+        This function calculates the following components:
+        - Tenkan-sen (Conversion Line)
+        - Kijun-sen (Base Line)
+        - Senkou Span A (Leading Span A)
+        - Senkou Span B (Leading Span B)
+
+        The function also includes a nested function `graph_this` to plot the Ichimoku Cloud,
+        but it is not called within this function.
+
+        Returns:
+            None
+        """
+        data=self._data
+        high_9 = data['high'].rolling(window=9).max()
+        low_9 = data['low'].rolling(window=9).min()
+        tenkan_sen = (high_9 + low_9) / 2
+
+        high_26 = data['high'].rolling(window=26).max()
+        low_26 = data['low'].rolling(window=26).min()
+        kijun_sen = (high_26 + low_26) / 2
+
+        senkou_span_a = (tenkan_sen + kijun_sen) / 2
+
+        high_52 = data['high'].rolling(window=52).max()
+        low_52 = data['low'].rolling(window=52).min()
+        senkou_span_b = (high_52 + low_52) / 2
+
+        # Add 26 entries to the front of the data['close'] dataframe
+        data['close'] = pd.concat([pd.Series([np.nan]*13), data['close']]).reset_index(drop=True)
+        ichimoku_df = pd.DataFrame({
+            'senkou_span_a': senkou_span_a,
+            'senkou_span_b': senkou_span_b
+        })
+
+        # pylint: disable=unused-variable
+        def graph_this(ichimoku_df):
+            plt.figure(figsize=(14, 7))
+            plt.plot(data.index, data['close'], label='Close')
+            plt.plot(ichimoku_df.index, ichimoku_df['senkou_span_a'], label='Senkou Span A')
+            plt.plot(ichimoku_df.index, ichimoku_df['senkou_span_b'], label='Senkou Span B')
+            plt.fill_between(
+                ichimoku_df.index,
+                ichimoku_df['senkou_span_a'],
+                ichimoku_df['senkou_span_b'],
+                where=(ichimoku_df['senkou_span_a'] >= ichimoku_df['senkou_span_b']).tolist(),
+                color='lightgreen', alpha=0.5)
+            plt.fill_between(
+                ichimoku_df.index,
+                ichimoku_df['senkou_span_a'],
+                ichimoku_df['senkou_span_b'],
+                where=(ichimoku_df['senkou_span_a'] < ichimoku_df['senkou_span_b']).tolist(),
+                color='lightcoral', alpha=0.5)
+            plt.legend()
+            plt.savefig('graphs/Ichimoku.png')
+        graph_this(ichimoku_df)
+        return {'buy': bool(senkou_span_a.iloc[-1] > senkou_span_b.iloc[-1]),
+                'sell': bool(senkou_span_a.iloc[-1] < senkou_span_b.iloc[-1]),
+                'strength': float(abs(senkou_span_a.iloc[-1] - senkou_span_b.iloc[-1]).round(2))}
+
     # Pivot Points

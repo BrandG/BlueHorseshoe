@@ -36,6 +36,7 @@ Functions:
         None
 
 """
+import random
 import logging
 import sys
 import time
@@ -46,7 +47,7 @@ import pandas as pd
 from sklearn.exceptions import ConvergenceWarning
 
 from claude_prediction import ClaudePrediction
-from globals import ReportSingleton, get_mongo_client
+from globals import ReportSingleton, get_mongo_client, get_symbol_name_list
 from historical_data import build_all_symbols_history, load_historical_data
 
 sys.argv = ["-d"]
@@ -71,7 +72,8 @@ def debug_test():
         None
     """
 
-    price_data = load_historical_data('IBM')
+    symbols = get_symbol_name_list()
+    price_data = load_historical_data(random.choice(symbols))
     if price_data is None:
         print("Failed to load historical data for IBM.")
         return
@@ -87,29 +89,33 @@ def debug_test():
         'date':val['date']}
         for val in clipped_price_data])
     cp = ClaudePrediction(data)
-    mfi_result = cp.get_mfi()
-    obv_result = cp.get_obv()
-    vwap_result = cp.volume_weighted_average_price()
-    rsi_result = cp.get_rsi()
-    stochastic_oscillator_result = cp.get_stochastic_oscillator()
-    macd_result = cp.get_macd()
-    atr_result = cp.get_atr()
-    bb_result = cp.get_bollinger_bands()
-    stdev_result = cp.get_standard_deviation_volatility()
-    emas_result = cp.get_ema_signals()
+    results = {}
+    results['mfi'] = cp.get_mfi()
+    results['obv'] = cp.get_obv()
+    results['vwap'] = cp.volume_weighted_average_price()
+    results['rsi'] = cp.get_rsi()
+    results['stochastic_oscillator'] = cp.get_stochastic_oscillator()
+    results['macd'] = cp.get_macd()
+    results['atr'] = cp.get_atr()
+    results['bb'] = cp.get_bollinger_bands()
+    results['stdev'] = cp.get_standard_deviation_volatility()
+    results['emas'] = cp.get_ema_signals()
+    results['ichimoku'] = cp.get_ichimoku_cloud()
 
-    print(f'MFI: {mfi_result}')
-    print(f'OBV: {obv_result}')
-    print(f'VWAP: {vwap_result}')
-    print(f'RSI: {rsi_result}')
-    print(f'Stochastic Oscillator: {stochastic_oscillator_result}')
-    print(f'MACD: {macd_result}')
-    print('     Volatility Indicators:')
-    print(f'ATR: {atr_result['volatility']}')
-    print(f'Bollinger Bands: {bb_result['volatility']}')
-    print(f'Standard Deviation Volatility: {stdev_result['volatility']}')
-    print('     Short-Term Trend Indicators:')
-    print(f'EMA Signals: {emas_result}')
+    # print(f'MFI: {mfi_result}')
+    # print(f'OBV: {obv_result}')
+    # print(f'VWAP: {vwap_result}')
+    # print(f'RSI: {rsi_result}')
+    # print(f'Stochastic Oscillator: {stochastic_oscillator_result}')
+    # print(f'MACD: {macd_result}')
+    # print('     Volatility Indicators:')
+    # print(f'ATR: {atr_result['volatility']}')
+    # print(f'Bollinger Bands: {bb_result['volatility']}')
+    # print(f'Standard Deviation Volatility: {stdev_result['volatility']}')
+    # print('     Short-Term Trend Indicators:')
+    # print(f'EMA Signals: {emas_result}')
+    # print(f'Ichimoku Cloud: {ichimoku_result}')
+    print(results)
 
     # //--\\==//--\\==//--\\==//--\\==//--\\==//--\\==//--\\==//--\\==//--\\==
     # price_data = load_historical_data('IBM')
