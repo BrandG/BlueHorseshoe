@@ -22,6 +22,7 @@ import requests
 from ratelimit import limits, sleep_and_retry
 
 from globals import get_mongo_client, get_symbol_list, BASE_PATH
+from pymongo.errors import ServerSelectionTimeoutError, NotPrimaryError
 
 @sleep_and_retry
 @limits(calls=60, period=60)  # 60 calls per 60 seconds
@@ -103,8 +104,13 @@ def load_historical_data_from_mongo(symbol, db):
         dict: A dictionary containing the historical data if found, None otherwise.
         None: If no data is found for the given symbol.
     """
-    collection = db['historical_data']
-    data = collection.find_one({"symbol": symbol})
+    data = None
+    try:
+        collection = db['historical_data']
+        data = collection.find_one({"symbol": symbol})
+    except (ServerSelectionTimeoutError, NotPrimaryError, OSError) as e:
+        print(f"Error accessing MongoDB: {e}")
+
     return data
 
 def save_historical_data_to_mongo(symbol, data, db):

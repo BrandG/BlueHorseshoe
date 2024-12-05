@@ -174,7 +174,7 @@ def get_mongo_client(uri="mongodb://localhost:27017/", db_name="blueHorseshoe"):
     global MONGO_CLIENT
     if MONGO_CLIENT is None:
         try:
-            MONGO_CLIENT = MongoClient(uri, connectTimeoutMS=1000, serverSelectionTimeoutMS=1000)
+            MONGO_CLIENT = MongoClient(uri, connectTimeoutMS=2000, serverSelectionTimeoutMS=2000)
             server_info = MONGO_CLIENT.server_info()
             logging.info("Connected to MongoDB server version %s", server_info['version'])
         except (ConnectionFailure, ConfigurationError) as e:

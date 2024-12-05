@@ -73,49 +73,31 @@ def debug_test():
     """
 
     symbols = get_symbol_name_list()
-    price_data = load_historical_data(random.choice(symbols))
-    if price_data is None:
-        print("Failed to load historical data for IBM.")
-        return
-    price_data = price_data['days'][:240]
-    clipped_price_data = price_data[::-1]
-    # clipped_price_data = clipped_price_data[:-21]
-    data = pd.DataFrame([{
-        'open':val['open'],
-        'high':val['high'],
-        'low':val['low'],
-        'close':val['close'],
-        'volume':val['volume'],
-        'date':val['date']}
-        for val in clipped_price_data])
-    cp = ClaudePrediction(data)
-    results = {}
-    results['mfi'] = cp.get_mfi()
-    results['obv'] = cp.get_obv()
-    results['vwap'] = cp.volume_weighted_average_price()
-    results['rsi'] = cp.get_rsi()
-    results['stochastic_oscillator'] = cp.get_stochastic_oscillator()
-    results['macd'] = cp.get_macd()
-    results['atr'] = cp.get_atr()
-    results['bb'] = cp.get_bollinger_bands()
-    results['stdev'] = cp.get_standard_deviation_volatility()
-    results['emas'] = cp.get_ema_signals()
-    results['ichimoku'] = cp.get_ichimoku_cloud()
-
-    # print(f'MFI: {mfi_result}')
-    # print(f'OBV: {obv_result}')
-    # print(f'VWAP: {vwap_result}')
-    # print(f'RSI: {rsi_result}')
-    # print(f'Stochastic Oscillator: {stochastic_oscillator_result}')
-    # print(f'MACD: {macd_result}')
-    # print('     Volatility Indicators:')
-    # print(f'ATR: {atr_result['volatility']}')
-    # print(f'Bollinger Bands: {bb_result['volatility']}')
-    # print(f'Standard Deviation Volatility: {stdev_result['volatility']}')
-    # print('     Short-Term Trend Indicators:')
-    # print(f'EMA Signals: {emas_result}')
-    # print(f'Ichimoku Cloud: {ichimoku_result}')
-    print(results)
+    results = { 'buy': 0, 'sell': 0, 'hold': 0, 'volatility': 0, 'direction': 0 }
+    candidates = []
+    for index, symbol in enumerate(symbols):
+        price_data = load_historical_data(symbol)
+        if price_data is None:
+            print(f"Failed to load historical data for {symbol}.")
+            return
+        price_data = price_data['days'][:240]
+        clipped_price_data = price_data[::-1]
+        # clipped_price_data = clipped_price_data[:-21]
+        data = pd.DataFrame([{
+            'open': val['open'],
+            'high': val['high'],
+            'low': val['low'],
+            'close': val['close'],
+            'volume': val['volume'],
+            'date': val['date']}
+            for val in clipped_price_data])
+        cp = ClaudePrediction(data)
+        results = cp.get_results()
+        if results['buy'] > 2:
+            candidates.append({'symbol': symbol, 'buy': results['buy'], 'sell': results['sell'], 'hold': results['hold'], 'volatility': results['volatility'], 'direction': results['direction']})
+        print(f'{(index*100/len(symbols)):.2f}%. {symbol} - Buy: {results["buy"]} - Sell: {results["sell"]} - Hold: {results["hold"]} - Volatility: {results["volatility"]} - Direction: {results["direction"]}')
+    candidates.sort(key=lambda x: x['buy'], reverse=True)
+    print(candidates)
 
     # //--\\==//--\\==//--\\==//--\\==//--\\==//--\\==//--\\==//--\\==//--\\==
     # price_data = load_historical_data('IBM')

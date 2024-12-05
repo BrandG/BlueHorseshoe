@@ -57,6 +57,45 @@ class ClaudePrediction:
     def __init__(self, data):
         self._data = data
 
+    def get_results(self):
+        results = {}
+
+        results['mfi'] = self.get_mfi()
+        results['obv'] = self.get_obv()
+        results['vwap'] = self.volume_weighted_average_price()
+        results['rsi'] = self.get_rsi()
+        results['stochastic_oscillator'] = self.get_stochastic_oscillator()
+        results['macd'] = self.get_macd()
+        results['atr'] = self.get_atr()
+        results['bb'] = self.get_bollinger_bands()
+        results['stdev'] = self.get_standard_deviation_volatility()
+        results['emas'] = self.get_ema_signals()
+        results['ichimoku'] = self.get_ichimoku_cloud()
+
+        results['buy'] = (1 if results['mfi']['buy'] else 0) + \
+            (1 if results['rsi']['buy'] else 0) + \
+            (1 if results['stochastic_oscillator']['buy'] else 0) + \
+            (1 if results['macd']['buy'] else 0) + \
+            (1 if results['atr']['buy'] else 0) + \
+            (1 if results['bb']['buy'] else 0) + \
+            (1 if results['emas']['buy'] else 0) + \
+            (1 if results['ichimoku']['buy'] else 0)
+        results['sell'] = (1 if results['mfi']['sell'] else 0) + \
+            (1 if results['rsi']['sell'] else 0) + \
+            (1 if results['stochastic_oscillator']['sell'] else 0) + \
+            (1 if results['macd']['sell'] else 0) + \
+            (1 if results['atr']['sell'] else 0) + \
+            (1 if results['bb']['sell'] else 0) + \
+            (1 if results['emas']['sell'] else 0) + \
+            (1 if results['ichimoku']['sell'] else 0)
+        results['hold'] = (1 if results['stochastic_oscillator']['hold'] else 0)
+        results['volatility'] = (1 if results['atr']['volatility'] == 'high' else 0) + \
+            (1 if results['bb']['volatility'] == 'high' else 0) + \
+            (1 if results['stdev']['volatility'] == 'high' else 0)
+        results['direction'] = (1 if results['obv']['direction'] == 'up' else 0) + \
+            (1 if results['vwap']['direction'] == 'up' else 0)
+        return results
+
     def get_mfi(self):
         """
         Calculate the Money Flow Index (MFI) and determine buy/sell signals.
@@ -73,10 +112,7 @@ class ClaudePrediction:
         mfi_data = ta.MFI(self._data['high'], self._data['low'], self._data['close'], self._data['volume'], timeperiod=14).tolist() # type: ignore
         mfi = mfi_data[-1]
 
-        overbought_threshold = np.percentile(mfi_data, 85)
-        oversold_threshold = np.percentile(mfi_data, 15)
-
-        return {'buy': 'true' if mfi < oversold_threshold else 'false', 'sell': 'true' if mfi > overbought_threshold else 'false'}
+        return {'buy': bool(mfi < np.percentile(mfi_data, 15)), 'sell': bool(mfi > np.percentile(mfi_data, 85))}
 
     def get_obv(self):
         """
@@ -122,10 +158,7 @@ class ClaudePrediction:
 
         rsi = rsi_data.tolist()[-1]
 
-        overbought_threshold = np.percentile(rsi_data, 85)
-        oversold_threshold = np.percentile(rsi_data, 15)
-
-        return {'buy': 'true' if rsi < oversold_threshold else 'false', 'sell': 'true' if rsi > overbought_threshold else 'false'}
+        return {'buy': bool(rsi < np.percentile(rsi_data, 15)), 'sell': bool(rsi > np.percentile(rsi_data, 85))}
 
     def get_stochastic_oscillator(self):
         """
@@ -319,7 +352,7 @@ class ClaudePrediction:
             dict: A dictionary containing the current volatility value and a volatility level ('high' or 'low').
         """
         std_deviation = ta.STDDEV(self._data['close'], timeperiod=period) # type: ignore
-        current_volatility = std_deviation.iloc[-1]
+        current_volatility = float(std_deviation.iloc[-1])
         volatility_level = 'high' if current_volatility > std_deviation.mean() else 'low'
 
         # pylint: disable=unused-variable
@@ -446,7 +479,7 @@ class ClaudePrediction:
                 color='lightcoral', alpha=0.5)
             plt.legend()
             plt.savefig('graphs/Ichimoku.png')
-        graph_this(ichimoku_df)
+        # graph_this(ichimoku_df)
         return {'buy': bool(senkou_span_a.iloc[-1] > senkou_span_b.iloc[-1]),
                 'sell': bool(senkou_span_a.iloc[-1] < senkou_span_b.iloc[-1]),
                 'strength': float(abs(senkou_span_a.iloc[-1] - senkou_span_b.iloc[-1]).round(2))}
