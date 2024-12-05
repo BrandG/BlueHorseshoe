@@ -46,7 +46,7 @@ import pandas as pd
 from sklearn.exceptions import ConvergenceWarning
 
 from claude_prediction import ClaudePrediction
-from globals import ReportSingleton, get_mongo_client
+from globals import ReportSingleton, get_mongo_client, get_symbol_name_list
 from historical_data import build_all_symbols_history, load_historical_data
 
 sys.argv = ["-d"]
@@ -71,38 +71,34 @@ def debug_test():
         None
     """
 
-    price_data = load_historical_data('IBM')['days'][:240]
-    clipped_price_data = price_data[::-1]
-    # clipped_price_data = clipped_price_data[:-21]
-    data = pd.DataFrame([{
-        'open':val['open'],
-        'high':val['high'],
-        'low':val['low'],
-        'close':val['close'],
-        'volume':val['volume'],
-        'date':val['date']}
-        for val in clipped_price_data])
-    cp = ClaudePrediction(data)
-    mfi_result = cp.get_mfi()
-    obv_result = cp.get_obv()
-    vwap_result = cp.volume_weighted_average_price()
-    rsi_result = cp.get_rsi()
-    stochastic_oscillator_result = cp.get_stochastic_oscillator()
-    macd_result = cp.get_macd()
-    atr_result = cp.get_atr()
-    bb_result = cp.get_bollinger_bands()
-    stdev_result = cp.get_standard_deviation_volatility()
-
-    print(f'MFI: {mfi_result}')
-    print(f'OBV: {obv_result}')
-    print(f'VWAP: {vwap_result}')
-    print(f'RSI: {rsi_result}')
-    print(f'Stochastic Oscillator: {stochastic_oscillator_result}')
-    print(f'MACD: {macd_result}')
-    print('     Volatility Indicators:')
-    print(f'ATR: {atr_result['volatility']}')
-    print(f'Bollinger Bands: {bb_result['volatility']}')
-    print(f'Standard Deviation Volatility: {stdev_result['volatility']}')
+    symbols = get_symbol_name_list()
+    results = { 'buy': 0, 'sell': 0, 'hold': 0, 'volatility': 0, 'direction': 0 }
+    candidates = []
+    for index, symbol in enumerate(symbols):
+        price_data = load_historical_data(symbol)
+        if price_data is None:
+            print(f"Failed to load historical data for {symbol}.")
+            return
+        price_data = price_data['days'][:240]
+        clipped_price_data = price_data[::-1]
+        # clipped_price_data = clipped_price_data[:-21]
+        data = pd.DataFrame([{
+            'open': val['open'],
+            'high': val['high'],
+            'low': val['low'],
+            'close': val['close'],
+            'volume': val['volume'],
+            'date': val['date']}
+            for val in clipped_price_data])
+        cp = ClaudePrediction(data)
+        results = cp.get_results()
+        candidates.append({'symbol': symbol, 'buy': results['buy'], 'sell': results['sell'], \
+                            'hold': results['hold'], 'volatility': results['volatility'], \
+                            'direction': results['direction']})
+        print(f'{(index*100/len(symbols)):.2f}%. {symbol} - Buy: {results["buy"]} - Sell: {results["sell"]} - '
+              f'Hold: {results["hold"]} - Volatility: {results["volatility"]} - Direction: {results["direction"]}')
+    sorted_candidates = sorted(candidates, key=lambda x: (-x['buy'], -x['direction'], -x['volatility']))
+    print(sorted_candidates[:10])
 
     # //--\\==//--\\==//--\\==//--\\==//--\\==//--\\==//--\\==//--\\==//--\\==
     # price_data = load_historical_data('IBM')

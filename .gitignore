@@ -9,3 +9,4 @@ start_mongo.sh
 report.txt
 linting.txt
 .coverage
+linting_sorted.txt

@@ -49,6 +49,7 @@ import matplotlib.pyplot as plt
 from ratelimit import limits, sleep_and_retry
 from pymongo import MongoClient
 from pymongo.errors import ConnectionFailure, ConfigurationError
+from matplotlib.ticker import MultipleLocator
 
 # When calculating the stability score (2.B.1), set these to determine which is more important
 # for finding a good stability value.
@@ -138,8 +139,11 @@ class ReportSingleton:
         Args:
             new_line (str): The line to be written to the instance.
         """
-        self._instance.write(new_line + '\n')
-        self._instance.flush()
+        if self._instance is not None:
+            self._instance.write(new_line + '\n')
+            self._instance.flush()
+        else:
+            logging.error("Attempted to write to a closed report file.")
 
     def close(self):
         """
@@ -149,8 +153,9 @@ class ReportSingleton:
         instance variable to None to ensure that the object is properly disposed of 
         and no longer referenced.
         """
-        self._instance.close()
-        self._instance = None
+        if self._instance is not None:
+            self._instance.close()
+            self._instance = None
 
 
 
@@ -169,7 +174,7 @@ def get_mongo_client(uri="mongodb://localhost:27017/", db_name="blueHorseshoe"):
     global MONGO_CLIENT
     if MONGO_CLIENT is None:
         try:
-            MONGO_CLIENT = MongoClient(uri, connectTimeoutMS=1000, serverSelectionTimeoutMS=1000)
+            MONGO_CLIENT = MongoClient(uri, connectTimeoutMS=2000, serverSelectionTimeoutMS=2000)
             server_info = MONGO_CLIENT.server_info()
             logging.info("Connected to MongoDB server version %s", server_info['version'])
         except (ConnectionFailure, ConfigurationError) as e:
@@ -280,7 +285,7 @@ def graph(graph_data: GraphData):
             color = point.get('color', 'r')
             plt.scatter(point['x'], point['y'], color=color)
         plt.legend()  # Add this line to show the legend
-        plt.gca().xaxis.set_major_locator(plt.MultipleLocator(20))
+        plt.gca().xaxis.set_major_locator(MultipleLocator(20))
         plt.grid(which='both', linestyle='--', linewidth=0.5)
         current_time_ms = int(datetime.now().timestamp() * 1000)
         plt.savefig(f'graphs/{graph_data.title}_{current_time_ms}.png')
@@ -386,6 +391,8 @@ def get_symbol_list():
     symbol_list = get_symbol_list_from_file()
     if symbol_list is None:
         symbol_list = get_symbol_list_from_net()
+        if symbol_list is None:
+            return []
         file_path = os.path.join(BASE_PATH, 'symbol_list.json')
 
         # Create the directory if it does not exist
@@ -396,8 +403,8 @@ def get_symbol_list():
                 json.dump(symbol_list, file)
         except (OSError, IOError, json.JSONDecodeError) as e:
             logging.error("An error occurred while writing the symbol list to file: %s", e)
-    symbol_list = [symbol for symbol in symbol_list if symbol['symbol'] not in invalid_symbols]
-    return symbol_list
+
+    return [symbol for symbol in symbol_list if symbol['symbol'] not in invalid_symbols]
 
 
 
