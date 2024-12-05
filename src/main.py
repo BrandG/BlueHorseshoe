@@ -36,7 +36,6 @@ Functions:
         None
 
 """
-import random
 import logging
 import sys
 import time
@@ -93,11 +92,13 @@ def debug_test():
             for val in clipped_price_data])
         cp = ClaudePrediction(data)
         results = cp.get_results()
-        if results['buy'] > 2:
-            candidates.append({'symbol': symbol, 'buy': results['buy'], 'sell': results['sell'], 'hold': results['hold'], 'volatility': results['volatility'], 'direction': results['direction']})
-        print(f'{(index*100/len(symbols)):.2f}%. {symbol} - Buy: {results["buy"]} - Sell: {results["sell"]} - Hold: {results["hold"]} - Volatility: {results["volatility"]} - Direction: {results["direction"]}')
-    candidates.sort(key=lambda x: x['buy'], reverse=True)
-    print(candidates)
+        candidates.append({'symbol': symbol, 'buy': results['buy'], 'sell': results['sell'], \
+                            'hold': results['hold'], 'volatility': results['volatility'], \
+                            'direction': results['direction']})
+        print(f'{(index*100/len(symbols)):.2f}%. {symbol} - Buy: {results["buy"]} - Sell: {results["sell"]} - '
+              f'Hold: {results["hold"]} - Volatility: {results["volatility"]} - Direction: {results["direction"]}')
+    sorted_candidates = sorted(candidates, key=lambda x: (-x['buy'], -x['direction'], -x['volatility']))
+    print(sorted_candidates[:10])
 
     # //--\\==//--\\==//--\\==//--\\==//--\\==//--\\==//--\\==//--\\==//--\\==
     # price_data = load_historical_data('IBM')

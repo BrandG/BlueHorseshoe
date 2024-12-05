@@ -58,6 +58,29 @@ class ClaudePrediction:
         self._data = data
 
     def get_results(self):
+        """
+        Calculate and return a dictionary of various technical analysis indicators and their signals.
+
+        Returns:
+            dict: A dictionary containing the following keys:
+                - 'mfi': Money Flow Index (MFI) indicator results.
+                - 'obv': On-Balance Volume (OBV) indicator results.
+                - 'vwap': Volume Weighted Average Price (VWAP) indicator results.
+                - 'rsi': Relative Strength Index (RSI) indicator results.
+                - 'stochastic_oscillator': Stochastic Oscillator indicator results.
+                - 'macd': Moving Average Convergence Divergence (MACD) indicator results.
+                - 'atr': Average True Range (ATR) indicator results.
+                - 'bb': Bollinger Bands indicator results.
+                - 'stdev': Standard Deviation Volatility indicator results.
+                - 'emas': Exponential Moving Average (EMA) signals.
+                - 'ichimoku': Ichimoku Cloud indicator results.
+                - 'PP': Pivot Points indicator results.
+                - 'buy': Sum of buy signals from various indicators.
+                - 'sell': Sum of sell signals from various indicators.
+                - 'hold': Sum of hold signals from the Stochastic Oscillator.
+                - 'volatility': Sum of high volatility signals from ATR, Bollinger Bands, and Standard Deviation.
+                - 'direction': Sum of upward direction signals from OBV and VWAP.
+        """
         results = {}
 
         results['mfi'] = self.get_mfi()
@@ -71,6 +94,7 @@ class ClaudePrediction:
         results['stdev'] = self.get_standard_deviation_volatility()
         results['emas'] = self.get_ema_signals()
         results['ichimoku'] = self.get_ichimoku_cloud()
+        results['PP'] = self.get_pivot_points()
 
         results['buy'] = (1 if results['mfi']['buy'] else 0) + \
             (1 if results['rsi']['buy'] else 0) + \
@@ -79,7 +103,9 @@ class ClaudePrediction:
             (1 if results['atr']['buy'] else 0) + \
             (1 if results['bb']['buy'] else 0) + \
             (1 if results['emas']['buy'] else 0) + \
-            (1 if results['ichimoku']['buy'] else 0)
+            (1 if results['ichimoku']['buy'] else 0) + \
+            (1 if results['PP']['buy'] else 0)
+
         results['sell'] = (1 if results['mfi']['sell'] else 0) + \
             (1 if results['rsi']['sell'] else 0) + \
             (1 if results['stochastic_oscillator']['sell'] else 0) + \
@@ -87,7 +113,9 @@ class ClaudePrediction:
             (1 if results['atr']['sell'] else 0) + \
             (1 if results['bb']['sell'] else 0) + \
             (1 if results['emas']['sell'] else 0) + \
-            (1 if results['ichimoku']['sell'] else 0)
+            (1 if results['ichimoku']['sell'] else 0) + \
+            (1 if results['PP']['sell'] else 0)
+
         results['hold'] = (1 if results['stochastic_oscillator']['hold'] else 0)
         results['volatility'] = (1 if results['atr']['volatility'] == 'high' else 0) + \
             (1 if results['bb']['volatility'] == 'high' else 0) + \
@@ -96,7 +124,7 @@ class ClaudePrediction:
             (1 if results['vwap']['direction'] == 'up' else 0)
         return results
 
-    def get_mfi(self):
+    def get_mfi(self, show = False):
         """
         Calculate the Money Flow Index (MFI) and determine buy/sell signals.
 
@@ -110,11 +138,18 @@ class ClaudePrediction:
                   overbought threshold, otherwise 'false'.
         """
         mfi_data = ta.MFI(self._data['high'], self._data['low'], self._data['close'], self._data['volume'], timeperiod=14).tolist() # type: ignore
+        # pylint: disable=unused-variable
+        def graph_this(mfi_data):
+            # To Do: Fill this in
+            print(mfi_data)
+        if show:
+            graph_this(mfi_data)
+
         mfi = mfi_data[-1]
 
         return {'buy': bool(mfi < np.percentile(mfi_data, 15)), 'sell': bool(mfi > np.percentile(mfi_data, 85))}
 
-    def get_obv(self):
+    def get_obv(self, show = False):
         """
         Calculate the On-Balance Volume (OBV) and determine its direction.
 
@@ -127,6 +162,13 @@ class ClaudePrediction:
                   value 'up' if the OBV is increasing, otherwise 'down'.
         """
         obv = ta.OBV(self._data['close'], self._data['volume']) # type: ignore
+        # pylint: disable=unused-variable
+        def graph_this(obv):
+            # To Do: Fill this in
+            print(obv)
+        if show:
+            graph_this(obv)
+
         return {'direction': 'up' if obv[0] > obv[1] else 'down'}
 
     def volume_weighted_average_price(self):
@@ -141,7 +183,7 @@ class ClaudePrediction:
         vwap = (self._data['close'] * self._data['volume']).cumsum() / self._data['volume'].cumsum()
         return {'direction': 'up' if self._data['close'].tolist()[-1] > vwap.tolist()[-1] else 'down'}
 
-    def get_rsi(self):
+    def get_rsi(self, show = False):
         """
         Calculate the Relative Strength Index (RSI) and determine buy/sell signals.
 
@@ -156,11 +198,18 @@ class ClaudePrediction:
         """
         rsi_data = ta.RSI(self._data['close'], timeperiod=14).dropna() # type: ignore
 
+        # pylint: disable=unused-variable
+        def graph_this(rsi_data):
+            # To Do: Fill this in
+            print(rsi_data)
+        if show:
+            graph_this(rsi_data)
+
         rsi = rsi_data.tolist()[-1]
 
         return {'buy': bool(rsi < np.percentile(rsi_data, 15)), 'sell': bool(rsi > np.percentile(rsi_data, 85))}
 
-    def get_stochastic_oscillator(self):
+    def get_stochastic_oscillator(self, show = False):
         """
         Calculate the Stochastic Oscillator for the given data.
 
@@ -179,6 +228,13 @@ class ClaudePrediction:
         slowd = slowd.tolist()
         slowk = slowk.tolist()
 
+        # pylint: disable=unused-variable
+        def graph_this(slowd, slowk):
+            # To Do: Fill this in
+            print(slowd, slowk)
+        if show:
+            graph_this(slowd, slowk)
+
         buy = sell = hold = False
         if slowk[-1] > slowd[-1] and slowk[-2] <= slowd[-2]:
             buy = True
@@ -188,7 +244,7 @@ class ClaudePrediction:
             hold = True
         return {'buy': buy, 'sell': sell, 'hold': hold}
 
-    def get_macd(self):
+    def get_macd(self, show = False):
         """
         Calculate the Moving Average Convergence Divergence (MACD) and generate buy/sell signals.
 
@@ -226,13 +282,14 @@ class ClaudePrediction:
                                                             ],
                                                             points=points
                                                             ))
-        # graph_this(macd, signal)
+        if show:
+            graph_this(macd, signal)
 
         buy = macd_list[-1] > signal_list[-1] and macd_list[-2] <= signal_list[-2]
         sell = macd_list[-1] < signal_list[-1] and macd_list[-2] >= signal_list[-2]
         return {'buy': buy, 'sell': sell}
 
-    def get_atr(self, multiplier=1.5):
+    def get_atr(self, multiplier=1.5, show = False):
         """
         Generate buy/sell signals based on ATR and report high volatility.
 
@@ -285,7 +342,8 @@ class ClaudePrediction:
                                                             {'curve': price_data,
                                                             'label': 'Close', 'color': 'green'}],
                                                             points=points))
-        # graph_this(atr, (atr > atr.mean()).tolist())
+        if show:
+            graph_this(atr, (atr > atr.mean()).tolist())
 
         return {'volatility': 'high' if high_volatility else 'low',
                 'stop_loss_long': stop_loss_long,
@@ -293,7 +351,7 @@ class ClaudePrediction:
                 'buy': buy_signal,
                 'sell': sell_signal}
 
-    def get_bollinger_bands(self, window=20, num_std=2):
+    def get_bollinger_bands(self, window=20, num_std=2, show = False):
         """
         Calculate the Bollinger Bands and generate buy/sell signals.
 
@@ -335,11 +393,12 @@ class ClaudePrediction:
                                                             'label': 'Close', 'color': 'green'}
                                                             ],
                                                             points=points))
-        # graph_this(upper_band, lower_band)
+        if show:
+            graph_this(upper_band, lower_band)
 
         return {'buy': buy, 'sell': sell, 'volatility': 'high' if (buy or sell) else 'low'}
 
-    def get_standard_deviation_volatility(self, period=20):
+    def get_standard_deviation_volatility(self, period=20, show = False):
         """
         Calculate and report price volatility using the standard deviation.
 
@@ -364,13 +423,14 @@ class ClaudePrediction:
                                 x_values=x_values, curves=[{'curve': stdev_list, 'label': 'stDev', 'color':'orange'},
                                                             {'curve': price_data, 'label': 'Close', 'color': 'green'}
                                                             ]))
-        # graph_this(std_deviation)
+        if show:
+            graph_this(std_deviation)
 
         return {'current_stdev': current_volatility, 'volatility': volatility_level}
 
     # Short-Term Trend Indicators
 
-    def get_ema_signals(self):
+    def get_ema_signals(self, show = False):
         """
         Determine buy/sell signals based on the 5-day and 20-day Exponential Moving Averages (EMAs).
 
@@ -410,7 +470,8 @@ class ClaudePrediction:
                     {'curve': ema_20.tolist(),'label': 'EMA-20', 'color': 'red'},
                     ],
                 points=points))
-        # graph_this(ema_5, ema_20)
+        if show:
+            graph_this(ema_5, ema_20)
 
         buy_signal = bool(ema_5.iloc[-1] > ema_20.iloc[-1] and ema_5.iloc[-2] <= ema_20.iloc[-2])
         sell_signal = bool(ema_5.iloc[-1] < ema_20.iloc[-1] and ema_5.iloc[-2] >= ema_20.iloc[-2])
@@ -418,7 +479,7 @@ class ClaudePrediction:
         return {'buy': buy_signal, 'sell': sell_signal}
 
     # Ichimoku Cloud
-    def get_ichimoku_cloud(self):
+    def get_ichimoku_cloud(self, show = False):
         """
         Calculate the Ichimoku Cloud components for the given data.
 
@@ -479,9 +540,54 @@ class ClaudePrediction:
                 color='lightcoral', alpha=0.5)
             plt.legend()
             plt.savefig('graphs/Ichimoku.png')
-        # graph_this(ichimoku_df)
+        if show:
+            graph_this(ichimoku_df)
         return {'buy': bool(senkou_span_a.iloc[-1] > senkou_span_b.iloc[-1]),
                 'sell': bool(senkou_span_a.iloc[-1] < senkou_span_b.iloc[-1]),
                 'strength': float(abs(senkou_span_a.iloc[-1] - senkou_span_b.iloc[-1]).round(2))}
 
     # Pivot Points
+    def get_pivot_points(self, show = False):
+        """
+        Calculate pivot points and support/resistance levels.
+
+        Parameters:
+            data (pd.DataFrame): DataFrame with columns 'high', 'low', 'close'.
+
+        Returns:
+            pd.DataFrame: DataFrame with pivot points and support/resistance levels.
+        """
+        pivot_points = pd.DataFrame(index=self._data.index)
+        pivot_points['P'] = (self._data['high'] + self._data['low'] + self._data['close']) / 3
+        pivot_points['R1'] = 2 * pivot_points['P'] - self._data['low']
+        pivot_points['S1'] = 2 * pivot_points['P'] - self._data['high']
+        pivot_points['R2'] = pivot_points['P'] + (self._data['high'] - self._data['low'])
+        pivot_points['S2'] = pivot_points['P'] - (self._data['high'] - self._data['low'])
+        pivot_points['R3'] = self._data['high'] + 2 * (pivot_points['P'] - self._data['low'])
+        pivot_points['S3'] = self._data['low'] - 2 * (self._data['high'] - pivot_points['P'])
+
+        def graph_this(pivot_points):
+            buy_points = []
+            sell_points = []
+            for i in range(len(self._data['close'])):
+                if self._data['close'][i] > pivot_points['P'][i] and self._data['close'][i-1] <= pivot_points['P'][i-1]:
+                    buy_points.append({'x': i, 'y': self._data['close'].iloc[i-1], 'color': 'green'})
+                elif self._data['close'][i] < pivot_points['P'][i] and self._data['close'][i-1] >= pivot_points['P'][i-1]:
+                    sell_points.append({'x': i, 'y': self._data['close'].iloc[i-1], 'color': 'red'})
+            points = buy_points + sell_points
+            x_values = [pd.to_datetime(date).strftime('%Y-%m') for date in self._data['date']]
+            graph(GraphData(x_label='Date',
+                y_label='Price',
+                title='Pivot Points',
+                x_values=x_values,
+                curves=[
+                    {'curve': self._data['close'].tolist(),'label': 'Close', 'color': 'blue'},
+                    {'curve': pivot_points['P'],'label': 'P', 'color': 'green'},
+                    ], points=points))
+        if show:
+            graph_this(pivot_points)
+
+        close_list = self._data['close'].tolist()
+        pivot_points_list = pivot_points['P'].tolist()
+
+        return {'buy':bool(close_list[-1] < pivot_points_list[-1]), 'sell':bool(close_list[-1] > pivot_points_list[-1])}
