@@ -28,6 +28,28 @@ Methods:
         Evaluates the model's performance on the given DataFrame.
 
 """
+# # Usage
+# price_data = load_historical_data('IBM')
+# newData = [{
+#     'open':val['open'],
+#     'high':val['high'],
+#     'low':val['low'],
+#     'close':val['close'],
+#     'volume':val['volume'],
+#     'date':val['date']} for val in price_data['days']][1:]
+# data = pd.DataFrame(newData[::-1])
+
+# # Initialize and train the model
+# predictor = StockMidpointPredictor(lookback_period=30)
+# predictor.train(data)
+
+# # Get prediction for next day
+# next_day_midpoint = predictor.predict(data)
+# print(f"Next day's midpoint: {next_day_midpoint:.2f}")
+
+# # Evaluate model performance
+# metrics = predictor.evaluate(data)
+# print(f"RMSE: {metrics}")
 
 
 import numpy as np

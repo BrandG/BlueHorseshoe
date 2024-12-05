@@ -17,6 +17,14 @@ Functions:
         Predicts the next midpoint using the provided model and scaled dataframe.
 
 """
+
+# # usage
+# price_data = load_historical_data('IBM')
+# print(price_data['days'][0])
+# get_nn_prediction(price_data['days'][::-1])
+
+
+
 from datetime import datetime
 from keras._tf_keras.keras.layers import LSTM, Dense
 from keras._tf_keras.keras.callbacks import EarlyStopping
@@ -232,7 +240,7 @@ def build_model(scaled_df):
         epochs=100,
         batch_size=32,
         callbacks=[early_stopping],
-        verbose=1
+        verbose='1'
     )
 
     # Make predictions on the test set

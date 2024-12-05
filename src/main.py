@@ -13,7 +13,6 @@ Modules:
     pandas: Provides data structures and data analysis tools.
     sklearn.exceptions: Provides exceptions for scikit-learn.
     globals: Provides global variables and functions.
-    StockMidpointPredictor: Provides the StockMidpointPredictor class for stock midpoint prediction.
     historical_data: Provides functions to build and load historical data.
     prediction: Provides functions to forecast the next midpoint.
     os: Provides a way of using operating system dependent functionality.
@@ -101,51 +100,6 @@ def debug_test():
     print(sorted_candidates[:10])
 
     # //--\\==//--\\==//--\\==//--\\==//--\\==//--\\==//--\\==//--\\==//--\\==
-    # price_data = load_historical_data('IBM')
-    # newData = [{
-    #     'open':val['open'],
-    #     'high':val['high'],
-    #     'low':val['low'],
-    #     'close':val['close'],
-    #     'volume':val['volume'],
-    #     'date':val['date']} for val in price_data['days']][1:]
-    # data = pd.DataFrame(newData[::-1])
-
-    # # Initialize and train the model
-    # predictor = StockMidpointPredictor(lookback_period=30)
-    # predictor.train(data)
-
-    # # Get prediction for next day
-    # next_day_midpoint = predictor.predict(data)
-    # print(f"Next day's midpoint: {next_day_midpoint:.2f}")
-
-    # # Evaluate model performance
-    # metrics = predictor.evaluate(data)
-    # print(f"RMSE: {metrics}")
-
-    # //--\\==//--\\==//--\\==//--\\==//--\\==//--\\==//--\\==//--\\==//--\\==
-    # price_data = load_historical_data('IBM')
-    # print(price_data['days'][0])
-    # get_nn_prediction(price_data['days'][::-1])
-
-    # //--\\==//--\\==//--\\==//--\\==//--\\==//--\\==//--\\==//--\\==//--\\==
-    # symbols = get_symbol_name_list()
-    # results = []
-    # for symbol in symbols:
-    #     price_data = load_historical_data(symbol)
-    #     midpoints = get_symbol_sublist('midpoint', historical_data=price_data['days'])
-    #     avg_delta = sum(get_symbol_sublist('high_low_delta_percentage', historical_data=price_data['days']))/len(price_data['days'])
-    #     flatness = analyze_midpoints(midpoints)
-    #     results.append({'symbol':symbol,'flatness':flatness, 'avg_delta':avg_delta})
-    # results.sort(key=lambda x: x['flatness'])
-    # results = list(filter(lambda x: x['avg_delta'] > 0.01, results))
-    # validCount = 0
-    # invalidCount = 0
-    # for index in range(10):
-    #     result=results[index]
-    #     symbol_name = result['symbol']
-    #     price_data = load_historical_data(symbol_name)['days'][:20]
-    #     next_midpoint = round(forecast_next_midpoint(price_data[1:],(1,1,4)), 2)
 
     # //--\\==//--\\==//--\\==//--\\==//--\\==//--\\==//--\\==//--\\==//--\\==
     #     last_high = round(price_data[0]['high'], 2)
