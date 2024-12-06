@@ -52,7 +52,8 @@ from indicators.momentum_oscillators import MomentumOscillators
 from indicators.short_term_trend import ShortTermTrend
 from indicators.volume_based import VolumeBased
 
-sys.argv = ["-d"]
+sys.argv = ["-b"]
+
 
 def get_indicator_results(data):
     """
@@ -98,7 +99,7 @@ def get_indicator_results(data):
     _short_term_trend = ShortTermTrend(data)
     results['emas'] = _short_term_trend.get_ema_signals()
     results['PP'] = _short_term_trend.get_pivot_points()
-    results['ichimoku'] =  Ichimoku(data).get_results()
+    results['ichimoku'] = Ichimoku(data).get_results()
 
     results['buy'] = (1 if results['mfi']['buy'] else 0) + \
         (1 if results['rsi']['buy'] else 0) + \
@@ -128,6 +129,7 @@ def get_indicator_results(data):
         (1 if results['vwap']['direction'] == 'up' else 0)
     return results
 
+
 def debug_test():
     """
     Debug function to test the StockMidpointPredictor model.
@@ -149,7 +151,7 @@ def debug_test():
     """
 
     symbols = get_symbol_name_list()
-    results = { 'buy': 0, 'sell': 0, 'hold': 0, 'volatility': 0, 'direction': 0 }
+    results = {'buy': 0, 'sell': 0, 'hold': 0, 'volatility': 0, 'direction': 0}
     candidates = []
     for index, symbol in enumerate(symbols):
         price_data = load_historical_data(symbol)
@@ -168,18 +170,21 @@ def debug_test():
             'date': val['date']}
             for val in clipped_price_data])
         results = get_indicator_results(data)
-        candidates.append({'symbol': symbol, 'buy': results['buy'], 'sell': results['sell'], \
-                            'hold': results['hold'], 'volatility': results['volatility'], \
-                            'direction': results['direction']})
+        candidates.append({'symbol': symbol, 'buy': results['buy'], 'sell': results['sell'],
+                           'hold': results['hold'], 'volatility': results['volatility'],
+                           'direction': results['direction']})
         print(f'{(index*100/len(symbols)):.2f}%. {symbol} - Buy: {results["buy"]} - Sell: {results["sell"]} - '
               f'Hold: {results["hold"]} - Volatility: {results["volatility"]} - Direction: {results["direction"]}')
-    sorted_candidates = sorted(candidates, key=lambda x: (-x['buy'], -x['direction'], -x['volatility']))
+    sorted_candidates = sorted(
+        candidates, key=lambda x: (-x['buy'], -x['direction'], -x['volatility']))
     print(sorted_candidates[:10])
+
 
 if __name__ == "__main__":
     start_time = time.time()
 
-    logging.basicConfig(filename='blueHorseshoe.log', filemode='w', level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
+    logging.basicConfig(filename='blueHorseshoe.log', filemode='w',
+                        level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
     logging.getLogger('pymongo').setLevel(logging.WARNING)
 
     if get_mongo_client() is None:
@@ -190,7 +195,8 @@ if __name__ == "__main__":
                             "Using zeros as starting parameters.")
     warnings.filterwarnings("ignore", category=UserWarning, message="Non-stationary starting autoregressive parameters " +
                             "found. Using zeros as starting parameters.")
-    warnings.filterwarnings("ignore", category=ConvergenceWarning, message="Maximum Likelihood optimization failed to ")
+    warnings.filterwarnings("ignore", category=ConvergenceWarning,
+                            message="Maximum Likelihood optimization failed to ")
     warnings.filterwarnings("ignore", category=ConvergenceWarning)
 
     # Clear the graphs directory
@@ -206,12 +212,19 @@ if __name__ == "__main__":
             logging.error('Failed to delete %s. Reason: %s', file_path, e)
 
     if "-u" in sys.argv:
+        build_all_symbols_history(recent=True)
+        print("Historical data updated.")
+    elif "-b" in sys.argv:
         build_all_symbols_history()
         print("Historical data updated.")
     elif "-p" in sys.argv:
+        # ToDo - Implement prediction
         print('Predicting next midpoints...')
     elif "-d" in sys.argv:
         debug_test()
+    else:
+        print("Invalid arguments. Use -u to update historical data, -p to predict next midpoints, -d to debug, or -b to build historical data.")
+        sys.exit(1)
 
     ReportSingleton().close()
     end_time = time.time()

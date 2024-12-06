@@ -24,6 +24,7 @@ from ratelimit import limits, sleep_and_retry
 from pymongo.errors import ServerSelectionTimeoutError, NotPrimaryError
 from globals import get_mongo_client, get_symbol_list, BASE_PATH
 
+
 @sleep_and_retry
 @limits(calls=60, period=60)  # 60 calls per 60 seconds
 def load_historical_data_from_net(stock_symbol, recent=False):
@@ -57,7 +58,8 @@ def load_historical_data_from_net(stock_symbol, recent=False):
     symbol = {'name': stock_symbol}
 
     outputsize = 'full' if not recent else 'compact'
-    url = f"https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&outputsize={outputsize}&symbol={stock_symbol}&apikey=JFRQJ8YWSX8UK50X"
+    url = f"https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&outputsize={outputsize}" + \
+        f"&symbol={stock_symbol}&apikey=JFRQJ8YWSX8UK50X"
 
     response = requests.get(url, timeout=10)
     response.raise_for_status()  # Raise an exception for bad status codes
@@ -77,20 +79,17 @@ def load_historical_data_from_net(stock_symbol, recent=False):
                 'close': round(float(daily_record['4. close']), 4),
                 'volume': int(daily_record['5. volume']),
             }
-            daily_data['midpoint'] = round((daily_data['open'] + daily_data['close']) / 2, 4)
-            daily_data['high_low_delta'] = round(abs(daily_data['high'] - daily_data['low']), 4)
-            daily_data['open_close_delta'] = round(abs(daily_data['open'] - daily_data['close']), 4)
-            daily_data['high_low_delta_percentage'] = round(abs((daily_data['high'] - daily_data['low']) /
-                                                                (daily_data['close'] if daily_data['close'] != 0 else 1e-6)), 4)
-            daily_data['close_open_delta_percentage'] = round(abs(daily_data['close'] - daily_data['open']) /
-                                                              (daily_data['close'] if daily_data['close'] != 0 else 1e-6), 4)
+            daily_data['midpoint'] = round(
+                (daily_data['open'] + daily_data['close']) / 2, 4)
 
             symbol['days'].append(daily_data)
     else:
-        print(f"'Time Series (Daily)' key not found in response for {stock_symbol}. URL: {url}. Response: {json_data}")
+        print("'Time Series (Daily)' key not found in response for " +
+              f"{stock_symbol}. URL: {url}. Response: {json_data}")
         return None
 
     return symbol
+
 
 def load_historical_data_from_mongo(symbol, db):
     """
@@ -113,6 +112,7 @@ def load_historical_data_from_mongo(symbol, db):
 
     return data
 
+
 def save_historical_data_to_mongo(symbol, data, db):
     """
     Saves historical stock price data to MongoDB for a given symbol, performing an upsert operation.
@@ -128,6 +128,12 @@ def save_historical_data_to_mongo(symbol, data, db):
     """
     collection = db['historical_data']
     collection.update_one({"symbol": symbol}, {"$set": data}, upsert=True)
+
+    # Store just the last year of data in a separate collection
+    data['days'] = data['days'][:240]
+    recent_collection = db['recent_historical_data']
+    recent_collection.update_one(
+        {"symbol": symbol}, {"$set": data}, upsert=True)
 
 # def merge_data(historical_data, recent_data):
 #     """
@@ -156,9 +162,7 @@ def save_historical_data_to_mongo(symbol, data, db):
 #     return final_data
 
 
-
-
-def build_all_symbols_history(starting_at='', save_to_file=False):
+def build_all_symbols_history(starting_at='', save_to_file=False, recent=False):
     """
     Builds historical data for all stock symbols and saves them as JSON files.
 
@@ -196,7 +200,8 @@ def build_all_symbols_history(starting_at='', save_to_file=False):
         name = row['name']
 
         try:
-            net_data = load_historical_data_from_net(stock_symbol=symbol, recent=False)
+            net_data = load_historical_data_from_net(recent,
+                stock_symbol=symbol)
             if net_data is None:
                 print(f"No data for {symbol}")
                 continue
@@ -207,7 +212,8 @@ def build_all_symbols_history(starting_at='', save_to_file=False):
             if save_to_file:
                 new_data_json = json.dumps(net_data)
                 # write out new_data_json to file
-                file_path = os.path.join(BASE_PATH, f'StockPrice-{symbol}.json')
+                file_path = os.path.join(
+                    BASE_PATH, f'StockPrice-{symbol}.json')
                 with open(f'{file_path}', 'w', encoding='utf-8') as file:
                     file.write(new_data_json)
                     print(f"Saved data for {symbol} to {file_path}")
@@ -252,6 +258,7 @@ def load_historical_data_from_file(symbol):
     except PermissionError:
         print(f"Permission denied: {file_path}")
     return None
+
 
 def load_historical_data(symbol):
     """
