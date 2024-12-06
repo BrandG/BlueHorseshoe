@@ -200,8 +200,8 @@ def build_all_symbols_history(starting_at='', save_to_file=False, recent=False):
         name = row['name']
 
         try:
-            net_data = load_historical_data_from_net(recent,
-                stock_symbol=symbol)
+            net_data = load_historical_data_from_net(
+                stock_symbol=symbol, recent=recent)
             if net_data is None:
                 print(f"No data for {symbol}")
                 continue
