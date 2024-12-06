@@ -1,6 +1,10 @@
 """
 Module: volitility
-This module provides a class `Volitility` that includes methods to calculate and analyze financial volatility indicators such as Average True Range (ATR), Bollinger Bands, and Standard Deviation. These methods can generate buy/sell signals and report volatility levels.
+This module provides a class `Volitility` that includes methods to calculate and 
+analyze financial volatility indicators such as Average True Range (ATR), 
+Bollinger Bands, and Standard Deviation. These methods can generate buy/sell \
+signals and report volatility levels.
+
 Classes:
     Volitility: A class to calculate and analyze financial volatility indicators.
 Methods:
@@ -16,6 +20,7 @@ Methods:
 """
 import numpy as np
 import pandas as pd
+import talib as ta
 
 from globals import GraphData, graph
 
@@ -177,4 +182,3 @@ class Volitility:
             graph_this(std_deviation)
 
         return {'current_stdev': current_volatility, 'volatility': volatility_level}
-

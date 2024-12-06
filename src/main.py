@@ -49,8 +49,8 @@ from historical_data import build_all_symbols_history, load_historical_data
 from indicators import volitility
 from indicators.ichimoku import Ichimoku
 from indicators.momentum_oscillators import MomentumOscillators
-from indicators.short_term_trend import Short_Term_Trend
-from indicators.volume_based import Volume_based
+from indicators.short_term_trend import ShortTermTrend
+from indicators.volume_based import VolumeBased
 
 sys.argv = ["-d"]
 
@@ -83,10 +83,10 @@ def get_indicator_results(data):
     """
     results = {}
 
-    _volume_based = Volume_based(data)
+    _volume_based = VolumeBased(data)
     results['mfi'] = _volume_based.get_mfi()
     results['obv'] = _volume_based.get_obv()
-    results['vwap'] = _volume_based.volume_weighted_average_price()
+    results['vwap'] = _volume_based.get_volume_weighted_average_price()
     _momentum_oscillators = MomentumOscillators(data)
     results['rsi'] = _momentum_oscillators.get_rsi()
     results['stochastic_oscillator'] = _momentum_oscillators.get_stochastic_oscillator()
@@ -95,7 +95,7 @@ def get_indicator_results(data):
     results['atr'] = _volitility.get_atr()
     results['bb'] = _volitility.get_bollinger_bands()
     results['stdev'] = _volitility.get_standard_deviation_volatility()
-    _short_term_trend = Short_Term_Trend(data)
+    _short_term_trend = ShortTermTrend(data)
     results['emas'] = _short_term_trend.get_ema_signals()
     results['PP'] = _short_term_trend.get_pivot_points()
     results['ichimoku'] =  Ichimoku(data).get_results()

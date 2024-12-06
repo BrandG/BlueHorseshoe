@@ -13,6 +13,7 @@ Methods:
 """
 import numpy as np
 import pandas as pd
+import talib as ta
 
 from globals import GraphData, graph
 
@@ -159,4 +160,3 @@ class MomentumOscillators:
         buy = macd_list[-1] > signal_list[-1] and macd_list[-2] <= signal_list[-2]
         sell = macd_list[-1] < signal_list[-1] and macd_list[-2] >= signal_list[-2]
         return {'buy': buy, 'sell': sell}
-

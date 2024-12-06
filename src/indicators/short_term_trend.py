@@ -1,19 +1,20 @@
 """
 Module: short_term_trend
-This module provides the Short_Term_Trend class for analyzing short-term trends in financial data.
+This module provides the ShortTermTrend class for analyzing short-term trends in financial data.
 It includes methods for calculating Exponential Moving Averages (EMAs) and Pivot Points, and generating buy/sell signals based on these indicators.
 Classes:
-    Short_Term_Trend: A class for analyzing short-term trends using EMAs and Pivot Points.
+    ShortTermTrend: A class for analyzing short-term trends using EMAs and Pivot Points.
 Methods:
-    __init__(data): Initializes the Short_Term_Trend class with the provided data.
+    __init__(data): Initializes the ShortTermTrend class with the provided data.
     get_ema_signals(show=False): Determines buy/sell signals based on the 5-day and 20-day EMAs.
     get_pivot_points(show=False): Calculates pivot points and support/resistance levels.
 """
 
 import pandas as pd
+import talib as ta
 from globals import GraphData, graph
 
-class Short_Term_Trend:
+class ShortTermTrend:
     """
     A class to analyze short-term trends in financial data using technical indicators.
     Attributes:
@@ -123,4 +124,3 @@ class Short_Term_Trend:
         pivot_points_list = pivot_points['P'].tolist()
 
         return {'buy':bool(close_list[-1] < pivot_points_list[-1]), 'sell':bool(close_list[-1] > pivot_points_list[-1])}
-    

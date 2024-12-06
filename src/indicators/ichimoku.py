@@ -88,10 +88,6 @@ class Ichimoku:
 
         # Add 26 entries to the front of the data['close'] dataframe
         data['close'] = pd.concat([pd.Series([np.nan]*13), data['close']]).reset_index(drop=True)
-        ichimoku_df = pd.DataFrame({
-            'senkou_span_a': senkou_span_a,
-            'senkou_span_b': senkou_span_b
-        })
 
         if show:
             self.graph_this()
@@ -108,7 +104,9 @@ class Ichimoku:
         - Closing prices
         - Senkou Span A
         - Senkou Span B
-        - A shaded area between Senkou Span A and Senkou Span B, colored light green if Senkou Span A is above Senkou Span B, and light coral if Senkou Span A is below Senkou Span B.
+        - A shaded area between Senkou Span A and Senkou Span B, colored light green if
+            Senkou Span A is above Senkou Span B, and light coral if Senkou Span A is below
+            Senkou Span B.
 
         The plot is saved as 'Ichimoku.png' in the 'graphs' directory.
         """

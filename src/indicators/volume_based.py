@@ -1,14 +1,62 @@
-# Money Flow Index (MFI)
-# On-Balance Volume (OBV)
-# Volume Weighted Average Price (VWAP)
+"""
+Module: volume_based
 
+This module provides a class `VolumeBased` for calculating various volume-based technical indicators
+such as Money Flow Index (MFI), On-Balance Volume (OBV), and Volume Weighted Average Price (VWAP).
+These indicators are used to analyze stock price movements and generate buy/sell signals.
+
+Classes:
+    VolumeBased: A class that encapsulates methods for calculating volume-based technical indicators.
+
+Methods:
+    __init__(self, data):
+        Initializes the VolumeBased class with the provided data.
+
+    get_mfi(self, show=False):
+        Args:
+            show (bool): If True, displays the MFI graph. Default is False.
+            dict: A dictionary with 'buy' and 'sell' keys indicating buy/sell signals based on MFI.
+
+    get_obv(self, show=False):
+        Args:
+            show (bool): If True, displays the OBV graph. Default is False.
+            dict: A dictionary with the key 'direction' indicating the direction of OBV movement.
+
+    get_volume_weighted_average_price(self):
+        Calculate the Volume Weighted Average Price (VWAP) and determine the price direction.
+
+        Returns:
+            dict: A dictionary with the key 'direction' indicating the price direction ('up' or 'down').
+"""
 import numpy as np
+import talib as ta
 
 
-class Volume_based:
+class VolumeBased:
+    """
+    VolumeBased is a class that provides methods to calculate various volume-based technical indicators.
+
+    Attributes:
+        _data (pandas.DataFrame): A DataFrame containing the stock data with columns 'high', 'low', 'close', and 'volume'.
+
+    Methods:
+        get_mfi(show=False):
+            Args:
+                show (bool): If True, displays the MFI graph. Default is False.
+                dict: A dictionary with 'buy' and 'sell' keys indicating buy/sell signals based on MFI.
+
+        get_obv(show=False):
+            Args:
+                show (bool): If True, displays the OBV graph. Default is False.
+                dict: A dictionary with the key 'direction' indicating the direction of OBV movement ('up' or 'down').
+
+        get_volume_weighted_average_price():
+                dict: A dictionary with the key 'direction' indicating the price direction ('up' or 'down').
+    """
     def __init__(self, data):
         self._data = data
 
+    # Money Flow Index (MFI)
     def get_mfi(self, show = False):
         """
         Calculate the Money Flow Index (MFI) and determine buy/sell signals.
@@ -34,6 +82,7 @@ class Volume_based:
 
         return {'buy': bool(mfi < np.percentile(mfi_data, 15)), 'sell': bool(mfi > np.percentile(mfi_data, 85))}
 
+    # On-Balance Volume (OBV)
     def get_obv(self, show = False):
         """
         Calculate the On-Balance Volume (OBV) and determine its direction.
@@ -56,7 +105,8 @@ class Volume_based:
 
         return {'direction': 'up' if obv[0] > obv[1] else 'down'}
 
-    def volume_weighted_average_price(self):
+    # Volume Weighted Average Price (VWAP)
+    def get_volume_weighted_average_price(self):
         """
         Calculate the Volume Weighted Average Price (VWAP) and determine the price direction.
 
@@ -67,4 +117,3 @@ class Volume_based:
         """
         vwap = (self._data['close'] * self._data['volume']).cumsum() / self._data['volume'].cumsum()
         return {'direction': 'up' if self._data['close'].tolist()[-1] > vwap.tolist()[-1] else 'down'}
-
