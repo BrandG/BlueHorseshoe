@@ -219,7 +219,7 @@ if __name__ == "__main__":
         build_all_symbols_history()
         print("Historical data updated.")
     elif "-p" in sys.argv:
-        # ToDo - Implement prediction
+        # To Do - Implement prediction
         print('Predicting next midpoints...')
     elif "-d" in sys.argv:
         debug_test()
