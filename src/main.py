@@ -44,11 +44,89 @@ import pandas as pd
 
 from sklearn.exceptions import ConvergenceWarning
 
-from claude_prediction import ClaudePrediction
 from globals import ReportSingleton, get_mongo_client, get_symbol_name_list
 from historical_data import build_all_symbols_history, load_historical_data
+from indicators import volitility
+from indicators.ichimoku import Ichimoku
+from indicators.momentum_oscillators import MomentumOscillators
+from indicators.short_term_trend import Short_Term_Trend
+from indicators.volume_based import Volume_based
 
 sys.argv = ["-d"]
+
+def get_indicator_results(data):
+    """
+    Calculate various financial indicators based on the provided data.
+
+    Args:
+        data (pd.DataFrame): A DataFrame containing the financial data required for the calculations.
+
+    Returns:
+        dict: A dictionary containing the results of various financial indicators, including:
+            - 'mfi': Money Flow Index
+            - 'obv': On-Balance Volume
+            - 'vwap': Volume Weighted Average Price
+            - 'rsi': Relative Strength Index
+            - 'stochastic_oscillator': Stochastic Oscillator
+            - 'macd': Moving Average Convergence Divergence
+            - 'atr': Average True Range
+            - 'bb': Bollinger Bands
+            - 'stdev': Standard Deviation Volatility
+            - 'emas': Exponential Moving Average Signals
+            - 'PP': Pivot Points
+            - 'ichimoku': Ichimoku Cloud
+            - 'buy': Aggregated buy signals from various indicators
+            - 'sell': Aggregated sell signals from various indicators
+            - 'hold': Hold signal from the Stochastic Oscillator
+            - 'volatility': Aggregated volatility signals from various indicators
+            - 'direction': Aggregated direction signals from OBV and VWAP
+    """
+    results = {}
+
+    _volume_based = Volume_based(data)
+    results['mfi'] = _volume_based.get_mfi()
+    results['obv'] = _volume_based.get_obv()
+    results['vwap'] = _volume_based.volume_weighted_average_price()
+    _momentum_oscillators = MomentumOscillators(data)
+    results['rsi'] = _momentum_oscillators.get_rsi()
+    results['stochastic_oscillator'] = _momentum_oscillators.get_stochastic_oscillator()
+    results['macd'] = _momentum_oscillators.get_macd()
+    _volitility = volitility.Volitility(data)
+    results['atr'] = _volitility.get_atr()
+    results['bb'] = _volitility.get_bollinger_bands()
+    results['stdev'] = _volitility.get_standard_deviation_volatility()
+    _short_term_trend = Short_Term_Trend(data)
+    results['emas'] = _short_term_trend.get_ema_signals()
+    results['PP'] = _short_term_trend.get_pivot_points()
+    results['ichimoku'] =  Ichimoku(data).get_results()
+
+    results['buy'] = (1 if results['mfi']['buy'] else 0) + \
+        (1 if results['rsi']['buy'] else 0) + \
+        (1 if results['stochastic_oscillator']['buy'] else 0) + \
+        (1 if results['macd']['buy'] else 0) + \
+        (1 if results['atr']['buy'] else 0) + \
+        (1 if results['bb']['buy'] else 0) + \
+        (1 if results['emas']['buy'] else 0) + \
+        (1 if results['ichimoku']['buy'] else 0) + \
+        (1 if results['PP']['buy'] else 0)
+
+    results['sell'] = (1 if results['mfi']['sell'] else 0) + \
+        (1 if results['rsi']['sell'] else 0) + \
+        (1 if results['stochastic_oscillator']['sell'] else 0) + \
+        (1 if results['macd']['sell'] else 0) + \
+        (1 if results['atr']['sell'] else 0) + \
+        (1 if results['bb']['sell'] else 0) + \
+        (1 if results['emas']['sell'] else 0) + \
+        (1 if results['ichimoku']['sell'] else 0) + \
+        (1 if results['PP']['sell'] else 0)
+
+    results['hold'] = (1 if results['stochastic_oscillator']['hold'] else 0)
+    results['volatility'] = (1 if results['atr']['volatility'] == 'high' else 0) + \
+        (1 if results['bb']['volatility'] == 'high' else 0) + \
+        (1 if results['stdev']['volatility'] == 'high' else 0)
+    results['direction'] = (1 if results['obv']['direction'] == 'up' else 0) + \
+        (1 if results['vwap']['direction'] == 'up' else 0)
+    return results
 
 def debug_test():
     """
@@ -89,8 +167,7 @@ def debug_test():
             'volume': val['volume'],
             'date': val['date']}
             for val in clipped_price_data])
-        cp = ClaudePrediction(data)
-        results = cp.get_results()
+        results = get_indicator_results(data)
         candidates.append({'symbol': symbol, 'buy': results['buy'], 'sell': results['sell'], \
                             'hold': results['hold'], 'volatility': results['volatility'], \
                             'direction': results['direction']})
