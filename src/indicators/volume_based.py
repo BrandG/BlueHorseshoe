@@ -53,11 +53,12 @@ class VolumeBased:
         get_volume_weighted_average_price():
                 dict: A dictionary with the key 'direction' indicating the price direction ('up' or 'down').
     """
+
     def __init__(self, data):
         self._data = data
 
     # Money Flow Index (MFI)
-    def get_mfi(self, show = False):
+    def get_mfi(self, show=False):
         """
         Calculate the Money Flow Index (MFI) and determine buy/sell signals.
 
@@ -70,8 +71,10 @@ class VolumeBased:
                   oversold threshold, otherwise 'false'. The value for 'sell' is 'true' if the MFI is above the
                   overbought threshold, otherwise 'false'.
         """
-        mfi_data = ta.MFI(self._data['high'], self._data['low'], self._data['close'], self._data['volume'], timeperiod=14).tolist() # type: ignore
+        mfi_data = ta.MFI(self._data['high'], self._data['low'], self._data['close'],  # type: ignore
+                          self._data['volume'], timeperiod=14).tolist()
         # pylint: disable=unused-variable
+
         def graph_this(mfi_data):
             # To Do: Fill this in
             print(mfi_data)
@@ -83,7 +86,7 @@ class VolumeBased:
         return {'buy': bool(mfi < np.percentile(mfi_data, 15)), 'sell': bool(mfi > np.percentile(mfi_data, 85))}
 
     # On-Balance Volume (OBV)
-    def get_obv(self, show = False):
+    def get_obv(self, show=False):
         """
         Calculate the On-Balance Volume (OBV) and determine its direction.
 
@@ -95,14 +98,17 @@ class VolumeBased:
             dict: A dictionary containing the direction of the OBV movement with the key 'direction' and
                   value 'up' if the OBV is increasing, otherwise 'down'.
         """
-        obv = ta.OBV(self._data['close'], self._data['volume']) # type: ignore
+        obv = ta.OBV(self._data['close'], self._data['volume'])  # type: ignore
         # pylint: disable=unused-variable
+
         def graph_this(obv):
             # To Do: Fill this in
             print(obv)
         if show:
             graph_this(obv)
 
+        if len(obv) <= 1:
+            return {'direction': 'error'}
         return {'direction': 'up' if obv[0] > obv[1] else 'down'}
 
     # Volume Weighted Average Price (VWAP)
@@ -115,5 +121,6 @@ class VolumeBased:
         Returns:
             dict: A dictionary with the key 'direction' indicating whether the price direction is 'up' or 'down'.
         """
-        vwap = (self._data['close'] * self._data['volume']).cumsum() / self._data['volume'].cumsum()
+        vwap = (self._data['close'] * self._data['volume']
+                ).cumsum() / self._data['volume'].cumsum()
         return {'direction': 'up' if self._data['close'].tolist()[-1] > vwap.tolist()[-1] else 'down'}

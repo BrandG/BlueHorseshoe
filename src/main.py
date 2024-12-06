@@ -52,7 +52,7 @@ from indicators.momentum_oscillators import MomentumOscillators
 from indicators.short_term_trend import ShortTermTrend
 from indicators.volume_based import VolumeBased
 
-sys.argv = ["-b"]
+sys.argv = ["-d"]
 
 
 def get_indicator_results(data):
@@ -160,6 +160,7 @@ def debug_test():
             return
         price_data = price_data['days'][:240]
         clipped_price_data = price_data[::-1]
+        print(symbol)
         # clipped_price_data = clipped_price_data[:-21]
         data = pd.DataFrame([{
             'open': val['open'],
