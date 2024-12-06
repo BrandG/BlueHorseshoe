@@ -13,7 +13,6 @@ Modules:
     pandas: Provides data structures and data analysis tools.
     sklearn.exceptions: Provides exceptions for scikit-learn.
     globals: Provides global variables and functions.
-    StockMidpointPredictor: Provides the StockMidpointPredictor class for stock midpoint prediction.
     historical_data: Provides functions to build and load historical data.
     prediction: Provides functions to forecast the next midpoint.
     os: Provides a way of using operating system dependent functionality.
@@ -45,11 +44,89 @@ import pandas as pd
 
 from sklearn.exceptions import ConvergenceWarning
 
-from claude_prediction import ClaudePrediction
 from globals import ReportSingleton, get_mongo_client, get_symbol_name_list
 from historical_data import build_all_symbols_history, load_historical_data
+from indicators import volitility
+from indicators.ichimoku import Ichimoku
+from indicators.momentum_oscillators import MomentumOscillators
+from indicators.short_term_trend import ShortTermTrend
+from indicators.volume_based import VolumeBased
 
 sys.argv = ["-d"]
+
+def get_indicator_results(data):
+    """
+    Calculate various financial indicators based on the provided data.
+
+    Args:
+        data (pd.DataFrame): A DataFrame containing the financial data required for the calculations.
+
+    Returns:
+        dict: A dictionary containing the results of various financial indicators, including:
+            - 'mfi': Money Flow Index
+            - 'obv': On-Balance Volume
+            - 'vwap': Volume Weighted Average Price
+            - 'rsi': Relative Strength Index
+            - 'stochastic_oscillator': Stochastic Oscillator
+            - 'macd': Moving Average Convergence Divergence
+            - 'atr': Average True Range
+            - 'bb': Bollinger Bands
+            - 'stdev': Standard Deviation Volatility
+            - 'emas': Exponential Moving Average Signals
+            - 'PP': Pivot Points
+            - 'ichimoku': Ichimoku Cloud
+            - 'buy': Aggregated buy signals from various indicators
+            - 'sell': Aggregated sell signals from various indicators
+            - 'hold': Hold signal from the Stochastic Oscillator
+            - 'volatility': Aggregated volatility signals from various indicators
+            - 'direction': Aggregated direction signals from OBV and VWAP
+    """
+    results = {}
+
+    _volume_based = VolumeBased(data)
+    results['mfi'] = _volume_based.get_mfi()
+    results['obv'] = _volume_based.get_obv()
+    results['vwap'] = _volume_based.get_volume_weighted_average_price()
+    _momentum_oscillators = MomentumOscillators(data)
+    results['rsi'] = _momentum_oscillators.get_rsi()
+    results['stochastic_oscillator'] = _momentum_oscillators.get_stochastic_oscillator()
+    results['macd'] = _momentum_oscillators.get_macd()
+    _volitility = volitility.Volitility(data)
+    results['atr'] = _volitility.get_atr()
+    results['bb'] = _volitility.get_bollinger_bands()
+    results['stdev'] = _volitility.get_standard_deviation_volatility()
+    _short_term_trend = ShortTermTrend(data)
+    results['emas'] = _short_term_trend.get_ema_signals()
+    results['PP'] = _short_term_trend.get_pivot_points()
+    results['ichimoku'] =  Ichimoku(data).get_results()
+
+    results['buy'] = (1 if results['mfi']['buy'] else 0) + \
+        (1 if results['rsi']['buy'] else 0) + \
+        (1 if results['stochastic_oscillator']['buy'] else 0) + \
+        (1 if results['macd']['buy'] else 0) + \
+        (1 if results['atr']['buy'] else 0) + \
+        (1 if results['bb']['buy'] else 0) + \
+        (1 if results['emas']['buy'] else 0) + \
+        (1 if results['ichimoku']['buy'] else 0) + \
+        (1 if results['PP']['buy'] else 0)
+
+    results['sell'] = (1 if results['mfi']['sell'] else 0) + \
+        (1 if results['rsi']['sell'] else 0) + \
+        (1 if results['stochastic_oscillator']['sell'] else 0) + \
+        (1 if results['macd']['sell'] else 0) + \
+        (1 if results['atr']['sell'] else 0) + \
+        (1 if results['bb']['sell'] else 0) + \
+        (1 if results['emas']['sell'] else 0) + \
+        (1 if results['ichimoku']['sell'] else 0) + \
+        (1 if results['PP']['sell'] else 0)
+
+    results['hold'] = (1 if results['stochastic_oscillator']['hold'] else 0)
+    results['volatility'] = (1 if results['atr']['volatility'] == 'high' else 0) + \
+        (1 if results['bb']['volatility'] == 'high' else 0) + \
+        (1 if results['stdev']['volatility'] == 'high' else 0)
+    results['direction'] = (1 if results['obv']['direction'] == 'up' else 0) + \
+        (1 if results['vwap']['direction'] == 'up' else 0)
+    return results
 
 def debug_test():
     """
@@ -90,8 +167,7 @@ def debug_test():
             'volume': val['volume'],
             'date': val['date']}
             for val in clipped_price_data])
-        cp = ClaudePrediction(data)
-        results = cp.get_results()
+        results = get_indicator_results(data)
         candidates.append({'symbol': symbol, 'buy': results['buy'], 'sell': results['sell'], \
                             'hold': results['hold'], 'volatility': results['volatility'], \
                             'direction': results['direction']})
@@ -99,88 +175,6 @@ def debug_test():
               f'Hold: {results["hold"]} - Volatility: {results["volatility"]} - Direction: {results["direction"]}')
     sorted_candidates = sorted(candidates, key=lambda x: (-x['buy'], -x['direction'], -x['volatility']))
     print(sorted_candidates[:10])
-
-    # //--\\==//--\\==//--\\==//--\\==//--\\==//--\\==//--\\==//--\\==//--\\==
-    # price_data = load_historical_data('IBM')
-    # newData = [{
-    #     'open':val['open'],
-    #     'high':val['high'],
-    #     'low':val['low'],
-    #     'close':val['close'],
-    #     'volume':val['volume'],
-    #     'date':val['date']} for val in price_data['days']][1:]
-    # data = pd.DataFrame(newData[::-1])
-
-    # # Initialize and train the model
-    # predictor = StockMidpointPredictor(lookback_period=30)
-    # predictor.train(data)
-
-    # # Get prediction for next day
-    # next_day_midpoint = predictor.predict(data)
-    # print(f"Next day's midpoint: {next_day_midpoint:.2f}")
-
-    # # Evaluate model performance
-    # metrics = predictor.evaluate(data)
-    # print(f"RMSE: {metrics}")
-
-    # //--\\==//--\\==//--\\==//--\\==//--\\==//--\\==//--\\==//--\\==//--\\==
-    # price_data = load_historical_data('IBM')
-    # print(price_data['days'][0])
-    # get_nn_prediction(price_data['days'][::-1])
-
-    # //--\\==//--\\==//--\\==//--\\==//--\\==//--\\==//--\\==//--\\==//--\\==
-    # symbols = get_symbol_name_list()
-    # results = []
-    # for symbol in symbols:
-    #     price_data = load_historical_data(symbol)
-    #     midpoints = get_symbol_sublist('midpoint', historical_data=price_data['days'])
-    #     avg_delta = sum(get_symbol_sublist('high_low_delta_percentage', historical_data=price_data['days']))/len(price_data['days'])
-    #     flatness = analyze_midpoints(midpoints)
-    #     results.append({'symbol':symbol,'flatness':flatness, 'avg_delta':avg_delta})
-    # results.sort(key=lambda x: x['flatness'])
-    # results = list(filter(lambda x: x['avg_delta'] > 0.01, results))
-    # validCount = 0
-    # invalidCount = 0
-    # for index in range(10):
-    #     result=results[index]
-    #     symbol_name = result['symbol']
-    #     price_data = load_historical_data(symbol_name)['days'][:20]
-    #     next_midpoint = round(forecast_next_midpoint(price_data[1:],(1,1,4)), 2)
-
-    # //--\\==//--\\==//--\\==//--\\==//--\\==//--\\==//--\\==//--\\==//--\\==
-    #     last_high = round(price_data[0]['high'], 2)
-    #     last_low = round(price_data[0]['low'], 2)
-
-    #     next_high = round(next_midpoint+(0.005 * next_midpoint), 2)
-    #     next_low = round(next_midpoint-(0.005 * next_midpoint), 2)
-    #     chosen = (next_high - next_low)/((next_high+next_low)/2) > 0.01
-    #     if not chosen:
-    #         invalidCount += 1
-    #     valid = next_high <= last_high and next_low >= last_low
-    #     if valid:
-    #         validCount += 1
-    #     ReportSingleton().write(f'{index}. {'Chosen' if chosen else 'Not Chosen'} -
-    #                             {'Valid' if valid else 'Invalid'} - {symbol_name}:
-    #                             Next midpoint {next_midpoint:2} ({next_low:2},
-    #                             {next_high:2}) last ({last_low:2}, {last_high:2}).')
-
-    #     price_data = price_data[:-1]
-    #     x_values = [data['date'] for data in price_data]
-    #     midpoints = get_symbol_sublist('midpoint',historical_data=price_data)
-    #     highpoints = get_symbol_sublist('high',historical_data=price_data)
-    #     lowpoints = get_symbol_sublist('low',historical_data=price_data)
-    #     if len(midpoints) <= 0:
-    #         continue
-    #     midpointMean = statistics.mean(midpoints)
-    #     graph_data : GraphData = {'x_label':'date', 'y_label':'Value', 'title':f'{index}_{symbol_name} midpoints', 'x_values':x_values,
-    #         'curves': [{'curve':midpoints},{'curve':highpoints, 'color':'pink'},{'curve':lowpoints, 'color':'purple'}],
-    #         'lines': [ {'y':midpointMean, 'color':'r', 'linestyle':'-'}, ],
-    #         'points': [{'x':19, 'y':next_midpoint, 'color':'g', 'marker':'x'},
-    #                    {'x':19, 'y':next_high, 'color':'orange', 'marker':'x'},
-    #                    {'x':19, 'y':next_low, 'color':'orange', 'marker':'x'},],
-    #     }
-    #     graph(graph_data)
-    # ReportSingleton().write('f'Valid percentage: {validCount/(10-invalidCount)*100}%')
 
 if __name__ == "__main__":
     start_time = time.time()
@@ -211,19 +205,11 @@ if __name__ == "__main__":
         except (OSError, IOError) as e:
             logging.error('Failed to delete %s. Reason: %s', file_path, e)
 
-
     if "-u" in sys.argv:
         build_all_symbols_history()
         print("Historical data updated.")
     elif "-p" in sys.argv:
         print('Predicting next midpoints...')
-        # results = get_gaussian_predictions()
-        # for result in results:
-            # print(f'{result["symbol"]} - forecasted = ' +
-            #       f'{result["forecasted"]} - uncertainty = ' +
-            #       f'{result["uncertainty"]} - actual = ' +
-            #       f'{result["actual"]} - validity = {result["validity"]} ' +
-            #       f'- valid_choice = {result["valid_choice"]}')
     elif "-d" in sys.argv:
         debug_test()
 

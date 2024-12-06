@@ -10,3 +10,4 @@ report.txt
 linting.txt
 .coverage
 linting_sorted.txt
+src/backup/
