@@ -45,7 +45,7 @@ class MomentumOscillators:
         self._data = data
 
     # Relative Strength Index (RSI)
-    def get_rsi(self, show = False):
+    def get_rsi(self, show=False):
         """
         Args:
             show (bool): If True, the RSI data will be printed. Default is False.
@@ -61,7 +61,8 @@ class MomentumOscillators:
                 'buy' is True if the RSI is below the oversold threshold, otherwise False.
                 'sell' is True if the RSI is above the overbought threshold, otherwise False.
         """
-        rsi_data = ta.RSI(self._data['close'], timeperiod=14).dropna() # type: ignore
+        rsi_data = ta.RSI(self._data['close'],  # type: ignore
+                          timeperiod=14).dropna()
 
         # pylint: disable=unused-variable
         def graph_this(rsi_data):
@@ -70,12 +71,13 @@ class MomentumOscillators:
         if show:
             graph_this(rsi_data)
 
-        rsi = rsi_data.tolist()[-1]
-
-        return {'buy': bool(rsi < np.percentile(rsi_data, 15)), 'sell': bool(rsi > np.percentile(rsi_data, 85))}
+        if len(rsi_data) > 0:
+            rsi = rsi_data.tolist()[-1]
+            return {'buy': bool(rsi < np.percentile(rsi_data, 15)), 'sell': bool(rsi > np.percentile(rsi_data, 85))}
+        return {'buy': False, 'sell': False}
 
     # Stochastic Oscillator
-    def get_stochastic_oscillator(self, show = False):
+    def get_stochastic_oscillator(self, show=False):
         """
         Args:
             show (bool, optional): If True, a graph of the Stochastic Oscillator will be displayed. Defaults to False.
@@ -91,7 +93,7 @@ class MomentumOscillators:
                 - 'sell' (bool): True if a sell signal is generated, otherwise False.
                 - 'hold' (bool): True if a hold signal is generated, otherwise False.
         """
-        slowk, slowd = ta.STOCH(self._data['high'], self._data['low'],self._data['close'], # type: ignore
+        slowk, slowd = ta.STOCH(self._data['high'], self._data['low'], self._data['close'],  # type: ignore
                                 fastk_period=5, slowk_period=3, slowk_matype=0,
                                 slowd_period=3, slowd_matype=0)
         slowd = slowd.tolist()
@@ -114,7 +116,7 @@ class MomentumOscillators:
         return {'buy': buy, 'sell': sell, 'hold': hold}
 
     # MACD (Moving Average Convergence Divergence)
-    def get_macd(self, show = False):
+    def get_macd(self, show=False):
         """
         Calculate the Moving Average Convergence Divergence (MACD) and generate buy/sell signals.
         The MACD is calculated using the closing prices of the data. The function also converts the MACD
@@ -128,7 +130,8 @@ class MomentumOscillators:
               'buy' is True if the MACD line crosses above the signal line, and 'sell' is True if the MACD line crosses below the signal line.
         """
 
-        macd, signal, _ = ta.MACD(self._data['close'], fastperiod=12, slowperiod=26, signalperiod=9) # type: ignore
+        macd, signal, _ = ta.MACD(  # type: ignore
+            self._data['close'], fastperiod=12, slowperiod=26, signalperiod=9)
         macd_list = macd.tolist()
         signal_list = signal.tolist()
 
@@ -136,24 +139,30 @@ class MomentumOscillators:
         def graph_this(macd, signal):
             macd_list = (((macd / macd.max()) / 2) + 0.5).tolist()
             signal_list = (((signal / signal.max()) / 2) + 0.5).tolist()
-            price_list = (self._data['close'] / self._data['close'].max()).tolist()
+            price_list = (self._data['close'] /
+                          self._data['close'].max()).tolist()
             buy_points = []
             sell_points = []
             for i in range(len(self._data['close'])):
                 if macd_list[i] > signal_list[i] and macd_list[i-1] <= signal_list[i-1]:
-                    buy_points.append({'x': i, 'y': price_list[i-1], 'color': 'green'})
+                    buy_points.append(
+                        {'x': i, 'y': price_list[i-1], 'color': 'green'})
                 elif macd_list[i] < signal_list[i] and macd_list[i-1] >= signal_list[i-1]:
-                    sell_points.append({'x': i, 'y': price_list[i-1], 'color': 'red'})
+                    sell_points.append(
+                        {'x': i, 'y': price_list[i-1], 'color': 'red'})
             points = buy_points + sell_points
 
-            x_values = [pd.to_datetime(date).strftime('%Y-%m') for date in self._data['date']]
+            x_values = [pd.to_datetime(date).strftime('%Y-%m')
+                        for date in self._data['date']]
             graph(GraphData(x_label='Date', y_label='Percentage', title='MACD',
-                                x_values=x_values, curves=[{'curve': macd_list, 'label': 'MACD', 'color':'orange'},
-                                                            {'curve': signal_list, 'label': 'signal list', 'color':'red'},
-                                                            {'curve': price_list, 'label': 'Close', 'color': 'green'}
-                                                            ],
-                                                            points=points
-                                                            ))
+                            x_values=x_values, curves=[{'curve': macd_list, 'label': 'MACD', 'color': 'orange'},
+                                                       {'curve': signal_list,
+                                                           'label': 'signal list', 'color': 'red'},
+                                                       {'curve': price_list,
+                                                        'label': 'Close', 'color': 'green'}
+                                                       ],
+                            points=points
+                            ))
         if show:
             graph_this(macd, signal)
 

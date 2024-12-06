@@ -56,55 +56,55 @@ from matplotlib.ticker import MultipleLocator
 STDEV_MULTIPLIER = 1.0   # The size of the stdev
 RATIO_MULTIPLIER = 1.0   # The ratio of midpoints that fall within the stdev
 
-CONST_GRAB_RECENT_DATES = True # When updating symbols, this tells whether to grab the whole range, or just recent data
+# When updating symbols, this tells whether to grab the whole range, or just recent data
+CONST_GRAB_RECENT_DATES = True
 
-CONST_DATE_RANGE = 20 # The range of dates to use when testing the validity of a model
+CONST_DATE_RANGE = 20  # The range of dates to use when testing the validity of a model
 
-ADJUSTED_ROLLING_CLOSE_OPEN_MODIFIER = 0.20 # default = 0.25
-ADJUSTED_WEIGHTED_PRICE_STABILITY_MODIFIER = 0.15 # default = 0.20
-ADJUSTED_MODIFIED_ATR_MODIFIER = 0.15 # default = 0.20
-STABILITY_SCORE_MODIFIER = 0.50 # default = 0.35
+ADJUSTED_ROLLING_CLOSE_OPEN_MODIFIER = 0.20  # default = 0.25
+ADJUSTED_WEIGHTED_PRICE_STABILITY_MODIFIER = 0.15  # default = 0.20
+ADJUSTED_MODIFIED_ATR_MODIFIER = 0.15  # default = 0.20
+STABILITY_SCORE_MODIFIER = 0.50  # default = 0.35
 
-combined_score_mul=[0.75,0.25]
+combined_score_mul = [0.75, 0.25]
 
 BASE_PATH = '/workspaces/BlueHorseshoe/historical_data/'
 
-invalid_symbols = ['AJXA','APGB','AQNA','ARGO','BBLN','BCPA','BCPB', 'BFX','BMAC','BOAC','BODY','CBX','CCV',
-                   'CPTK','CSTA','CTEST','ECG','EOCW','FSNB','GCTSW','HT','HYLN','INGM','ISG','JHAA','LHC','OSG','PNSTWS',
-                   'PRMB','ROSS','SCU','SIX','TMAC','USX','VMW','MTEST','NTEST','ASGI','CMSA', 'RBCP', 'GFR', 'GOOS', 
-                   'HBI', 'HOMB', 'QTWO', 'ZBH', 'INST','RCFA','SAVE', 'DLY', 'AEVA', 'GFL', 'CARR', 'OTIS', 'RFM', 'BIPC', 
-                   'MPLN', 'SPHR', 'RSI', 'SKLZ', 'APG', 'ADCT', 'SLQT', 'DNMR', 'AFGD', 'FOUR', 'SBBA', 'AZEK', 'ETWO', 
-                   'HAFN', 'MP', 'ACI', 'FTHY', 'SII', 'DNB', 'LMND', 'BFLY', 'ALIT', 'MEG', 'BEPC', 'RKT', 'SST', 'BEKE', 
-                   'NTST', 'ML', 'QS', 'NYC', 'UZD', 'MIR', 'NUVB', 'NDMO', 'XPEV', 'GB', 'PFH', 'RBOT', 'SNOW', 'AMWL', 'U', 
-                   'GETY', 'SOJE', 'BCAT', 'VNT', 'MGRB', 'ASAN', 'BQ', 'PLTR', 'YALA', 'ATIP', 'DTB', 'MKFG', 'STEM', 'IH', 
-                   'OUST', 'PSFE', 'MNSO', 'TIMB', 'BNH', 'GHLD', 'CRC', 'GATO', 'MAX', 'PTA', 'LU', 'SPIR', 'OWLT', 'GRNT', 
-                   'JOBY', 'UP', 'LICY', 'BKKT', 'YSG', 'OPFI', 'GBTG', 'AIZN', 'SDHY', 'NRDY', 'NOTE', 'AI', 'SMR', 'OPAD', 
-                   'OWL', 'UZE', 'ACHR', 'BARK', 'GWH', 'IONQ', 'EVEX', 'KUKE', 'GRND', 'DFH', 'MYTE', 'RLX', 'ZIM', 'AMPS', 
-                   'FRGE', 'ONTF', 'TIXT', 'SMRT', 'LDI', 'TFSA', 'PKST', 'RCC', 'BWSN', 'RFMZ', 'PERF', 'SES', 'OSCR', 'UWMC', 
-                   'ASAI', 'CSAN', 'RBLX', 'CPNG', 'HAYW', 'LANV', 'OLO', 'NAPA', 'TUYA', 'BNL', 'DOCN', 'KIND', 'SEMR', 
-                   'VZIO', 'BIGZ', 'ZH', 'ECCW', 'NXU', 'COUR', 'COMP', 'HTFB', 'AGL', 'BEPH', 'DNA', 'LOCL', 'DV', 'GENI', 
-                   'KKRS', 'PATH', 'BOWL', 'PL', 'EDR', 'NPCT', 'BRCC', 'BRW', 'LEV', 'WDH', 'SMWB', 'GROV', 'OGN', 'GPOR', 
-                   'PCOR', 'BIPH', 'NBXG', 'PAY', 'UZF', 'ZIP', 'FCRX', 'FIGS', 'HGTY', 'NE', 'ZETA', 'ECCC', 'TPTA', 'AOMR', 
-                   'RERE', 'YMM', 'CXM', 'DOCS', 'NEUE', 'MCW', 'WDI', 'BNT', 'DDL', 'S', 'YOU', 'CURV', 'DTM', 'PSQH', 'FREY', 
-                   'OKLO', 'SHCO', 'BLND', 'BRDG', 'STVN', 'FLYX', 'NABL', 'LAW', 'VSCO', 'VTEX', 'CNM', 'GXO', 'RYAN', 'ZVIA', 
-                   'MGRD', 'XPOF', 'MLNK', 'COOK', 'RSKD', 'DOLE', 'ECVT', 'HIPO', 'AMBP', 'MIO', 'NPWR', 'JXN', 'RDW', 'BROS', 
-                   'ONON', 'MTAL', 'AKA', 'TOST', 'SLVM', 'CWAN', 'ECAT', 'WRBY', 'BHIL', 'TFPM', 'KORE', 'VLN', 'WBX', 'CION', 
-                   'LTH', 'IHS', 'FNA', 'EICA', 'FBRT', 'ENFN', 'PX', 'ARIS', 'KD', 'INFA', 'MEGI', 'BXSL', 'DTC', 'CBL', 'CMTG', 
-                   'CDRE', 'NXDT', 'PRM', 'CINT', 'WEAV', 'ONL', 'SG', 'NMAI', 'GUG', 'DTG', 'CTV', 'CRGY', 'NU', 'BEPI', 'EVTL', 
-                   'IOT', 'NPFD', 'BBAI', 'BWNB', 'ZGN', 'DOUG', 'DMA', 'MNTN', 'WEL', 'SOAR', 'BIPI', 'ECCV', 'PAXS', 'SGHC', 
-                   'BFAC', 'MDV', 'RMMZ', 'NRGV', 'RLTY', 'BBUC', 'PNST', 'KMPB', 'PGRU', 'ESAB', 'STEW', 'EE', 'SAT', 'BLCO', 
-                   'HTFC', 'EHAB', 'HKD', 'HLN', 'QBTS', 'HLLY', 'AMPX', 'CRBG', 'XPER', 'BHVN', 'LVWR', 'RZC', 'SDRL', 'HSHP', 
-                   'BMN', 'RXO', 'NXG', 'SAJ', 'FSCO', 'BKDT', 'FG', 'BAM', 'MBC', 'SAY', 'VTS', 'TXO', 'ASBA', 'AESI', 'CLCO', 
-                   'CR', 'MSGE', 'SAZ', 'KVUE', 'ATMU', 'KNF', 'AACT', 'CAVA', 'PHIN', 'FIHL', 'KGS', 'SVV', 'VTMX', 'LZM', 'SRFM', 
-                   'EICB', 'SN', 'ALUR', 'ECO', 'EXTO', 'BETR', 'APOS', 'TKO', 'HYAC', 'KVYO', 'KLG', 'PMTU', 'LAC', 'LAAC', 'VLTO', 
-                   'VSTS', 'BIRK', 'MNR', 'CCIA', 'NLOP', 'HG', 'WS', 'FGN', 'ZKH', 'DEC', 'CDLR', 'IROHU', 'ELPC', 'ALTM', 'CLBR', 
-                   'SDHC', 'PSBD', 'MFAN', 'MSDL', 'NCDL', 'OBDE', 'AS', 'ANRO', 'RWTN', 'MITN', 'AHR', 'TBBB', 'SOC', 'BODI', 'ATHS', 
-                   'CTOS', 'RDDT', 'AUNA', 'DXYZ', 'SOLV', 'BEPJ', 'GCTS', 'GEV', 'MGRE', 'WNS', 'PACS', 'ULS', 'CTRI', 'IBTA', 
-                   'MFAO', 'LOAR', 'RBRK', 'VIK', 'ZK', 'MITP', 'KBDC', 'BOW', 'CIMN', 'BIPJ', 'SPMC', 'RWTO', 'TBN', 'LB', 'SW', 
-                   'ARDT', 'PDCC', 'CON', 'AOMN', 'SMC', 'CIMO', 'AAM', 'AMTM', 'BKV', 'CURB', 'GRDN', 'EQV', 'FVR', 'SARO', 'CBNA', 
+invalid_symbols = ['AJXA', 'APGB', 'AQNA', 'ARGO', 'BBLN', 'BCPA', 'BCPB', 'BFX', 'BMAC', 'BOAC', 'BODY', 'CBX', 'CCV',
+                   'CPTK', 'CSTA', 'CTEST', 'ECG', 'EOCW', 'FSNB', 'GCTSW', 'HT', 'HYLN', 'INGM', 'ISG', 'JHAA', 'LHC', 'OSG', 'PNSTWS',
+                   'PRMB', 'ROSS', 'SCU', 'SIX', 'TMAC', 'USX', 'VMW', 'MTEST', 'NTEST', 'ASGI', 'CMSA', 'RBCP', 'GFR', 'GOOS',
+                   'HBI', 'HOMB', 'QTWO', 'ZBH', 'INST', 'RCFA', 'SAVE', 'DLY', 'AEVA', 'GFL', 'CARR', 'OTIS', 'RFM', 'BIPC',
+                   'MPLN', 'SPHR', 'RSI', 'SKLZ', 'APG', 'ADCT', 'SLQT', 'DNMR', 'AFGD', 'FOUR', 'SBBA', 'AZEK', 'ETWO',
+                   'HAFN', 'MP', 'ACI', 'FTHY', 'SII', 'DNB', 'LMND', 'BFLY', 'ALIT', 'MEG', 'BEPC', 'RKT', 'SST', 'BEKE',
+                   'NTST', 'ML', 'QS', 'NYC', 'UZD', 'MIR', 'NUVB', 'NDMO', 'XPEV', 'GB', 'PFH', 'RBOT', 'SNOW', 'AMWL', 'U',
+                   'GETY', 'SOJE', 'BCAT', 'VNT', 'MGRB', 'ASAN', 'BQ', 'PLTR', 'YALA', 'ATIP', 'DTB', 'MKFG', 'STEM', 'IH',
+                   'OUST', 'PSFE', 'MNSO', 'TIMB', 'BNH', 'GHLD', 'CRC', 'GATO', 'MAX', 'PTA', 'LU', 'SPIR', 'OWLT', 'GRNT',
+                   'JOBY', 'UP', 'LICY', 'BKKT', 'YSG', 'OPFI', 'GBTG', 'AIZN', 'SDHY', 'NRDY', 'NOTE', 'AI', 'SMR', 'OPAD',
+                   'OWL', 'UZE', 'ACHR', 'BARK', 'GWH', 'IONQ', 'EVEX', 'KUKE', 'GRND', 'DFH', 'MYTE', 'RLX', 'ZIM', 'AMPS',
+                   'FRGE', 'ONTF', 'TIXT', 'SMRT', 'LDI', 'TFSA', 'PKST', 'RCC', 'BWSN', 'RFMZ', 'PERF', 'SES', 'OSCR', 'UWMC',
+                   'ASAI', 'CSAN', 'RBLX', 'CPNG', 'HAYW', 'LANV', 'OLO', 'NAPA', 'TUYA', 'BNL', 'DOCN', 'KIND', 'SEMR',
+                   'VZIO', 'BIGZ', 'ZH', 'ECCW', 'NXU', 'COUR', 'COMP', 'HTFB', 'AGL', 'BEPH', 'DNA', 'LOCL', 'DV', 'GENI',
+                   'KKRS', 'PATH', 'BOWL', 'PL', 'EDR', 'NPCT', 'BRCC', 'BRW', 'LEV', 'WDH', 'SMWB', 'GROV', 'OGN', 'GPOR',
+                   'PCOR', 'BIPH', 'NBXG', 'PAY', 'UZF', 'ZIP', 'FCRX', 'FIGS', 'HGTY', 'NE', 'ZETA', 'ECCC', 'TPTA', 'AOMR',
+                   'RERE', 'YMM', 'CXM', 'DOCS', 'NEUE', 'MCW', 'WDI', 'BNT', 'DDL', 'S', 'YOU', 'CURV', 'DTM', 'PSQH', 'FREY',
+                   'OKLO', 'SHCO', 'BLND', 'BRDG', 'STVN', 'FLYX', 'NABL', 'LAW', 'VSCO', 'VTEX', 'CNM', 'GXO', 'RYAN', 'ZVIA',
+                   'MGRD', 'XPOF', 'MLNK', 'COOK', 'RSKD', 'DOLE', 'ECVT', 'HIPO', 'AMBP', 'MIO', 'NPWR', 'JXN', 'RDW', 'BROS',
+                   'ONON', 'MTAL', 'AKA', 'TOST', 'SLVM', 'CWAN', 'ECAT', 'WRBY', 'BHIL', 'TFPM', 'KORE', 'VLN', 'WBX', 'CION',
+                   'LTH', 'IHS', 'FNA', 'EICA', 'FBRT', 'ENFN', 'PX', 'ARIS', 'KD', 'INFA', 'MEGI', 'BXSL', 'DTC', 'CBL', 'CMTG',
+                   'CDRE', 'NXDT', 'PRM', 'CINT', 'WEAV', 'ONL', 'SG', 'NMAI', 'GUG', 'DTG', 'CTV', 'CRGY', 'NU', 'BEPI', 'EVTL',
+                   'IOT', 'NPFD', 'BBAI', 'BWNB', 'ZGN', 'DOUG', 'DMA', 'MNTN', 'WEL', 'SOAR', 'BIPI', 'ECCV', 'PAXS', 'SGHC',
+                   'BFAC', 'MDV', 'RMMZ', 'NRGV', 'RLTY', 'BBUC', 'PNST', 'KMPB', 'PGRU', 'ESAB', 'STEW', 'EE', 'SAT', 'BLCO',
+                   'HTFC', 'EHAB', 'HKD', 'HLN', 'QBTS', 'HLLY', 'AMPX', 'CRBG', 'XPER', 'BHVN', 'LVWR', 'RZC', 'SDRL', 'HSHP',
+                   'BMN', 'RXO', 'NXG', 'SAJ', 'FSCO', 'BKDT', 'FG', 'BAM', 'MBC', 'SAY', 'VTS', 'TXO', 'ASBA', 'AESI', 'CLCO',
+                   'CR', 'MSGE', 'SAZ', 'KVUE', 'ATMU', 'KNF', 'AACT', 'CAVA', 'PHIN', 'FIHL', 'KGS', 'SVV', 'VTMX', 'LZM', 'SRFM',
+                   'EICB', 'SN', 'ALUR', 'ECO', 'EXTO', 'BETR', 'APOS', 'TKO', 'HYAC', 'KVYO', 'KLG', 'PMTU', 'LAC', 'LAAC', 'VLTO',
+                   'VSTS', 'BIRK', 'MNR', 'CCIA', 'NLOP', 'HG', 'WS', 'FGN', 'ZKH', 'DEC', 'CDLR', 'IROHU', 'ELPC', 'ALTM', 'CLBR',
+                   'SDHC', 'PSBD', 'MFAN', 'MSDL', 'NCDL', 'OBDE', 'AS', 'ANRO', 'RWTN', 'MITN', 'AHR', 'TBBB', 'SOC', 'BODI', 'ATHS',
+                   'CTOS', 'RDDT', 'AUNA', 'DXYZ', 'SOLV', 'BEPJ', 'GCTS', 'GEV', 'MGRE', 'WNS', 'PACS', 'ULS', 'CTRI', 'IBTA',
+                   'MFAO', 'LOAR', 'RBRK', 'VIK', 'ZK', 'MITP', 'KBDC', 'BOW', 'CIMN', 'BIPJ', 'SPMC', 'RWTO', 'TBN', 'LB', 'SW',
+                   'ARDT', 'PDCC', 'CON', 'AOMN', 'SMC', 'CIMO', 'AAM', 'AMTM', 'BKV', 'CURB', 'GRDN', 'EQV', 'FVR', 'SARO', 'CBNA',
                    'SBXD', 'CICB', 'KLC']
 MONGO_CLIENT = None
-
 
 
 class ReportSingleton:
@@ -129,7 +129,9 @@ class ReportSingleton:
 
     def __new__(cls):
         if cls._instance is None:
-            cls._instance = open('report.txt', 'w', encoding='utf-8') # pylint: disable=consider-using-with
+            # pylint: disable=consider-using-with
+            cls._instance = open(
+                'report.txt', 'w', encoding='utf-8')
         return cls._instance
 
     def write(self, new_line):
@@ -158,7 +160,6 @@ class ReportSingleton:
             self._instance = None
 
 
-
 def get_mongo_client(uri="mongodb://localhost:27017/", db_name="blueHorseshoe"):
     """
     Creates and returns a MongoDB client connected to the specified URI and database.
@@ -174,14 +175,18 @@ def get_mongo_client(uri="mongodb://localhost:27017/", db_name="blueHorseshoe"):
     global MONGO_CLIENT
     if MONGO_CLIENT is None:
         try:
-            MONGO_CLIENT = MongoClient(uri, connectTimeoutMS=2000, serverSelectionTimeoutMS=2000)
+            MONGO_CLIENT = MongoClient(
+                uri, connectTimeoutMS=2000, serverSelectionTimeoutMS=2000)
             server_info = MONGO_CLIENT.server_info()
-            logging.info("Connected to MongoDB server version %s", server_info['version'])
+            logging.info("Connected to MongoDB server version %s",
+                         server_info['version'])
         except (ConnectionFailure, ConfigurationError) as e:
-            logging.error("An error occurred while connecting to MongoDB: %s", e)
+            logging.error(
+                "An error occurred while connecting to MongoDB: %s", e)
             return None
 
     return MONGO_CLIENT[db_name]
+
 
 @dataclass
 class GraphData:
@@ -205,13 +210,13 @@ class GraphData:
     x_values : list
         A list to store x-axis values (default is an empty list)
     """
-    curves : list = field(default_factory=list)
-    points : list = field(default_factory=list)
-    x_values : list = field(default_factory=list)
-    lines : list = field(default_factory=list)
-    x_label : str = 'x'
-    y_label : str = 'y'
-    title : str = 'title'
+    curves: list = field(default_factory=list)
+    points: list = field(default_factory=list)
+    x_values: list = field(default_factory=list)
+    lines: list = field(default_factory=list)
+    x_label: str = 'x'
+    y_label: str = 'y'
+    title: str = 'title'
 
 
 def graph(graph_data: GraphData):
@@ -271,16 +276,19 @@ def graph(graph_data: GraphData):
         graph_data.points = []
     try:
         if graph_data.x_values is not None and len(graph_data.x_values) != 0:
-            plt.xticks(ticks=range(len(graph_data.x_values)), labels=graph_data.x_values, rotation=45)
+            plt.xticks(ticks=range(len(graph_data.x_values)),
+                       labels=graph_data.x_values, rotation=45)
         plt.xlabel(graph_data.x_label)
         plt.ylabel(graph_data.y_label)
         plt.title(graph_data.title)
         for curve in graph_data.curves:
-            plt.plot(curve.get('curve',[]), color=curve.get('color', 'b'), label=curve.get('label', 'Curve'))
+            plt.plot(curve.get('curve', []), color=curve.get(
+                'color', 'b'), label=curve.get('label', 'Curve'))
         for line in graph_data.lines:
             linestyle = line.get('linestyle', '-')
             color = line.get('color', 'g')
-            plt.axhline(y=line['y'], color=color, linestyle=linestyle, label=line.get('label', 'Line'))
+            plt.axhline(y=line['y'], color=color,
+                        linestyle=linestyle, label=line.get('label', 'Line'))
         for point in graph_data.points:
             color = point.get('color', 'r')
             plt.scatter(point['x'], point['y'], color=color)
@@ -293,7 +301,6 @@ def graph(graph_data: GraphData):
         plt.clf()
     except (ValueError, TypeError, KeyError) as e:
         logging.error("An error occurred while plotting the graph: %s", e)
-
 
 
 @sleep_and_retry
@@ -312,7 +319,8 @@ def get_symbol_list_from_net():
     Raises:
         requests.exceptions.HTTPError: If the HTTP request returned an unsuccessful status code.
     """
-    response = requests.get("https://www.alphavantage.co/query?function=LISTING_STATUS&apikey=JFRQJ8YWSX8UK50X", timeout=10)
+    response = requests.get(
+        "https://www.alphavantage.co/query?function=LISTING_STATUS&apikey=JFRQJ8YWSX8UK50X", timeout=10)
 
     response.raise_for_status()  # Raise an exception for bad status codes
 
@@ -328,14 +336,13 @@ def get_symbol_list_from_net():
         if (row['status'] == 'Active' and
             row['exchange'] == 'NYSE' and
             row['assetType'] == 'Stock' and
-            '-' not in row['symbol']):
+                '-' not in row['symbol']):
             final_data.append({
                 'symbol': row['symbol'].replace("/", ""),
                 'name': row['name']
             })
 
     return final_data
-
 
 
 def get_symbol_list_from_file():
@@ -356,9 +363,11 @@ def get_symbol_list_from_file():
         with open(file_path, 'r', encoding='utf-8') as file:
             return json.load(file)
     except FileNotFoundError:
-        logging.error("Error: File not found at %s. Please check the file path.", file_path)
+        logging.error(
+            "Error: File not found at %s. Please check the file path.", file_path)
     except UnicodeDecodeError:
-        logging.error("Error: Unable to decode the file %s. Please check the file encoding.", file_path)
+        logging.error(
+            "Error: Unable to decode the file %s. Please check the file encoding.", file_path)
     except json.JSONDecodeError:
         logging.error("Error: Invalid JSON data in %s.", file_path)
     except (OSError, IOError) as e:
@@ -366,6 +375,7 @@ def get_symbol_list_from_file():
 
     print(f"Error: Could not open file {file_path}. Please check the logs.")
     return None
+
 
 def get_symbol_name_list():
     """
@@ -379,6 +389,7 @@ def get_symbol_name_list():
     """
     symbol_list = get_symbol_list()
     return [symbol['symbol'] for symbol in symbol_list]
+
 
 def get_symbol_list():
     """
@@ -402,10 +413,10 @@ def get_symbol_list():
             with open(file_path, 'w', encoding='utf-8') as file:
                 json.dump(symbol_list, file)
         except (OSError, IOError, json.JSONDecodeError) as e:
-            logging.error("An error occurred while writing the symbol list to file: %s", e)
+            logging.error(
+                "An error occurred while writing the symbol list to file: %s", e)
 
     return [symbol for symbol in symbol_list if symbol['symbol'] not in invalid_symbols]
-
 
 
 def get_symbol_sublist(list_type, historical_data=None):
@@ -414,8 +425,7 @@ def get_symbol_sublist(list_type, historical_data=None):
 
     Args:
         list_type (str): The type of data to extract. Valid options are 'high', 'low', 'open', 'close', 
-                        'volume', 'midpoint', 'high_low_delta', 'open_close_delta', 
-                        'high_low_delta_percentage', and 'close_open_delta_percentage'.
+                        'volume', 'midpoint'.
         historical_data (list, optional): A list of dictionaries containing historical data. 
                                             Each dictionary should have keys corresponding to the list_type.
                                             If not provided, it will be loaded from a file based on the symbol.
@@ -438,7 +448,8 @@ def get_symbol_sublist(list_type, historical_data=None):
         - If an invalid list_type is provided, the function will write a warning to the log and return an empty list.
     """
     if historical_data is None:
-        logging.warning("No historical data provided. Please provide historical data or a symbol.")
+        logging.warning(
+            "No historical data provided. Please provide historical data or a symbol.")
         return []
 
     ret_val = []
@@ -457,18 +468,11 @@ def get_symbol_sublist(list_type, historical_data=None):
                     ret_val.append(float(day['volume']))
                 case 'midpoint':
                     ret_val.append(float(day['midpoint']))
-                case 'high_low_delta':
-                    ret_val.append(float(day['high_low_delta']))
-                case 'open_close_delta':
-                    ret_val.append(float(day['open_close_delta']))
-                case 'high_low_delta_percentage':
-                    ret_val.append(float(day['high_low_delta_percentage']))
-                case 'close_open_delta_percentage':
-                    ret_val.append(float(day['close_open_delta_percentage']))
                 case _:
                     logging.warning("Invalid list_type")
         except (ValueError, TypeError) as e:
-            logging.warning("Invalid historical data. Making a list of %s, but the data was %s", list_type, e)
+            logging.warning(
+                "Invalid historical data. Making a list of %s, but the data was %s", list_type, e)
             continue
 
     return ret_val
