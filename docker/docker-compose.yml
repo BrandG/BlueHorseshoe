@@ -1,0 +1,35 @@
+services:
+  mongo:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.mongo
+    container_name: mongo
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - app_net
+
+  bluehorseshoe:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.bluehorseshoe
+    container_name: bluehorseshoe
+    ports:
+      - "80:80"
+    environment:
+      MONGO_URI: "mongodb://mongo:27017"
+    depends_on:
+      - mongo
+    networks:
+      - app_net
+    volumes:
+      # Mount the src folder from host into the container
+      - ../src:/workspaces/BlueHorseshoe/src
+
+networks:
+  app_net:
+
+volumes:
+  mongo_data:

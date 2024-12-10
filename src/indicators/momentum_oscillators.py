@@ -11,11 +11,10 @@ Methods:
     get_stochastic_oscillator(show=False): Calculate the Stochastic Oscillator and determine buy/sell/hold signals.
     get_macd(show=False): Calculate the Moving Average Convergence Divergence (MACD) and determine buy/sell signals.
 """
-import numpy as np
 import pandas as pd
 import talib as ta
 
-from globals import GraphData, graph
+from globals import GraphData, ReportSingleton, graph
 
 
 class MomentumOscillators:
@@ -67,13 +66,14 @@ class MomentumOscillators:
         # pylint: disable=unused-variable
         def graph_this(rsi_data):
             # To Do: Fill this in
-            print(rsi_data)
+            ReportSingleton().write(rsi_data)
         if show:
             graph_this(rsi_data)
 
         if len(rsi_data) > 0:
             rsi = rsi_data.tolist()[-1]
-            return {'buy': bool(rsi < np.percentile(rsi_data, 15)), 'sell': bool(rsi > np.percentile(rsi_data, 85))}
+            return {'buy': bool(rsi < 15), 'sell': bool(rsi > 85)}
+            # return {'buy': bool(rsi < np.percentile(rsi_data, 15)), 'sell': bool(rsi > np.percentile(rsi_data, 85))}
         return {'buy': False, 'sell': False}
 
     # Stochastic Oscillator
@@ -102,7 +102,7 @@ class MomentumOscillators:
         # pylint: disable=unused-variable
         def graph_this(slowd, slowk):
             # To Do: Fill this in
-            print(slowd, slowk)
+            ReportSingleton().write(f'{slowd}, {slowk}')
         if show:
             graph_this(slowd, slowk)
 

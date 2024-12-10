@@ -1,0 +1,5 @@
+FROM mongo:latest
+# This image already runs `mongod` by default.
+# The default data directory is /data/db and logging is already configured.
+# Expose is optional and mainly for documentation.
+EXPOSE 27017

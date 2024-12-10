@@ -31,6 +31,8 @@ Methods:
 import numpy as np
 import talib as ta
 
+from globals import ReportSingleton
+
 
 class VolumeBased:
     """
@@ -77,7 +79,7 @@ class VolumeBased:
 
         def graph_this(mfi_data):
             # To Do: Fill this in
-            print(mfi_data)
+            ReportSingleton().write(mfi_data)
         if show:
             graph_this(mfi_data)
 
@@ -99,17 +101,17 @@ class VolumeBased:
                   value 'up' if the OBV is increasing, otherwise 'down'.
         """
         obv = ta.OBV(self._data['close'], self._data['volume'])  # type: ignore
-        # pylint: disable=unused-variable
 
+        # pylint: disable=unused-variable
         def graph_this(obv):
             # To Do: Fill this in
-            print(obv)
+            ReportSingleton().write(obv)
         if show:
             graph_this(obv)
 
-        if len(obv) <= 1:
+        if len(obv) < 2:
             return {'direction': 'error'}
-        return {'direction': 'up' if obv[0] > obv[1] else 'down'}
+        return {'direction': 'up' if obv.iloc[-1] > obv.iloc[-2] else 'down'}
 
     # Volume Weighted Average Price (VWAP)
     def get_volume_weighted_average_price(self):

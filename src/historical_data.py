@@ -22,7 +22,7 @@ import requests
 from ratelimit import limits, sleep_and_retry
 
 from pymongo.errors import ServerSelectionTimeoutError, NotPrimaryError
-from globals import get_mongo_client, get_symbol_list, BASE_PATH
+from globals import ReportSingleton, get_mongo_client, get_symbol_list, BASE_PATH
 
 
 @sleep_and_retry
@@ -49,7 +49,7 @@ def load_historical_data_from_net(stock_symbol, recent=False):
                 Returns None if the 'Time Series (Daily)' key is not found in the response.
 
     Usage:
-        print(load_historical_data_from_net('QGEN', CONST_GRAB_RECENT_DATES))
+        ReportSingleton().write(load_historical_data_from_net('QGEN', CONST_GRAB_RECENT_DATES))
 
     Raises:
         requests.exceptions.HTTPError: If the HTTP request returned an unsuccessful status code.
@@ -84,7 +84,7 @@ def load_historical_data_from_net(stock_symbol, recent=False):
 
             symbol['days'].append(daily_data)
     else:
-        print("'Time Series (Daily)' key not found in response for " +
+        ReportSingleton().write("'Time Series (Daily)' key not found in response for " +
               f"{stock_symbol}. URL: {url}. Response: {json_data}")
         return None
 
@@ -105,10 +105,10 @@ def load_historical_data_from_mongo(symbol, db):
     """
     data = None
     try:
-        collection = db['historical_data']
+        collection = db['recent_historical_data']
         data = collection.find_one({"symbol": symbol})
     except (ServerSelectionTimeoutError, NotPrimaryError, OSError) as e:
-        print(f"Error accessing MongoDB: {e}")
+        ReportSingleton().write(f"Error accessing MongoDB: {e}")
 
     return data
 
@@ -188,7 +188,7 @@ def build_all_symbols_history(starting_at='', save_to_file=False, recent=False):
     for row in symbol_list:
         index += 1
         percentage = round(index/len(symbol_list)*100)
-        print(f'{index} - {row['symbol']} ({percentage}%)')
+        ReportSingleton().write(f'{index} - {row["symbol"]} ({percentage}%)')
 
         if skip:
             if row['symbol'] == starting_at:
@@ -203,7 +203,7 @@ def build_all_symbols_history(starting_at='', save_to_file=False, recent=False):
             net_data = load_historical_data_from_net(
                 stock_symbol=symbol, recent=recent)
             if net_data is None:
-                print(f"No data for {symbol}")
+                ReportSingleton().write(f"No data for {symbol}")
                 continue
             net_data['full_name'] = name
 
@@ -216,15 +216,15 @@ def build_all_symbols_history(starting_at='', save_to_file=False, recent=False):
                     BASE_PATH, f'StockPrice-{symbol}.json')
                 with open(f'{file_path}', 'w', encoding='utf-8') as file:
                     file.write(new_data_json)
-                    print(f"Saved data for {symbol} to {file_path}")
+                    ReportSingleton().write(f"Saved data for {symbol} to {file_path}")
         except requests.exceptions.RequestException as e:
-            print("Network error: %s", e)
+            ReportSingleton().write(f'Network error: {e}')
             continue
         except json.JSONDecodeError as e:
-            print("JSON decode error: %s", e)
+            ReportSingleton().write(f'JSON decode error: {e}')
             continue
         except OSError as e:
-            print("OS error: %s", e)
+            ReportSingleton().write(f'OS error: {e}')
             continue
 
 
@@ -233,7 +233,7 @@ def load_historical_data_from_file(symbol):
     Loads historical stock price data from a JSON file for a given symbol.
 
     Usage:
-        print(load_historical_data_from_file('QGEN'))
+        ReportSingleton().write(load_historical_data_from_file('QGEN'))
 
     Args:
         symbol (str): The stock symbol for which to load historical data.
@@ -252,11 +252,11 @@ def load_historical_data_from_file(symbol):
             data = json.load(file)
             return data
     except FileNotFoundError:
-        print(f"File not found: {file_path}")
+        ReportSingleton().write(f"File not found: {file_path}")
     except json.JSONDecodeError:
-        print(f"Error: Invalid JSON in {file_path}.")
+        ReportSingleton().write(f"Error: Invalid JSON in {file_path}.")
     except PermissionError:
-        print(f"Permission denied: {file_path}")
+        ReportSingleton().write(f"Permission denied: {file_path}")
     return None
 
 
@@ -278,8 +278,8 @@ def load_historical_data(symbol):
     return data
 
 # if __name__ == "__main__":
-#     print('Running historicalData.py')
-    # print(load_historical_data_from_net('AAPL'))
-    # print(merge_data({'days': []}, {'name': 'AAPL', 'days': []}))
+#     ReportSingleton().write('Running historicalData.py')
+    # ReportSingleton().write(load_historical_data_from_net('AAPL'))
+    # ReportSingleton().write(merge_data({'days': []}, {'name': 'AAPL', 'days': []}))
     # build_all_symbols_history()
-    # print(load_historical_data('AAPL'))
+    # ReportSingleton().write(load_historical_data('AAPL'))

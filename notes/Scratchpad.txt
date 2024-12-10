@@ -1,0 +1,57 @@
+2024-12-08
+
+So, I was thinking about how I recently had to rebuild my dev system,
+after trying unsuccessfully to get it to autoload the mongo server.
+
+I'm using enough libraries now (ta-lib, pymongo, requests, etc.) that I would really
+benefit from having either a universally-runnable VM (which kills my online access, but
+gets around all of the staging problems), or a docker container that I can move to
+whatever source I need (specifically, a new codespace, or a new home computer).
+
+For now, I want to work on getting a new Docker image set up. Rather, I would need
+one image for the MongoDB server, and another for the actual python development.
+
+What I'm thinking is, I should create a mongodb image in a new codespace, and once that's
+working, export it to wherever. Then, create the new Python image and install the packages
+needed. Next, get the code working on that image setup, and export it to wherever.
+Then, copy the data over to the new location.
+
+//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--
+
+
+
+2024-11-27
+
+Okay, I've had mixed results from predictions so far, but I'm getting better at understanding it, so I'm starting over. 
+I asked Claude.AI what the best indicators for day trading were, and this is the results.
+
+
+For day trading, key technical indicators for stock predictability include:
+
+1. Volume-Based Indicators
+- Money Flow Index (MFI)
+- On-Balance Volume (OBV)
+- Volume Weighted Average Price (VWAP)
+
+2. Momentum Oscillators
+- Relative Strength Index (RSI)
+- Stochastic Oscillator
+- MACD (Moving Average Convergence Divergence)
+
+3. Volatility Indicators
+- Average True Range (ATR)
+- Bollinger Bands
+- Standard Deviation
+
+4. Short-Term Trend Indicators
+- 5/20 exponential moving averages
+- Ichimoku Cloud
+- Pivot Points
+
+5. Liquidity Measures
+- Bid-ask spread
+- Trading volume consistency
+- Intraday price range
+
+
+I'm going to take those indicators over the next week, and start implementing them.

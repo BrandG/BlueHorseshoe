@@ -1,0 +1,27 @@
+FROM python:3.10-slim
+
+# Set the working directory
+WORKDIR /workspaces/BlueHorseshoe
+
+# Copy only the requirements to install dependencies
+COPY docker/requirements.txt .
+# Install system dependencies for TA-Lib and others
+RUN apt-get update && apt-get install -y \
+    wget build-essential libssl-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Python dependencies
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Install TA-Lib
+RUN wget http://prdownloads.sourceforge.net/ta-lib/ta-lib-0.4.0-src.tar.gz -O /tmp/talib.tar.gz \
+    && tar -xzf /tmp/talib.tar.gz -C /tmp \
+    && cd /tmp/ta-lib && ./configure --prefix=/usr && make && make install \
+    && pip install TA-Lib \
+    && rm -rf /tmp/talib* /tmp/ta-lib
+
+# Expose the application port (80)
+EXPOSE 80
+
+# Start the Python app
+CMD ["python", "src/main.py"]

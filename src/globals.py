@@ -44,10 +44,10 @@ import logging
 import os
 from datetime import datetime
 from dataclasses import dataclass, field
+import pymongo
 import requests
 import matplotlib.pyplot as plt
 from ratelimit import limits, sleep_and_retry
-from pymongo import MongoClient
 from pymongo.errors import ConnectionFailure, ConfigurationError
 from matplotlib.ticker import MultipleLocator
 
@@ -126,12 +126,14 @@ class ReportSingleton:
             Closes the report file and resets the singleton instance to None.
     """
     _instance = None
+    _file = None
 
-    def __new__(cls):
+    def __new__(cls, *args, **kwargs):
+        # If we haven't created an instance yet, create one
         if cls._instance is None:
-            # pylint: disable=consider-using-with
-            cls._instance = open(
-                'report.txt', 'w', encoding='utf-8')
+            cls._instance = super().__new__(cls)
+            # Open the file only once
+            cls._instance._file = open("/workspaces/BlueHorseshoe/src/logs/report.txt", "w", encoding="utf-8")
         return cls._instance
 
     def write(self, new_line):
@@ -141,9 +143,12 @@ class ReportSingleton:
         Args:
             new_line (str): The line to be written to the instance.
         """
-        if self._instance is not None:
-            self._instance.write(new_line + '\n')
-            self._instance.flush()
+        if self._instance is not None and self._instance._file is not None:
+            writeString = new_line
+            if not isinstance(new_line, str):
+                writeString = json.dumps(new_line, indent=4)
+            self._instance._file.write(writeString + '\n')
+            self._instance._file.flush()
         else:
             logging.error("Attempted to write to a closed report file.")
 
@@ -155,12 +160,12 @@ class ReportSingleton:
         instance variable to None to ensure that the object is properly disposed of 
         and no longer referenced.
         """
-        if self._instance is not None:
-            self._instance.close()
+        if self._instance is not None and self._instance._file is not None:
+            self._instance._file.close()
             self._instance = None
 
 
-def get_mongo_client(uri="mongodb://localhost:27017/", db_name="blueHorseshoe"):
+def get_mongo_client(uri="", db_name="blueHorseshoe"):
     """
     Creates and returns a MongoDB client connected to the specified URI and database.
 
@@ -175,8 +180,11 @@ def get_mongo_client(uri="mongodb://localhost:27017/", db_name="blueHorseshoe"):
     global MONGO_CLIENT
     if MONGO_CLIENT is None:
         try:
-            MONGO_CLIENT = MongoClient(
-                uri, connectTimeoutMS=2000, serverSelectionTimeoutMS=2000)
+            if uri == "":
+                uri = os.getenv("MONGO_URI", "mongodb://mongo:27017")
+            MONGO_CLIENT = pymongo.MongoClient(uri)
+            # MONGO_CLIENT = MongoClient(
+            #     uri, connectTimeoutMS=2000, serverSelectionTimeoutMS=2000)
             server_info = MONGO_CLIENT.server_info()
             logging.info("Connected to MongoDB server version %s",
                          server_info['version'])
@@ -373,7 +381,7 @@ def get_symbol_list_from_file():
     except (OSError, IOError) as e:
         logging.error("An error occurred while reading the file: %s", e)
 
-    print(f"Error: Could not open file {file_path}. Please check the logs.")
+    ReportSingleton().write(f"Error: Could not open file {file_path}. Please check the logs.")
     return None
 
 
