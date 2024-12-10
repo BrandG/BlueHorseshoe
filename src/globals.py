@@ -47,7 +47,7 @@ from dataclasses import dataclass, field
 import pymongo
 import requests
 import matplotlib.pyplot as plt
-from ratelimit import limits, sleep_and_retry
+from ratelimit import limits, sleep_and_retry #pylint: disable=import-error
 from pymongo.errors import ConnectionFailure, ConfigurationError
 from matplotlib.ticker import MultipleLocator
 
@@ -126,15 +126,24 @@ class ReportSingleton:
             Closes the report file and resets the singleton instance to None.
     """
     _instance = None
-    _file = None
 
     def __new__(cls, *args, **kwargs):
         # If we haven't created an instance yet, create one
         if cls._instance is None:
             cls._instance = super().__new__(cls)
             # Open the file only once
-            cls._instance._file = open("/workspaces/BlueHorseshoe/src/logs/report.txt", "w", encoding="utf-8")
+            cls._instance.__init__()
         return cls._instance
+
+    def __init__(self):
+        if not hasattr(self, '_initialized'):  # Prevent reinitialization
+            self._file = None
+            self._initialize_file()
+            self._initialized = True
+
+    def _initialize_file(self):
+        #pylint: disable=consider-using-with
+        self._file = open("/workspaces/BlueHorseshoe/src/logs/report.txt", "w", encoding="utf-8")
 
     def write(self, new_line):
         """
@@ -143,12 +152,12 @@ class ReportSingleton:
         Args:
             new_line (str): The line to be written to the instance.
         """
-        if self._instance is not None and self._instance._file is not None:
-            writeString = new_line
+        if self._file is not None:
+            write_string = new_line
             if not isinstance(new_line, str):
-                writeString = json.dumps(new_line, indent=4)
-            self._instance._file.write(writeString + '\n')
-            self._instance._file.flush()
+                write_string = json.dumps(new_line, indent=4)
+            self._file.write(write_string + '\n')
+            self._file.flush()
         else:
             logging.error("Attempted to write to a closed report file.")
 
@@ -160,9 +169,11 @@ class ReportSingleton:
         instance variable to None to ensure that the object is properly disposed of 
         and no longer referenced.
         """
-        if self._instance is not None and self._instance._file is not None:
-            self._instance._file.close()
-            self._instance = None
+        if self._file is not None:
+            self._file.close()
+            self._file = None
+        else:
+            logging.error("Attempted to close a closed report file.")
 
 
 def get_mongo_client(uri="", db_name="blueHorseshoe"):
@@ -304,7 +315,7 @@ def graph(graph_data: GraphData):
         plt.gca().xaxis.set_major_locator(MultipleLocator(20))
         plt.grid(which='both', linestyle='--', linewidth=0.5)
         current_time_ms = int(datetime.now().timestamp() * 1000)
-        plt.savefig(f'graphs/{graph_data.title}_{current_time_ms}.png')
+        plt.savefig(f'/workspaces/BlueHorseshoe/src/graphs/{graph_data.title}_{current_time_ms}.png')
         # plt.show()
         plt.clf()
     except (ValueError, TypeError, KeyError) as e:

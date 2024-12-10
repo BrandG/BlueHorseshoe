@@ -1,3 +1,30 @@
+2024-12-10
+
+Okay, that was a lot harder than I expected. However, I now have the repository holding
+the code necessary to make a mongo container and a BlueHorseshoe container. I need to test
+it out at home, but for now, I'm getting back to indiators.
+
+* Average Directional Index (ADX)
+    +DI (Positive Directional Indicator) measures the strength of upward price movement.
+    −DI (Negative Directional Indicator) measures the strength of downward price movement.
+
+    Interpreting ADX Values:
+
+    Below 20:
+        Typically indicates a non-trending or weakly trending market. Price movement might 
+        be choppy, sideways, or lack a clear directional bias.
+    Around 20-25:
+        Often considered a threshold. Once ADX rises above 20 or 25, it may signal the 
+        beginning of a new trend or strengthening conditions.
+    Above 25:
+        Suggests a stronger, more established trend. The higher the ADX, the more dominant the trend.
+    Above 50:
+        Indicates a very strong trend, where prices are moving consistently in one direction.
+
+* Commodity Channel Index (CCI)
+* Fibonacci Retracement
+
+
 2024-12-08
 
 So, I was thinking about how I recently had to rebuild my dev system,

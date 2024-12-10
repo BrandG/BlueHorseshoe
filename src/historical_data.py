@@ -19,9 +19,9 @@ Functions:
 import os
 import json
 import requests
-from ratelimit import limits, sleep_and_retry
+from ratelimit import limits, sleep_and_retry #pylint: disable=import-error
 
-from pymongo.errors import ServerSelectionTimeoutError, NotPrimaryError
+from pymongo.errors import ServerSelectionTimeoutError
 from globals import ReportSingleton, get_mongo_client, get_symbol_list, BASE_PATH
 
 
@@ -107,7 +107,7 @@ def load_historical_data_from_mongo(symbol, db):
     try:
         collection = db['recent_historical_data']
         data = collection.find_one({"symbol": symbol})
-    except (ServerSelectionTimeoutError, NotPrimaryError, OSError) as e:
+    except (ServerSelectionTimeoutError, OSError) as e:
         ReportSingleton().write(f"Error accessing MongoDB: {e}")
 
     return data

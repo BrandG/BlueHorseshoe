@@ -99,6 +99,7 @@ def get_indicator_results(data):
     _short_term_trend = ShortTermTrend(data)
     results['emas'] = _short_term_trend.get_ema_signals()
     results['PP'] = _short_term_trend.get_pivot_points()
+    results['ADX'] = _short_term_trend.get_adx()
     results['ichimoku'] = Ichimoku(data).get_results()
 
     results['buy'] = (1 if results['mfi']['buy'] else 0) + \
@@ -126,7 +127,9 @@ def get_indicator_results(data):
         (1 if results['bb']['volatility'] == 'high' else 0) + \
         (1 if results['stdev']['volatility'] == 'high' else 0)
     results['direction'] = (1 if results['obv']['direction'] == 'up' else 0) + \
-        (1 if results['vwap']['direction'] == 'up' else 0)
+        (1 if results['vwap']['direction'] == 'up' else 0) + \
+        (1 if results['ADX']['direction'] == 'up' else 0)
+    results['strength'] = results['ADX']['strength']
     return results
 
 
@@ -178,7 +181,9 @@ def debug_test():
               f'Hold: {results["hold"]} - Volatility: {results["volatility"]} - Direction: {results["direction"]}')
     sorted_candidates = sorted(
         candidates, key=lambda x: (-x['buy'], -x['direction'], -x['volatility']))
-    ReportSingleton().write(sorted_candidates[:10])
+    logging.info(sorted_candidates[:10])
+    for candidate in sorted_candidates[:10]:
+        ReportSingleton().write(f"Candidate Symbol: {candidate['symbol']}")
 
 
 if __name__ == "__main__":
@@ -227,10 +232,11 @@ if __name__ == "__main__":
         debug_test()
         ReportSingleton().write("Debugging...")
     else:
-        ReportSingleton().write("Invalid arguments. Use -u to update historical data, -p to predict next midpoints, -d to debug, or -b to build historical data.")
+        ReportSingleton().write("Invalid arguments. Use -u to update historical data, " \
+                                "-p to predict next midpoints, -d to debug, or -b to build " \
+                                "historical data.")
         sys.exit(1)
 
     end_time = time.time()
     ReportSingleton().write(f'Execution time: {end_time - start_time:.2f} seconds')
     ReportSingleton().close()
-

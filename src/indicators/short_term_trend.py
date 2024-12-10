@@ -124,3 +124,56 @@ class ShortTermTrend:
         pivot_points_list = pivot_points['P'].tolist()
 
         return {'buy':bool(close_list[-1] < pivot_points_list[-1]), 'sell':bool(close_list[-1] > pivot_points_list[-1])}
+
+    def get_adx(self, show = False):
+        """
+        Calculate the Average Directional Index (ADX) and determine the strength of the trend.
+        Optionally, display a graph of the ADX values.
+
+        Parameters:
+            show (bool): If True, display a graph of the ADX values. Default is False.
+
+        Returns:
+            dict: A dictionary with the key 'direction' indicating the trend strength ('strong' or 'weak').
+        """
+        adx={}
+        adx['DMP_14'] = ta.PLUS_DI(self._data['high'],self._data['low'],self._data['close'],timeperiod=14).to_list() # type: ignore
+        adx['DMN_14'] = ta.MINUS_DI(self._data['high'],self._data['low'],self._data['close'],timeperiod=14).to_list() # type: ignore
+        adx['ADX_14'] = ta.ADX(self._data['high'],self._data['low'],self._data['close'],timeperiod=14).to_list() # type: ignore
+
+        adx_strength = 0
+        adx_float = round(float(adx['ADX_14'][-1]), 2)
+        if float(adx_float) > 50:
+            adx_strength = 'very strong'
+        elif adx_float > 25:
+            adx_strength = 'strong'
+        elif adx_float > 20:
+            adx_strength = 'threshold'
+        else:
+            adx_strength = 'weak'
+
+        def graph_this(adx):
+            buy_points = []
+            sell_points = []
+            for i in range(len(self._data['close'])):
+                if adx['ADX_14'][i] > 25:
+                    if adx['DMP_14'][i] > adx['DMN_14'][i]:
+                        buy_points.append({'x': i, 'y': self._data['close'].iloc[i-1]*100/self._data['close'].max(), 'color': 'green'})
+                    elif adx['DMN_14'][i] > adx['DMP_14'][i]:
+                        sell_points.append({'x': i, 'y': self._data['close'].iloc[i-1]*100/self._data['close'].max(), 'color': 'red'})
+            points = buy_points + sell_points
+            x_values = [pd.to_datetime(date).strftime('%Y-%m') for date in self._data['date']]
+            graph(GraphData(x_label='Date',
+                y_label='Price',
+                title='ADX',
+                x_values=x_values,
+                curves=[
+                    {'curve': adx['DMP_14'],'label': 'Positive', 'color': 'blue'},
+                    {'curve': adx['DMN_14'],'label': 'Negative', 'color': 'red'},
+                    {'curve': adx['ADX_14'],'label': 'ADX', 'color': 'yellow'},
+                    {'curve': self._data['close']*100/self._data['close'].max(),'label': 'Price', 'color': 'black'},
+                    ], points=points))
+        if show:
+            graph_this(adx)
+
+        return {'direction':'up' if adx['DMP_14'][-1] > adx['DMN_14'][-1] else 'down', 'strength':adx_strength}
