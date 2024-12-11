@@ -68,7 +68,7 @@ STABILITY_SCORE_MODIFIER = 0.50  # default = 0.35
 
 combined_score_mul = [0.75, 0.25]
 
-BASE_PATH = '/workspaces/BlueHorseshoe/historical_data/'
+BASE_PATH = '/workspaces/BlueHorseshoe/src/historical_data/'
 
 invalid_symbols = ['AJXA', 'APGB', 'AQNA', 'ARGO', 'BBLN', 'BCPA', 'BCPB', 'BFX', 'BMAC', 'BOAC', 'BODY', 'CBX', 'CCV',
                    'CPTK', 'CSTA', 'CTEST', 'ECG', 'EOCW', 'FSNB', 'GCTSW', 'HT', 'HYLN', 'INGM', 'ISG', 'JHAA', 'LHC', 'OSG', 'PNSTWS',

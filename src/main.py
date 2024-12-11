@@ -47,10 +47,12 @@ from sklearn.exceptions import ConvergenceWarning
 from globals import ReportSingleton, get_mongo_client, get_symbol_name_list
 from historical_data import build_all_symbols_history, load_historical_data
 from indicators import volitility
+from indicators.fibonacci_retracement import FibonacciRetracement
+from indicators.volume_based import VolumeBased
+from indicators.commodity_channel_index import CCITrend
 from indicators.ichimoku import Ichimoku
 from indicators.momentum_oscillators import MomentumOscillators
 from indicators.short_term_trend import ShortTermTrend
-from indicators.volume_based import VolumeBased
 
 sys.argv = ["-d"]
 
@@ -101,6 +103,8 @@ def get_indicator_results(data):
     results['PP'] = _short_term_trend.get_pivot_points()
     results['ADX'] = _short_term_trend.get_adx()
     results['ichimoku'] = Ichimoku(data).get_results()
+    results['cci'] = CCITrend(data).get_results()
+    results['fib'] = FibonacciRetracement(data).get_results()
 
     results['buy'] = (1 if results['mfi']['buy'] else 0) + \
         (1 if results['rsi']['buy'] else 0) + \
@@ -110,7 +114,9 @@ def get_indicator_results(data):
         (1 if results['bb']['buy'] else 0) + \
         (1 if results['emas']['buy'] else 0) + \
         (1 if results['ichimoku']['buy'] else 0) + \
-        (1 if results['PP']['buy'] else 0)
+        (1 if results['PP']['buy'] else 0) + \
+        (1 if results['cci']['buy'] else 0) + \
+        (1 if results['fib']['buy'] else 0)
 
     results['sell'] = (1 if results['mfi']['sell'] else 0) + \
         (1 if results['rsi']['sell'] else 0) + \
@@ -120,7 +126,9 @@ def get_indicator_results(data):
         (1 if results['bb']['sell'] else 0) + \
         (1 if results['emas']['sell'] else 0) + \
         (1 if results['ichimoku']['sell'] else 0) + \
-        (1 if results['PP']['sell'] else 0)
+        (1 if results['PP']['sell'] else 0) + \
+        (1 if results['cci']['sell'] else 0) + \
+        (1 if results['fib']['sell'] else 0)
 
     results['hold'] = (1 if results['stochastic_oscillator']['hold'] else 0)
     results['volatility'] = (1 if results['atr']['volatility'] == 'high' else 0) + \
@@ -130,6 +138,8 @@ def get_indicator_results(data):
         (1 if results['vwap']['direction'] == 'up' else 0) + \
         (1 if results['ADX']['direction'] == 'up' else 0)
     results['strength'] = results['ADX']['strength']
+    results['retracement'] = results['fib']['retracement']
+
     return results
 
 
@@ -163,8 +173,6 @@ def debug_test():
             return
         price_data = price_data['days'][:240]
         clipped_price_data = price_data[::-1]
-        ReportSingleton().write(symbol)
-        # clipped_price_data = clipped_price_data[:-21]
         data = pd.DataFrame([{
             'open': val['open'],
             'high': val['high'],
@@ -184,7 +192,6 @@ def debug_test():
     logging.info(sorted_candidates[:10])
     for candidate in sorted_candidates[:10]:
         ReportSingleton().write(f"Candidate Symbol: {candidate['symbol']}")
-
 
 if __name__ == "__main__":
     ReportSingleton().write(f'Starting BlueHorseshoe at {time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())}...')
@@ -229,8 +236,8 @@ if __name__ == "__main__":
         # To Do - Implement prediction
         ReportSingleton().write('Predicting next midpoints...')
     elif "-d" in sys.argv:
-        debug_test()
         ReportSingleton().write("Debugging...")
+        debug_test()
     else:
         ReportSingleton().write("Invalid arguments. Use -u to update historical data, " \
                                 "-p to predict next midpoints, -d to debug, or -b to build " \

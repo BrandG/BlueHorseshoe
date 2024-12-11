@@ -153,15 +153,13 @@ class ShortTermTrend:
             adx_strength = 'weak'
 
         def graph_this(adx):
-            buy_points = []
-            sell_points = []
+            points = []
             for i in range(len(self._data['close'])):
                 if adx['ADX_14'][i] > 25:
                     if adx['DMP_14'][i] > adx['DMN_14'][i]:
-                        buy_points.append({'x': i, 'y': self._data['close'].iloc[i-1]*100/self._data['close'].max(), 'color': 'green'})
+                        points.append({'x': i, 'y': self._data['close'].iloc[i-1]*100/self._data['close'].max(), 'color': 'green'})
                     elif adx['DMN_14'][i] > adx['DMP_14'][i]:
-                        sell_points.append({'x': i, 'y': self._data['close'].iloc[i-1]*100/self._data['close'].max(), 'color': 'red'})
-            points = buy_points + sell_points
+                        points.append({'x': i, 'y': self._data['close'].iloc[i-1]*100/self._data['close'].max(), 'color': 'red'})
             x_values = [pd.to_datetime(date).strftime('%Y-%m') for date in self._data['date']]
             graph(GraphData(x_label='Date',
                 y_label='Price',

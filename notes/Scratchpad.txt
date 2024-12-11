@@ -1,3 +1,20 @@
+2024-12-11
+
+Well, today I took the plunge (a little bit). I took the latest report, and bought $250 worth of the top-ranked stock. For posterity, that trade was
+2.1 shares of KEX at $119. It's 1PM now, and it seems to be doing okay. If I walk away at the end of the day with a 1% win, I'll be happy.
+
+I also added the Fibonacci Retracement calculation, so that's cool. I'm going to fix up the Ichimoku indicator next.
+
+I had an idea earlier. Right now, I can choose what data to send to the prediction machine. If that's the case, then I should be able to send it an arbitrary
+day's data, get the top ten list, and then check it against the answer given by the next day. If I do that, I can get a percentage of how many stocks
+succeeded based on those indicators. Now, here's where it gets interesting. Let's say I do that with the last 40 days of data (2 months). Say I store the
+"validity" of each day, and once I have the 40 "validity" scores, average them and say that the result is the effectiveness of my current indicators. After
+that, I can apply weights to each of the indicators and run it again. By changing the weights and getting the effectiveness values of each weight, I should
+be able to fine-tune the weights to fit reality. The cool thing is, I think that would take less than a day to run.
+
+I want to alter the docker containers so that I can make scripts that call "update data", "debug", and "make predictions" functions callable from outside of
+the container.
+
 2024-12-10
 
 Okay, that was a lot harder than I expected. However, I now have the repository holding
@@ -22,7 +39,16 @@ it out at home, but for now, I'm getting back to indiators.
         Indicates a very strong trend, where prices are moving consistently in one direction.
 
 * Commodity Channel Index (CCI)
+
+    Interpretation of CCI Values:
+        Between -100 and +100: This is the normal range, indicating that prices are near their average.
+        Above +100: Signals that prices are significantly above their average, suggesting an overbought condition or a strong uptrend.
+        Below -100: Signals that prices are significantly below their average, suggesting an oversold condition or a strong downtrend.
+
 * Fibonacci Retracement
+    Identify the Swing High and Swing Low:
+        In an uptrend, the swing low is the lowest point before the trend starts rising, and the swing high is the peak.
+        In a downtrend, the swing high is the highest point before the trend starts falling, and the swing low is the trough
 
 
 2024-12-08
