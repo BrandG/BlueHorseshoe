@@ -61,6 +61,7 @@ from indicators.volume_weighted_average_price import VolumeWeightedAveragePrice
 from indicators.commodity_channel_index import CCITrend
 from indicators.ichimoku import Ichimoku
 from indicators.average_directional_index import AverageDirectionalIndex
+from predictors.average_drop import AverageDropPredictor
 
 def get_indicator_results(data):
     """
@@ -106,6 +107,7 @@ def get_indicator_results(data):
     results['bb'] = BollingerBands(data).value
     results['stdev'] = StandardDeviation(data).value
     results['ADX'] = AverageDirectionalIndex(data).value
+    results['adp'] = AverageDropPredictor(data).value
 
     results['buy'] = (1 if results['mfi']['buy'] else 0) + \
         (1 if results['rsi']['buy'] else 0) + \
@@ -140,6 +142,7 @@ def get_indicator_results(data):
         (1 if results['ADX']['direction'] == 'up' else 0)
     results['strength'] = results['ADX']['strength']
     results['retracement'] = results['fib']['retracement']
+    results['drop'] = results['adp']['drop']
 
     return results
 
@@ -185,7 +188,7 @@ def debug_test():
         results = get_indicator_results(data)
         candidates.append({'symbol': symbol, 'results': results})
         ReportSingleton().write(f'{(index*100/len(symbols)):.2f}%. {symbol} - Buy: {results["buy"]} - Sell: {results["sell"]} - '
-              f'Hold: {results["hold"]} - Volatility: {results["volatility"]} - Direction: {results["direction"]}')
+              f'Hold: {results["hold"]} - Volatility: {results["volatility"]} - Direction: {results["direction"]} - Average drop: {results["drop"]}')
     sorted_candidates = sorted(
         candidates, key=lambda x: (-x['results']['buy'], -x['results']['direction'], -x['results']['volatility']))
     for candidate in sorted_candidates[:10]:
