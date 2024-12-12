@@ -46,13 +46,21 @@ from sklearn.exceptions import ConvergenceWarning
 
 from globals import ReportSingleton, get_mongo_client, get_symbol_name_list
 from historical_data import build_all_symbols_history, load_historical_data
-from indicators import volitility
+from indicators.standard_deviation import StandardDeviation
+from indicators.average_true_range import AverageTrueRange
+from indicators.bollinger_bands import BollingerBands
+from indicators.ema_crossover import EMACrossover
 from indicators.fibonacci_retracement import FibonacciRetracement
-from indicators.volume_based import VolumeBased
+from indicators.macd import MACD
+from indicators.money_flow_index import MoneyFlowIndex
+from indicators.on_balance_volume import OnBalanceVolume
+from indicators.pivot_points import PivotPoints
+from indicators.relative_strength_index import RelativeStrengthIndex
+from indicators.stochastic_oscillator import StochasticOscillator
+from indicators.volume_weighted_average_price import VolumeWeightedAveragePrice
 from indicators.commodity_channel_index import CCITrend
 from indicators.ichimoku import Ichimoku
-from indicators.momentum_oscillators import MomentumOscillators
-from indicators.short_term_trend import ShortTermTrend
+from indicators.average_directional_index import AverageDirectionalIndex
 
 def get_indicator_results(data):
     """
@@ -83,25 +91,21 @@ def get_indicator_results(data):
     """
     results = {}
 
-    _volume_based = VolumeBased(data)
-    results['mfi'] = _volume_based.get_mfi()
-    results['obv'] = _volume_based.get_obv()
-    results['vwap'] = _volume_based.get_volume_weighted_average_price()
-    _momentum_oscillators = MomentumOscillators(data)
-    results['rsi'] = _momentum_oscillators.get_rsi()
-    results['stochastic_oscillator'] = _momentum_oscillators.get_stochastic_oscillator()
-    results['macd'] = _momentum_oscillators.get_macd()
-    _volitility = volitility.Volitility(data)
-    results['atr'] = _volitility.get_atr()
-    results['bb'] = _volitility.get_bollinger_bands()
-    results['stdev'] = _volitility.get_standard_deviation_volatility()
-    _short_term_trend = ShortTermTrend(data)
-    results['emas'] = _short_term_trend.get_ema_signals()
-    results['PP'] = _short_term_trend.get_pivot_points()
-    results['ADX'] = _short_term_trend.get_adx()
-    results['ichimoku'] = Ichimoku(data).get_results()
-    results['cci'] = CCITrend(data).get_results()
-    results['fib'] = FibonacciRetracement(data).get_results()
+    results['emas'] = EMACrossover(data).value
+    results['rsi'] = RelativeStrengthIndex(data).value
+    results['stochastic_oscillator'] = StochasticOscillator(data).value
+    results['ichimoku'] = Ichimoku(data).value
+    results['cci'] = CCITrend(data).value
+    results['fib'] = FibonacciRetracement(data).value
+    results['macd'] = MACD(data).value
+    results['PP'] = PivotPoints(data).value
+    results['mfi'] = MoneyFlowIndex(data).value
+    results['obv'] = OnBalanceVolume(data).value
+    results['vwap'] = VolumeWeightedAveragePrice(data).value
+    results['atr'] = AverageTrueRange(data).value
+    results['bb'] = BollingerBands(data).value
+    results['stdev'] = StandardDeviation(data).value
+    results['ADX'] = AverageDirectionalIndex(data).value
 
     results['buy'] = (1 if results['mfi']['buy'] else 0) + \
         (1 if results['rsi']['buy'] else 0) + \
@@ -179,14 +183,11 @@ def debug_test():
             'date': val['date']}
             for val in clipped_price_data])
         results = get_indicator_results(data)
-        candidates.append({'symbol': symbol, 'buy': results['buy'], 'sell': results['sell'],
-                           'hold': results['hold'], 'volatility': results['volatility'],
-                           'direction': results['direction'], 'results': results})
+        candidates.append({'symbol': symbol, 'results': results})
         ReportSingleton().write(f'{(index*100/len(symbols)):.2f}%. {symbol} - Buy: {results["buy"]} - Sell: {results["sell"]} - '
               f'Hold: {results["hold"]} - Volatility: {results["volatility"]} - Direction: {results["direction"]}')
     sorted_candidates = sorted(
-        candidates, key=lambda x: (-x['buy'], -x['direction'], -x['volatility']))
-    logging.info(sorted_candidates[:10])
+        candidates, key=lambda x: (-x['results']['buy'], -x['results']['direction'], -x['results']['volatility']))
     for candidate in sorted_candidates[:10]:
         ReportSingleton().write(f"Candidate Symbol: {candidate['symbol']}")
 

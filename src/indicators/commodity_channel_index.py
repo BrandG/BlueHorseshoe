@@ -5,7 +5,7 @@ Classes:
     CCITrend: A class for analyzing trends using the Commodity Channel Index (CCI) indicator.
 Methods:
     __init__(data): Initializes the CCITrend class with the provided data.
-    graph_this(cci): Generates a graph for the Commodity Channel Index (CCI) and the closing prices.
+    graph(cci): Generates a graph for the Commodity Channel Index (CCI) and the closing prices.
     get_results(show=False): Calculate the Commodity Channel Index (CCI) for the given data and return buy/sell signals.
 """
 
@@ -26,15 +26,22 @@ class CCITrend:
             Initializes the CCITrend with the given data.
             data (pandas.DataFrame): The input data containing 'high', 'low', 'close', and 'date' columns.
     
-        graph_this(cci):
+        graph(cci):
     
         get_results(show=False):
     """
-
     def __init__(self, data):
-        self._data = data
+        self.update(data)
 
-    def graph_this(self, cci):
+    def update(self, data):
+        self._data = data
+        self._cci = ta.CCI(self._data['high'], self._data['low'], self._data['close'], timeperiod=14).to_list() # type: ignore
+
+    @property
+    def value(self):
+        return {'buy': self._cci[-1] < -100, 'sell':self._cci[-1] > 100}
+
+    def graph(self, cci):
         """
         Generates a graph for the Commodity Channel Index (CCI) and the closing prices.
 
@@ -65,22 +72,3 @@ class CCITrend:
                 {'curve': cci*100 / cci.max(),'label': 'CCI', 'color': 'blue'},
                 {'curve': self._data['close']*100/self._data['close'].max(),'label': 'Price', 'color': 'black'},
                 ], points=points))
-
-    def get_results(self, show = False):
-        """
-        Calculate the Commodity Channel Index (CCI) for the given data and return buy/sell signals.
-
-        Parameters:
-        show (bool): If True, the CCI graph will be displayed. Default is False.
-
-        Returns:
-        dict: A dictionary with 'buy' and 'sell' signals. 
-              'buy' is True if the latest CCI value is less than -100.
-              'sell' is True if the latest CCI value is greater than 100.
-        """
-        cci = ta.CCI(self._data['high'], self._data['low'], self._data['close'], timeperiod=14).to_list() # type: ignore
-
-        if show:
-            self.graph_this(cci)
-
-        return {'buy': cci[-1] < -100, 'sell':cci[-1] > 100}

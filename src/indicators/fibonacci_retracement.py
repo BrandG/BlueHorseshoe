@@ -18,14 +18,53 @@ class FibonacciRetracement:
         _data (pd.DataFrame): The price data containing 'date', 'close', 'high', and 'low' columns.
 
     Methods:
-        graph_this(fib):
+        graph(fib):
         get_results(close_range=0.01, show=False):
     """
 
-    def __init__(self, data):
-        self._data = data
+    _fib = {}
+    _fib_levels = ['swing_high', 'swing_low', '0%', '23%', '38%', '50%', '61%', '78%', '100%']
 
-    def graph_this(self, fib):
+    def __init__(self, data, close_range = 0.01, show = False):
+        self.update(data)
+
+    def update(self, data, close_range = 0.01, show = False):
+        self._data = data
+        # Identify Swing High and Swing Low
+        period = 10  # Lookback period to find highs and lows
+        swing_high = pd.Series(ta.MAX(self._data['high'], timeperiod=period)).iloc[-1] # type: ignore
+        swing_low = pd.Series(ta.MIN(self._data['low'], timeperiod=period)).iloc[-1] # type: ignore
+
+        # Calculate Fibonacci levels
+        fib_ratios = [0, 0.236, 0.382, 0.5, 0.618, 0.786, 1]
+        fib_levels = {f"{int(ratio * 100)}%": swing_high - (swing_high - swing_low) * ratio for ratio in fib_ratios}
+
+        self._fib['swing_high'] = swing_high
+        self._fib['swing_low'] = swing_low
+        for level, price in fib_levels.items():
+            self._fib[level] = price if np.isnan(price) else round(float(price), 2)
+
+        final_price = self._data['close'].iloc[-1]
+        self._retracement = []
+        for level, price in fib_levels.items():
+            if final_price != 0:
+                self._retracement.append(abs(final_price - price) / final_price <= close_range)
+            else:
+                self._retracement.append(False)
+        self._fib['retracement'] = True in self._retracement
+        self._retracement = [str(level) for level, is_retracement in zip(self._fib.keys(), self._retracement) if is_retracement]
+
+    @property
+    def value(self):
+        buy = self._data['close'].iloc[-1] < self._fib['78%']
+        sell = self._data['close'].iloc[-1] > self._fib['23%']
+
+        prices = [{'level': level, 'price': self._fib[level]} for level in self._fib_levels]
+
+        return {'buy':buy, 'sell':sell,'swing_high': self._fib['swing_high'], 'swing_low': self._fib['swing_low'],
+                'fib_levels': prices, 'retracement': True in self._retracement, 'price': self._data['close'].iloc[-1]}
+
+    def graph(self, fib):
         """
         Plots a graph of the Fibonacci Retracement levels along with the price data.
 
@@ -54,52 +93,3 @@ class FibonacciRetracement:
                     {'y': fib['100%'],'label': '100%', 'color': '#FF0000'}
                     ]
                     ))
-
-    def get_results(self, close_range = 0.01, show = False):
-        """
-        Calculate Fibonacci retracement levels and determine buy/sell signals.
-
-        Parameters:
-        close_range (float): The range within which the current price is considered close to a Fibonacci level. Default is 0.01.
-        show (bool): If True, the Fibonacci levels will be graphed. Default is False.
-
-        Returns:
-        dict: A dictionary containing:
-            - 'buy' (bool): True if the current price is below the 78% Fibonacci level, indicating a buy signal.
-            - 'sell' (bool): True if the current price is above the 23% Fibonacci level, indicating a sell signal.
-            - 'swing_high' (float): The highest price in the lookback period.
-            - 'swing_low' (float): The lowest price in the lookback period.
-            - 'fib_levels' (dict): A dictionary of Fibonacci levels and their corresponding prices.
-            - 'retracement' (bool): True if the current price is within the close_range of any Fibonacci level.
-            - 'price' (float): The current closing price.
-        """
-        # Identify Swing High and Swing Low
-        period = 10  # Lookback period to find highs and lows
-        swing_high = pd.Series(ta.MAX(self._data['high'], timeperiod=period)).iloc[-1] # type: ignore
-        swing_low = pd.Series(ta.MIN(self._data['low'], timeperiod=period)).iloc[-1] # type: ignore
-
-        # Calculate Fibonacci levels
-        fib_ratios = [0, 0.236, 0.382, 0.5, 0.618, 0.786, 1]
-        fib_levels = {f"{int(ratio * 100)}%": swing_high - (swing_high - swing_low) * ratio for ratio in fib_ratios}
-
-        fib={}
-        fib['swing_high'] = swing_high
-        fib['swing_low'] = swing_low
-        for level, price in fib_levels.items():
-            fib[level] = price if np.isnan(price) else round(float(price), 2)
-
-        if show:
-            self.graph_this(fib)
-
-        final_price = self._data['close'].iloc[-1]
-        retracement = []
-        for level, price in fib_levels.items():
-            retracement.append(abs(final_price - price) / final_price <= close_range)
-        fib['retracement'] = True in retracement
-        retracement = [str(level) for level, is_retracement in zip(fib.keys(), retracement) if is_retracement]
-
-        buy = self._data['close'].iloc[-1] < fib['78%']
-        sell = self._data['close'].iloc[-1] > fib['23%']
-
-        return {'buy':buy, 'sell':sell,'swing_high': fib['swing_high'], 'swing_low': fib['swing_low'],
-                'fib_levels': fib_levels, 'retracement': True in retracement, 'price': self._data['close'].iloc[-1]}
