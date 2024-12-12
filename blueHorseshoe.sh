@@ -1,2 +1,1 @@
-cd /workspaces/BlueHorseshoe/docker
-docker compose restart bluehorseshoe
+docker exec -it bluehorseshoe python src/main.py $1

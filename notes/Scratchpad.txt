@@ -13,7 +13,11 @@ that, I can apply weights to each of the indicators and run it again. By changin
 be able to fine-tune the weights to fit reality. The cool thing is, I think that would take less than a day to run.
 
 I want to alter the docker containers so that I can make scripts that call "update data", "debug", and "make predictions" functions callable from outside of
-the container.
+the container. Update: done 
+
+I've altered the code to update from NASDAQ and NYSE now, so we should have a significantly larger pool to draw from. Hopefully, that means better responses.
+
+It takes about two hours to grab the full history for all 6k symbols. 
 
 2024-12-10
 

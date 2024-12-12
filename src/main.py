@@ -54,9 +54,6 @@ from indicators.ichimoku import Ichimoku
 from indicators.momentum_oscillators import MomentumOscillators
 from indicators.short_term_trend import ShortTermTrend
 
-sys.argv = ["-d"]
-
-
 def get_indicator_results(data):
     """
     Calculate various financial indicators based on the provided data.
@@ -230,7 +227,7 @@ if __name__ == "__main__":
         build_all_symbols_history(recent=True)
         ReportSingleton().write("Recent historical data updated.")
     elif "-b" in sys.argv:
-        build_all_symbols_history()
+        build_all_symbols_history(recent=False)
         ReportSingleton().write("Full historical data updated.")
     elif "-p" in sys.argv:
         # To Do - Implement prediction

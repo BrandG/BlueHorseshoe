@@ -103,7 +103,7 @@ invalid_symbols = ['AJXA', 'APGB', 'AQNA', 'ARGO', 'BBLN', 'BCPA', 'BCPB', 'BFX'
                    'CTOS', 'RDDT', 'AUNA', 'DXYZ', 'SOLV', 'BEPJ', 'GCTS', 'GEV', 'MGRE', 'WNS', 'PACS', 'ULS', 'CTRI', 'IBTA',
                    'MFAO', 'LOAR', 'RBRK', 'VIK', 'ZK', 'MITP', 'KBDC', 'BOW', 'CIMN', 'BIPJ', 'SPMC', 'RWTO', 'TBN', 'LB', 'SW',
                    'ARDT', 'PDCC', 'CON', 'AOMN', 'SMC', 'CIMO', 'AAM', 'AMTM', 'BKV', 'CURB', 'GRDN', 'EQV', 'FVR', 'SARO', 'CBNA',
-                   'SBXD', 'CICB', 'KLC']
+                   'SBXD', 'CICB', 'KLC', 'NXT', 'NXT(EXP20091224)']
 MONGO_CLIENT = None
 
 
@@ -353,7 +353,7 @@ def get_symbol_list_from_net():
     final_data = []
     for row in loaded_data:
         if (row['status'] == 'Active' and
-            row['exchange'] == 'NYSE' and
+            (row['exchange'] == 'NYSE' or row['exchange'] == 'NASDAQ') and
             row['assetType'] == 'Stock' and
                 '-' not in row['symbol']):
             final_data.append({
@@ -435,6 +435,7 @@ def get_symbol_list():
             logging.error(
                 "An error occurred while writing the symbol list to file: %s", e)
 
+    ReportSingleton().write(f"Symbol list loaded. Length: {len(symbol_list)}")
     return [symbol for symbol in symbol_list if symbol['symbol'] not in invalid_symbols]
 
 

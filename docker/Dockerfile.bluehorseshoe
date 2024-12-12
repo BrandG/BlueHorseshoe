@@ -23,5 +23,5 @@ RUN wget http://prdownloads.sourceforge.net/ta-lib/ta-lib-0.4.0-src.tar.gz -O /t
 # Expose the application port (80)
 EXPOSE 80
 
-# Start the Python app
-CMD ["python", "src/main.py"]
+# Keep the container running in an interactive state
+CMD ["tail", "-f", "/dev/null"]
