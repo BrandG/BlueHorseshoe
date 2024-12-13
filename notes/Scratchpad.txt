@@ -1,3 +1,99 @@
+2024-12-13
+
+I bought in yesterday with another $250 investment, and ended up selling it at the exact same price near the end of day. Fun fact, as soon as I sold, the price jumped a few more points, so I would have made money if I'd stayed. :)
+
+I took a bit of time yesterday to put together a buying predictor, which finds out how much a stock usually drops in a day, and sets a buy entry at half that drop from the previous close. I used it to make a buy order this morning, but the stock never dropped to that price, so no buy. I've been doing this for three days now, and have lost $4. So, could be worse, I guess.
+
+Today, I did some more reorganizing, separating all the indicators into their individual files, and added an indicator aggregator, so it's a little easier to read. I then started doing some more research into Ichimoku clouds. Here's the strategy, as far as I could tell:
+
+Ichimoku:
+
+Base Line: 26 periods
+Conversion Line: 9 periods
+Lagging Span: 26 periods
+These are used to draw the filled portion:
+	Faster Span A
+	Faster Span B 
+	
+
+Lines:
+	Conversion Line (tenkan sen)= (9-PH+9-PL)/2
+		tenkan_max = df['High'].rolling(window = 9, min_periods = 0).max()
+		tenkan_min = df['Low'].rolling(window = 9, min_periods = 0).min()
+		df['tenkan_avg'] = (tenkan_max + tenkan_min) / 2
+
+	​Base Line (kijun sen)= (26-PH + 26-PL)/2
+		kijun_max = df['High'].rolling(window = 26, min_periods = 0).max()
+		kijun_min = df['Low'].rolling(window = 26, min_periods = 0).min()
+		df['kijun_avg'] = (kijun_max + kijun_min) / 2
+
+	Leading Span A (senkou span A)= (CL + Base Line)/2
+		#(Kijun + Tenkan) / 2 Shifted ahead by 26 periods
+		df['senkou_a'] = ((df['kijun_avg'] + df['tenkan_avg']) / 2).shift(26)
+
+	​Leading Span B (senkou span B)= (52-PH + 52-PL)/2
+		#52 period High + Low / 2
+		senkou_b_max = df['High'].rolling(window = 52, min_periods = 0).max()
+		senkou_b_min = df['Low'].rolling(window = 52, min_periods = 0).min()
+		df['senkou_b'] = ((senkou_b_max + senkou_b_min) / 2).shift(52)
+
+	​Lagging Span (chikou span)=Close plotted 26 periods in the past
+		#Current close shifted -26
+		df['chikou'] = (df['Close']).shift(-26)
+
+where:
+	PH=Period high
+	PL=Period low
+	CL=Conversion line
+​
+
+We will call the space between Span A and Span B "Kumo"
+
+When Span A crosses Span B, this indicates a possible trend change.
+
+The top and bottom of the Span lines are support and resistence lines.
+
+The baseline is a STRONG support or resistence level.
+
+Uptrend:
+	Price > Kumo
+	(Price > Kumo) && Lagging Span crosses price upward (Strong)
+	Price > Conversion
+	Price > Baseline
+	Baseline & Conversion > Kumo
+	Kumo is thick and Span A > Span B
+	Conversion Line > Baseline above the Kumo.
+    Lagging Span > Kumo
+    Lagging Span > price
+	Lagging Span > Baseline
+
+No Trend:
+    price in Kumo
+    Lagging Span inside Kumo
+
+Downtrend:
+	Price < Kumo
+	(Price < Kumo) && Lagging Span crosses price downward (Strong)
+	Price < conversion
+	Price < baseline
+	Baseline & Conversion < Kumo
+	Kumo is thick and Span B > Span A
+	Conversion line < Baseline below the Kumo
+    Lagging Span < Kumo
+    Lagging Span < price
+	Lagging Span < Baseline
+
+Strength:
+	price - conversion
+
+In a bullish trend:
+	The bottom of the Kumo cloud is the strongest level of support. Second strongest is the Top of the Kumo, third is the Baseline, and fourth is the Conversion line (weakest)
+
+In a bearish trend:
+	The top of the Kumo is the strongest level of resistance, followed by the bottom of the cloud, the baseline, and the conversion line.
+	
+
+
 2024-12-11
 
 Well, today I took the plunge (a little bit). I took the latest report, and bought $250 worth of the top-ranked stock. For posterity, that trade was
