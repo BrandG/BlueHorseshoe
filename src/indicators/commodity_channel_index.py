@@ -30,15 +30,39 @@ class CCITrend:
     
         get_results(show=False):
     """
+
     def __init__(self, data):
+        """
+        Initializes the CommodityChannelIndex instance with the provided data.
+
+        Args:
+            data (iterable): The input data used to calculate the Commodity Channel Index.
+        """
         self.update(data)
 
     def update(self, data):
+        """
+        Update the Commodity Channel Index (CCI) with new market data.
+
+        Parameters:
+        data (pandas.DataFrame): A DataFrame containing the market data with columns 'high', 'low', and 'close'.
+
+        Returns:
+        None
+        """
         self._data = data
         self._cci = ta.CCI(self._data['high'], self._data['low'], self._data['close'], timeperiod=14).to_list() # type: ignore
 
     @property
     def value(self):
+        """
+        Determines the buy and sell signals based on the Commodity Channel Index (CCI).
+
+        Returns:
+            dict: A dictionary with 'buy' and 'sell' keys. 
+              'buy' is True if the latest CCI value is less than -100, otherwise False.
+              'sell' is True if the latest CCI value is greater than 100, otherwise False.
+        """
         return {'buy': self._cci[-1] < -100, 'sell':self._cci[-1] > 100}
 
     def graph(self, cci):

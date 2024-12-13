@@ -25,10 +25,34 @@ class FibonacciRetracement:
     _fib = {}
     _fib_levels = ['swing_high', 'swing_low', '0%', '23%', '38%', '50%', '61%', '78%', '100%']
 
-    def __init__(self, data, close_range = 0.01, show = False):
+    def __init__(self, data):
+        """
+        Initializes the FibonacciRetracement instance with the provided data.
+
+        Args:
+            data (list or pandas.DataFrame): The data to be used for calculating Fibonacci retracement levels.
+        """
         self.update(data)
 
-    def update(self, data, close_range = 0.01, show = False):
+    def update(self, data, close_range = 0.01):
+        """
+        Update the Fibonacci retracement levels based on the provided data.
+
+        Parameters:
+        data (pd.DataFrame): A DataFrame containing 'high', 'low', and 'close' price data.
+        close_range (float, optional): The range within which the final price is considered close to a Fibonacci level. Default is 0.01.
+
+        This method performs the following steps:
+        1. Identifies the swing high and swing low over a specified lookback period.
+        2. Calculates the Fibonacci retracement levels based on the swing high and swing low.
+        3. Updates the internal Fibonacci levels dictionary with the calculated levels.
+        4. Determines if the final closing price is within the specified range of any Fibonacci level.
+        5. Updates the internal retracement list with the levels that are within the specified range.
+
+        The method updates the following internal attributes:
+        - self._fib: A dictionary containing the swing high, swing low, and Fibonacci levels.
+        - self._retracement: A list of Fibonacci levels that are within the specified range of the final closing price.
+        """
         self._data = data
         # Identify Swing High and Swing Low
         period = 10  # Lookback period to find highs and lows
@@ -56,6 +80,23 @@ class FibonacciRetracement:
 
     @property
     def value(self):
+        """
+        Calculate and return the Fibonacci retracement levels and trading signals.
+
+        This method evaluates the current closing price against predefined Fibonacci
+        retracement levels to determine buy and sell signals. It also provides additional
+        information about the swing high, swing low, and retracement status.
+
+        Returns:
+            dict: A dictionary containing the following keys:
+                - 'buy' (bool): True if the current closing price is below the 78% Fibonacci level.
+                - 'sell' (bool): True if the current closing price is above the 23% Fibonacci level.
+                - 'swing_high' (float): The swing high price.
+                - 'swing_low' (float): The swing low price.
+                - 'fib_levels' (list): A list of dictionaries with Fibonacci levels and their corresponding prices.
+                - 'retracement' (bool): True if there is a retracement.
+                - 'price' (float): The current closing price.
+        """
         buy = self._data['close'].iloc[-1] < self._fib['78%']
         sell = self._data['close'].iloc[-1] > self._fib['23%']
 

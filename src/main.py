@@ -46,105 +46,8 @@ from sklearn.exceptions import ConvergenceWarning
 
 from globals import ReportSingleton, get_mongo_client, get_symbol_name_list
 from historical_data import build_all_symbols_history, load_historical_data
-from indicators.standard_deviation import StandardDeviation
-from indicators.average_true_range import AverageTrueRange
-from indicators.bollinger_bands import BollingerBands
-from indicators.ema_crossover import EMACrossover
-from indicators.fibonacci_retracement import FibonacciRetracement
-from indicators.macd import MACD
-from indicators.money_flow_index import MoneyFlowIndex
-from indicators.on_balance_volume import OnBalanceVolume
-from indicators.pivot_points import PivotPoints
-from indicators.relative_strength_index import RelativeStrengthIndex
-from indicators.stochastic_oscillator import StochasticOscillator
-from indicators.volume_weighted_average_price import VolumeWeightedAveragePrice
-from indicators.commodity_channel_index import CCITrend
-from indicators.ichimoku import Ichimoku
-from indicators.average_directional_index import AverageDirectionalIndex
-from predictors.average_drop import AverageDropPredictor
-
-def get_indicator_results(data):
-    """
-    Calculate various financial indicators based on the provided data.
-
-    Args:
-        data (pd.DataFrame): A DataFrame containing the financial data required for the calculations.
-
-    Returns:
-        dict: A dictionary containing the results of various financial indicators, including:
-            - 'mfi': Money Flow Index
-            - 'obv': On-Balance Volume
-            - 'vwap': Volume Weighted Average Price
-            - 'rsi': Relative Strength Index
-            - 'stochastic_oscillator': Stochastic Oscillator
-            - 'macd': Moving Average Convergence Divergence
-            - 'atr': Average True Range
-            - 'bb': Bollinger Bands
-            - 'stdev': Standard Deviation Volatility
-            - 'emas': Exponential Moving Average Signals
-            - 'PP': Pivot Points
-            - 'ichimoku': Ichimoku Cloud
-            - 'buy': Aggregated buy signals from various indicators
-            - 'sell': Aggregated sell signals from various indicators
-            - 'hold': Hold signal from the Stochastic Oscillator
-            - 'volatility': Aggregated volatility signals from various indicators
-            - 'direction': Aggregated direction signals from OBV and VWAP
-    """
-    results = {}
-
-    results['emas'] = EMACrossover(data).value
-    results['rsi'] = RelativeStrengthIndex(data).value
-    results['stochastic_oscillator'] = StochasticOscillator(data).value
-    results['ichimoku'] = Ichimoku(data).value
-    results['cci'] = CCITrend(data).value
-    results['fib'] = FibonacciRetracement(data).value
-    results['macd'] = MACD(data).value
-    results['PP'] = PivotPoints(data).value
-    results['mfi'] = MoneyFlowIndex(data).value
-    results['obv'] = OnBalanceVolume(data).value
-    results['vwap'] = VolumeWeightedAveragePrice(data).value
-    results['atr'] = AverageTrueRange(data).value
-    results['bb'] = BollingerBands(data).value
-    results['stdev'] = StandardDeviation(data).value
-    results['ADX'] = AverageDirectionalIndex(data).value
-    results['adp'] = AverageDropPredictor(data).value
-
-    results['buy'] = (1 if results['mfi']['buy'] else 0) + \
-        (1 if results['rsi']['buy'] else 0) + \
-        (1 if results['stochastic_oscillator']['buy'] else 0) + \
-        (1 if results['macd']['buy'] else 0) + \
-        (1 if results['atr']['buy'] else 0) + \
-        (1 if results['bb']['buy'] else 0) + \
-        (1 if results['emas']['buy'] else 0) + \
-        (1 if results['ichimoku']['buy'] else 0) + \
-        (1 if results['PP']['buy'] else 0) + \
-        (1 if results['cci']['buy'] else 0) + \
-        (1 if results['fib']['buy'] else 0)
-
-    results['sell'] = (1 if results['mfi']['sell'] else 0) + \
-        (1 if results['rsi']['sell'] else 0) + \
-        (1 if results['stochastic_oscillator']['sell'] else 0) + \
-        (1 if results['macd']['sell'] else 0) + \
-        (1 if results['atr']['sell'] else 0) + \
-        (1 if results['bb']['sell'] else 0) + \
-        (1 if results['emas']['sell'] else 0) + \
-        (1 if results['ichimoku']['sell'] else 0) + \
-        (1 if results['PP']['sell'] else 0) + \
-        (1 if results['cci']['sell'] else 0) + \
-        (1 if results['fib']['sell'] else 0)
-
-    results['hold'] = (1 if results['stochastic_oscillator']['hold'] else 0)
-    results['volatility'] = (1 if results['atr']['volatility'] == 'high' else 0) + \
-        (1 if results['bb']['volatility'] == 'high' else 0) + \
-        (1 if results['stdev']['volatility'] == 'high' else 0)
-    results['direction'] = (1 if results['obv']['direction'] == 'up' else 0) + \
-        (1 if results['vwap']['direction'] == 'up' else 0) + \
-        (1 if results['ADX']['direction'] == 'up' else 0)
-    results['strength'] = results['ADX']['strength']
-    results['retracement'] = results['fib']['retracement']
-    results['drop'] = results['adp']['drop']
-
-    return results
+from indicators.indicator_aggregator import IndicatorAggregator
+from predictors.predictor_aggergator import PredictorAggregator
 
 
 def debug_test():
@@ -173,10 +76,13 @@ def debug_test():
     for index, symbol in enumerate(symbols):
         price_data = load_historical_data(symbol)
         if price_data is None:
-            ReportSingleton().write(f"Failed to load historical data for {symbol}.")
+            ReportSingleton().write(
+                f"Failed to load historical data for {symbol}.")
             return
+
         price_data = price_data['days'][:240]
         clipped_price_data = price_data[::-1]
+
         data = pd.DataFrame([{
             'open': val['open'],
             'high': val['high'],
@@ -185,14 +91,18 @@ def debug_test():
             'volume': val['volume'],
             'date': val['date']}
             for val in clipped_price_data])
-        results = get_indicator_results(data)
+        indicator_results = IndicatorAggregator(data).aggregate()
+        predict_results = PredictorAggregator(data).aggregate()
+        results = {**indicator_results, **predict_results}
+
         candidates.append({'symbol': symbol, 'results': results})
-        ReportSingleton().write(f'{(index*100/len(symbols)):.2f}%. {symbol} - Buy: {results["buy"]} - Sell: {results["sell"]} - '
-              f'Hold: {results["hold"]} - Volatility: {results["volatility"]} - Direction: {results["direction"]} - Average drop: {results["drop"]}')
-    sorted_candidates = sorted(
-        candidates, key=lambda x: (-x['results']['buy'], -x['results']['direction'], -x['results']['volatility']))
+        ReportSingleton().write(f'{(index*100/len(symbols)):.2f}%. {symbol} - Buy: {results["buy"]} - Sell: {results["sell"]} - ' \
+                                f'Hold: {results["hold"]} - Volatility: {results["volatility"]} - ' \
+                                f'Direction: {results["direction"]} - Average drop: {results["drop"]}')
+    sorted_candidates = sorted(candidates, key=lambda x: ( -x['results']['buy'], -x['results']['direction'], -x['results']['volatility']))
     for candidate in sorted_candidates[:10]:
         ReportSingleton().write(f"Candidate Symbol: {candidate['symbol']}")
+
 
 if __name__ == "__main__":
     ReportSingleton().write(f'Starting BlueHorseshoe at {time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())}...')
@@ -240,9 +150,8 @@ if __name__ == "__main__":
         ReportSingleton().write("Debugging...")
         debug_test()
     else:
-        ReportSingleton().write("Invalid arguments. Use -u to update historical data, " \
-                                "-p to predict next midpoints, -d to debug, or -b to build " \
-                                "historical data.")
+        ReportSingleton().write("Invalid arguments. Use -u to update historical data, -p to predict next midpoints, -d "
+                                "to debug, or -b to build historical data.")
         sys.exit(1)
 
     end_time = time.time()
