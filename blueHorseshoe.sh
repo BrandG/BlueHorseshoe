@@ -1,0 +1,1 @@
+docker exec -it bluehorseshoe python src/main.py $1

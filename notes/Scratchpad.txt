@@ -1,0 +1,114 @@
+2024-12-11
+
+Well, today I took the plunge (a little bit). I took the latest report, and bought $250 worth of the top-ranked stock. For posterity, that trade was
+2.1 shares of KEX at $119. It's 1PM now, and it seems to be doing okay. If I walk away at the end of the day with a 1% win, I'll be happy.
+
+I also added the Fibonacci Retracement calculation, so that's cool. I'm going to fix up the Ichimoku indicator next.
+
+I had an idea earlier. Right now, I can choose what data to send to the prediction machine. If that's the case, then I should be able to send it an arbitrary
+day's data, get the top ten list, and then check it against the answer given by the next day. If I do that, I can get a percentage of how many stocks
+succeeded based on those indicators. Now, here's where it gets interesting. Let's say I do that with the last 40 days of data (2 months). Say I store the
+"validity" of each day, and once I have the 40 "validity" scores, average them and say that the result is the effectiveness of my current indicators. After
+that, I can apply weights to each of the indicators and run it again. By changing the weights and getting the effectiveness values of each weight, I should
+be able to fine-tune the weights to fit reality. The cool thing is, I think that would take less than a day to run.
+
+I want to alter the docker containers so that I can make scripts that call "update data", "debug", and "make predictions" functions callable from outside of
+the container. Update: done 
+
+I've altered the code to update from NASDAQ and NYSE now, so we should have a significantly larger pool to draw from. Hopefully, that means better responses.
+
+It takes about two hours to grab the full history for all 6k symbols. 
+
+2024-12-10
+
+Okay, that was a lot harder than I expected. However, I now have the repository holding
+the code necessary to make a mongo container and a BlueHorseshoe container. I need to test
+it out at home, but for now, I'm getting back to indiators.
+
+* Average Directional Index (ADX)
+    +DI (Positive Directional Indicator) measures the strength of upward price movement.
+    −DI (Negative Directional Indicator) measures the strength of downward price movement.
+
+    Interpreting ADX Values:
+
+    Below 20:
+        Typically indicates a non-trending or weakly trending market. Price movement might 
+        be choppy, sideways, or lack a clear directional bias.
+    Around 20-25:
+        Often considered a threshold. Once ADX rises above 20 or 25, it may signal the 
+        beginning of a new trend or strengthening conditions.
+    Above 25:
+        Suggests a stronger, more established trend. The higher the ADX, the more dominant the trend.
+    Above 50:
+        Indicates a very strong trend, where prices are moving consistently in one direction.
+
+* Commodity Channel Index (CCI)
+
+    Interpretation of CCI Values:
+        Between -100 and +100: This is the normal range, indicating that prices are near their average.
+        Above +100: Signals that prices are significantly above their average, suggesting an overbought condition or a strong uptrend.
+        Below -100: Signals that prices are significantly below their average, suggesting an oversold condition or a strong downtrend.
+
+* Fibonacci Retracement
+    Identify the Swing High and Swing Low:
+        In an uptrend, the swing low is the lowest point before the trend starts rising, and the swing high is the peak.
+        In a downtrend, the swing high is the highest point before the trend starts falling, and the swing low is the trough
+
+
+2024-12-08
+
+So, I was thinking about how I recently had to rebuild my dev system,
+after trying unsuccessfully to get it to autoload the mongo server.
+
+I'm using enough libraries now (ta-lib, pymongo, requests, etc.) that I would really
+benefit from having either a universally-runnable VM (which kills my online access, but
+gets around all of the staging problems), or a docker container that I can move to
+whatever source I need (specifically, a new codespace, or a new home computer).
+
+For now, I want to work on getting a new Docker image set up. Rather, I would need
+one image for the MongoDB server, and another for the actual python development.
+
+What I'm thinking is, I should create a mongodb image in a new codespace, and once that's
+working, export it to wherever. Then, create the new Python image and install the packages
+needed. Next, get the code working on that image setup, and export it to wherever.
+Then, copy the data over to the new location.
+
+//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--
+
+
+
+2024-11-27
+
+Okay, I've had mixed results from predictions so far, but I'm getting better at understanding it, so I'm starting over. 
+I asked Claude.AI what the best indicators for day trading were, and this is the results.
+
+
+For day trading, key technical indicators for stock predictability include:
+
+1. Volume-Based Indicators
+- Money Flow Index (MFI)
+- On-Balance Volume (OBV)
+- Volume Weighted Average Price (VWAP)
+
+2. Momentum Oscillators
+- Relative Strength Index (RSI)
+- Stochastic Oscillator
+- MACD (Moving Average Convergence Divergence)
+
+3. Volatility Indicators
+- Average True Range (ATR)
+- Bollinger Bands
+- Standard Deviation
+
+4. Short-Term Trend Indicators
+- 5/20 exponential moving averages
+- Ichimoku Cloud
+- Pivot Points
+
+5. Liquidity Measures
+- Bid-ask spread
+- Trading volume consistency
+- Intraday price range
+
+
+I'm going to take those indicators over the next week, and start implementing them.

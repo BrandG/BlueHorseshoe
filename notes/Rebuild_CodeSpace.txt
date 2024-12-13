@@ -6,7 +6,7 @@ Github copilot (and Github copilot chat)
 
 #install basic packages
 python -m pip install --upgrade pip
-sudo python -m pip install ratelimit pymongo pylint numpy scipy requests matplotlib ratelimit pymongo pandas scikit-learn keras statsmodels ta
+sudo python -m pip install ratelimit pymongo pylint numpy scipy requests matplotlib ratelimit pandas scikit-learn keras statsmodels ta
 
 #install ta-lib
 wget http://prdownloads.sourceforge.net/ta-lib/ta-lib-0.4.0-src.tar.gz

@@ -44,10 +44,10 @@ import logging
 import os
 from datetime import datetime
 from dataclasses import dataclass, field
+import pymongo
 import requests
 import matplotlib.pyplot as plt
-from ratelimit import limits, sleep_and_retry
-from pymongo import MongoClient
+from ratelimit import limits, sleep_and_retry #pylint: disable=import-error
 from pymongo.errors import ConnectionFailure, ConfigurationError
 from matplotlib.ticker import MultipleLocator
 
@@ -68,7 +68,7 @@ STABILITY_SCORE_MODIFIER = 0.50  # default = 0.35
 
 combined_score_mul = [0.75, 0.25]
 
-BASE_PATH = '/workspaces/BlueHorseshoe/historical_data/'
+BASE_PATH = '/workspaces/BlueHorseshoe/src/historical_data/'
 
 invalid_symbols = ['AJXA', 'APGB', 'AQNA', 'ARGO', 'BBLN', 'BCPA', 'BCPB', 'BFX', 'BMAC', 'BOAC', 'BODY', 'CBX', 'CCV',
                    'CPTK', 'CSTA', 'CTEST', 'ECG', 'EOCW', 'FSNB', 'GCTSW', 'HT', 'HYLN', 'INGM', 'ISG', 'JHAA', 'LHC', 'OSG', 'PNSTWS',
@@ -103,7 +103,7 @@ invalid_symbols = ['AJXA', 'APGB', 'AQNA', 'ARGO', 'BBLN', 'BCPA', 'BCPB', 'BFX'
                    'CTOS', 'RDDT', 'AUNA', 'DXYZ', 'SOLV', 'BEPJ', 'GCTS', 'GEV', 'MGRE', 'WNS', 'PACS', 'ULS', 'CTRI', 'IBTA',
                    'MFAO', 'LOAR', 'RBRK', 'VIK', 'ZK', 'MITP', 'KBDC', 'BOW', 'CIMN', 'BIPJ', 'SPMC', 'RWTO', 'TBN', 'LB', 'SW',
                    'ARDT', 'PDCC', 'CON', 'AOMN', 'SMC', 'CIMO', 'AAM', 'AMTM', 'BKV', 'CURB', 'GRDN', 'EQV', 'FVR', 'SARO', 'CBNA',
-                   'SBXD', 'CICB', 'KLC']
+                   'SBXD', 'CICB', 'KLC', 'NXT', 'NXT(EXP20091224)']
 MONGO_CLIENT = None
 
 
@@ -127,12 +127,23 @@ class ReportSingleton:
     """
     _instance = None
 
-    def __new__(cls):
+    def __new__(cls, *args, **kwargs):
+        # If we haven't created an instance yet, create one
         if cls._instance is None:
-            # pylint: disable=consider-using-with
-            cls._instance = open(
-                'report.txt', 'w', encoding='utf-8')
+            cls._instance = super().__new__(cls)
+            # Open the file only once
+            cls._instance.__init__()
         return cls._instance
+
+    def __init__(self):
+        if not hasattr(self, '_initialized'):  # Prevent reinitialization
+            self._file = None
+            self._initialize_file()
+            self._initialized = True
+
+    def _initialize_file(self):
+        #pylint: disable=consider-using-with
+        self._file = open("/workspaces/BlueHorseshoe/src/logs/report.txt", "w", encoding="utf-8")
 
     def write(self, new_line):
         """
@@ -141,9 +152,12 @@ class ReportSingleton:
         Args:
             new_line (str): The line to be written to the instance.
         """
-        if self._instance is not None:
-            self._instance.write(new_line + '\n')
-            self._instance.flush()
+        if self._file is not None:
+            write_string = new_line
+            if not isinstance(new_line, str):
+                write_string = json.dumps(new_line, indent=4)
+            self._file.write(write_string + '\n')
+            self._file.flush()
         else:
             logging.error("Attempted to write to a closed report file.")
 
@@ -155,12 +169,14 @@ class ReportSingleton:
         instance variable to None to ensure that the object is properly disposed of 
         and no longer referenced.
         """
-        if self._instance is not None:
-            self._instance.close()
-            self._instance = None
+        if self._file is not None:
+            self._file.close()
+            self._file = None
+        else:
+            logging.error("Attempted to close a closed report file.")
 
 
-def get_mongo_client(uri="mongodb://localhost:27017/", db_name="blueHorseshoe"):
+def get_mongo_client(uri="", db_name="blueHorseshoe"):
     """
     Creates and returns a MongoDB client connected to the specified URI and database.
 
@@ -175,8 +191,11 @@ def get_mongo_client(uri="mongodb://localhost:27017/", db_name="blueHorseshoe"):
     global MONGO_CLIENT
     if MONGO_CLIENT is None:
         try:
-            MONGO_CLIENT = MongoClient(
-                uri, connectTimeoutMS=2000, serverSelectionTimeoutMS=2000)
+            if uri == "":
+                uri = os.getenv("MONGO_URI", "mongodb://mongo:27017")
+            MONGO_CLIENT = pymongo.MongoClient(uri)
+            # MONGO_CLIENT = MongoClient(
+            #     uri, connectTimeoutMS=2000, serverSelectionTimeoutMS=2000)
             server_info = MONGO_CLIENT.server_info()
             logging.info("Connected to MongoDB server version %s",
                          server_info['version'])
@@ -296,7 +315,7 @@ def graph(graph_data: GraphData):
         plt.gca().xaxis.set_major_locator(MultipleLocator(20))
         plt.grid(which='both', linestyle='--', linewidth=0.5)
         current_time_ms = int(datetime.now().timestamp() * 1000)
-        plt.savefig(f'graphs/{graph_data.title}_{current_time_ms}.png')
+        plt.savefig(f'/workspaces/BlueHorseshoe/src/graphs/{graph_data.title}_{current_time_ms}.png')
         # plt.show()
         plt.clf()
     except (ValueError, TypeError, KeyError) as e:
@@ -334,7 +353,7 @@ def get_symbol_list_from_net():
     final_data = []
     for row in loaded_data:
         if (row['status'] == 'Active' and
-            row['exchange'] == 'NYSE' and
+            (row['exchange'] == 'NYSE' or row['exchange'] == 'NASDAQ') and
             row['assetType'] == 'Stock' and
                 '-' not in row['symbol']):
             final_data.append({
@@ -373,7 +392,7 @@ def get_symbol_list_from_file():
     except (OSError, IOError) as e:
         logging.error("An error occurred while reading the file: %s", e)
 
-    print(f"Error: Could not open file {file_path}. Please check the logs.")
+    ReportSingleton().write(f"Error: Could not open file {file_path}. Please check the logs.")
     return None
 
 
@@ -416,6 +435,7 @@ def get_symbol_list():
             logging.error(
                 "An error occurred while writing the symbol list to file: %s", e)
 
+    ReportSingleton().write(f"Symbol list loaded. Length: {len(symbol_list)}")
     return [symbol for symbol in symbol_list if symbol['symbol'] not in invalid_symbols]
 
 

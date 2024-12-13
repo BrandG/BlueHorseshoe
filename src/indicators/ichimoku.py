@@ -42,7 +42,8 @@ class Ichimoku:
         self._data = data
         self._ichimoku_df = pd.DataFrame()
 
-    def get_results(self, show = False):
+    @property
+    def value(self):
         """
         Args:
             show (bool): If True, the function will call `graph_this` to plot the Ichimoku Cloud.
@@ -89,14 +90,12 @@ class Ichimoku:
         # Add 26 entries to the front of the data['close'] dataframe
         data['close'] = pd.concat([pd.Series([np.nan]*13), data['close']]).reset_index(drop=True)
 
-        if show:
-            self.graph_this()
         return {'buy': bool(senkou_span_a.iloc[-1] > senkou_span_b.iloc[-1]),
                 'sell': bool(senkou_span_a.iloc[-1] < senkou_span_b.iloc[-1]),
                 'strength': float(abs(senkou_span_a.iloc[-1] - senkou_span_b.iloc[-1]).round(2))}
 
     # pylint: disable=unused-variable
-    def graph_this(self):
+    def graph(self):
         """
         Generates and saves a plot of the Ichimoku indicator along with the closing prices.
 
