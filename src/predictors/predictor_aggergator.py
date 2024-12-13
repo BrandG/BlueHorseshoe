@@ -33,15 +33,6 @@ class PredictorAggregator:
     """
     _data = {}
 
-    def __init__(self, data):
-        """
-        Initializes the predictor aggregator with the given data.
-
-        Args:
-            data (any): The data to initialize the predictor aggregator with.
-        """
-        self.update(data)
-
     def update(self, data):
         """
         Updates the internal data with the provided data.
@@ -50,6 +41,15 @@ class PredictorAggregator:
             data: The new data to update.
         """
         self._data = data
+
+    def __init__(self, data):
+        """
+        Initializes the predictor aggregator with the given data.
+
+        Args:
+            data (any): The data to initialize the predictor aggregator with.
+        """
+        self.update(data)
 
     def aggregate(self, data = None):
         """
