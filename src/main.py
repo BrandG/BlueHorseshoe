@@ -40,6 +40,7 @@ import sys
 import time
 import warnings
 import os
+import random
 import pandas as pd
 
 from sklearn.exceptions import ConvergenceWarning
@@ -49,7 +50,6 @@ from historical_data import build_all_symbols_history, load_historical_data
 from indicators.ichimoku import Ichimoku
 from indicators.indicator_aggregator import IndicatorAggregator
 from predictors.predictor_aggergator import PredictorAggregator
-import random
 
 
 def debug_test():
@@ -98,6 +98,12 @@ def debug_test():
         ReportSingleton().write(f'{(index*100/len(random_symbols)):.2f}%. {symbol} - Buy: {ichi_results["buy"]} - Sell: {ichi_results["sell"]}')
 
 def predict_temp():
+    """
+    Temporary Prediction function
+
+    Returns:
+        None
+    """
     symbols = get_symbol_name_list()
     results = {'buy': 0, 'sell': 0, 'hold': 0, 'volatility': 0, 'direction': 0}
     candidates = []
