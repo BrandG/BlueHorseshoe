@@ -16,9 +16,11 @@ Usage example:
     ichimoku = Ichimoku(data)
     results = ichimoku.get_results(show=True)
 """
+from datetime import datetime
 from matplotlib import pyplot as plt
 import numpy as np
 import pandas as pd
+
 
 class Ichimoku:
     """
@@ -73,26 +75,74 @@ class Ichimoku:
         """
 
         data=self._data
-        high_9 = data['high'].rolling(window=9).max()
-        low_9 = data['low'].rolling(window=9).min()
-        tenkan_sen = (high_9 + low_9) / 2
+        bad_data = False
 
-        high_26 = data['high'].rolling(window=26).max()
-        low_26 = data['low'].rolling(window=26).min()
-        kijun_sen = (high_26 + low_26) / 2
+        bad_data = len(data['close'].to_list()) > 2
+        self._ichimoku_df['tenkan_sen'] = (data['high'].rolling(window=9).max() + \
+                                           data['low'].rolling(window=9).min()) / 2
+        bad_data = len(self._ichimoku_df['tenkan_sen'].to_list()) > 2
 
-        senkou_span_a = (tenkan_sen + kijun_sen) / 2
+        self._ichimoku_df['kijun_sen'] = (data['high'].rolling(window=26).max() + \
+                                          data['low'].rolling(window=26).min()) / 2
+        bad_data = len(self._ichimoku_df['kijun_sen'].to_list()) > 2
 
-        high_52 = data['high'].rolling(window=52).max()
-        low_52 = data['low'].rolling(window=52).min()
-        senkou_span_b = (high_52 + low_52) / 2
+        self._ichimoku_df['senkou_span_a'] = ((self._ichimoku_df['tenkan_sen'] + self._ichimoku_df['kijun_sen']) / 2).shift(26)
+        bad_data = len(self._ichimoku_df['senkou_span_a'].to_list()) > 2
 
-        # Add 26 entries to the front of the data['close'] dataframe
-        data['close'] = pd.concat([pd.Series([np.nan]*13), data['close']]).reset_index(drop=True)
+        self._ichimoku_df['senkou_span_b'] = ((data['high'].rolling(window=52).max() + \
+                                               data['low'].rolling(window=52).min()) / 2).shift(26)
+        bad_data = len(self._ichimoku_df['senkou_span_b'].to_list()) > 2
 
-        return {'buy': bool(senkou_span_a.iloc[-1] > senkou_span_b.iloc[-1]),
-                'sell': bool(senkou_span_a.iloc[-1] < senkou_span_b.iloc[-1]),
-                'strength': float(abs(senkou_span_a.iloc[-1] - senkou_span_b.iloc[-1]).round(2))}
+        # pad the front of the data['close'] dataframe with NaNs to align with the Ichimoku data
+        data['close'] = pd.concat([pd.Series([np.nan]*52), data['close']]).reset_index(drop=True)
+        self._ichimoku_df['chikou_span'] = data['close'].shift(-26)
+        bad_data = len(self._ichimoku_df['chikou_span'].to_list()) > 2
+
+        if bad_data:
+            return {'buy': 0, 'sell': 0}
+
+        buy = sell = 0
+        last_price = data['close'].iloc[-1]
+        last_baseline = self._ichimoku_df['kijun_sen'].iloc[-1]
+        last_conversion = self._ichimoku_df['tenkan_sen'].iloc[-1]
+        last_senkou_span_a = self._ichimoku_df['senkou_span_a'].iloc[-1]
+        last_senkou_span_b = self._ichimoku_df['senkou_span_b'].iloc[-1]
+        last_lagging_span = self._ichimoku_df['chikou_span'].iloc[-1]
+        kumo_top = max(last_senkou_span_a, last_senkou_span_b)
+        kumo_bottom = min(last_senkou_span_a, last_senkou_span_b)
+
+        lagging_crosses_price_up = self._ichimoku_df['chikou_span'].iloc[-2] < data['close'].iloc[-2] and \
+                                last_lagging_span > last_price
+        lagging_crosses_price_down = self._ichimoku_df['chikou_span'].iloc[-2] > data['close'].iloc[-2] and \
+                                last_lagging_span < last_price
+
+        buy += 1 if last_price > kumo_top else 0 + \
+            2 if (last_price > kumo_top) and lagging_crosses_price_up else 0 + \
+            1 if last_price > last_conversion else 0 + \
+            1 if last_price > last_baseline else 0 + \
+            1 if last_conversion > kumo_top and last_baseline > kumo_top else 0 + \
+            1 if last_senkou_span_a > last_senkou_span_b else 0 + \
+            1 if last_conversion > last_baseline > kumo_top else 0 + \
+            1 if last_lagging_span > kumo_top else 0 + \
+            1 if last_lagging_span > last_price else 0 + \
+            1 if last_lagging_span > last_baseline else 0
+
+        # # I don't know how to use this yet.
+        # strength = abs(last_senkou_span_a - last_senkou_span_b)
+        # strength = last_price - last_conversion
+
+        sell += 1 if last_price < kumo_bottom else 0 + \
+            2 if (last_price < kumo_bottom) and lagging_crosses_price_down else 0 + \
+            1 if last_price < last_conversion else 0 + \
+            1 if last_price < last_baseline else 0 + \
+            1 if last_conversion < kumo_bottom and last_baseline < kumo_bottom else 0 + \
+            1 if last_senkou_span_a < last_senkou_span_b else 0 + \
+            1 if last_conversion < last_baseline < kumo_bottom else 0 + \
+            1 if last_lagging_span < kumo_bottom else 0 + \
+            1 if last_lagging_span < last_price else 0 + \
+            1 if last_lagging_span < last_baseline else 0
+
+        return {'buy': buy, 'sell': sell}
 
     # pylint: disable=unused-variable
     def graph(self):
@@ -112,9 +162,12 @@ class Ichimoku:
         data=self._data
 
         plt.figure(figsize=(14, 7))
-        plt.plot(data.index, data['close'], label='Close')
-        plt.plot(self._ichimoku_df.index, self._ichimoku_df['senkou_span_a'], label='Senkou Span A')
-        plt.plot(self._ichimoku_df.index, self._ichimoku_df['senkou_span_b'], label='Senkou Span B')
+        plt.plot(self._data['close'].index, data['close'], label='Price')
+        plt.plot(self._ichimoku_df.index, self._ichimoku_df['tenkan_sen'], label='tenkan_sen (Conversion)', color='orange')
+        plt.plot(self._ichimoku_df.index, self._ichimoku_df['kijun_sen'], label='kijun_sen (Base Line)', color='gray')
+        plt.plot(self._ichimoku_df.index, self._ichimoku_df['chikou_span'], label='chikou_span (Lagging Span)', color='purple')
+        plt.plot(self._ichimoku_df.index, self._ichimoku_df['senkou_span_a'], label='Senkou Span A', color='blue')
+        plt.plot(self._ichimoku_df.index, self._ichimoku_df['senkou_span_b'], label='Senkou Span B', color='red')
         plt.fill_between(
             self._ichimoku_df.index,
             self._ichimoku_df['senkou_span_a'],
@@ -128,4 +181,5 @@ class Ichimoku:
             where=(self._ichimoku_df['senkou_span_a'] < self._ichimoku_df['senkou_span_b']).tolist(),
             color='lightcoral', alpha=0.5)
         plt.legend()
-        plt.savefig('graphs/Ichimoku.png')
+        current_time_ms = int(datetime.now().timestamp() * 1000)
+        plt.savefig(f'/workspaces/BlueHorseshoe/src/graphs/Ichimoku_{current_time_ms}.png')

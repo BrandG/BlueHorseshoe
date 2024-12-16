@@ -40,12 +40,14 @@ import sys
 import time
 import warnings
 import os
+import random
 import pandas as pd
 
 from sklearn.exceptions import ConvergenceWarning
 
 from globals import ReportSingleton, get_mongo_client, get_symbol_name_list
 from historical_data import build_all_symbols_history, load_historical_data
+from indicators.ichimoku import Ichimoku
 from indicators.indicator_aggregator import IndicatorAggregator
 from predictors.predictor_aggergator import PredictorAggregator
 
@@ -70,6 +72,38 @@ def debug_test():
         None
     """
 
+    symbols = get_symbol_name_list()
+    random_symbols = random.sample(symbols, 10)
+    for index, symbol in enumerate(random_symbols):
+        price_data = load_historical_data(symbol)
+        if price_data is None:
+            ReportSingleton().write(
+                f"Failed to load historical data for {symbol}.")
+            return
+
+        price_data = price_data['days'][:240]
+        clipped_price_data = price_data[::-1]
+
+        data = pd.DataFrame([{
+            'open': val['open'],
+            'high': val['high'],
+            'low': val['low'],
+            'close': val['close'],
+            'volume': val['volume'],
+            'date': val['date']}
+            for val in clipped_price_data])
+        ichi = Ichimoku(data)
+        ichi_results = ichi.value
+        ichi.graph()
+        ReportSingleton().write(f'{(index*100/len(random_symbols)):.2f}%. {symbol} - Buy: {ichi_results["buy"]} - Sell: {ichi_results["sell"]}')
+
+def predict_temp():
+    """
+    Temporary Prediction function
+
+    Returns:
+        None
+    """
     symbols = get_symbol_name_list()
     results = {'buy': 0, 'sell': 0, 'hold': 0, 'volatility': 0, 'direction': 0}
     candidates = []
@@ -102,7 +136,6 @@ def debug_test():
     sorted_candidates = sorted(candidates, key=lambda x: ( -x['results']['buy'], -x['results']['direction'], -x['results']['volatility']))
     for candidate in sorted_candidates[:10]:
         ReportSingleton().write(f"Candidate Symbol: {candidate['symbol']}")
-
 
 if __name__ == "__main__":
     ReportSingleton().write(f'Starting BlueHorseshoe at {time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())}...')
@@ -144,7 +177,7 @@ if __name__ == "__main__":
         build_all_symbols_history(recent=False)
         ReportSingleton().write("Full historical data updated.")
     elif "-p" in sys.argv:
-        # To Do - Implement prediction
+        predict_temp()
         ReportSingleton().write('Predicting next midpoints...')
     elif "-d" in sys.argv:
         ReportSingleton().write("Debugging...")

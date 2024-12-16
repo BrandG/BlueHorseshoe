@@ -188,7 +188,6 @@ def build_all_symbols_history(starting_at='', save_to_file=False, recent=False):
     for row in symbol_list:
         index += 1
         percentage = round(index/len(symbol_list)*100)
-        ReportSingleton().write(f'{index} - {row["symbol"]} ({percentage}%)')
 
         if skip:
             if row['symbol'] == starting_at:
@@ -207,6 +206,7 @@ def build_all_symbols_history(starting_at='', save_to_file=False, recent=False):
                 continue
             net_data['full_name'] = name
 
+            ReportSingleton().write(f'{index} - {row["symbol"]} ({percentage}%) - size: {len(net_data["days"])}')
             save_historical_data_to_mongo(symbol, net_data, get_mongo_client())
 
             if save_to_file:
