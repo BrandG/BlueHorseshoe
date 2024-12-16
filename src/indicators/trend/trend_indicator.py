@@ -21,26 +21,26 @@ class TrendIndicators:
 
     def update(self, data):
         self._data = data
+        self._emas = EMACrossover(self._data).value
+        self._ichimoku = Ichimoku(self._data).value
+        self._cci = CCITrend(self._data).value
+        self._adx = AverageDirectionalIndex(self._data).value
 
-    def calculate(self):
-        emas = EMACrossover(self._data).value # returns buy and sell
-        ichimoku = Ichimoku(self._data).value # returns buy, sell, and strength
-        cci = CCITrend(self._data).value # returns buy, and sell
-        adx = AverageDirectionalIndex(self._data).value # returns up, down, and strength
-
-        buy = (1 if emas['buy'] else 0) * self.emaBuyMultiplier + \
-             (1 if ichimoku['buy'] else 0) * self.ichimokuBuyMultiplier + \
-            (1 if cci['buy'] else 0) * self.cciBuyMultiplier
+    @property
+    def value(self):
+        buy = (1 if self._emas['buy'] else 0) * self.emaBuyMultiplier + \
+             (1 if self._ichimoku['buy'] else 0) * self.ichimokuBuyMultiplier + \
+            (1 if self._cci['buy'] else 0) * self.cciBuyMultiplier
         
-        sell = (1 if emas['sell'] else 0) * self.emaSellMultiplier + \
-             (1 if ichimoku['sell'] else 0) * self.ichimokuSellMultiplier + \
-            (1 if cci['sell'] else 0) * self.cciSellMultiplier
+        sell = (1 if self._emas['sell'] else 0) * self.emaSellMultiplier + \
+             (1 if self._ichimoku['sell'] else 0) * self.ichimokuSellMultiplier + \
+            (1 if self._cci['sell'] else 0) * self.cciSellMultiplier
         
-        up = (1 if adx['up'] else 0) * self.adxUpMultiplier
+        up = (1 if self._adx['up'] else 0) * self.adxUpMultiplier
 
-        down = (1 if adx['down'] else 0) * self.adxDownMultiplier
+        down = (1 if self._adx['down'] else 0) * self.adxDownMultiplier
 
-        strength = ichimoku['strength'] + adx['strength']
+        strength = self._ichimoku['strength'] + self._adx['strength']
         
         return { 'buy': buy, 'sell': sell, 'up': up, 'down': down, 'strength': strength }
 

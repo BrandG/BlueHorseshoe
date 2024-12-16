@@ -10,9 +10,10 @@ Classes:
 """
 import talib as ta
 from globals import ReportSingleton
+from indicators.indicator import Indicator
 
 
-class StochasticOscillator:
+class StochasticOscillator(Indicator):
     """
     A class to represent the Stochastic Oscillator indicator.
 

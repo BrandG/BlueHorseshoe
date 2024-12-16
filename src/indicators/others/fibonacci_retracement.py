@@ -9,8 +9,9 @@ import pandas as pd
 import talib as ta
 
 from globals import GraphData, graph
+from indicators.indicator import Indicator
 
-class FibonacciRetracement:
+class FibonacciRetracement(Indicator):
     """
     A class to calculate and plot Fibonacci retracement levels for a given price data.
 
@@ -105,14 +106,9 @@ class FibonacciRetracement:
         return {'buy':buy, 'sell':sell,'swing_high': self._fib['swing_high'], 'swing_low': self._fib['swing_low'],
                 'fib_levels': prices, 'retracement': True in self._retracement, 'price': self._data['close'].iloc[-1]}
 
-    def graph(self, fib):
+    def graph(self):
         """
         Plots a graph of the Fibonacci Retracement levels along with the price data.
-
-        Args:
-            fib (dict): A dictionary containing the Fibonacci retracement levels with keys 
-                        'swing_high', 'swing_low', '0%', '23%', '38%', '50%', '61%', '78%', and '100%'.
-                        Each key corresponds to a specific retracement level value.
 
         Returns:
             None
@@ -123,14 +119,14 @@ class FibonacciRetracement:
             title='Fibonacci Retracement',
             x_values=x_values,
             curves=[{'curve': self._data['close'][-20:],'label': 'Price', 'color': 'black'}],
-                lines=[{'y': fib['swing_high'],'label': 'Swing High', 'color': 'blue'},
-                       {'y': fib['swing_low'],'label': 'Swing Low', 'color': 'blue'},
-                    {'y': fib['0%'],'label': '0%', 'color': '#00FF00'},
-                    {'y': fib['23%'],'label': '23%', 'color': '#66FF00'},
-                    {'y': fib['38%'],'label': '38%', 'color': '#CCFF00'},
-                    {'y': fib['50%'],'label': '50%', 'color': '#FFCC00'},
-                    {'y': fib['61%'],'label': '61%', 'color': '#FF6600'},
-                    {'y': fib['78%'],'label': '78%', 'color': '#FF3300'},
-                    {'y': fib['100%'],'label': '100%', 'color': '#FF0000'}
+                lines=[{'y': self._fib['swing_high'],'label': 'Swing High', 'color': 'blue'},
+                       {'y': self._fib['swing_low'],'label': 'Swing Low', 'color': 'blue'},
+                    {'y': self._fib['0%'],'label': '0%', 'color': '#00FF00'},
+                    {'y': self._fib['23%'],'label': '23%', 'color': '#66FF00'},
+                    {'y': self._fib['38%'],'label': '38%', 'color': '#CCFF00'},
+                    {'y': self._fib['50%'],'label': '50%', 'color': '#FFCC00'},
+                    {'y': self._fib['61%'],'label': '61%', 'color': '#FF6600'},
+                    {'y': self._fib['78%'],'label': '78%', 'color': '#FF3300'},
+                    {'y': self._fib['100%'],'label': '100%', 'color': '#FF0000'}
                     ]
                     ))
