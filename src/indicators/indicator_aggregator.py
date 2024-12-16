@@ -9,21 +9,22 @@ Classes:
         sell, hold signals, volatility, direction, strength, and retracement.
 
 """
-from indicators.average_directional_index import AverageDirectionalIndex
-from indicators.average_true_range import AverageTrueRange
-from indicators.bollinger_bands import BollingerBands
-from indicators.commodity_channel_index import CCITrend
-from indicators.ema_crossover import EMACrossover
-from indicators.fibonacci_retracement import FibonacciRetracement
-from indicators.ichimoku import Ichimoku
-from indicators.macd import MACD
-from indicators.money_flow_index import MoneyFlowIndex
-from indicators.on_balance_volume import OnBalanceVolume
-from indicators.pivot_points import PivotPoints
-from indicators.relative_strength_index import RelativeStrengthIndex
-from indicators.standard_deviation import StandardDeviation
-from indicators.stochastic_oscillator import StochasticOscillator
-from indicators.volume_weighted_average_price import VolumeWeightedAveragePrice
+from indicators.trend.average_directional_index import AverageDirectionalIndex
+from indicators.trend.trend_indicator import TrendIndicators
+from indicators.volatility.average_true_range import AverageTrueRange
+from indicators.volatility.bollinger_bands import BollingerBands
+from indicators.trend.commodity_channel_index import CCITrend
+from indicators.trend.ema_crossover import EMACrossover
+from indicators.others.fibonacci_retracement import FibonacciRetracement
+from indicators.trend.ichimoku import Ichimoku
+from indicators.momentum.macd import MACD
+from indicators.volume.money_flow_index import MoneyFlowIndex
+from indicators.volume.on_balance_volume import OnBalanceVolume
+from indicators.others.pivot_points import PivotPoints
+from indicators.momentum.relative_strength_index import RelativeStrengthIndex
+from indicators.volatility.standard_deviation import StandardDeviation
+from indicators.momentum.stochastic_oscillator import StochasticOscillator
+from indicators.volume.volume_weighted_average_price import VolumeWeightedAveragePrice
 
 
 class IndicatorAggregator:
@@ -92,28 +93,26 @@ class IndicatorAggregator:
         results['stdev'] = StandardDeviation(self._data).value
         results['ADX'] = AverageDirectionalIndex(self._data).value
 
-        results['buy'] = (1 if results['mfi']['buy'] else 0) + \
+        trend_indicator = TrendIndicators(self._data).calculate()
+
+        results['buy'] = trend_indicator['buy']
+        results['buy'] += (1 if results['mfi']['buy'] else 0) + \
             (1 if results['rsi']['buy'] else 0) + \
             (1 if results['stochastic_oscillator']['buy'] else 0) + \
             (1 if results['macd']['buy'] else 0) + \
             (1 if results['atr']['buy'] else 0) + \
             (1 if results['bb']['buy'] else 0) + \
-            (1 if results['emas']['buy'] else 0) + \
-            (1 if results['ichimoku']['buy'] else 0) + \
             (1 if results['PP']['buy'] else 0) + \
-            (1 if results['cci']['buy'] else 0) + \
             (1 if results['fib']['buy'] else 0)
 
-        results['sell'] = (1 if results['mfi']['sell'] else 0) + \
+        results['sell'] = trend_indicator['sell']
+        results['sell'] += (1 if results['mfi']['sell'] else 0) + \
             (1 if results['rsi']['sell'] else 0) + \
             (1 if results['stochastic_oscillator']['sell'] else 0) + \
             (1 if results['macd']['sell'] else 0) + \
             (1 if results['atr']['sell'] else 0) + \
             (1 if results['bb']['sell'] else 0) + \
-            (1 if results['emas']['sell'] else 0) + \
-            (1 if results['ichimoku']['sell'] else 0) + \
             (1 if results['PP']['sell'] else 0) + \
-            (1 if results['cci']['sell'] else 0) + \
             (1 if results['fib']['sell'] else 0)
 
         results['hold'] = (1 if results['stochastic_oscillator']['hold'] else 0)

@@ -47,7 +47,7 @@ from sklearn.exceptions import ConvergenceWarning
 
 from globals import ReportSingleton, get_mongo_client, get_symbol_name_list
 from historical_data import build_all_symbols_history, load_historical_data
-from indicators.ichimoku import Ichimoku
+from indicators.trend.ichimoku import Ichimoku
 from indicators.indicator_aggregator import IndicatorAggregator
 from predictors.predictor_aggergator import PredictorAggregator
 

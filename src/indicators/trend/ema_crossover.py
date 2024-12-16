@@ -21,8 +21,9 @@ import talib as ta
 import pandas as pd
 
 from globals import GraphData, graph
+from indicators.indicator import Indicator
 
-class EMACrossover:
+class EMACrossover(Indicator):
     """
     A class to represent an Exponential Moving Average (EMA) crossover indicator.
 

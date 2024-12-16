@@ -1,3 +1,165 @@
+2024-12-16
+
+The Ichimoku code seems to work. At least, it gave me an Indicator that looks promising. Of course, I say that at 8:45, before it has even started trading. (shrug)
+
+I've started working on the TA-Lib functions now. Here's a list of ones that I think will work. (Note: There's 14 indicators in this list, which should just about double the number of indicators involved. We're going to need to start weighting these soon.)
+
+APO(real, fastperiod=-2147483648, slowperiod=-2147483648, matype=0)
+    APO(real[, fastperiod=?, slowperiod=?, matype=?])
+    
+    Absolute Price Oscillator (Momentum Indicators)
+	when the APO crosses above zero, it suggests that the price is gaining bullish momentum and sending a buy signal.
+    
+    Inputs:
+        real: (any ndarray)
+    Parameters:
+        fastperiod: 12
+        slowperiod: 26
+        matype: 0 (Simple Moving Average)
+    Outputs:
+        real
+AROON(high, low, timeperiod=-2147483648)
+    AROON(high, low[, timeperiod=?])
+    
+    Aroon (Momentum Indicators)
+	Price behavior is bullish when the AroonUp is above the AroonDown line and is bearish when the AroonDown is above the AroonUp line while.
+	A crossover of the AroonUp and AroonDown lines can signal trend changes.
+	The indicator moves between zero and 100—a reading above 50 indicates a high/low within the last 12 periods and one below 50 means the high/low was seen within the 13 periods.
+
+    Inputs:
+        prices: ['high', 'low']
+    Parameters:
+        timeperiod: 14
+    Outputs:
+        aroondown
+        aroonup
+AROONOSC(high, low, timeperiod=-2147483648)
+    AROONOSC(high, low[, timeperiod=?])
+	AroonOsc gives a value between 100 and -100, where 100 is bullish and -100 is bearish
+    
+    Aroon Oscillator (Momentum Indicators)
+    
+    Inputs:
+        prices: ['high', 'low']
+    Parameters:
+        timeperiod: 14
+    Outputs:
+        real
+BOP(open, high, low, close)
+    BOP(open, high, low, close)
+    
+    Balance Of Power (Momentum Indicators)
+	Bullish Zero-Line Crossover
+	This scan reveals stocks where the Balance of Power indicator crosses above zero, which is a bullish sign. This scan is just a starting point. Further refinement and analysis are required.
+	AND [Daily SMA(20,Daily Volume) > 40000] 
+	AND [Daily SMA(60,Daily Close) > 20] 
+	AND [BOP(14) x 0]
+
+	Bearish Zero-Line Crossover
+	This scan reveals stocks where the Balance of Power indicator crosses below zero, which is a bearish sign.
+
+	AND [Daily SMA(20,Daily Volume) > 40000] 
+	AND [Daily SMA(60,Daily Close) > 20] 
+	AND [0 x BOP(14)]
+    
+    Inputs:
+        prices: ['open', 'high', 'low', 'close']
+    Outputs:
+        real
+
+CMO(real, timeperiod=-2147483648)
+    CMO(real[, timeperiod=?])
+    
+    Chande Momentum Oscillator (Momentum Indicators)
+    
+    Inputs:
+        real: (any ndarray)
+    Parameters:
+        timeperiod: 14
+    Outputs:
+        real
+		
+DX(high, low, close, timeperiod=-2147483648)
+    DX(high, low, close[, timeperiod=?])
+    
+    Directional Movement Index (Momentum Indicators)
+    
+    Inputs:
+        prices: ['high', 'low', 'close']
+    Parameters:
+        timeperiod: 14
+    Outputs:
+        real
+		
+
+		'ROC', 'ROCP', 'ROCR', 'ROCR100' - A rising ROC above zero typically confirms an uptrend while a falling ROC below zero indicates a downtrend.
+		TRIX - When TRIX(15) crosses over EMA(Trix(15),9), trend is bullish. When it crosses under, trend is bearish.
+		ULTOSC - The Ultimate Oscillator is a range-bound indicator with a value that fluctuates between 0 and 100. Levels below 30 are deemed to be oversold and levels above 70 are deemed to be overbought, 
+		WILLR - Williams %R moves between zero and -100. A reading above -20 is overbought. A reading below -80 is oversold.
+
+	DEMA(real, timeperiod=-2147483648)
+		DEMA(real[, timeperiod=?])
+		
+		Double Exponential Moving Average (Overlap Studies)
+		
+		Inputs:
+			real: (any ndarray)
+		Parameters:
+			timeperiod: 30
+		Outputs:
+			real
+
+	KAMA(real, timeperiod=-2147483648)
+    KAMA(real[, timeperiod=?])
+    
+    Kaufman Adaptive Moving Average (Overlap Studies)
+	When price is greater than KAMA and Kama is heading upward, buy.
+	When price is less than KAMA and kama is heading downward, sell.
+    
+    Inputs:
+        real: (any ndarray)
+    Parameters:
+        timeperiod: 30
+    Outputs:
+        real
+
+
+SAR(high, low, acceleration=0.02, maximum=0.2)
+    SAR(high, low[, acceleration=?, maximum=?])
+    
+    Parabolic SAR (Overlap Studies)
+		a buy signal occurs when the dots move from above the price to below the price, while a sell signal occurs when the dots move from below the price to above the price.
+		Traders also use the PSAR dots to set trailing stop loss orders. For example, if the price is rising, and the PSAR is also rising, the PSAR can be used as a possible exit if long. If the price drops below the PSAR, exit the long trade.
+    
+    Inputs:
+        prices: ['high', 'low']
+    Parameters:
+        acceleration: 0.02
+        maximum: 0.2
+    Outputs:
+        real
+		
+T3(real, timeperiod=-2147483648, vfactor=-4e+37)
+    T3(real[, timeperiod=?, vfactor=?])
+    
+    Triple Exponential Moving Average (T3) (Overlap Studies)
+	Generally, when the price is above the TEMA it helps confirm the price is rising for that lookback period. When the price is below the TEMA, it helps confirm the price is falling for that lookback period.
+    
+    Inputs:
+        real: (any ndarray)
+    Parameters:
+        timeperiod: 5
+        vfactor: 0.7
+    Outputs:
+        real
+
+These are the ones I haven't looked into:
+Pattern Recognition: ['CDL2CROWS', 'CDL3BLACKCROWS', 'CDL3INSIDE', 'CDL3LINESTRIKE', 'CDL3OUTSIDE', 'CDL3STARSINSOUTH', 'CDL3WHITESOLDIERS', 'CDLABANDONEDBABY', 'CDLADVANCEBLOCK', 'CDLBELTHOLD', 'CDLBREAKAWAY', 'CDLCLOSINGMARUBOZU', 'CDLCONCEALBABYSWALL', 'CDLCOUNTERATTACK', 'CDLDARKCLOUDCOVER', 'CDLDOJI', 'CDLDOJISTAR', 'CDLDRAGONFLYDOJI', 'CDLENGULFING', 'CDLEVENINGDOJISTAR', 'CDLEVENINGSTAR', 'CDLGAPSIDESIDEWHITE', 'CDLGRAVESTONEDOJI', 'CDLHAMMER', 'CDLHANGINGMAN', 'CDLHARAMI', 'CDLHARAMICROSS', 'CDLHIGHWAVE', 'CDLHIKKAKE', 'CDLHIKKAKEMOD', 'CDLHOMINGPIGEON', 'CDLIDENTICAL3CROWS', 'CDLINNECK', 'CDLINVERTEDHAMMER', 'CDLKICKING', 'CDLKICKINGBYLENGTH', 'CDLLADDERBOTTOM', 'CDLLONGLEGGEDDOJI', 'CDLLONGLINE', 'CDLMARUBOZU', 'CDLMATCHINGLOW', 'CDLMATHOLD', 'CDLMORNINGDOJISTAR', 'CDLMORNINGSTAR', 'CDLONNECK', 'CDLPIERCING', 'CDLRICKSHAWMAN', 'CDLRISEFALL3METHODS', 'CDLSEPARATINGLINES', 'CDLSHOOTINGSTAR', 'CDLSHORTLINE', 'CDLSPINNINGTOP', 'CDLSTALLEDPATTERN', 'CDLSTICKSANDWICH', 'CDLTAKURI', 'CDLTASUKIGAP', 'CDLTHRUSTING', 'CDLTRISTAR', 'CDLUNIQUE3RIVER', 'CDLUPSIDEGAP2CROWS', 'CDLXSIDEGAP3METHODS']
+Price Transform: ['AVGPRICE', 'MEDPRICE', 'TYPPRICE', 'WCLPRICE']
+Statistic Functions: ['BETA', 'CORREL', 'LINEARREG', 'LINEARREG_ANGLE', 'LINEARREG_INTERCEPT', 'LINEARREG_SLOPE', 'STDDEV', 'TSF', 'VAR']
+Volatility Indicators: ['ATR', 'NATR', 'TRANGE']
+Volume Indicators: ['AD', 'ADOSC', 'OBV']
+
 2024-12-13
 
 I bought in yesterday with another $250 investment, and ended up selling it at the exact same price near the end of day. Fun fact, as soon as I sold, the price jumped a few more points, so I would have made money if I'd stayed. :)
