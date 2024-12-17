@@ -16,17 +16,17 @@ class MomentumIndicator():
         self.update(data)
 
     def update(self, data):
-        if data['macdBuyMultiplier']:
+        if 'macdBuyMultiplier' in data:
             self._macdBuyMultiplier = data['macdBuyMultiplier']
-        if data['macdSellMultiplier']:
+        if 'macdSellMultiplier' in data:
             self._macdSellMultiplier = data['macdSellMultiplier']
-        if data['rsiBuyMultiplier']:
+        if 'rsiBuyMultiplier' in data:
             self._rsiBuyMultiplier = data['rsiBuyMultiplier']
-        if data['rsiSellMultiplier']:
+        if 'rsiSellMultiplier' in data:
             self._rsiSellMultiplier = data['rsiSellMultiplier']
-        if data['stochBuyMultiplier']:
+        if 'stochBuyMultiplier' in data:
             self._stochBuyMultiplier = data['stochBuyMultiplier']
-        if data['stochSellMultiplier']:
+        if 'stochSellMultiplier' in data:
             self._stochSellMultiplier = data['stochSellMultiplier']
         self._data = data
 

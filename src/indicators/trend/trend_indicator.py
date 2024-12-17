@@ -11,8 +11,6 @@ class TrendIndicators:
     ichimokuSellMultiplier = 1
     cciBuyMultiplier = 1
     cciSellMultiplier = 1
-    adxBuyMultiplier = 1
-    adxSellMultiplier = 1
     adxUpMultiplier = 1
     adxDownMultiplier = 1
 
@@ -20,6 +18,22 @@ class TrendIndicators:
         self.update(data)
 
     def update(self, data):
+        if 'emaBuyMultiplier' in data:
+            self.emaBuyMultiplier = data['emaBuyMultiplier']
+        if 'emaSellMultiplier' in data:
+            self.emaSellMultiplier = data['emaSellMultiplier']
+        if 'ichimokuBuyMultiplier' in data:
+            self.ichimokuBuyMultiplier = data['ichimokuBuyMultiplier']
+        if 'ichimokuSellMultiplier' in data:
+            self.ichimokuSellMultiplier = data['ichimokuSellMultiplier']
+        if 'cciBuyMultiplier' in data:
+            self.cciBuyMultiplier = data['cciBuyMultiplier']
+        if 'cciSellMultiplier' in data:
+            self.cciSellMultiplier = data['cciSellMultiplier']
+        if 'adxUpMultiplier' in data:
+            self.adxUpMultiplier = data['adxUpMultiplier']
+        if 'adxDownMultiplier' in data:
+            self.adxDownMultiplier = data['adxDownMultiplier']
         self._data = data
         self._emas = EMACrossover(self._data).value
         self._ichimoku = Ichimoku(self._data).value
@@ -33,14 +47,12 @@ class TrendIndicators:
             (1 if self._cci['buy'] else 0) * self.cciBuyMultiplier
         
         sell = (1 if self._emas['sell'] else 0) * self.emaSellMultiplier + \
-             (1 if self._ichimoku['sell'] else 0) * self.ichimokuSellMultiplier + \
+             self._ichimoku['sell'] * self.ichimokuSellMultiplier + \
             (1 if self._cci['sell'] else 0) * self.cciSellMultiplier
         
-        up = (1 if self._adx['up'] else 0) * self.adxUpMultiplier
-
-        down = (1 if self._adx['down'] else 0) * self.adxDownMultiplier
+        direction = (1 if self._adx['direction'] == 'up' else 0) * self.adxUpMultiplier
 
         strength = self._ichimoku['strength'] + self._adx['strength']
         
-        return { 'buy': buy, 'sell': sell, 'up': up, 'down': down, 'strength': strength }
+        return { 'buy': buy, 'sell': sell, 'direction': direction, 'strength': strength }
 

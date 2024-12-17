@@ -128,12 +128,14 @@ def predict_temp():
         indicator_results = IndicatorAggregator(data).aggregate()
         predict_results = PredictorAggregator(data).aggregate()
         results = {**indicator_results, **predict_results}
+        results['buy_minus_sell'] = results['buy'] - results['sell']
 
         candidates.append({'symbol': symbol, 'results': results})
-        ReportSingleton().write(f'{(index*100/len(symbols)):.2f}%. {symbol} - Buy: {results["buy"]} - Sell: {results["sell"]} - ' \
+        ReportSingleton().write(f'{(index*100/len(symbols)):.2f}%. {symbol} - Buy/Sell: {results["buy_minus_sell"]} - Buy: {results["buy"]}'
+                                f' - Sell: {results["sell"]} - ' \
                                 f'Hold: {results["hold"]} - Volatility: {results["volatility"]} - ' \
                                 f'Direction: {results["direction"]} - Average drop: {results["drop"]}')
-    sorted_candidates = sorted(candidates, key=lambda x: ( -x['results']['buy'], -x['results']['direction'], -x['results']['volatility']))
+    sorted_candidates = sorted(candidates, key=lambda x: ( -x['results']['buy_minus_sell'], -x['results']['direction'], -x['results']['volatility']))
     for candidate in sorted_candidates[:10]:
         ReportSingleton().write(f"Candidate Symbol: {candidate['symbol']}")
 

@@ -11,14 +11,9 @@ Classes:
 """
 from indicators.momentum.momentum_indicator import MomentumIndicator
 from indicators.others.others_indicator import OtherIndicators
-from indicators.trend.average_directional_index import AverageDirectionalIndex
 from indicators.trend.trend_indicator import TrendIndicators
-from indicators.volatility.average_true_range import AverageTrueRange
-from indicators.volatility.bollinger_bands import BollingerBands
-from indicators.volume.money_flow_index import MoneyFlowIndex
-from indicators.volume.on_balance_volume import OnBalanceVolume
-from indicators.volatility.standard_deviation import StandardDeviation
-from indicators.volume.volume_weighted_average_price import VolumeWeightedAveragePrice
+from indicators.volatility.volatility_indicator import VolatilityIndicators
+from indicators.volume.volume_indicator import VolumeIndicators
 
 
 class IndicatorAggregator:
@@ -71,36 +66,34 @@ class IndicatorAggregator:
 
         results = {}
 
-        results['mfi'] = MoneyFlowIndex(self._data).value
-        results['obv'] = OnBalanceVolume(self._data).value
-        results['vwap'] = VolumeWeightedAveragePrice(self._data).value
-        results['atr'] = AverageTrueRange(self._data).value
-        results['bb'] = BollingerBands(self._data).value
-        results['stdev'] = StandardDeviation(self._data).value
-        results['ADX'] = AverageDirectionalIndex(self._data).value
-
         trend_indicator = TrendIndicators(self._data).value
         others_indicator = OtherIndicators(self._data).value
         momentum_indicator = MomentumIndicator(self._data).value
+        volatility_indicator = VolatilityIndicators(self._data).value
+        volume_indicator = VolumeIndicators(self._data).value
 
-        results['buy'] = trend_indicator['buy'] + others_indicator['buy'] + momentum_indicator['buy']
-        results['buy'] += (1 if results['mfi']['buy'] else 0) + \
-            (1 if results['atr']['buy'] else 0) + \
-            (1 if results['bb']['buy'] else 0)
+        results['buy'] = (
+            trend_indicator['buy'] +
+            others_indicator['buy'] +
+            momentum_indicator['buy'] +
+            volatility_indicator['buy'] +
+            volume_indicator['buy']
+        )
 
-        results['sell'] = trend_indicator['sell'] + others_indicator['sell'] + momentum_indicator['sell']
-        results['sell'] += (1 if results['mfi']['sell'] else 0) + \
-            (1 if results['atr']['sell'] else 0) + \
-            (1 if results['bb']['sell'] else 0)
+        results['sell'] = (
+            trend_indicator['sell'] +
+            others_indicator['sell'] +
+            momentum_indicator['sell'] +
+            volatility_indicator['sell'] +
+            volume_indicator['sell']
+        )
 
         results['hold'] = momentum_indicator['hold']
-        results['volatility'] = (1 if results['atr']['volatility'] == 'high' else 0) + \
-            (1 if results['bb']['volatility'] == 'high' else 0) + \
-            (1 if results['stdev']['volatility'] == 'high' else 0)
-        results['direction'] = (1 if results['obv']['direction'] == 'up' else 0) + \
-            (1 if results['vwap']['direction'] == 'up' else 0) + \
-            (1 if results['ADX']['direction'] == 'up' else 0)
-        results['strength'] = results['ADX']['strength']
+        results['volatility'] = volatility_indicator['volatility']
+        results['direction'] = volume_indicator['direction'] + trend_indicator['direction']
+        results['strength'] = trend_indicator['strength']
         results['retracement'] = others_indicator['retracement']
+        results['stop_loss_long'] = volatility_indicator['stop_loss_long']
+        results['stop_loss_short'] = volatility_indicator['stop_loss_short']
 
         return results

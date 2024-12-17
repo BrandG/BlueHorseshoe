@@ -13,13 +13,13 @@ class OtherIndicators():
         self.update(data)
 
     def update(self, data):
-        if data['fibBuyMultiplier']:
+        if 'fibBuyMultiplier' in data:
             self._fibBuyMultiplier = data['fibBuyMultiplier']
-        if data['fibSellMultiplier']:
+        if 'fibSellMultiplier' in data:
             self._fibSellMultiplier = data['fibSellMultiplier']
-        if data['pivotBuyMultiplier']:
+        if 'pivotBuyMultiplier' in data:
             self._pivotBuyMultiplier = data['pivotBuyMultiplier']
-        if data['pivotSellMultiplier']:
+        if 'pivotSellMultiplier' in data:
             self._pivotSellMultiplier = data['pivotSellMultiplier']
         self._data = data
         self._fib = FibonacciRetracement(self._data).value
