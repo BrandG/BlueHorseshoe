@@ -1,71 +1,456 @@
+2024-12-18
+    Well, I know it will take a while to implement all of the indicators, so I decided to ask the latest Gemini and ChatGPT which ones they would do when building a
+day-trading strategy. They both agreed that, since I only have inter-day data, I need to go with swing trading rather than day trading. So, I'll need to look that up.
+In the meantime, here are their strategy suggestions.
+
+---------------------------------------
+    Gemini 2.0
+---------------------------------------
+
+Since we're now focusing on swing trading with interday (daily) data, we need to select TA-Lib indicators that are more suited for identifying medium-term trends and potential turning points. Here's a selection of suitable indicators and why they are appropriate:
+
+**1. Trend Indicators:**
+
+*   **Moving Averages (MA):** Simple Moving Average (SMA), Exponential Moving Average (EMA). These are fundamental for identifying the overall trend. Crossovers of different moving averages (e.g., 50-day and 200-day) can signal trend changes.
+*   **MACD (Moving Average Convergence Divergence):** As mentioned before, on a daily chart, MACD is more useful for identifying medium-term trend changes and momentum shifts. Look for crossovers of the MACD line and signal line, as well as divergences between price and MACD.
+*   **ADX (Average Directional Index):** Measures the strength of a trend, regardless of its direction. High ADX values indicate a strong trend, while low values suggest a weak or sideways market. This helps you avoid trading in choppy conditions.
+
+**2. Momentum Indicators:**
+
+*   **RSI (Relative Strength Index):** While still useful, RSI is less sensitive on daily charts compared to intraday charts. Look for RSI readings above 70 (overbought) or below 30 (oversold) to identify potential reversals, but be aware that these signals can persist for longer periods in a strong trend.
+
+**3. Volatility Indicators:**
+
+*   **ATR (Average True Range):** Useful for determining appropriate stop-loss levels based on the average daily price range.
+
+**4. Volume Indicators:**
+
+*   **Volume:** Compare current volume to its average to confirm the strength of price movements. Increasing volume on breakouts or breakdowns can add validity to the signal.
+
+**Swing Trading Strategy Framework (using TA-Lib indicators):**
+
+1.  **Trend Identification:** Use moving averages (e.g., 50-day and 200-day EMA) to determine the overall trend. If the price is above both moving averages, the trend is considered bullish; if below, bearish.
+
+2.  **Entry Signals:**
+
+    *   **Long Entry (Uptrend):**
+        *   Price pulls back to a support level (e.g., a moving average or a previous high).
+        *   A bullish candlestick pattern forms at the support level.
+        *   MACD shows a bullish crossover or is rising.
+        *   RSI is not overbought (below 70).
+        *   Volume increases on the reversal.
+    *   **Short Entry (Downtrend):**
+        *   Price rallies to a resistance level (e.g., a moving average or a previous low).
+        *   A bearish candlestick pattern forms at the resistance level.
+        *   MACD shows a bearish crossover or is falling.
+        *   RSI is not oversold (above 30).
+        *   Volume increases on the reversal.
+
+3.  **Stop-Loss:** Place a stop-loss order below the recent swing low for long positions or above the recent swing high for short positions, using a multiple of the daily ATR to adjust for volatility.
+
+4.  **Profit Target:** Set a profit target based on a multiple of the ATR or use a trailing stop-loss to capture more of the move. Consider potential resistance/support levels as profit targets.
+
+5.  **ADX Confirmation:** Use ADX to confirm the strength of the trend. If ADX is above 25, it suggests a strong trend, making the signals more reliable. Avoid trading when ADX is below 20, indicating a weak or ranging market.
+
+**Example (Long Trade):**
+
+*   Stock XYZ is in an uptrend (price above 50-day and 200-day EMA).
+*   Price pulls back to the 50-day EMA.
+*   A bullish engulfing candlestick pattern forms.
+*   MACD is rising.
+*   RSI is around 50.
+*   Volume increases on the day of the engulfing pattern.
+*   Daily ATR is $3.
+*   You enter a long position at $150.
+*   Stop-loss: $150 - (1.5 * $3) = $145.50
+*   Profit target: $150 + (2 * $3) = $156 (or use a trailing stop).
+
+**Key Improvements for Swing Trading:**
+
+*   **Focus on Trend:** The strategy emphasizes identifying and trading within the prevailing trend.
+*   **Confirmation:** Using multiple indicators (MACD, RSI, volume, ADX) helps to filter out false signals.
+*   **Price Action:** Incorporating candlestick patterns adds another layer of confirmation.
+*   **Wider Stops and Targets:** The stop-loss and profit targets are wider to accommodate the larger price swings on the daily timeframe.
+
+Remember that this is a hypothetical framework. Backtesting, paper trading, and ongoing optimization are essential for successful swing trading. Always manage your risk appropriately and never invest more than you can afford to lose.
+
+-----------------------------------------------
+        ChatGPT
+-----------------------------------------------
+
+There’s no single “best” swing trading strategy that fits all traders and markets, as effectiveness can vary depending on the asset, timeframe, and market conditions. However, you can craft a robust, systematic swing trading approach by combining a select set of TA-Lib indicators and methods that are well-suited for multi-day to multi-week trading horizons. Below is a framework rather than a rigid set of rules. You can adjust parameters and fine-tune the approach for your specific goals and risk tolerance.
+
+---
+
+### Key Principles for a Swing Trading Strategy
+
+1. **Focus on the Intermediate Term:**  
+   Swing traders aim to capture price moves over several days to a few weeks. Indicators and parameters should be calibrated for this timeframe—typically using daily data and lookback periods that smooth out intraday noise but are still sensitive enough to identify medium-term trends.
+
+2. **Combine Trend, Momentum, and Volatility Indicators:**  
+   - **Trend indicators** help you align with the market’s underlying direction.  
+   - **Momentum indicators** help confirm if a price move has strength.  
+   - **Volatility indicators** inform position sizing and risk management.
+
+3. **Use Multiple Confirmation Signals:**  
+   Relying on one indicator often leads to false signals. Combine different types of indicators to improve the probability of success.
+
+---
+
+### Suggested Indicator Set and Their Roles
+
+**1. Trend-Following Foundation**  
+- **Moving Averages (e.g., EMA or KAMA):**  
+  Use a mid-length exponential moving average (e.g., 20-day EMA) to identify the current trend. If the price is above the 20-day EMA, you’re looking for long entries; if below, consider shorts or stay out.
+  
+- **MACD (Moving Average Convergence Divergence):**  
+  A popular momentum-trend tool. A MACD line above the signal line and above zero supports a bullish trend. A bearish trend is signaled by the MACD line below the signal line and below zero.
+
+- **ADX/DMI (Average Directional Index & Directional Movement Indicators):**  
+  Use ADX to measure trend strength. An ADX reading above 20 or 25 suggests a notable trend. +DMI > -DMI indicates bullish conditions; -DMI > +DMI indicates bearish conditions.
+
+**2. Momentum Confirmation**  
+- **RSI (Relative Strength Index)** or **Stochastic Oscillator:**  
+  Use RSI (14-period) to spot if conditions are overextended. In a confirmed uptrend, look for RSI pullbacks near 40-50 as potential entry points rather than waiting for deeply oversold conditions. In a downtrend, look for RSI near 50-60 as a potential short entry zone.  
+  Alternatively, use Stochastics to identify when momentum may be turning within the trend.
+
+- **CCI (Commodity Channel Index)** or **ROC (Rate of Change):**  
+  These can provide additional momentum confirmation. For instance, a rising CCI or ROC above zero supports a bullish stance. If the CCI or ROC falls below zero, it may confirm a weakening bullish move.
+
+**3. Volatility and Range Tools**  
+- **ATR (Average True Range):**  
+  Use ATR to set stop losses and profit targets. For example, place stop losses 1.5-2x ATR away from your entry to allow room for natural price fluctuations. Adjust position size based on ATR to maintain consistent risk.
+
+- **Bollinger Bands:**  
+  Bollinger Bands can help identify contraction and expansion phases. After a period of low volatility (bands contracting), a breakout from the bands can signal the start of a new swing. Entering trades on pullbacks toward the middle band (often a 20-day moving average) within a trend can also be effective.
+
+**4. Volume and Confirmation**  
+- **On Balance Volume (OBV)** or **Money Flow Index (MFI):**  
+  Confirm that volume supports the trend. For a long setup, you want OBV or MFI trending upward, indicating that money is flowing into the asset. Weak volume confirmation might mean a trend is less reliable.
+
+- **VWAP (Volume Weighted Average Price)** is more intraday-focused, but if your platform supports daily calculations or anchored VWAP (e.g., from a swing low), it can give a reference “fair value” level for swing entries/exits.
+
+**5. Candlestick Patterns for Entry/Exit Refinement**  
+- **Selective Candlestick Patterns (e.g., Engulfing, Hammer/Hanging Man, Doji):**  
+  While not as critical for a swing framework as for day trading, candlestick patterns can help refine entries or exits. For example, a hammer forming near the 20-day EMA in an uptrend and supported by bullish momentum and rising volume can be an excellent entry trigger.
+
+---
+
+### Example Swing Trading Process
+
+1. **Trend Filter:**  
+   Check if price is above the 20-day EMA and MACD > 0. Also, ensure ADX > 20 to confirm a trending environment.
+
+2. **Setup Identification:**  
+   The market pulls back toward the 20-day EMA in an uptrend. RSI drops to around 40. Bollinger Bands show normal volatility, and OBV remains stable or rising.
+
+3. **Entry Trigger:**  
+   A bullish candlestick pattern (e.g., bullish engulfing or a hammer) forms at or near a support area (20-day EMA or middle Bollinger Band). RSI turns upward from the 40-50 zone. MACD histogram starts ticking up again, and volume on the bounce day is higher than the previous day, confirming buying interest.
+
+4. **Stop Loss & Take Profit:**  
+   Place a stop loss 1.5-2x ATR below the entry to account for daily volatility.  
+   Use the upper Bollinger Band or a recent swing high as an initial profit target, or consider a trailing stop based on the ATR to ride the trend longer.
+
+5. **Confirmation and Exit:**  
+   If momentum indicators weaken (e.g., MACD rolls over, RSI enters overbought territory and starts to decline, OBV flattens), consider taking profits. If price breaks below the moving average and ADX drops, signaling trend weakness, exit the trade.
+
+---
+
+### Fine-Tuning and Experimentation
+
+- **Adjust Periods:**  
+  You might use a 20-day EMA for shorter swings or a 50-day EMA for slightly longer holds.  
+  RSI(14) is standard, but some traders use RSI(10) or RSI(21) to fit their style.
+
+- **Combine Indicators Judiciously:**  
+  Don’t overload your chart with too many indicators. Select a core set:  
+  - Trend: EMA + MACD + ADX  
+  - Momentum: RSI (or Stochastics/CCI)  
+  - Volatility: ATR + Bollinger Bands  
+  - Volume Confirmation: OBV or MFI
+
+- **Backtesting and Paper Trading:**  
+  Before going live, thoroughly test your chosen indicators and parameters on historical data. Paper trade the strategy to ensure it aligns with your risk tolerance and style.
+
+---
+
+### Conclusion
+
+There is no one-size-fits-all “best” swing trading strategy. However, combining trend-following indicators (EMA, MACD, ADX), momentum oscillators (RSI, Stochastics), volatility measures (ATR, Bollinger Bands), and volume confirmation (OBV, MFI) provides a robust framework. By refining these indicators, adjusting their parameters, and layering candlestick analysis for entry/exit timing, you can develop a versatile, data-driven swing trading strategy using TA-Lib’s tools.
+
+
+---------------------------------------------------------------
+    Combined
+---------------------------------------------------------------
+
+So, here's the strategy I'm trying now.
+
+---- Determine the trend
+    Use KAMA or a 20-day EMA to determine the current trend. If the price is above that, look for long entries; if below, consider shorting.
+    MACD - MACD line above the signal line and above zero indicates a bullish trend. Bearish is if the MACD line below the signal line and below 0.
+    ADX/DMI - Use ADX to measure trend strength. ADX > 20 or 25 indicates a notable trend. +DMI > -DMI = bullish. -DMI > +DMI = bearish.
+
+------------------- ChatGPT
+
+df['trend_condition'] = (df['Close'] > df['ema_20']) & (df['macd_line'] > df['signal_line']) & (df['adx'] > 20)
+
+def is_bullish_candlestick_pattern(row):
+    # Example: bullish engulfing pattern
+    # You'd need access to previous day's OHLC:
+    # This function signature might need previous row as well.
+    # For now, assume we just check today's candle shape.
+    candle_body = row['Close'] - row['Open']
+    candle_range = row['High'] - row['Low']
+    # simplistic condition for a bullish engulfing would require comparison to previous day, so this is a stub:
+    return candle_body > 0 and (candle_body / candle_range) > 0.5
+
+ChatGPT code to find entry points:
+for i in range(20, len(df)):
+    # Check if current trend is bullish
+    if df.loc[i, 'trend_condition']:
+        # Price close is near or slightly above the EMA support
+        # For example, ensure Close is within 1% of EMA:
+        if abs(df.loc[i, 'Close'] - df.loc[i, 'ema_20']) / df.loc[i, 'ema_20'] < 0.01:
+            # RSI reset: Check if RSI is around 40-50 range
+            if 40 <= df.loc[i, 'rsi_14'] <= 50:
+                # Check for a bullish candlestick pattern on today's bar
+                if is_bullish_candlestick_pattern(df.iloc[i]):
+                    # Determine entry price
+                    # For example, place a buy stop a fraction of ATR above today's high or yesterday's high
+                    yesterday_high = df.loc[i-1, 'High']
+                    atr = df.loc[i, 'atr_14']
+                    entry_price = max(df.loc[i, 'High'], yesterday_high) + 0.2 * atr
+
+                    # Now you have an entry condition
+                    print(f"Date: {df.loc[i, 'Date']} - Potential Entry at: {entry_price}")
+
+--------------------- Gemini 2.0
+
+import pandas as pd
+import numpy as np
+import talib
+
+def find_swing_trade_entries(df, period_ma=50, atr_multiplier_stop=1.5):
+    """
+    Finds potential swing trade entry points based on pullbacks to a moving average
+    and candlestick patterns.
+
+    Args:
+        df: Pandas DataFrame with OHLCV data (Open, High, Low, Close, Volume).
+        period_ma: Period for the moving average (default: 50).
+        atr_multiplier_stop: Multiplier for ATR to calculate stop-loss (default: 1.5).
+
+    Returns:
+        Pandas DataFrame with entry signals (1 for long, -1 for short, 0 for no signal).
+        Returns original dataframe with added columns for calculations.
+    """
+
+    df['MA'] = talib.EMA(df['Close'], timeperiod=period_ma)
+    df['ATR'] = talib.ATR(df['High'], df['Low'], df['Close'], timeperiod=14) #standard 14 period ATR
+    df['Signal'] = 0
+
+    for i in range(2, len(df)): #start at 2 to avoid index errors
+        current = df.iloc[i]
+        previous = df.iloc[i-1]
+        prev_prev = df.iloc[i-2]
+
+        #Pullback to MA (Long Entry)
+        if (current['Close'] > current['MA'] and
+            previous['Close'] <= previous['MA'] and
+            current['Low'] <= current['MA']):
+            #Bullish Candlestick Pattern (Example: Hammer)
+            if(current['Low'] == current['Close'] and
+               (current['High'] - current['Low']) > 2 * (current['Open'] - current['Low'])):
+                df.loc[df.index[i], 'Signal'] = 1
+                df.loc[df.index[i], 'StopLoss'] = current['Low'] - (current['ATR'] * atr_multiplier_stop)
+
+        #Pullback to MA (Short Entry)
+        if (current['Close'] < current['MA'] and
+            previous['Close'] >= previous['MA'] and
+            current['High'] >= current['MA']):
+            #Bearish Candlestick Pattern (Example: Shooting Star)
+            if (current['High'] == current['Close'] and
+                (current['High'] - current['Low']) > 2 * (current['High'] - current['Open'])):
+                df.loc[df.index[i], 'Signal'] = -1
+                df.loc[df.index[i], 'StopLoss'] = current['High'] + (current['ATR'] * atr_multiplier_stop)
+    return df
+
+
+# Example Usage (replace with your actual data):
+data = {'Open': [10, 12, 11, 13, 14, 13.5, 15, 14, 16, 15],
+        'High': [13, 14, 12, 15, 16, 15, 17, 15.5, 17, 16],
+        'Low': [9, 11, 10, 12, 13, 13, 14, 13.5, 15, 14],
+        'Close': [12, 11, 13, 14, 13.5, 15, 14, 16, 15, 15.5],
+        'Volume': [1000, 1200, 1100, 1300, 1400, 1350, 1500, 1400, 1600, 1550]}
+df = pd.DataFrame(data)
+
+df = find_swing_trade_entries(df)
+print(df)
+
+
+#Improved Example with more realistic data and more comprehensive candlestick checks
+import yfinance as yf
+
+ticker = "AAPL"
+df = yf.download(ticker, period="200d")
+
+def is_hammer(df, i):
+    current = df.iloc[i]
+    if current['Low'] == current['Close'] and (current['High'] - current['Low']) > 2 * abs(current['Open'] - current['Low']):
+        return True
+    return False
+
+def is_shooting_star(df, i):
+    current = df.iloc[i]
+    if current['High'] == current['Close'] and (current['High'] - current['Low']) > 2 * abs(current['High'] - current['Open']):
+        return True
+    return False
+    
+df = find_swing_trade_entries(df)
+
+print(df[df['Signal']!=0]) #show only rows with signals
+
+
+-------------------------------- Claude AI
+
+Here's the code suggested by Claude AI:
+
+import numpy as np
+import pandas as pd
+import talib
+
+def find_swing_trading_entry_points(close_prices, high_prices, low_prices):
+    """
+    Determine potential entry points for swing trading using multiple indicators.
+    
+    Parameters:
+    - close_prices: Numpy array of closing prices
+    - high_prices: Numpy array of high prices
+    - low_prices: Numpy array of low prices
+    
+    Returns:
+    - DataFrame with entry point signals and indicator details
+    """
+    # Convert input to numpy arrays if not already
+    close = np.array(close_prices)
+    high = np.array(high_prices)
+    low = np.array(low_prices)
+    
+    # Calculate key technical indicators
+    
+    # 1. RSI (Relative Strength Index)
+    rsi = talib.RSI(close, timeperiod=14)
+    
+    # 2. MACD (Moving Average Convergence Divergence)
+    macd, macd_signal, macd_hist = talib.MACD(close, fastperiod=12, slowperiod=26, signalperiod=9)
+    
+    # 3. Stochastic Oscillator
+    stoch_k, stoch_d = talib.STOCH(high, low, close, 
+                                   fastk_period=14, 
+                                   slowk_period=3, 
+                                   slowk_matype=0, 
+                                   slowd_period=3, 
+                                   slowd_matype=0)
+    
+    # 4. Bollinger Bands
+    upper, middle, lower = talib.BBANDS(close, timeperiod=20, nbdevup=2, nbdevdn=2, matype=0)
+    
+    # 5. ADX (Average Directional Index)
+    adx = talib.ADX(high, low, close, timeperiod=14)
+    
+    # Create a DataFrame to store results
+    results = pd.DataFrame({
+        'Close': close,
+        'RSI': rsi,
+        'MACD': macd,
+        'MACD_Signal': macd_signal,
+        'MACD_Hist': macd_hist,
+        'Stoch_K': stoch_k,
+        'Stoch_D': stoch_d,
+        'Bollinger_Upper': upper,
+        'Bollinger_Middle': middle,
+        'Bollinger_Lower': lower,
+        'ADX': adx
+    })
+    
+    # Define entry point criteria
+    results['Long_Entry'] = (
+        # RSI is oversold (below 30)
+        (results['RSI'] < 30) & 
+        # MACD is bullish (histogram turning positive)
+        (results['MACD_Hist'] > 0) & 
+        # Stochastic is oversold and crossing up
+        (results['Stoch_K'] < 20) & 
+        (results['Stoch_K'] > results['Stoch_D']) &
+        # Price is near lower Bollinger Band
+        (results['Close'] <= results['Bollinger_Lower']) &
+        # ADX indicates trend strength
+        (results['ADX'] > 20)
+    )
+    
+    results['Short_Entry'] = (
+        # RSI is overbought (above 70)
+        (results['RSI'] > 70) & 
+        # MACD is bearish (histogram turning negative)
+        (results['MACD_Hist'] < 0) & 
+        # Stochastic is overbought and crossing down
+        (results['Stoch_K'] > 80) & 
+        (results['Stoch_K'] < results['Stoch_D']) &
+        # Price is near upper Bollinger Band
+        (results['Close'] >= results['Bollinger_Upper']) &
+        # ADX indicates trend strength
+        (results['ADX'] > 20)
+    )
+    
+    return results
+
+# Example usage
+def main():
+    # Sample price data (replace with your actual price data)
+    sample_close = np.random.random(100) * 100  # Random prices for demonstration
+    sample_high = sample_close + np.random.random(100) * 5
+    sample_low = sample_close - np.random.random(100) * 5
+    
+    # Find entry points
+    entry_points = find_swing_trading_entry_points(sample_close, sample_high, sample_low)
+    
+    # Print out entry point details
+    long_entries = entry_points[entry_points['Long_Entry']]
+    short_entries = entry_points[entry_points['Short_Entry']]
+    
+    print("Long Entry Points:")
+    print(long_entries[['Close', 'RSI', 'MACD_Hist', 'Stoch_K', 'Bollinger_Lower']])
+    
+    print("\nShort Entry Points:")
+    print(short_entries[['Close', 'RSI', 'MACD_Hist', 'Stoch_K', 'Bollinger_Upper']])
+
+if __name__ == "__main__":
+    main()
+
+--------------------------------------------------------------------
+    Combination
+--------------------------------------------------------------------
+
+We need to take the standard date, open, close, high, low values
+    Get ema_20
+    get macd_line, macd_signal, macd_hist
+    get adx (also range of 20, I think)
+    get rsi_14
+    get atr_14
+    get bb_upper, bb_middle, bb_lower
+    get stoch_k, stoch_d using Stochastics (CCI?)
+    get OBV
+    get MFI
+
+Add all of these to the data when writing it out to the DB.
+
+//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--
+
 2024-12-16
 
 The Ichimoku code seems to work. At least, it gave me an Indicator that looks promising. Of course, I say that at 8:45, before it has even started trading. (shrug)
 
 I've started working on the TA-Lib functions now. Here's a list of ones that I think will work. (Note: There's 14 indicators in this list, which should just about double the number of indicators involved. We're going to need to start weighting these soon.)
-
-APO(real, fastperiod=-2147483648, slowperiod=-2147483648, matype=0)
-    APO(real[, fastperiod=?, slowperiod=?, matype=?])
-    
-    Absolute Price Oscillator (Momentum Indicators)
-	when the APO crosses above zero, it suggests that the price is gaining bullish momentum and sending a buy signal.
-    
-    Inputs:
-        real: (any ndarray)
-    Parameters:
-        fastperiod: 12
-        slowperiod: 26
-        matype: 0 (Simple Moving Average)
-    Outputs:
-        real
-AROON(high, low, timeperiod=-2147483648)
-    AROON(high, low[, timeperiod=?])
-    
-    Aroon (Momentum Indicators)
-	Price behavior is bullish when the AroonUp is above the AroonDown line and is bearish when the AroonDown is above the AroonUp line while.
-	A crossover of the AroonUp and AroonDown lines can signal trend changes.
-	The indicator moves between zero and 100—a reading above 50 indicates a high/low within the last 12 periods and one below 50 means the high/low was seen within the 13 periods.
-
-    Inputs:
-        prices: ['high', 'low']
-    Parameters:
-        timeperiod: 14
-    Outputs:
-        aroondown
-        aroonup
-AROONOSC(high, low, timeperiod=-2147483648)
-    AROONOSC(high, low[, timeperiod=?])
-	AroonOsc gives a value between 100 and -100, where 100 is bullish and -100 is bearish
-    
-    Aroon Oscillator (Momentum Indicators)
-    
-    Inputs:
-        prices: ['high', 'low']
-    Parameters:
-        timeperiod: 14
-    Outputs:
-        real
-BOP(open, high, low, close)
-    BOP(open, high, low, close)
-    
-    Balance Of Power (Momentum Indicators)
-	Bullish Zero-Line Crossover
-	This scan reveals stocks where the Balance of Power indicator crosses above zero, which is a bullish sign. This scan is just a starting point. Further refinement and analysis are required.
-	AND [Daily SMA(20,Daily Volume) > 40000] 
-	AND [Daily SMA(60,Daily Close) > 20] 
-	AND [BOP(14) x 0]
-
-	Bearish Zero-Line Crossover
-	This scan reveals stocks where the Balance of Power indicator crosses below zero, which is a bearish sign.
-
-	AND [Daily SMA(20,Daily Volume) > 40000] 
-	AND [Daily SMA(60,Daily Close) > 20] 
-	AND [0 x BOP(14)]
-    
-    Inputs:
-        prices: ['open', 'high', 'low', 'close']
-    Outputs:
-        real
 
 CMO(real, timeperiod=-2147483648)
     CMO(real[, timeperiod=?])
@@ -158,7 +543,7 @@ Pattern Recognition: ['CDL2CROWS', 'CDL3BLACKCROWS', 'CDL3INSIDE', 'CDL3LINESTRI
 Price Transform: ['AVGPRICE', 'MEDPRICE', 'TYPPRICE', 'WCLPRICE']
 Statistic Functions: ['BETA', 'CORREL', 'LINEARREG', 'LINEARREG_ANGLE', 'LINEARREG_INTERCEPT', 'LINEARREG_SLOPE', 'STDDEV', 'TSF', 'VAR']
 Volatility Indicators: ['ATR', 'NATR', 'TRANGE']
-Volume Indicators: ['AD', 'ADOSC', 'OBV']
+Volume Indicators: ['AD', 'ADOSC']
 
 2024-12-13
 
