@@ -14,7 +14,7 @@ from indicators.others.others_indicator import OtherIndicators
 from indicators.trend.trend_indicator import TrendIndicators
 from indicators.volatility.volatility_indicator import VolatilityIndicators
 from indicators.volume.volume_indicator import VolumeIndicators
-from indicators.aroon import AROON
+from indicators.trend.aroon import AROON
 
 
 class IndicatorAggregator:

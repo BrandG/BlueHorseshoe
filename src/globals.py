@@ -103,7 +103,7 @@ invalid_symbols = ['AJXA', 'APGB', 'AQNA', 'ARGO', 'BBLN', 'BCPA', 'BCPB', 'BFX'
                    'CTOS', 'RDDT', 'AUNA', 'DXYZ', 'SOLV', 'BEPJ', 'GCTS', 'GEV', 'MGRE', 'WNS', 'PACS', 'ULS', 'CTRI', 'IBTA',
                    'MFAO', 'LOAR', 'RBRK', 'VIK', 'ZK', 'MITP', 'KBDC', 'BOW', 'CIMN', 'BIPJ', 'SPMC', 'RWTO', 'TBN', 'LB', 'SW',
                    'ARDT', 'PDCC', 'CON', 'AOMN', 'SMC', 'CIMO', 'AAM', 'AMTM', 'BKV', 'CURB', 'GRDN', 'EQV', 'FVR', 'SARO', 'CBNA',
-                   'SBXD', 'CICB', 'KLC', 'NXT', 'NXT(EXP20091224)', 'AFARW']
+                   'SBXD', 'CICB', 'KLC', 'NXT', 'NXT(EXP20091224)', 'AFARW', 'BTBDW', 'KTTAW']
 MONGO_CLIENT = None
 
 

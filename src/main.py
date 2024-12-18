@@ -135,9 +135,14 @@ def predict_temp():
                                 f' - Sell: {results["sell"]} - ' \
                                 f'Hold: {results["hold"]} - Volatility: {results["volatility"]} - ' \
                                 f'Direction: {results["direction"]} - Average drop: {results["drop"]}')
-    sorted_candidates = sorted(candidates, key=lambda x: ( -x['results']['buy_minus_sell'], -x['results']['direction'], -x['results']['volatility']))
-    for candidate in sorted_candidates[:10]:
-        ReportSingleton().write(f"Candidate Symbol: {candidate['symbol']}")
+    top_ten_buys = sorted(candidates, key=lambda x: ( -x['results']['buy_minus_sell'], -x['results']['direction'], -x['results']['volatility']))[:10]
+    ReportSingleton().write('Top 10 buy candidates:')
+    for candidate in top_ten_buys:
+        ReportSingleton().write(f"{candidate['symbol']}")
+    top_ten_sells = sorted(candidates, key=lambda x: (x['results']['buy_minus_sell'], -x['results']['direction'], -x['results']['volatility']))[:10]
+    ReportSingleton().write('Top 10 sell candidates:')
+    for candidate in top_ten_sells:
+        ReportSingleton().write(f"{candidate['symbol']}")
 
 if __name__ == "__main__":
     ReportSingleton().write(f'Starting BlueHorseshoe at {time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())}...')
