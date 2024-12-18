@@ -14,6 +14,7 @@ from indicators.others.others_indicator import OtherIndicators
 from indicators.trend.trend_indicator import TrendIndicators
 from indicators.volatility.volatility_indicator import VolatilityIndicators
 from indicators.volume.volume_indicator import VolumeIndicators
+from indicators.aroon import AROON
 
 
 class IndicatorAggregator:
@@ -71,13 +72,15 @@ class IndicatorAggregator:
         momentum_indicator = MomentumIndicator(self._data).value
         volatility_indicator = VolatilityIndicators(self._data).value
         volume_indicator = VolumeIndicators(self._data).value
+        results['aroon'] = AROON(self._data).value
 
         results['buy'] = (
             trend_indicator['buy'] +
             others_indicator['buy'] +
             momentum_indicator['buy'] +
             volatility_indicator['buy'] +
-            volume_indicator['buy']
+            volume_indicator['buy'] + \
+            (1 if results['aroon']['buy'] else 0)
         )
 
         results['sell'] = (
@@ -85,12 +88,14 @@ class IndicatorAggregator:
             others_indicator['sell'] +
             momentum_indicator['sell'] +
             volatility_indicator['sell'] +
-            volume_indicator['sell']
+            volume_indicator['sell'] + \
+            (1 if results['aroon']['sell'] else 0)
         )
 
         results['hold'] = momentum_indicator['hold']
         results['volatility'] = volatility_indicator['volatility']
-        results['direction'] = volume_indicator['direction'] + trend_indicator['direction']
+        results['direction'] = volume_indicator['direction'] + trend_indicator['direction'] + \
+            (1 if results['aroon']['direction'] == 'up' else 0)
         results['strength'] = trend_indicator['strength']
         results['retracement'] = others_indicator['retracement']
         results['stop_loss_long'] = volatility_indicator['stop_loss_long']
