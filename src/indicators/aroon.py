@@ -63,9 +63,12 @@ class AROON:
         if len(self.aroonup) <= 2 or len(self.aroondown) <= 2:
             return {'direction': 'error', 'buy': False, 'sell': False}
         
-        buy_signal = self.aroonup[-1] > self.aroondown[-1] and self.aroonup[-2] <= self.aroondown[-2]
-        sell_signal = self.aroonup[-1] < self.aroondown[-1] and self.aroonup[-2] >= self.aroondown[-2]
-        return {'direction': 'up' if self.aroonup[-1] > self.aroondown[-1] else 'down', 'buy': buy_signal, 'sell': sell_signal}
+        aroonup_list = self.aroonup.tolist()
+        aroondown_list = self.aroondown.tolist()
+
+        buy_signal = aroonup_list[-1] > aroondown_list[-1] and aroonup_list[-2] <= aroondown_list[-2]
+        sell_signal = aroonup_list[-1] < aroondown_list[-1] and aroonup_list[-2] >= aroondown_list[-2]
+        return {'direction': 'up' if aroonup_list[-1] > aroondown_list[-1] else 'down', 'buy': buy_signal, 'sell': sell_signal}
 
     def graph(self):
         """

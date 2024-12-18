@@ -27,17 +27,17 @@ class AbsolutePriceOscillator(Indicator):
     def update(self, data):
         self._data = data
 
-        self._data = self._data.sort_values(by='Date').reset_index(drop=True)
+        self._data = self._data.sort_values(by='date').reset_index(drop=True)
 
         # Calculate APO
         self._apo = ta.APO(     # type: ignore
-            self._data['Close'],
+            self._data['close'],
             fastperiod=12,
             slowperiod=26,
             matype=0  # Simple MA
         )
 
-        self._apo_signal = ta.EMA(self._data['APO'], timeperiod=9) # type: ignore
+        self._apo_signal = ta.EMA(self._apo, timeperiod=9) # type: ignore
 
     @property
     def value(self):

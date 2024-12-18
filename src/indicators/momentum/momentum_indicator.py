@@ -1,4 +1,5 @@
 from indicators.momentum.absolute_price_oscillator import AbsolutePriceOscillator
+from indicators.momentum.balance_of_power import BalanceOfPower
 from indicators.momentum.macd import MACD
 from indicators.momentum.relative_strength_index import RelativeStrengthIndex
 from indicators.momentum.stochastic_oscillator import StochasticOscillator
@@ -12,6 +13,13 @@ class MomentumIndicator():
     _rsiSellMultiplier = 1
     _stochBuyMultiplier = 1
     _stochSellMultiplier = 1
+    _apoBuyMultiplier = 1
+    _apoSellMultiplier = 1
+    _apoDirectionMultiplier = 1
+    _bopBuyMultiplier = 1
+    _bopSellMultiplier = 1
+    _bopDirectionMultiplier = 1
+
 
     def __init__(self, data):
         self.update(data)
@@ -29,12 +37,26 @@ class MomentumIndicator():
             self._stochBuyMultiplier = data['stochBuyMultiplier']
         if 'stochSellMultiplier' in data:
             self._stochSellMultiplier = data['stochSellMultiplier']
+        if 'apoBuyMultiplier' in data:
+            self._apoBuyMultiplier = data['apoBuyMultiplier']
+        if 'apoSellMultiplier' in data:
+            self._apoSellMultiplier = data['apoSellMultiplier']
+        if 'apoDirectionMultiplier' in data:
+            self._apoDirectionMultiplier = data['apoDirectionMultiplier']
+        if 'bopBuyMultiplier' in data:
+            self._bopBuyMultiplier = data['bopBuyMultiplier']
+        if 'bopSellMultiplier' in data:
+            self._bopSellMultiplier = data['bopSellMultiplier']
+        if 'bopDirectionMultiplier' in data:
+            self._bopDirectionMultiplier = data['bopDirectionMultiplier']
+            
         self._data = data
 
         self._macd = MACD(self._data).value
         self._rsi = RelativeStrengthIndex(self._data).value
         self._stochastic_oscillator = StochasticOscillator(self._data).value
         self._absolute_price_oscillator = AbsolutePriceOscillator(self._data).value
+        self._balance_of_power = BalanceOfPower(self._data).value
 
     @property
     def value(self):
@@ -42,15 +64,20 @@ class MomentumIndicator():
             (1 if self._macd['buy'] else 0) * self._macdBuyMultiplier +
             (1 if self._rsi['buy'] else 0) * self._rsiBuyMultiplier +
             (1 if self._stochastic_oscillator['buy'] else 0) * self._stochBuyMultiplier +
-            (1 if self._absolute_price_oscillator['buy'] else 0)
+            (1 if self._absolute_price_oscillator['buy'] else 0) * self._apoBuyMultiplier +
+            (1 if self._balance_of_power['buy'] else 0) * self._bopBuyMultiplier
         )
         sell = (
             (1 if self._macd['sell'] else 0) * self._macdSellMultiplier +
             (1 if self._rsi['sell'] else 0) * self._rsiSellMultiplier +
             (1 if self._stochastic_oscillator['sell'] else 0) * self._stochSellMultiplier +
-            (1 if self._absolute_price_oscillator['sell'] else 0)
+            (1 if self._absolute_price_oscillator['sell'] else 0) * self._apoSellMultiplier +
+            (1 if self._balance_of_power['sell'] else 0) * self._bopSellMultiplier
         )
         hold = 1 if self._stochastic_oscillator['hold'] else 0
-        direction = 1 if self._absolute_price_oscillator['direction'] == 'up' else 0
+        direction = (
+            (1 if self._absolute_price_oscillator['direction'] == 'up' else 0) * self._apoDirectionMultiplier +
+            (1 if self._balance_of_power['direction'] == 'up' else 0) * self._bopDirectionMultiplier
+        )
 
         return { 'buy': buy, 'sell': sell, 'hold': hold, 'direction': direction }
