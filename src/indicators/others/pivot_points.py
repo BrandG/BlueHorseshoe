@@ -11,9 +11,10 @@ Functions:
 """
 import pandas as pd
 from globals import GraphData, graph
+from indicators.indicator import Indicator
 
 
-class PivotPoints:
+class PivotPoints(Indicator):
     """
     A class to calculate and graph pivot points based on high, low, and close prices.
 

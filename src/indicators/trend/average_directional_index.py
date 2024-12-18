@@ -14,9 +14,10 @@ Dependencies:
 import pandas as pd
 import talib as ta
 from globals import GraphData, graph
+from indicators.indicator import Indicator
 
 
-class AverageDirectionalIndex:
+class AverageDirectionalIndex(Indicator):
 
     """
         A class to calculate the Average Directional Index (ADX) and its components, determine the trend direction and strength, 
@@ -62,16 +63,11 @@ class AverageDirectionalIndex:
         self._adx['ADX_14'] = ta.ADX(self._data['high'], self._data['low'], # type: ignore
                                      self._data['close'], timeperiod=14).to_list()
 
-        self._adx_strength = 0
-        adx_float = round(float(self._adx['ADX_14'][-1]), 2)
-        if float(adx_float) > 50:
-            self._adx_strength = 'very strong'
-        elif adx_float > 25:
-            self._adx_strength = 'strong'
-        elif adx_float > 20:
-            self._adx_strength = 'threshold'
+        last_price = self._data['close'].to_list()[-1]
+        if last_price != 0:
+            self._adx_strength = 1 + round(float(self._adx['ADX_14'][-1]/last_price), 2) * 2
         else:
-            self._adx_strength = 'weak'
+            self._adx_strength = 0
 
     @property
     def value(self):
@@ -81,7 +77,9 @@ class AverageDirectionalIndex:
             Returns:
                 dict: A dictionary with the trend direction ('up' or 'down') and strength.
         """
-        return {'direction': 'up' if self._adx['DMP_14'][-1] > self._adx['DMN_14'][-1] else 'down', 'strength': self._adx_strength}
+        if len(self._adx['DMP_14']) < 2:
+            return {'direction': 'up', 'strength': 0}
+        return {'direction': 'up' if self._adx['DMP_14'][-1] > self._adx['DMN_14'][-2] else 'down', 'strength': self._adx_strength}
 
     def graph(self):
         """

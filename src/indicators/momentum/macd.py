@@ -7,8 +7,9 @@ Classes:
 import pandas as pd
 import talib as ta
 from globals import GraphData, graph
+from indicators.indicator import Indicator
 
-class MACD:
+class MACD(Indicator):
     """
     MACD (Moving Average Convergence Divergence)
     A class to calculate and update the MACD indicator, generate buy/sell signals, and graph the results.

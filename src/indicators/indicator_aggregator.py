@@ -9,21 +9,11 @@ Classes:
         sell, hold signals, volatility, direction, strength, and retracement.
 
 """
-from indicators.average_directional_index import AverageDirectionalIndex
-from indicators.average_true_range import AverageTrueRange
-from indicators.bollinger_bands import BollingerBands
-from indicators.commodity_channel_index import CCITrend
-from indicators.ema_crossover import EMACrossover
-from indicators.fibonacci_retracement import FibonacciRetracement
-from indicators.ichimoku import Ichimoku
-from indicators.macd import MACD
-from indicators.money_flow_index import MoneyFlowIndex
-from indicators.on_balance_volume import OnBalanceVolume
-from indicators.pivot_points import PivotPoints
-from indicators.relative_strength_index import RelativeStrengthIndex
-from indicators.standard_deviation import StandardDeviation
-from indicators.stochastic_oscillator import StochasticOscillator
-from indicators.volume_weighted_average_price import VolumeWeightedAveragePrice
+from indicators.momentum.momentum_indicator import MomentumIndicator
+from indicators.others.others_indicator import OtherIndicators
+from indicators.trend.trend_indicator import TrendIndicators
+from indicators.volatility.volatility_indicator import VolatilityIndicators
+from indicators.volume.volume_indicator import VolumeIndicators
 from indicators.aroon import AROON
 
 
@@ -77,58 +67,39 @@ class IndicatorAggregator:
 
         results = {}
 
-        results['emas'] = EMACrossover(self._data).value
-        results['rsi'] = RelativeStrengthIndex(self._data).value
-        results['stochastic_oscillator'] = StochasticOscillator(self._data).value
-        results['ichimoku'] = Ichimoku(self._data).value
-        results['cci'] = CCITrend(self._data).value
-        results['fib'] = FibonacciRetracement(self._data).value
-        results['macd'] = MACD(self._data).value
-        results['PP'] = PivotPoints(self._data).value
-        results['mfi'] = MoneyFlowIndex(self._data).value
-        results['obv'] = OnBalanceVolume(self._data).value
-        results['vwap'] = VolumeWeightedAveragePrice(self._data).value
-        results['atr'] = AverageTrueRange(self._data).value
-        results['bb'] = BollingerBands(self._data).value
-        results['stdev'] = StandardDeviation(self._data).value
-        results['ADX'] = AverageDirectionalIndex(self._data).value
+        trend_indicator = TrendIndicators(self._data).value
+        others_indicator = OtherIndicators(self._data).value
+        momentum_indicator = MomentumIndicator(self._data).value
+        volatility_indicator = VolatilityIndicators(self._data).value
+        volume_indicator = VolumeIndicators(self._data).value
         results['aroon'] = AROON(self._data).value
 
-        results['buy'] = (1 if results['mfi']['buy'] else 0) + \
-            (1 if results['rsi']['buy'] else 0) + \
-            (1 if results['stochastic_oscillator']['buy'] else 0) + \
-            (1 if results['macd']['buy'] else 0) + \
-            (1 if results['atr']['buy'] else 0) + \
-            (1 if results['bb']['buy'] else 0) + \
-            (1 if results['emas']['buy'] else 0) + \
-            (1 if results['ichimoku']['buy'] else 0) + \
-            (1 if results['PP']['buy'] else 0) + \
-            (1 if results['cci']['buy'] else 0) + \
-            (1 if results['fib']['buy'] else 0) + \
+        results['buy'] = (
+            trend_indicator['buy'] +
+            others_indicator['buy'] +
+            momentum_indicator['buy'] +
+            volatility_indicator['buy'] +
+            volume_indicator['buy'] + \
             (1 if results['aroon']['buy'] else 0)
+        )
 
-        results['sell'] = (1 if results['mfi']['sell'] else 0) + \
-            (1 if results['rsi']['sell'] else 0) + \
-            (1 if results['stochastic_oscillator']['sell'] else 0) + \
-            (1 if results['macd']['sell'] else 0) + \
-            (1 if results['atr']['sell'] else 0) + \
-            (1 if results['bb']['sell'] else 0) + \
-            (1 if results['emas']['sell'] else 0) + \
-            (1 if results['ichimoku']['sell'] else 0) + \
-            (1 if results['PP']['sell'] else 0) + \
-            (1 if results['cci']['sell'] else 0) + \
-            (1 if results['fib']['sell'] else 0) + \
+        results['sell'] = (
+            trend_indicator['sell'] +
+            others_indicator['sell'] +
+            momentum_indicator['sell'] +
+            volatility_indicator['sell'] +
+            volume_indicator['sell'] + \
             (1 if results['aroon']['sell'] else 0)
+        )
 
-        results['hold'] = (1 if results['stochastic_oscillator']['hold'] else 0)
-        results['volatility'] = (1 if results['atr']['volatility'] == 'high' else 0) + \
-            (1 if results['bb']['volatility'] == 'high' else 0) + \
-            (1 if results['stdev']['volatility'] == 'high' else 0)
-        results['direction'] = (1 if results['obv']['direction'] == 'up' else 0) + \
-            (1 if results['vwap']['direction'] == 'up' else 0) + \
-            (1 if results['ADX']['direction'] == 'up' else 0) + \
-            (1 if results['aroon']['direction'] == 'up' else 0)
-        results['strength'] = results['ADX']['strength']
-        results['retracement'] = results['fib']['retracement']
+        results['hold'] = momentum_indicator['hold']
+        results['volatility'] = volatility_indicator['volatility']
+        results['direction'] = volume_indicator['direction'] + trend_indicator['direction'] + \
+            (1 if results['aroon']['direction'] == 'up' else 0) + \
+            momentum_indicator['direction']
+        results['strength'] = trend_indicator['strength']
+        results['retracement'] = others_indicator['retracement']
+        results['stop_loss_long'] = volatility_indicator['stop_loss_long']
+        results['stop_loss_short'] = volatility_indicator['stop_loss_short']
 
         return results

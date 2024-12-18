@@ -17,12 +17,15 @@ Usage example:
     results = ichimoku.get_results(show=True)
 """
 from datetime import datetime
+import logging
 from matplotlib import pyplot as plt
 import numpy as np
 import pandas as pd
 
+from indicators.indicator import Indicator
 
-class Ichimoku:
+
+class Ichimoku(Indicator):
     """
     A class to calculate and visualize the Ichimoku Cloud components for a given dataset.
 
@@ -41,8 +44,49 @@ class Ichimoku:
     """
 
     def __init__(self, data):
+        self.update(data)
+
+    def update(self, data):
         self._data = data
         self._ichimoku_df = pd.DataFrame()
+
+    def calculate_strength(self, last_senkou_span_a, last_senkou_span_b, last_price, last_conversion):
+        """
+        Calculates the strength based on Senkou Span differences and price conversion differences.
+
+        Parameters:
+        - last_senkou_span_a (float): The last value of Senkou Span A.
+        - last_senkou_span_b (float): The last value of Senkou Span B.
+        - last_price (float): The last price.
+        - last_conversion (float): The last conversion line value.
+
+        I have no idea how to do this, so I'm spitballing. Basically, we treat the kumo size as a percentage of the price,
+        and then we add the percentage difference between the conversion and baseline lines to the strength. This is all added to the 
+        unit value of 1, so that the strength could be used as a multiplier for the buy/sell signals.
+
+        Returns:
+        - strength (float): The calculated strength.
+        """
+        # Calculate the absolute differences
+        senkou_span_diff = abs(last_senkou_span_a - last_senkou_span_b)
+        price_conversion_diff = abs(last_price - last_conversion)
+
+        # Avoid division by zero
+        if last_price == 0:
+            logging.error("Last price is zero.")
+            return 0
+
+        # Calculate the normalized differences
+        normalized_senkou_span = senkou_span_diff / last_price
+        normalized_price_conversion = price_conversion_diff / last_price
+
+        # Calculate the average of the normalized differences
+        average_normalized_diff = (normalized_senkou_span + normalized_price_conversion) / 2
+
+        # Compute the strength
+        strength = 1 + average_normalized_diff
+
+        return strength
 
     @property
     def value(self):
@@ -77,29 +121,35 @@ class Ichimoku:
         data=self._data
         bad_data = False
 
-        bad_data = len(data['close'].to_list()) > 2
+        if 'close' not in data.columns or 'high' not in data.columns or 'low' not in data.columns:
+            logging.error("Ichimoku indicator requires 'close', 'high', and 'low' columns in the input data.")
+            bad_data = True
+        if len(data['close'].to_list()) < 52:
+            logging.error("Ichimoku indicator requires at least 52 data points.")
+            bad_data = True
+
         self._ichimoku_df['tenkan_sen'] = (data['high'].rolling(window=9).max() + \
                                            data['low'].rolling(window=9).min()) / 2
-        bad_data = len(self._ichimoku_df['tenkan_sen'].to_list()) > 2
+        bad_data = len(self._ichimoku_df['tenkan_sen'].to_list()) <= 2
 
         self._ichimoku_df['kijun_sen'] = (data['high'].rolling(window=26).max() + \
                                           data['low'].rolling(window=26).min()) / 2
-        bad_data = len(self._ichimoku_df['kijun_sen'].to_list()) > 2
+        bad_data = len(self._ichimoku_df['kijun_sen'].to_list()) <= 2
 
         self._ichimoku_df['senkou_span_a'] = ((self._ichimoku_df['tenkan_sen'] + self._ichimoku_df['kijun_sen']) / 2).shift(26)
-        bad_data = len(self._ichimoku_df['senkou_span_a'].to_list()) > 2
+        bad_data = len(self._ichimoku_df['senkou_span_a'].to_list()) <= 2
 
         self._ichimoku_df['senkou_span_b'] = ((data['high'].rolling(window=52).max() + \
                                                data['low'].rolling(window=52).min()) / 2).shift(26)
-        bad_data = len(self._ichimoku_df['senkou_span_b'].to_list()) > 2
+        bad_data = len(self._ichimoku_df['senkou_span_b'].to_list()) <= 2
 
         # pad the front of the data['close'] dataframe with NaNs to align with the Ichimoku data
         data['close'] = pd.concat([pd.Series([np.nan]*52), data['close']]).reset_index(drop=True)
         self._ichimoku_df['chikou_span'] = data['close'].shift(-26)
-        bad_data = len(self._ichimoku_df['chikou_span'].to_list()) > 2
+        bad_data = len(self._ichimoku_df['chikou_span'].to_list()) <= 2
 
         if bad_data:
-            return {'buy': 0, 'sell': 0}
+            return {'buy': 0, 'sell': 0, 'strength': 0}
 
         buy = sell = 0
         last_price = data['close'].iloc[-1]
@@ -111,12 +161,16 @@ class Ichimoku:
         kumo_top = max(last_senkou_span_a, last_senkou_span_b)
         kumo_bottom = min(last_senkou_span_a, last_senkou_span_b)
 
-        lagging_crosses_price_up = self._ichimoku_df['chikou_span'].iloc[-2] < data['close'].iloc[-2] and \
-                                last_lagging_span > last_price
-        lagging_crosses_price_down = self._ichimoku_df['chikou_span'].iloc[-2] > data['close'].iloc[-2] and \
-                                last_lagging_span < last_price
+        if len(self._ichimoku_df) > 1 and len(data) > 1:
+            lagging_crosses_price_up = self._ichimoku_df['chikou_span'].iloc[-2] < data['close'].iloc[-2] and \
+                                    last_lagging_span > last_price
+            lagging_crosses_price_down = self._ichimoku_df['chikou_span'].iloc[-2] > data['close'].iloc[-2] and \
+                                    last_lagging_span < last_price
+        else:
+            lagging_crosses_price_up = False
+            lagging_crosses_price_down = False
 
-        buy += 1 if last_price > kumo_top else 0 + \
+        buy = 1 if last_price > kumo_top else 0 + \
             2 if (last_price > kumo_top) and lagging_crosses_price_up else 0 + \
             1 if last_price > last_conversion else 0 + \
             1 if last_price > last_baseline else 0 + \
@@ -127,22 +181,22 @@ class Ichimoku:
             1 if last_lagging_span > last_price else 0 + \
             1 if last_lagging_span > last_baseline else 0
 
-        # # I don't know how to use this yet.
-        # strength = abs(last_senkou_span_a - last_senkou_span_b)
-        # strength = last_price - last_conversion
+        strength = self.calculate_strength(last_senkou_span_a, last_senkou_span_b, last_price, last_conversion)
 
-        sell += 1 if last_price < kumo_bottom else 0 + \
-            2 if (last_price < kumo_bottom) and lagging_crosses_price_down else 0 + \
-            1 if last_price < last_conversion else 0 + \
-            1 if last_price < last_baseline else 0 + \
-            1 if last_conversion < kumo_bottom and last_baseline < kumo_bottom else 0 + \
-            1 if last_senkou_span_a < last_senkou_span_b else 0 + \
-            1 if last_conversion < last_baseline < kumo_bottom else 0 + \
-            1 if last_lagging_span < kumo_bottom else 0 + \
-            1 if last_lagging_span < last_price else 0 + \
-            1 if last_lagging_span < last_baseline else 0
+        sell = (
+            (1 if last_price < kumo_bottom else 0) +
+            (2 if (last_price < kumo_bottom) and lagging_crosses_price_down else 0) +
+            (1 if last_price < last_conversion else 0) +
+            (1 if last_price < last_baseline else 0) +
+            (1 if last_conversion < kumo_bottom and last_baseline < kumo_bottom else 0) +
+            (1 if last_senkou_span_a < last_senkou_span_b else 0) +
+            (1 if last_conversion < last_baseline < kumo_bottom else 0) +
+            (1 if last_lagging_span < kumo_bottom else 0) +
+            (1 if last_lagging_span < last_price else 0) +
+            (1 if last_lagging_span < last_baseline else 0)
+        )
 
-        return {'buy': buy, 'sell': sell}
+        return {'buy': buy, 'sell': sell, 'strength': strength}
 
     # pylint: disable=unused-variable
     def graph(self):

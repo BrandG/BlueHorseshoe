@@ -5,7 +5,7 @@ Classes:
     CCITrend: A class for analyzing trends using the Commodity Channel Index (CCI) indicator.
 Methods:
     __init__(data): Initializes the CCITrend class with the provided data.
-    graph(cci): Generates a graph for the Commodity Channel Index (CCI) and the closing prices.
+    graph(): Generates a graph for the Commodity Channel Index (CCI) and the closing prices.
     get_results(show=False): Calculate the Commodity Channel Index (CCI) for the given data and return buy/sell signals.
 """
 
@@ -13,8 +13,9 @@ import pandas as pd
 import talib as ta
 
 from globals import GraphData, graph
+from indicators.indicator import Indicator
 
-class CCITrend:
+class CCITrend(Indicator):
     """
     A class to represent the Commodity Channel Index (CCI) trend analysis.
 
@@ -65,7 +66,7 @@ class CCITrend:
         """
         return {'buy': self._cci[-1] < -100, 'sell':self._cci[-1] > 100}
 
-    def graph(self, cci):
+    def graph(self):
         """
         Generates a graph for the Commodity Channel Index (CCI) and the closing prices.
 
@@ -83,9 +84,9 @@ class CCITrend:
         """
         points = []
         for i in range(len(self._data['close'])):
-            if cci[i] > 100:
+            if self._cci[i] > 100:
                 points.append({'x': i, 'y': self._data['close'].iloc[i-1]*100/self._data['close'].max(), 'color': 'green'})
-            elif cci[i] < -100:
+            elif self._cci[i] < -100:
                 points.append({'x': i, 'y': self._data['close'].iloc[i-1]*100/self._data['close'].max(), 'color': 'red'})
         x_values = [pd.to_datetime(date).strftime('%Y-%m') for date in self._data['date']]
         graph(GraphData(x_label='Date',
@@ -93,6 +94,6 @@ class CCITrend:
             title='CCI',
             x_values=x_values,
             curves=[
-                {'curve': cci*100 / cci.max(),'label': 'CCI', 'color': 'blue'},
+                {'curve': self._cci*100 / self._cci.max(),'label': 'CCI', 'color': 'blue'},
                 {'curve': self._data['close']*100/self._data['close'].max(),'label': 'Price', 'color': 'black'},
                 ], points=points))

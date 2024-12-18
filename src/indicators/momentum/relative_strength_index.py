@@ -7,9 +7,10 @@ Classes:
 """
 import talib as ta
 from globals import ReportSingleton
+from indicators.indicator import Indicator
 
 
-class RelativeStrengthIndex:
+class RelativeStrengthIndex(Indicator):
     """
     A class to calculate and update the Relative Strength Index (RSI) based on provided data.
 
