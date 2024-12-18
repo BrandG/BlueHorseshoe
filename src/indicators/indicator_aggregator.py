@@ -95,7 +95,8 @@ class IndicatorAggregator:
         results['hold'] = momentum_indicator['hold']
         results['volatility'] = volatility_indicator['volatility']
         results['direction'] = volume_indicator['direction'] + trend_indicator['direction'] + \
-            (1 if results['aroon']['direction'] == 'up' else 0)
+            (1 if results['aroon']['direction'] == 'up' else 0) + \
+            momentum_indicator['direction']
         results['strength'] = trend_indicator['strength']
         results['retracement'] = others_indicator['retracement']
         results['stop_loss_long'] = volatility_indicator['stop_loss_long']
