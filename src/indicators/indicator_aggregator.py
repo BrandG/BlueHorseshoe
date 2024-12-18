@@ -24,6 +24,7 @@ from indicators.relative_strength_index import RelativeStrengthIndex
 from indicators.standard_deviation import StandardDeviation
 from indicators.stochastic_oscillator import StochasticOscillator
 from indicators.volume_weighted_average_price import VolumeWeightedAveragePrice
+from indicators.aroon import AROON
 
 
 class IndicatorAggregator:
@@ -91,6 +92,7 @@ class IndicatorAggregator:
         results['bb'] = BollingerBands(self._data).value
         results['stdev'] = StandardDeviation(self._data).value
         results['ADX'] = AverageDirectionalIndex(self._data).value
+        results['aroon'] = AROON(self._data).value
 
         results['buy'] = (1 if results['mfi']['buy'] else 0) + \
             (1 if results['rsi']['buy'] else 0) + \
@@ -102,7 +104,8 @@ class IndicatorAggregator:
             (1 if results['ichimoku']['buy'] else 0) + \
             (1 if results['PP']['buy'] else 0) + \
             (1 if results['cci']['buy'] else 0) + \
-            (1 if results['fib']['buy'] else 0)
+            (1 if results['fib']['buy'] else 0) + \
+            (1 if results['aroon']['buy'] else 0)
 
         results['sell'] = (1 if results['mfi']['sell'] else 0) + \
             (1 if results['rsi']['sell'] else 0) + \
@@ -114,7 +117,8 @@ class IndicatorAggregator:
             (1 if results['ichimoku']['sell'] else 0) + \
             (1 if results['PP']['sell'] else 0) + \
             (1 if results['cci']['sell'] else 0) + \
-            (1 if results['fib']['sell'] else 0)
+            (1 if results['fib']['sell'] else 0) + \
+            (1 if results['aroon']['sell'] else 0)
 
         results['hold'] = (1 if results['stochastic_oscillator']['hold'] else 0)
         results['volatility'] = (1 if results['atr']['volatility'] == 'high' else 0) + \
@@ -122,7 +126,8 @@ class IndicatorAggregator:
             (1 if results['stdev']['volatility'] == 'high' else 0)
         results['direction'] = (1 if results['obv']['direction'] == 'up' else 0) + \
             (1 if results['vwap']['direction'] == 'up' else 0) + \
-            (1 if results['ADX']['direction'] == 'up' else 0)
+            (1 if results['ADX']['direction'] == 'up' else 0) + \
+            (1 if results['aroon']['direction'] == 'up' else 0)
         results['strength'] = results['ADX']['strength']
         results['retracement'] = results['fib']['retracement']
 
