@@ -18,10 +18,12 @@ Functions:
 """
 import os
 import json
+import pandas as pd
 import requests
 from ratelimit import limits, sleep_and_retry #pylint: disable=import-error
 
 from pymongo.errors import ServerSelectionTimeoutError
+import talib as ta
 from globals import ReportSingleton, get_mongo_client, get_symbol_list, BASE_PATH
 
 
@@ -179,7 +181,8 @@ def build_all_symbols_history(starting_at='', save_to_file=False, recent=False):
         as a JSON file in a specified directory. If a starting symbol is provided,
         the function skips all symbols until it reaches the specified starting
         symbol.
-"""
+    """
+
     symbol_list = get_symbol_list()
     index = 0
 
@@ -199,23 +202,31 @@ def build_all_symbols_history(starting_at='', save_to_file=False, recent=False):
         name = row['name']
 
         try:
-            net_data = load_historical_data_from_net(
-                stock_symbol=symbol, recent=recent)
+            net_data = load_historical_data_from_net(stock_symbol=symbol, recent=recent)
             if net_data is None:
                 ReportSingleton().write(f"No data for {symbol}")
                 continue
             net_data['full_name'] = name
 
-            ReportSingleton().write(f'{index} - {row["symbol"]} ({percentage}%) - size: {len(net_data["days"])}')
+            if isinstance(net_data, dict) and 'days' in net_data:
+                df = pd.DataFrame(net_data['days'])
+            else:
+                ReportSingleton().write(f"Invalid data format for {symbol}.")
+                return
+            df = df.sort_values(by='date').reset_index(drop=True)[:240]
+
+            net_data['days'] = get_technical_indicators(df)
+            if '_id' in net_data:
+                del net_data['_id']
+            ReportSingleton().write(f'{index} - {symbol} ({percentage}%) - size: {len(net_data["days"])}')
             save_historical_data_to_mongo(symbol, net_data, get_mongo_client())
 
             if save_to_file:
-                new_data_json = json.dumps(net_data)
                 # write out new_data_json to file
                 file_path = os.path.join(
                     BASE_PATH, f'StockPrice-{symbol}.json')
                 with open(f'{file_path}', 'w', encoding='utf-8') as file:
-                    file.write(new_data_json)
+                    file.write(json.dumps(net_data))
                     ReportSingleton().write(f"Saved data for {symbol} to {file_path}")
         except requests.exceptions.RequestException as e:
             ReportSingleton().write(f'Network error: {e}')
@@ -227,6 +238,57 @@ def build_all_symbols_history(starting_at='', save_to_file=False, recent=False):
             ReportSingleton().write(f'OS error: {e}')
             continue
 
+def get_technical_indicators(df):
+    """
+    Calculate various technical indicators for a given DataFrame containing historical stock data.
+
+    Parameters:
+    df (pandas.DataFrame): DataFrame containing historical stock data with columns 'close', 'high', 'low', and 'volume'.
+
+    Returns:
+    list[dict]: A list of dictionaries where each dictionary represents a row of the DataFrame with the calculated technical indicators.
+
+    The following technical indicators are calculated:
+    - ema_20: 20-period Exponential Moving Average of the 'close' price.
+    - macd_line: MACD line (difference between 12-period and 26-period EMA of the 'close' price).
+    - macd_signal: Signal line (9-period EMA of the MACD line).
+    - macd_hist: MACD histogram (difference between MACD line and Signal line).
+    - adx: Average Directional Index.
+    - rsi_14: 14-period Relative Strength Index.
+    - atr_14: 14-period Average True Range.
+    - bb_upper: Upper Bollinger Band.
+    - bb_middle: Middle Bollinger Band (20-period SMA).
+    - bb_lower: Lower Bollinger Band.
+    - stoch_k: Stochastic %K.
+    - stoch_d: Stochastic %D.
+    - obv: On-Balance Volume.
+    - mfi: 14-period Money Flow Index.
+    - cci: 14-period Commodity Channel Index.
+    - willr: 14-period Williams %R.
+    """
+    df['ema_20'] = df['close'].ewm(span=20, adjust=False).mean().round(4)
+    df['macd_line'], df['macd_signal'], df['macd_hist'] = ta.MACD( # type: ignore
+        df['close'], fastperiod=12, slowperiod=26, signalperiod=9)
+    df['macd_line'] = df['macd_line'].round(4)
+    df['macd_signal'] = df['macd_signal'].round(4)
+    df['macd_hist'] = df['macd_hist'].round(4)
+    df['adx'] = ta.ADX(df['high'], df['low'], df['close'], timeperiod=14).round(4) # type: ignore
+    df['rsi_14'] = ta.RSI(df['close'], timeperiod=14).round(4) # type: ignore
+    df['atr_14'] = ta.ATR(df['high'], df['low'], df['close'], timeperiod=14).round(4) # type: ignore
+    df['bb_upper'], df['bb_middle'], df['bb_lower'] = ta.BBANDS( # type: ignore
+        df['close'], timeperiod=20, nbdevup=2, nbdevdn=2, matype=0)
+    df['bb_upper'] = df['bb_upper'].round(4)
+    df['bb_middle'] = df['bb_middle'].round(4)
+    df['bb_lower'] = df['bb_lower'].round(4)
+    df['stoch_k'], df['stoch_d'] = ta.STOCH( # type: ignore
+        df['high'], df['low'], df['close'], fastk_period=5, slowk_period=3, slowk_matype=0, slowd_period=3, slowd_matype=0)
+    df['stoch_k'] = df['stoch_k'].round(4)
+    df['stoch_d'] = df['stoch_d'].round(4)
+    df['obv'] = ta.OBV(df['close'], df['volume']).round(4) # type: ignore
+    df['mfi'] = ta.MFI(df['high'], df['low'], df['close'], df['volume'], timeperiod=14).round(4) # type: ignore
+    df['cci'] = ta.CCI(df['high'], df['low'], df['close'], timeperiod=14).round(4) # type: ignore
+    df['willr'] = ta.WILLR(df['high'], df['low'], df['close'], timeperiod=14).round(4) # type: ignore
+    return df.to_dict(orient='records')
 
 def load_historical_data_from_file(symbol):
     """
@@ -275,6 +337,9 @@ def load_historical_data(symbol):
         data = load_historical_data_from_file(symbol)
     if data is None:
         data = load_historical_data_from_net(symbol, recent=False)
+    if data and 'days' in data:
+        data['days'] = sorted(data['days'], key=lambda x: x['date'])
+
     return data
 
 # if __name__ == "__main__":

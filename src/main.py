@@ -40,62 +40,66 @@ import sys
 import time
 import warnings
 import os
-import random
-import pandas as pd
 
 from sklearn.exceptions import ConvergenceWarning
 
 from globals import ReportSingleton, get_mongo_client, get_symbol_name_list
 from historical_data import build_all_symbols_history, load_historical_data
-from indicators.trend.ichimoku import Ichimoku
-from indicators.indicator_aggregator import IndicatorAggregator
-from predictors.predictor_aggergator import PredictorAggregator
 
+DEBUG_SYMBOL = 'ABVC'
+DEBUG = False
+
+def get_entry_exit_points(price_data):
+    """
+    Calculate entry and exit points for trading based on price data.
+
+    This function analyzes the provided price data to determine potential entry and exit points for trading. 
+    It calculates a score for the most recent day based on various indicators and sets the entry price, 
+    stop loss, and take profit levels.
+
+    Args:
+        price_data (dict): A dictionary containing price data with the following structure:
+            {
+                'days': [
+                    {
+                        'close': float,
+                        'ema_20': float,
+                        'macd_line': float,
+                        'macd_signal': float,
+                        'adx': float,
+                        'high': float,
+                        'atr_14': float
+                    },
+                    ...
+                ]
+            }
+
+    Returns:
+        dict: The updated price data dictionary with added entry and exit points for the most recent day.
+    """
+    if len(price_data['days']) >= 2:
+        yesterday = price_data['days'][-1]
+        prev_day = price_data['days'][-2]
+
+        yesterday['score'] = (
+            (1 if yesterday['close'] > yesterday['ema_20'] else 0) +
+            (1 if yesterday['macd_line'] > yesterday['macd_signal'] else 0) +
+            (1 if yesterday['macd_line'] > 0 else 0) +
+            (1 if yesterday['adx'] > 20 else 0)
+        )
+
+        yesterday['entry_price'] = max(yesterday['high'], prev_day['high']) + 0.2 * yesterday['atr_14']
+        yesterday['stop_loss'] = yesterday['entry_price'] * 0.96
+        yesterday['take_profit'] = yesterday['entry_price'] * 1.04
+
+    return price_data
 
 def debug_test():
     """
-    Debug function to test the StockMidpointPredictor model.
+    Debug function to test current theories.
 
-    This function performs the following steps:
-    1. Loads historical price data for IBM.
-    2. Prepares the data for model training.
-    3. Initializes and trains the StockMidpointPredictor model with a lookback period of 30 days.
-    4. Predicts the next day's midpoint price.
-    5. Evaluates the model's performance using RMSE (Root Mean Square Error).
-
-    The function also contains commented-out code for additional analysis and forecasting of stock symbols,
-    including calculating flatness, average delta, and generating graphical representations of midpoints.
-
-    Note: The commented-out code is not executed but provides a template for further analysis and reporting.
-
-    Returns:
-        None
     """
-
-    symbols = get_symbol_name_list()
-    random_symbols = random.sample(symbols, 10)
-    for index, symbol in enumerate(random_symbols):
-        price_data = load_historical_data(symbol)
-        if price_data is None:
-            ReportSingleton().write(
-                f"Failed to load historical data for {symbol}.")
-            return
-
-        price_data = price_data['days'][:240]
-        clipped_price_data = price_data[::-1]
-
-        data = pd.DataFrame([{
-            'open': val['open'],
-            'high': val['high'],
-            'low': val['low'],
-            'close': val['close'],
-            'volume': val['volume'],
-            'date': val['date']}
-            for val in clipped_price_data])
-        ichi = Ichimoku(data)
-        ichi_results = ichi.value
-        ichi.graph()
-        ReportSingleton().write(f'{(index*100/len(random_symbols)):.2f}%. {symbol} - Buy: {ichi_results["buy"]} - Sell: {ichi_results["sell"]}')
+    pass    # pylint: disable=unnecessary-pass
 
 def predict_temp():
     """
@@ -105,44 +109,27 @@ def predict_temp():
         None
     """
     symbols = get_symbol_name_list()
-    results = {'buy': 0, 'sell': 0, 'hold': 0, 'volatility': 0, 'direction': 0}
-    candidates = []
-    for index, symbol in enumerate(symbols):
+    results = []
+    for _, symbol in enumerate(symbols):
+        global DEBUG    # pylint: disable=global-statement
+        DEBUG = symbol == DEBUG_SYMBOL
         price_data = load_historical_data(symbol)
         if price_data is None:
-            ReportSingleton().write(
-                f"Failed to load historical data for {symbol}.")
+            ReportSingleton().write(f"Failed to load historical data for {symbol}.")
             return
-
-        price_data = price_data['days'][:240]
-        clipped_price_data = price_data[::-1]
-
-        data = pd.DataFrame([{
-            'open': val['open'],
-            'high': val['high'],
-            'low': val['low'],
-            'close': val['close'],
-            'volume': val['volume'],
-            'date': val['date']}
-            for val in clipped_price_data])
-        indicator_results = IndicatorAggregator(data).aggregate()
-        predict_results = PredictorAggregator(data).aggregate()
-        results = {**indicator_results, **predict_results}
-        results['buy_minus_sell'] = results['buy'] - results['sell']
-
-        candidates.append({'symbol': symbol, 'results': results})
-        ReportSingleton().write(f'{(index*100/len(symbols)):.2f}%. {symbol} - Buy/Sell: {results["buy_minus_sell"]} - Buy: {results["buy"]}'
-                                f' - Sell: {results["sell"]} - ' \
-                                f'Hold: {results["hold"]} - Volatility: {results["volatility"]} - ' \
-                                f'Direction: {results["direction"]} - Average drop: {results["drop"]}')
-    top_ten_buys = sorted(candidates, key=lambda x: ( -x['results']['buy_minus_sell'], -x['results']['direction'], -x['results']['volatility']))[:10]
+        price_data = get_entry_exit_points(price_data)
+        yesterday = price_data['days'][-1]
+        if 'entry_price' in yesterday and yesterday['entry_price'] > 0 and 'stop_loss' in yesterday \
+            and 'take_profit' in yesterday and 'score' in yesterday:
+            results.append({'symbol': symbol, 'entry_price': yesterday['entry_price'], 'stop_loss': yesterday['stop_loss'],
+                            'take_profit': yesterday['take_profit'], 'score': yesterday['score']})
+            # ReportSingleton().write(f'{yesterday["date"]} - {symbol} - Entry: {yesterday["entry_price"]} - Stop-Loss: {yesterday["stop_loss"]} - '
+            # f'Take-Profit: {yesterday["take_profit"]}')
+    sorted_days = sorted(results, key=lambda x: x.get('score', 0), reverse=True)
     ReportSingleton().write('Top 10 buy candidates:')
-    for candidate in top_ten_buys:
-        ReportSingleton().write(f"{candidate['symbol']}")
-    top_ten_sells = sorted(candidates, key=lambda x: (x['results']['buy_minus_sell'], -x['results']['direction'], -x['results']['volatility']))[:10]
-    ReportSingleton().write('Top 10 sell candidates:')
-    for candidate in top_ten_sells:
-        ReportSingleton().write(f"{candidate['symbol']}")
+    for i in range(min(10, len(sorted_days))):
+        ReportSingleton().write(f'{sorted_days[i]["symbol"]} - Entry: {sorted_days[i]["entry_price"]} - Stop-Loss: {sorted_days[i]["stop_loss"]} -' \
+                                f' Take-Profit: {sorted_days[i]["take_profit"]}')
 
 if __name__ == "__main__":
     ReportSingleton().write(f'Starting BlueHorseshoe at {time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())}...')

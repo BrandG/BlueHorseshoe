@@ -20,7 +20,6 @@ Global Variables:
 - ADJUSTED_WEIGHTED_PRICE_STABILITY_MODIFIER: Modifier for adjusted weighted price stability.
 - ADJUSTED_MODIFIED_ATR_MODIFIER: Modifier for adjusted modified ATR.
 - STABILITY_SCORE_MODIFIER: Modifier for stability score.
-- combined_score_mul: Multipliers for combined score.
 - BASE_PATH: Base path for historical data.
 - invalid_symbols: List of invalid stock symbols.
 - MONGO_CLIENT: MongoDB client instance.
@@ -66,44 +65,36 @@ ADJUSTED_WEIGHTED_PRICE_STABILITY_MODIFIER = 0.15  # default = 0.20
 ADJUSTED_MODIFIED_ATR_MODIFIER = 0.15  # default = 0.20
 STABILITY_SCORE_MODIFIER = 0.50  # default = 0.35
 
-combined_score_mul = [0.75, 0.25]
-
 BASE_PATH = '/workspaces/BlueHorseshoe/src/historical_data/'
 
-invalid_symbols = ['AJXA', 'APGB', 'AQNA', 'ARGO', 'BBLN', 'BCPA', 'BCPB', 'BFX', 'BMAC', 'BOAC', 'BODY', 'CBX', 'CCV',
-                   'CPTK', 'CSTA', 'CTEST', 'ECG', 'EOCW', 'FSNB', 'GCTSW', 'HT', 'HYLN', 'INGM', 'ISG', 'JHAA', 'LHC', 'OSG', 'PNSTWS',
-                   'PRMB', 'ROSS', 'SCU', 'SIX', 'TMAC', 'USX', 'VMW', 'MTEST', 'NTEST', 'ASGI', 'CMSA', 'RBCP', 'GFR', 'GOOS',
-                   'HBI', 'HOMB', 'QTWO', 'ZBH', 'INST', 'RCFA', 'SAVE', 'DLY', 'AEVA', 'GFL', 'CARR', 'OTIS', 'RFM', 'BIPC',
-                   'MPLN', 'SPHR', 'RSI', 'SKLZ', 'APG', 'ADCT', 'SLQT', 'DNMR', 'AFGD', 'FOUR', 'SBBA', 'AZEK', 'ETWO',
-                   'HAFN', 'MP', 'ACI', 'FTHY', 'SII', 'DNB', 'LMND', 'BFLY', 'ALIT', 'MEG', 'BEPC', 'RKT', 'SST', 'BEKE',
-                   'NTST', 'ML', 'QS', 'NYC', 'UZD', 'MIR', 'NUVB', 'NDMO', 'XPEV', 'GB', 'PFH', 'RBOT', 'SNOW', 'AMWL', 'U',
-                   'GETY', 'SOJE', 'BCAT', 'VNT', 'MGRB', 'ASAN', 'BQ', 'PLTR', 'YALA', 'ATIP', 'DTB', 'MKFG', 'STEM', 'IH',
-                   'OUST', 'PSFE', 'MNSO', 'TIMB', 'BNH', 'GHLD', 'CRC', 'GATO', 'MAX', 'PTA', 'LU', 'SPIR', 'OWLT', 'GRNT',
-                   'JOBY', 'UP', 'LICY', 'BKKT', 'YSG', 'OPFI', 'GBTG', 'AIZN', 'SDHY', 'NRDY', 'NOTE', 'AI', 'SMR', 'OPAD',
-                   'OWL', 'UZE', 'ACHR', 'BARK', 'GWH', 'IONQ', 'EVEX', 'KUKE', 'GRND', 'DFH', 'MYTE', 'RLX', 'ZIM', 'AMPS',
-                   'FRGE', 'ONTF', 'TIXT', 'SMRT', 'LDI', 'TFSA', 'PKST', 'RCC', 'BWSN', 'RFMZ', 'PERF', 'SES', 'OSCR', 'UWMC',
-                   'ASAI', 'CSAN', 'RBLX', 'CPNG', 'HAYW', 'LANV', 'OLO', 'NAPA', 'TUYA', 'BNL', 'DOCN', 'KIND', 'SEMR',
-                   'VZIO', 'BIGZ', 'ZH', 'ECCW', 'NXU', 'COUR', 'COMP', 'HTFB', 'AGL', 'BEPH', 'DNA', 'LOCL', 'DV', 'GENI',
-                   'KKRS', 'PATH', 'BOWL', 'PL', 'EDR', 'NPCT', 'BRCC', 'BRW', 'LEV', 'WDH', 'SMWB', 'GROV', 'OGN', 'GPOR',
-                   'PCOR', 'BIPH', 'NBXG', 'PAY', 'UZF', 'ZIP', 'FCRX', 'FIGS', 'HGTY', 'NE', 'ZETA', 'ECCC', 'TPTA', 'AOMR',
-                   'RERE', 'YMM', 'CXM', 'DOCS', 'NEUE', 'MCW', 'WDI', 'BNT', 'DDL', 'S', 'YOU', 'CURV', 'DTM', 'PSQH', 'FREY',
-                   'OKLO', 'SHCO', 'BLND', 'BRDG', 'STVN', 'FLYX', 'NABL', 'LAW', 'VSCO', 'VTEX', 'CNM', 'GXO', 'RYAN', 'ZVIA',
-                   'MGRD', 'XPOF', 'MLNK', 'COOK', 'RSKD', 'DOLE', 'ECVT', 'HIPO', 'AMBP', 'MIO', 'NPWR', 'JXN', 'RDW', 'BROS',
-                   'ONON', 'MTAL', 'AKA', 'TOST', 'SLVM', 'CWAN', 'ECAT', 'WRBY', 'BHIL', 'TFPM', 'KORE', 'VLN', 'WBX', 'CION',
-                   'LTH', 'IHS', 'FNA', 'EICA', 'FBRT', 'ENFN', 'PX', 'ARIS', 'KD', 'INFA', 'MEGI', 'BXSL', 'DTC', 'CBL', 'CMTG',
-                   'CDRE', 'NXDT', 'PRM', 'CINT', 'WEAV', 'ONL', 'SG', 'NMAI', 'GUG', 'DTG', 'CTV', 'CRGY', 'NU', 'BEPI', 'EVTL',
-                   'IOT', 'NPFD', 'BBAI', 'BWNB', 'ZGN', 'DOUG', 'DMA', 'MNTN', 'WEL', 'SOAR', 'BIPI', 'ECCV', 'PAXS', 'SGHC',
-                   'BFAC', 'MDV', 'RMMZ', 'NRGV', 'RLTY', 'BBUC', 'PNST', 'KMPB', 'PGRU', 'ESAB', 'STEW', 'EE', 'SAT', 'BLCO',
-                   'HTFC', 'EHAB', 'HKD', 'HLN', 'QBTS', 'HLLY', 'AMPX', 'CRBG', 'XPER', 'BHVN', 'LVWR', 'RZC', 'SDRL', 'HSHP',
-                   'BMN', 'RXO', 'NXG', 'SAJ', 'FSCO', 'BKDT', 'FG', 'BAM', 'MBC', 'SAY', 'VTS', 'TXO', 'ASBA', 'AESI', 'CLCO',
-                   'CR', 'MSGE', 'SAZ', 'KVUE', 'ATMU', 'KNF', 'AACT', 'CAVA', 'PHIN', 'FIHL', 'KGS', 'SVV', 'VTMX', 'LZM', 'SRFM',
-                   'EICB', 'SN', 'ALUR', 'ECO', 'EXTO', 'BETR', 'APOS', 'TKO', 'HYAC', 'KVYO', 'KLG', 'PMTU', 'LAC', 'LAAC', 'VLTO',
-                   'VSTS', 'BIRK', 'MNR', 'CCIA', 'NLOP', 'HG', 'WS', 'FGN', 'ZKH', 'DEC', 'CDLR', 'IROHU', 'ELPC', 'ALTM', 'CLBR',
-                   'SDHC', 'PSBD', 'MFAN', 'MSDL', 'NCDL', 'OBDE', 'AS', 'ANRO', 'RWTN', 'MITN', 'AHR', 'TBBB', 'SOC', 'BODI', 'ATHS',
-                   'CTOS', 'RDDT', 'AUNA', 'DXYZ', 'SOLV', 'BEPJ', 'GCTS', 'GEV', 'MGRE', 'WNS', 'PACS', 'ULS', 'CTRI', 'IBTA',
-                   'MFAO', 'LOAR', 'RBRK', 'VIK', 'ZK', 'MITP', 'KBDC', 'BOW', 'CIMN', 'BIPJ', 'SPMC', 'RWTO', 'TBN', 'LB', 'SW',
-                   'ARDT', 'PDCC', 'CON', 'AOMN', 'SMC', 'CIMO', 'AAM', 'AMTM', 'BKV', 'CURB', 'GRDN', 'EQV', 'FVR', 'SARO', 'CBNA',
-                   'SBXD', 'CICB', 'KLC', 'NXT', 'NXT(EXP20091224)', 'AFARW', 'BTBDW', 'KTTAW']
+invalid_symbols = []
+def load_invalid_symbols():
+    """
+    Loads invalid symbols from a file and stores them in the global variable `invalid_symbols`.
+
+    The function attempts to read a file named 'invalid_symbols.txt' located in the directory specified by `BASE_PATH`.
+    Each line in the file is expected to contain one invalid symbol. Empty lines are ignored.
+
+    Raises:
+        FileNotFoundError: If the file does not exist at the specified path.
+        UnicodeDecodeError: If the file cannot be decoded using UTF-8 encoding.
+        OSError, IOError: If an error occurs while reading the file.
+
+    Logs:
+        An error message if the file is not found, cannot be decoded, or if any other I/O error occurs.
+    """
+    invalid_symbols_file_path = os.path.join(BASE_PATH, 'invalid_symbols.txt')
+    try:
+        with open(invalid_symbols_file_path, 'r', encoding='utf-8') as file:
+            global invalid_symbols #pylint: disable=global-statement
+            invalid_symbols = [line.strip() for line in file if line.strip()]
+    except FileNotFoundError:
+        logging.error("Error: File not found at %s. Please check the file path.", invalid_symbols_file_path)
+    except UnicodeDecodeError:
+        logging.error("Error: Unable to decode the file %s. Please check the file encoding.", invalid_symbols_file_path)
+    except (OSError, IOError) as e:
+        logging.error("An error occurred while reading the file: %s", e)
+
 MONGO_CLIENT = None
 
 
