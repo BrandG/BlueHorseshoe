@@ -51,7 +51,7 @@ def load_historical_data_from_net(stock_symbol, recent=False):
                 Returns None if the 'Time Series (Daily)' key is not found in the response.
 
     Usage:
-        ReportSingleton().write(load_historical_data_from_net('QGEN', CONST_GRAB_RECENT_DATES))
+        ReportSingleton().write(load_historical_data_from_net('QGEN', True))
 
     Raises:
         requests.exceptions.HTTPError: If the HTTP request returned an unsuccessful status code.

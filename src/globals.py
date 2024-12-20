@@ -50,24 +50,10 @@ from ratelimit import limits, sleep_and_retry #pylint: disable=import-error
 from pymongo.errors import ConnectionFailure, ConfigurationError
 from matplotlib.ticker import MultipleLocator
 
-# When calculating the stability score (2.B.1), set these to determine which is more important
-# for finding a good stability value.
-STDEV_MULTIPLIER = 1.0   # The size of the stdev
-RATIO_MULTIPLIER = 1.0   # The ratio of midpoints that fall within the stdev
-
-# When updating symbols, this tells whether to grab the whole range, or just recent data
-CONST_GRAB_RECENT_DATES = True
-
-CONST_DATE_RANGE = 20  # The range of dates to use when testing the validity of a model
-
-ADJUSTED_ROLLING_CLOSE_OPEN_MODIFIER = 0.20  # default = 0.25
-ADJUSTED_WEIGHTED_PRICE_STABILITY_MODIFIER = 0.15  # default = 0.20
-ADJUSTED_MODIFIED_ATR_MODIFIER = 0.15  # default = 0.20
-STABILITY_SCORE_MODIFIER = 0.50  # default = 0.35
-
 BASE_PATH = '/workspaces/BlueHorseshoe/src/historical_data/'
-
+MONGO_CLIENT = None
 invalid_symbols = []
+
 def load_invalid_symbols():
     """
     Loads invalid symbols from a file and stores them in the global variable `invalid_symbols`.
@@ -94,9 +80,7 @@ def load_invalid_symbols():
         logging.error("Error: Unable to decode the file %s. Please check the file encoding.", invalid_symbols_file_path)
     except (OSError, IOError) as e:
         logging.error("An error occurred while reading the file: %s", e)
-
-MONGO_CLIENT = None
-
+load_invalid_symbols()
 
 class ReportSingleton:
     """
@@ -487,75 +471,3 @@ def get_symbol_sublist(list_type, historical_data=None):
             continue
 
     return ret_val
-
-
-# def clip_data_to_dates(price_data=None, end_date='', daterange=100):
-#     """
-#     Clips the given price data list to a specified date range ending at the given end date.
-
-#     Args:
-#         symbol (str, optional): The symbol for which to load historical data if price_data is not provided. Defaults to an empty string.
-#         price_data (list): A list of dictionaries containing price data with 'date' keys.
-#         end_date (str, optional): The end date for the date range in 'YYYY-MM-DD' format. Defaults to today's date.
-#         daterange (int, optional): The number of days before the end date to include in the results. Defaults to 100.
-
-#     Returns:
-#         list: A list of dictionaries containing price data within the specified date range.
-#     """
-#     results= []
-#     if end_date == '':
-#         end_date = datetime.today().strftime("%Y-%m-%d")
-#     end_date_dt = datetime.strptime(end_date, '%Y-%m-%d')
-#     if price_data is None:
-#         return results
-#     for day in price_data:
-#         current_date_dt = datetime.strptime(day['date'], '%Y-%m-%d')
-#         start_date_dt = end_date_dt - timedelta(days=daterange)
-#         if current_date_dt <= end_date_dt and current_date_dt > start_date_dt:
-#             results.append(day)
-#     return results
-
-
-# def calculate_ewma_delta(price_data, period=20):
-#     """
-#     Calculates the Exponentially Weighted Moving Average (EWMA) of daily deltas for the given price data.
-
-#     Args:
-#         price_data (list): A list of dictionaries containing 'high' and 'low' price data.
-#         period (int): The period for calculating the EWMA. Default is 20.
-
-#     Returns:
-#         float: The EWMA of daily deltas. Returns 0 if there is insufficient data.
-#     """
-#     if not isinstance(price_data, list) or not all(isinstance(item, dict) for item in price_data) or len(price_data) == 0:
-#         raise ValueError("price_data must be a non-empty list of dictionaries")
-
-#     daily_deltas = []
-#     for price_obj in price_data:
-#         try:
-#             high = float(price_obj.get('high', 0))
-#             low = float(price_obj.get('low', 0))
-#         except (ValueError, TypeError):
-#             logging.warning("Invalid price data. Skipping entry.")
-#             continue  # Skip this entry if conversion fails
-#         if high == 0 and low == 0:
-#             logging.warning("Both high and low prices are zero. Skipping entry.")
-#             continue  # Skip if both high and low are zero
-#         average_price = (high + low) / 2  # Optionally use close price as the baseline
-#         daily_delta = ((high - low) / average_price)  # Convert to percentage
-#         daily_deltas.append(daily_delta)
-
-#     if len(daily_deltas) == 0:
-#         return 0
-
-#     # Set smoothing factor
-#     alpha = 2 / (period + 1)
-
-#     # Initialize EWMA with the first delta value
-#     ewma = daily_deltas[0]
-
-#     # Apply EWMA formula for each subsequent delta
-#     for delta in daily_deltas[1:]:
-#         ewma = (delta * alpha) + (ewma * (1 - alpha))
-
-#     return ewma
