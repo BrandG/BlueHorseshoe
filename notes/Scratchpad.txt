@@ -1,3 +1,38 @@
+2024-12-21
+    I've moved to a swing-trading system now, which means I gutted a lot of stuff to make more basic predictions. If I am
+ever going to do day-trading, I've got this system for getting real-time data.
+    https://www.alphavantage.co/query?function=TIME_SERIES_INTRADAY&symbol=IBM&interval=5min&entitlement=delayed&apikey=JFRQJ8YWSX8UK50X
+    The results of that look like this:
+
+{
+    "Meta Data": {
+        "1. Information": "Intraday (5min) open, high, low, close prices and volume - DATA DELAYED BY 15 MINUTES",
+        "2. Symbol": "IBM",
+        "3. Last Refreshed": "2024-12-20 19:55:00",
+        "4. Interval": "5min",
+        "5. Output Size": "Compact",
+        "6. Time Zone": "US/Eastern"
+    },
+    "Time Series (5min)": {
+        "2024-12-20 19:55:00": {
+            "1. open": "224.0000",
+            "2. high": "224.0000",
+            "3. low": "223.8000",
+            "4. close": "223.8000",
+            "5. volume": "50"
+        },
+        "2024-12-20 19:45:00": {
+            "1. open": "223.5000",
+            "2. high": "223.5000",
+            "3. low": "223.5000",
+            "4. close": "223.5000",
+            "5. volume": "7"
+        },
+
+This is 15-minute delayed data, but it's the best I've got for now.
+
+I could start rebuilding the day trading side of it based on that.
+
 2024-12-18
     Well, I know it will take a while to implement all of the indicators, so I decided to ask the latest Gemini and ChatGPT which ones they would do when building a
 day-trading strategy. They both agreed that, since I only have inter-day data, I need to go with swing trading rather than day trading. So, I'll need to look that up.
