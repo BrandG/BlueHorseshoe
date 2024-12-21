@@ -1,38 +1,23 @@
 """
-Main module for the BlueHorseshoe project.
+BlueHorseshoe Trading System
 
-This module handles the initialization, training, and prediction of stock midpoints using historical data.
-It also provides functionality for debugging, updating historical data, and predicting next midpoints.
+This module provides functionality for analyzing historical stock price data and predicting potential entry and exit points for trading. 
+It includes functions for loading historical data, calculating trading signals, and generating reports.
 
 Modules:
-    logging: Provides logging capabilities.
-    statistics: Provides functions for mathematical statistics.
-    sys: Provides access to some variables used or maintained by the interpreter.
-    time: Provides time-related functions.
-    warnings: Provides a way to handle warnings.
-    pandas: Provides data structures and data analysis tools.
-    sklearn.exceptions: Provides exceptions for scikit-learn.
-    globals: Provides global variables and functions.
-    historical_data: Provides functions to build and load historical data.
-    prediction: Provides functions to forecast the next midpoint.
-    os: Provides a way of using operating system dependent functionality.
-    flatness: Provides functions to analyze midpoints.
-    nnPrediction: Provides functions to get neural network predictions.
+    - logging: For logging messages to a file.
+    - sys: For system-specific parameters and functions.
+    - time: For time-related functions.
+    - warnings: For managing warnings.
+    - os: For interacting with the operating system.
+    - sklearn.exceptions: For handling specific exceptions from scikit-learn.
+    - globals: Custom module for global variables and functions.
+    - historical_data: Custom module for handling historical data.
 
 Functions:
-    debug_test(): Loads historical data for IBM, trains the StockMidpointPredictor model, and evaluates its performance.
-
-    Loads historical data for IBM, trains the StockMidpointPredictor model, and evaluates its performance.
-
-    This function performs the following steps:
-    1. Loads historical data for IBM.
-    2. Prepares the data for training.
-    3. Initializes and trains the StockMidpointPredictor model.
-    4. Predicts the next day's midpoint.
-    5. Evaluates the model's performance and prints the RMSE.
-
-    Returns:
-        None
+    - get_entry_exit_points(price_data): Calculate entry and exit points for trading based on price data.
+    - debug_test(): Debug function to test current theories.
+    - predict_temp(): Temporary prediction function to analyze symbols and generate trading signals.
 
 """
 import logging

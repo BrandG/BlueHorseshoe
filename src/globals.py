@@ -1,39 +1,43 @@
 """
-This module provides various global configurations, constants, and utility functions for the BlueHorseshoe project.
-Modules and Libraries:
-- os: Provides a way of using operating system dependent functionality.
-- matplotlib.pyplot: Used for plotting graphs.
-- json: Used for parsing JSON data.
-- requests: Allows sending HTTP requests.
-- io: Provides the Python interfaces to stream handling.
-- csv: Implements classes to read and write tabular data in CSV format.
-- datetime: Supplies classes for manipulating dates and times.
-- ratelimit: Provides decorators for rate limiting.
-- logging: Used for logging messages.
-- pymongo: Provides tools for working with MongoDB.
+Module: globals
+
+This module provides various global configurations, utility functions, and classes for the BlueHorseshoe project.
+It includes functionalities for loading invalid symbols, managing a singleton report file, connecting to MongoDB,
+plotting graphs, and fetching stock symbols from the internet or a file.
+
+Imports:
+    - json
+    - io
+    - csv
+    - logging
+    - os
+    - datetime
+    - dataclasses
+    - pymongo
+    - requests
+    - matplotlib.pyplot
+    - ratelimit
+    - pymongo.errors
+    - matplotlib.ticker
+
 Global Variables:
-- STDEV_MULTIPLIER : Multiplier for standard deviation in stability score calculation.
-- RATIO_MULTIPLIER: Multiplier for ratio of midpoints within standard deviation in stability score calculation.
-- CONST_GRAB_RECENT_DATES: Flag to determine whether to grab the whole range or just recent data when updating symbols.
-- CONST_DATE_RANGE: Range of dates to use when testing the validity of a model.
-- ADJUSTED_ROLLING_CLOSE_OPEN_MODIFIER: Modifier for adjusted rolling close-open.
-- ADJUSTED_WEIGHTED_PRICE_STABILITY_MODIFIER: Modifier for adjusted weighted price stability.
-- ADJUSTED_MODIFIED_ATR_MODIFIER: Modifier for adjusted modified ATR.
-- STABILITY_SCORE_MODIFIER: Modifier for stability score.
-- BASE_PATH: Base path for historical data.
-- invalid_symbols: List of invalid stock symbols.
-- MONGO_CLIENT: MongoDB client instance.
+    - BASE_PATH (str): The base path for historical data files.
+    - MONGO_CLIENT (pymongo.MongoClient): The MongoDB client instance.
+    - invalid_symbols (list): A list to store invalid stock symbols.
+
 Functions:
-- get_mongo_client(uri, db_name): Creates and returns a MongoDB client connected to the specified URI and database.
-- graph(x_label, y_label, title, curves, lines, points, x_values): Plots a graph with the given labels, title, curves, lines, and points.
-- get_symbol_list_from_net(): Fetches a list of active stock symbols from the NYSE exchange using the Alpha Vantage API.
-- get_symbol_list_from_file(): Reads a list of symbols from a JSON file.
-- get_symbol_name_list(): Retrieves a list of symbol names.
-- get_symbol_list(): Retrieves a list of symbols, either from a file or from the internet.
-- get_symbol_sublist(list_type, historical_data): Generates a sublist of specific financial data from historical data.
-- open_report_file(): Opens a file to write reports.
-- close_report_file(): Closes the report file.
-- report(newLine): Prints a report to the console.
+    - load_invalid_symbols(): Loads invalid symbols from a file and stores them in the global variable `invalid_symbols`.
+    - get_mongo_client(uri="", db_name="blueHorseshoe"): Creates and returns a MongoDB client connected to the specified URI and database.
+    - graph(graph_data: GraphData): Plots a graph with the given labels, title, curves, lines, and points.
+    - get_symbol_list_from_net(): Fetches a list of active stock symbols from the NYSE exchange using the Alpha Vantage API.
+    - get_symbol_list_from_file(): Reads a list of symbols from a JSON file.
+    - get_symbol_name_list(): Retrieves a list of symbol names.
+    - get_symbol_list(): Retrieves a list of symbols from a file or the internet.
+    - get_symbol_sublist(list_type, historical_data=None): Generates a sublist of specific financial data from historical data.
+
+Classes:
+    - ReportSingleton: A singleton class to manage writing to a report file.
+    - GraphData: A class used to represent data for a graph.
 """
 
 import json

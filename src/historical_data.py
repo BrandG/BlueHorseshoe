@@ -137,33 +137,6 @@ def save_historical_data_to_mongo(symbol, data, db):
     recent_collection.update_one(
         {"symbol": symbol}, {"$set": data}, upsert=True)
 
-# def merge_data(historical_data, recent_data):
-#     """
-#     Merges recent stock data into historical stock data, ensuring no duplicate dates.
-
-#     Args:
-#         historical_data (dict): The historical stock data containing a list of days.
-#         recent_data (dict): The recent stock data containing a list of days and a name.
-
-#     Returns:
-#         dict: The merged stock data with unique dates, sorted in descending order by date.
-#     """
-#     final_data = historical_data.copy()
-#     existing_dates = {day['date'] for day in final_data['days']}  # Use a set for existing dates
-
-#     # Merge the days with unique dates
-#     new_days = [day for day in recent_data['days'] if day['date'] not in existing_dates]
-#     final_data['days'].extend(new_days)
-
-#     # Sort historical_data by date using heapq for efficiency
-#     final_data['days'] = list(heapq.nlargest(len(final_data['days']), final_data['days'], key=lambda x: x['date']))
-#     # Remove the data['metadata'] entry
-#     if 'metadata' in final_data:
-#         del final_data['metadata']
-
-#     return final_data
-
-
 def build_all_symbols_history(starting_at='', save_to_file=False, recent=False):
     """
     Builds historical data for all stock symbols and saves them as JSON files.
