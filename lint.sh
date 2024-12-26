@@ -1,3 +1,3 @@
 date
-pylint ./src/*.py ./src/indicators/*.py > linting.txt
+pylint ./src/*.py > linting.txt
 date

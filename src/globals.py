@@ -1,40 +1,43 @@
 """
-This module provides various global configurations, constants, and utility functions for the BlueHorseshoe project.
-Modules and Libraries:
-- os: Provides a way of using operating system dependent functionality.
-- matplotlib.pyplot: Used for plotting graphs.
-- json: Used for parsing JSON data.
-- requests: Allows sending HTTP requests.
-- io: Provides the Python interfaces to stream handling.
-- csv: Implements classes to read and write tabular data in CSV format.
-- datetime: Supplies classes for manipulating dates and times.
-- ratelimit: Provides decorators for rate limiting.
-- logging: Used for logging messages.
-- pymongo: Provides tools for working with MongoDB.
+Module: globals
+
+This module provides various global configurations, utility functions, and classes for the BlueHorseshoe project.
+It includes functionalities for loading invalid symbols, managing a singleton report file, connecting to MongoDB,
+plotting graphs, and fetching stock symbols from the internet or a file.
+
+Imports:
+    - json
+    - io
+    - csv
+    - logging
+    - os
+    - datetime
+    - dataclasses
+    - pymongo
+    - requests
+    - matplotlib.pyplot
+    - ratelimit
+    - pymongo.errors
+    - matplotlib.ticker
+
 Global Variables:
-- STDEV_MULTIPLIER : Multiplier for standard deviation in stability score calculation.
-- RATIO_MULTIPLIER: Multiplier for ratio of midpoints within standard deviation in stability score calculation.
-- CONST_GRAB_RECENT_DATES: Flag to determine whether to grab the whole range or just recent data when updating symbols.
-- CONST_DATE_RANGE: Range of dates to use when testing the validity of a model.
-- ADJUSTED_ROLLING_CLOSE_OPEN_MODIFIER: Modifier for adjusted rolling close-open.
-- ADJUSTED_WEIGHTED_PRICE_STABILITY_MODIFIER: Modifier for adjusted weighted price stability.
-- ADJUSTED_MODIFIED_ATR_MODIFIER: Modifier for adjusted modified ATR.
-- STABILITY_SCORE_MODIFIER: Modifier for stability score.
-- combined_score_mul: Multipliers for combined score.
-- BASE_PATH: Base path for historical data.
-- invalid_symbols: List of invalid stock symbols.
-- MONGO_CLIENT: MongoDB client instance.
+    - BASE_PATH (str): The base path for historical data files.
+    - MONGO_CLIENT (pymongo.MongoClient): The MongoDB client instance.
+    - invalid_symbols (list): A list to store invalid stock symbols.
+
 Functions:
-- get_mongo_client(uri, db_name): Creates and returns a MongoDB client connected to the specified URI and database.
-- graph(x_label, y_label, title, curves, lines, points, x_values): Plots a graph with the given labels, title, curves, lines, and points.
-- get_symbol_list_from_net(): Fetches a list of active stock symbols from the NYSE exchange using the Alpha Vantage API.
-- get_symbol_list_from_file(): Reads a list of symbols from a JSON file.
-- get_symbol_name_list(): Retrieves a list of symbol names.
-- get_symbol_list(): Retrieves a list of symbols, either from a file or from the internet.
-- get_symbol_sublist(list_type, historical_data): Generates a sublist of specific financial data from historical data.
-- open_report_file(): Opens a file to write reports.
-- close_report_file(): Closes the report file.
-- report(newLine): Prints a report to the console.
+    - load_invalid_symbols(): Loads invalid symbols from a file and stores them in the global variable `invalid_symbols`.
+    - get_mongo_client(uri="", db_name="blueHorseshoe"): Creates and returns a MongoDB client connected to the specified URI and database.
+    - graph(graph_data: GraphData): Plots a graph with the given labels, title, curves, lines, and points.
+    - get_symbol_list_from_net(): Fetches a list of active stock symbols from the NYSE exchange using the Alpha Vantage API.
+    - get_symbol_list_from_file(): Reads a list of symbols from a JSON file.
+    - get_symbol_name_list(): Retrieves a list of symbol names.
+    - get_symbol_list(): Retrieves a list of symbols from a file or the internet.
+    - get_symbol_sublist(list_type, historical_data=None): Generates a sublist of specific financial data from historical data.
+
+Classes:
+    - ReportSingleton: A singleton class to manage writing to a report file.
+    - GraphData: A class used to represent data for a graph.
 """
 
 import json
@@ -51,61 +54,37 @@ from ratelimit import limits, sleep_and_retry #pylint: disable=import-error
 from pymongo.errors import ConnectionFailure, ConfigurationError
 from matplotlib.ticker import MultipleLocator
 
-# When calculating the stability score (2.B.1), set these to determine which is more important
-# for finding a good stability value.
-STDEV_MULTIPLIER = 1.0   # The size of the stdev
-RATIO_MULTIPLIER = 1.0   # The ratio of midpoints that fall within the stdev
-
-# When updating symbols, this tells whether to grab the whole range, or just recent data
-CONST_GRAB_RECENT_DATES = True
-
-CONST_DATE_RANGE = 20  # The range of dates to use when testing the validity of a model
-
-ADJUSTED_ROLLING_CLOSE_OPEN_MODIFIER = 0.20  # default = 0.25
-ADJUSTED_WEIGHTED_PRICE_STABILITY_MODIFIER = 0.15  # default = 0.20
-ADJUSTED_MODIFIED_ATR_MODIFIER = 0.15  # default = 0.20
-STABILITY_SCORE_MODIFIER = 0.50  # default = 0.35
-
-combined_score_mul = [0.75, 0.25]
-
 BASE_PATH = '/workspaces/BlueHorseshoe/src/historical_data/'
-
-invalid_symbols = ['AJXA', 'APGB', 'AQNA', 'ARGO', 'BBLN', 'BCPA', 'BCPB', 'BFX', 'BMAC', 'BOAC', 'BODY', 'CBX', 'CCV',
-                   'CPTK', 'CSTA', 'CTEST', 'ECG', 'EOCW', 'FSNB', 'GCTSW', 'HT', 'HYLN', 'INGM', 'ISG', 'JHAA', 'LHC', 'OSG', 'PNSTWS',
-                   'PRMB', 'ROSS', 'SCU', 'SIX', 'TMAC', 'USX', 'VMW', 'MTEST', 'NTEST', 'ASGI', 'CMSA', 'RBCP', 'GFR', 'GOOS',
-                   'HBI', 'HOMB', 'QTWO', 'ZBH', 'INST', 'RCFA', 'SAVE', 'DLY', 'AEVA', 'GFL', 'CARR', 'OTIS', 'RFM', 'BIPC',
-                   'MPLN', 'SPHR', 'RSI', 'SKLZ', 'APG', 'ADCT', 'SLQT', 'DNMR', 'AFGD', 'FOUR', 'SBBA', 'AZEK', 'ETWO',
-                   'HAFN', 'MP', 'ACI', 'FTHY', 'SII', 'DNB', 'LMND', 'BFLY', 'ALIT', 'MEG', 'BEPC', 'RKT', 'SST', 'BEKE',
-                   'NTST', 'ML', 'QS', 'NYC', 'UZD', 'MIR', 'NUVB', 'NDMO', 'XPEV', 'GB', 'PFH', 'RBOT', 'SNOW', 'AMWL', 'U',
-                   'GETY', 'SOJE', 'BCAT', 'VNT', 'MGRB', 'ASAN', 'BQ', 'PLTR', 'YALA', 'ATIP', 'DTB', 'MKFG', 'STEM', 'IH',
-                   'OUST', 'PSFE', 'MNSO', 'TIMB', 'BNH', 'GHLD', 'CRC', 'GATO', 'MAX', 'PTA', 'LU', 'SPIR', 'OWLT', 'GRNT',
-                   'JOBY', 'UP', 'LICY', 'BKKT', 'YSG', 'OPFI', 'GBTG', 'AIZN', 'SDHY', 'NRDY', 'NOTE', 'AI', 'SMR', 'OPAD',
-                   'OWL', 'UZE', 'ACHR', 'BARK', 'GWH', 'IONQ', 'EVEX', 'KUKE', 'GRND', 'DFH', 'MYTE', 'RLX', 'ZIM', 'AMPS',
-                   'FRGE', 'ONTF', 'TIXT', 'SMRT', 'LDI', 'TFSA', 'PKST', 'RCC', 'BWSN', 'RFMZ', 'PERF', 'SES', 'OSCR', 'UWMC',
-                   'ASAI', 'CSAN', 'RBLX', 'CPNG', 'HAYW', 'LANV', 'OLO', 'NAPA', 'TUYA', 'BNL', 'DOCN', 'KIND', 'SEMR',
-                   'VZIO', 'BIGZ', 'ZH', 'ECCW', 'NXU', 'COUR', 'COMP', 'HTFB', 'AGL', 'BEPH', 'DNA', 'LOCL', 'DV', 'GENI',
-                   'KKRS', 'PATH', 'BOWL', 'PL', 'EDR', 'NPCT', 'BRCC', 'BRW', 'LEV', 'WDH', 'SMWB', 'GROV', 'OGN', 'GPOR',
-                   'PCOR', 'BIPH', 'NBXG', 'PAY', 'UZF', 'ZIP', 'FCRX', 'FIGS', 'HGTY', 'NE', 'ZETA', 'ECCC', 'TPTA', 'AOMR',
-                   'RERE', 'YMM', 'CXM', 'DOCS', 'NEUE', 'MCW', 'WDI', 'BNT', 'DDL', 'S', 'YOU', 'CURV', 'DTM', 'PSQH', 'FREY',
-                   'OKLO', 'SHCO', 'BLND', 'BRDG', 'STVN', 'FLYX', 'NABL', 'LAW', 'VSCO', 'VTEX', 'CNM', 'GXO', 'RYAN', 'ZVIA',
-                   'MGRD', 'XPOF', 'MLNK', 'COOK', 'RSKD', 'DOLE', 'ECVT', 'HIPO', 'AMBP', 'MIO', 'NPWR', 'JXN', 'RDW', 'BROS',
-                   'ONON', 'MTAL', 'AKA', 'TOST', 'SLVM', 'CWAN', 'ECAT', 'WRBY', 'BHIL', 'TFPM', 'KORE', 'VLN', 'WBX', 'CION',
-                   'LTH', 'IHS', 'FNA', 'EICA', 'FBRT', 'ENFN', 'PX', 'ARIS', 'KD', 'INFA', 'MEGI', 'BXSL', 'DTC', 'CBL', 'CMTG',
-                   'CDRE', 'NXDT', 'PRM', 'CINT', 'WEAV', 'ONL', 'SG', 'NMAI', 'GUG', 'DTG', 'CTV', 'CRGY', 'NU', 'BEPI', 'EVTL',
-                   'IOT', 'NPFD', 'BBAI', 'BWNB', 'ZGN', 'DOUG', 'DMA', 'MNTN', 'WEL', 'SOAR', 'BIPI', 'ECCV', 'PAXS', 'SGHC',
-                   'BFAC', 'MDV', 'RMMZ', 'NRGV', 'RLTY', 'BBUC', 'PNST', 'KMPB', 'PGRU', 'ESAB', 'STEW', 'EE', 'SAT', 'BLCO',
-                   'HTFC', 'EHAB', 'HKD', 'HLN', 'QBTS', 'HLLY', 'AMPX', 'CRBG', 'XPER', 'BHVN', 'LVWR', 'RZC', 'SDRL', 'HSHP',
-                   'BMN', 'RXO', 'NXG', 'SAJ', 'FSCO', 'BKDT', 'FG', 'BAM', 'MBC', 'SAY', 'VTS', 'TXO', 'ASBA', 'AESI', 'CLCO',
-                   'CR', 'MSGE', 'SAZ', 'KVUE', 'ATMU', 'KNF', 'AACT', 'CAVA', 'PHIN', 'FIHL', 'KGS', 'SVV', 'VTMX', 'LZM', 'SRFM',
-                   'EICB', 'SN', 'ALUR', 'ECO', 'EXTO', 'BETR', 'APOS', 'TKO', 'HYAC', 'KVYO', 'KLG', 'PMTU', 'LAC', 'LAAC', 'VLTO',
-                   'VSTS', 'BIRK', 'MNR', 'CCIA', 'NLOP', 'HG', 'WS', 'FGN', 'ZKH', 'DEC', 'CDLR', 'IROHU', 'ELPC', 'ALTM', 'CLBR',
-                   'SDHC', 'PSBD', 'MFAN', 'MSDL', 'NCDL', 'OBDE', 'AS', 'ANRO', 'RWTN', 'MITN', 'AHR', 'TBBB', 'SOC', 'BODI', 'ATHS',
-                   'CTOS', 'RDDT', 'AUNA', 'DXYZ', 'SOLV', 'BEPJ', 'GCTS', 'GEV', 'MGRE', 'WNS', 'PACS', 'ULS', 'CTRI', 'IBTA',
-                   'MFAO', 'LOAR', 'RBRK', 'VIK', 'ZK', 'MITP', 'KBDC', 'BOW', 'CIMN', 'BIPJ', 'SPMC', 'RWTO', 'TBN', 'LB', 'SW',
-                   'ARDT', 'PDCC', 'CON', 'AOMN', 'SMC', 'CIMO', 'AAM', 'AMTM', 'BKV', 'CURB', 'GRDN', 'EQV', 'FVR', 'SARO', 'CBNA',
-                   'SBXD', 'CICB', 'KLC', 'NXT', 'NXT(EXP20091224)', 'AFARW']
 MONGO_CLIENT = None
+invalid_symbols = []
 
+def load_invalid_symbols():
+    """
+    Loads invalid symbols from a file and stores them in the global variable `invalid_symbols`.
+
+    The function attempts to read a file named 'invalid_symbols.txt' located in the directory specified by `BASE_PATH`.
+    Each line in the file is expected to contain one invalid symbol. Empty lines are ignored.
+
+    Raises:
+        FileNotFoundError: If the file does not exist at the specified path.
+        UnicodeDecodeError: If the file cannot be decoded using UTF-8 encoding.
+        OSError, IOError: If an error occurs while reading the file.
+
+    Logs:
+        An error message if the file is not found, cannot be decoded, or if any other I/O error occurs.
+    """
+    invalid_symbols_file_path = os.path.join(BASE_PATH, 'invalid_symbols.txt')
+    try:
+        with open(invalid_symbols_file_path, 'r', encoding='utf-8') as file:
+            global invalid_symbols #pylint: disable=global-statement
+            invalid_symbols = [line.strip() for line in file if line.strip()]
+    except FileNotFoundError:
+        logging.error("Error: File not found at %s. Please check the file path.", invalid_symbols_file_path)
+    except UnicodeDecodeError:
+        logging.error("Error: Unable to decode the file %s. Please check the file encoding.", invalid_symbols_file_path)
+    except (OSError, IOError) as e:
+        logging.error("An error occurred while reading the file: %s", e)
+load_invalid_symbols()
 
 class ReportSingleton:
     """
@@ -496,75 +475,3 @@ def get_symbol_sublist(list_type, historical_data=None):
             continue
 
     return ret_val
-
-
-# def clip_data_to_dates(price_data=None, end_date='', daterange=100):
-#     """
-#     Clips the given price data list to a specified date range ending at the given end date.
-
-#     Args:
-#         symbol (str, optional): The symbol for which to load historical data if price_data is not provided. Defaults to an empty string.
-#         price_data (list): A list of dictionaries containing price data with 'date' keys.
-#         end_date (str, optional): The end date for the date range in 'YYYY-MM-DD' format. Defaults to today's date.
-#         daterange (int, optional): The number of days before the end date to include in the results. Defaults to 100.
-
-#     Returns:
-#         list: A list of dictionaries containing price data within the specified date range.
-#     """
-#     results= []
-#     if end_date == '':
-#         end_date = datetime.today().strftime("%Y-%m-%d")
-#     end_date_dt = datetime.strptime(end_date, '%Y-%m-%d')
-#     if price_data is None:
-#         return results
-#     for day in price_data:
-#         current_date_dt = datetime.strptime(day['date'], '%Y-%m-%d')
-#         start_date_dt = end_date_dt - timedelta(days=daterange)
-#         if current_date_dt <= end_date_dt and current_date_dt > start_date_dt:
-#             results.append(day)
-#     return results
-
-
-# def calculate_ewma_delta(price_data, period=20):
-#     """
-#     Calculates the Exponentially Weighted Moving Average (EWMA) of daily deltas for the given price data.
-
-#     Args:
-#         price_data (list): A list of dictionaries containing 'high' and 'low' price data.
-#         period (int): The period for calculating the EWMA. Default is 20.
-
-#     Returns:
-#         float: The EWMA of daily deltas. Returns 0 if there is insufficient data.
-#     """
-#     if not isinstance(price_data, list) or not all(isinstance(item, dict) for item in price_data) or len(price_data) == 0:
-#         raise ValueError("price_data must be a non-empty list of dictionaries")
-
-#     daily_deltas = []
-#     for price_obj in price_data:
-#         try:
-#             high = float(price_obj.get('high', 0))
-#             low = float(price_obj.get('low', 0))
-#         except (ValueError, TypeError):
-#             logging.warning("Invalid price data. Skipping entry.")
-#             continue  # Skip this entry if conversion fails
-#         if high == 0 and low == 0:
-#             logging.warning("Both high and low prices are zero. Skipping entry.")
-#             continue  # Skip if both high and low are zero
-#         average_price = (high + low) / 2  # Optionally use close price as the baseline
-#         daily_delta = ((high - low) / average_price)  # Convert to percentage
-#         daily_deltas.append(daily_delta)
-
-#     if len(daily_deltas) == 0:
-#         return 0
-
-#     # Set smoothing factor
-#     alpha = 2 / (period + 1)
-
-#     # Initialize EWMA with the first delta value
-#     ewma = daily_deltas[0]
-
-#     # Apply EWMA formula for each subsequent delta
-#     for delta in daily_deltas[1:]:
-#         ewma = (delta * alpha) + (ewma * (1 - alpha))
-
-#     return ewma
