@@ -1,3 +1,13 @@
+"""
+This module provides functions for swing trading analysis.
+
+The module includes functions to calculate entry and exit points for trading based on historical price data and 
+a temporary prediction function to identify top buy candidates.
+
+Functions:
+    get_entry_exit_points(price_data): Calculate entry and exit points for trading based on price data.
+    swing_predict(): Temporary prediction function to identify top buy candidates.
+"""
 from globals import ReportSingleton, get_symbol_name_list
 from historical_data import load_historical_data
 
@@ -74,4 +84,3 @@ def swing_predict():
     for i in range(min(10, len(sorted_days))):
         ReportSingleton().write(f'{sorted_days[i]["symbol"]} - Entry: {sorted_days[i]["entry_price"]} - Stop-Loss: {sorted_days[i]["stop_loss"]} -' \
                                 f' Take-Profit: {sorted_days[i]["take_profit"]}')
-

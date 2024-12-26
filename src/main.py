@@ -89,7 +89,7 @@ if __name__ == "__main__":
         ReportSingleton().write("Debugging...")
         debug_test()
     else:
-        ReportSingleton().write("Invalid arguments. Use -u to update historical data, -p to predict next midpoints, -d "
+        ReportSingleton().write("Invalid arguments. Use -u to update historical data, -p to predict next day swing trading midpoints, -d "
                                 "to debug, or -b to build historical data.")
         sys.exit(1)
 
