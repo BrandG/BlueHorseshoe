@@ -173,12 +173,16 @@ class SwingTrader:
         df = pd.DataFrame(price_data['days'])
         yesterday = dict(df.iloc[-1])
 
+        if yesterday['date'] != (pd.Timestamp.now().normalize() - pd.Timedelta(days=1)).strftime('%Y-%m-%d'):
+            return None
+
         entry_price = self.calculate_entry_price(df)
         if not MIN_STOCK_PRICE < entry_price < MAX_STOCK_PRICE:
             return None
 
         return {
             'symbol': symbol,
+            'name': price_data['full_name'],
             'entry_price': entry_price,
             'stop_loss': entry_price * STOP_LOSS_FACTOR,
             'take_profit': entry_price * TAKE_PROFIT_FACTOR,
@@ -203,5 +207,5 @@ class SwingTrader:
             ReportSingleton().write(
                 f"{result['symbol']} - Entry: {result['entry_price']:.2f} - "
                 f"Stop-Loss: {result['stop_loss']:.2f} - Take-Profit: {result['take_profit']:.2f} - "
-                f"Score: {result['score']:.2f}"
+                f"Score: {result['score']:.2f} - Name: {result['name']}"
             )
