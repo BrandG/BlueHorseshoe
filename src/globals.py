@@ -33,7 +33,6 @@ Functions:
     - get_symbol_list_from_file(): Reads a list of symbols from a JSON file.
     - get_symbol_name_list(): Retrieves a list of symbol names.
     - get_symbol_list(): Retrieves a list of symbols from a file or the internet.
-    - get_symbol_sublist(list_type, historical_data=None): Generates a sublist of specific financial data from historical data.
 
 Classes:
     - ReportSingleton: A singleton class to manage writing to a report file.
@@ -47,6 +46,9 @@ import logging
 import os
 from datetime import datetime
 from dataclasses import dataclass, field
+from pathlib import Path
+from threading import Lock
+from typing import Optional, Union
 import pymongo
 import requests
 import matplotlib.pyplot as plt
@@ -86,74 +88,18 @@ def load_invalid_symbols():
         logging.error("An error occurred while reading the file: %s", e)
 load_invalid_symbols()
 
-class ReportSingleton:
+def get_symbol_name_list():
     """
-    A singleton class to manage writing to a report file.
+    Retrieves a list of symbol names.
 
-    This class ensures that only one instance of the file handler is created and used throughout the application.
-    The file is opened in write mode with UTF-8 encoding.
+    This function calls `get_symbol_list()` to get a list of symbols, 
+    and then extracts and returns the 'symbol' field from each symbol in the list.
 
-    Attributes:
-        _instance (file object): The singleton instance of the file handler.
-
-    Methods:
-        __new__(cls):
-            Creates and returns the singleton instance of the file handler.
-        write(new_line):
-            Writes a new line to the report file and flushes the buffer.
-        close():
-            Closes the report file and resets the singleton instance to None.
+    Returns:
+        list: A list of symbol names.
     """
-    _instance = None
-
-    def __new__(cls, *args, **kwargs):
-        # If we haven't created an instance yet, create one
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
-            # Open the file only once
-            cls._instance.__init__()
-        return cls._instance
-
-    def __init__(self):
-        if not hasattr(self, '_initialized'):  # Prevent reinitialization
-            self._file = None
-            self._initialize_file()
-            self._initialized = True
-
-    def _initialize_file(self):
-        #pylint: disable=consider-using-with
-        self._file = open("/workspaces/BlueHorseshoe/src/logs/report.txt", "w", encoding="utf-8")
-
-    def write(self, new_line):
-        """
-        Writes a new line to the instance and flushes the buffer.
-
-        Args:
-            new_line (str): The line to be written to the instance.
-        """
-        if self._file is not None:
-            write_string = new_line
-            if not isinstance(new_line, str):
-                write_string = json.dumps(new_line, indent=4)
-            self._file.write(write_string + '\n')
-            self._file.flush()
-        else:
-            logging.error("Attempted to write to a closed report file.")
-
-    def close(self):
-        """
-        Closes the current instance and sets it to None.
-
-        This method closes the current instance of the object and then sets the 
-        instance variable to None to ensure that the object is properly disposed of 
-        and no longer referenced.
-        """
-        if self._file is not None:
-            self._file.close()
-            self._file = None
-        else:
-            logging.error("Attempted to close a closed report file.")
-
+    symbol_list = get_symbol_list()
+    return [symbol['symbol'] for symbol in symbol_list]
 
 def get_mongo_client(uri="", db_name="blueHorseshoe"):
     """
@@ -184,7 +130,6 @@ def get_mongo_client(uri="", db_name="blueHorseshoe"):
             return None
 
     return MONGO_CLIENT[db_name]
-
 
 @dataclass
 class GraphData:
@@ -374,21 +319,6 @@ def get_symbol_list_from_file():
     ReportSingleton().write(f"Error: Could not open file {file_path}. Please check the logs.")
     return None
 
-
-def get_symbol_name_list():
-    """
-    Retrieves a list of symbol names.
-
-    This function calls `get_symbol_list()` to get a list of symbols, 
-    and then extracts and returns the 'symbol' field from each symbol in the list.
-
-    Returns:
-        list: A list of symbol names.
-    """
-    symbol_list = get_symbol_list()
-    return [symbol['symbol'] for symbol in symbol_list]
-
-
 def get_symbol_list():
     """
     Retrieves a list of symbols. The function first attempts to read the symbol list from a file.
@@ -417,61 +347,133 @@ def get_symbol_list():
     ReportSingleton().write(f"Symbol list loaded. Length: {len(symbol_list)}")
     return [symbol for symbol in symbol_list if symbol['symbol'] not in invalid_symbols]
 
-
-def get_symbol_sublist(list_type, historical_data=None):
+class ReportSingleton:
     """
-    Generates a sublist of specific financial data from historical data.
-
-    Args:
-        list_type (str): The type of data to extract. Valid options are 'high', 'low', 'open', 'close', 
-                        'volume', 'midpoint'.
-        historical_data (list, optional): A list of dictionaries containing historical data. 
-                                            Each dictionary should have keys corresponding to the list_type.
-                                            If not provided, it will be loaded from a file based on the symbol.
-        symbol (str, optional): The symbol for which to load historical data if historical_data is not provided.
-                                Defaults to an empty string.
-
-    Returns:
-        list: A list of floats corresponding to the specified list_type extracted from the historical data.
-
-    Raises:
-        ValueError: If the data in historical_data cannot be converted to float.
-        TypeError: If the data in historical_data is not of the expected type.
-
-    Usage:
-        get_symbol_sublist('high', historical_data=historical_data)
-        get_symbol_sublist('low', historical_data = load_historical_data('QGEN')['days'])
-
-    Notes:
-        - If both historical_data and symbol are not provided, the function will return an empty list.
-        - If an invalid list_type is provided, the function will write a warning to the log and return an empty list.
+    A thread-safe singleton class to manage writing to a report file.
+    
+    This class implements a singleton pattern with proper thread safety, file handling,
+    and context management. It ensures atomic writes and proper resource cleanup.
+    
+    Attributes:
+        _instance (ReportSingleton): The singleton instance
+        _lock (Lock): Thread lock for synchronization
+        _file (Optional[TextIOWrapper]): File handle for the report
+        
+    Examples:
+        >>> with ReportSingleton() as report:
+        ...     report.write("Log entry")
+        
+        >>> report = ReportSingleton()
+        >>> report.write("Regular log entry")
+        >>> report.close()
     """
-    if historical_data is None:
-        logging.warning(
-            "No historical data provided. Please provide historical data or a symbol.")
-        return []
+    _instance: Optional['ReportSingleton'] = None
+    _lock = Lock()
 
-    ret_val = []
-    for day in historical_data:
+    def __new__(cls) -> 'ReportSingleton':
+        with cls._lock:
+            if cls._instance is None:
+                cls._instance = super().__new__(cls)
+                cls._instance._initialized = False
+            return cls._instance
+
+    def __init__(self) -> None:
+        with self._lock:
+            if not getattr(self, '_initialized', False):
+                self._file = None
+                self._write_lock = Lock()
+                self._log_path = Path("/workspaces/BlueHorseshoe/src/logs/report.txt")
+                self._initialize_file()
+                self._initialized = True
+
+    def _initialize_file(self) -> None:
+        """Initialize the log file with proper directory creation and error handling."""
         try:
-            match list_type:
-                case 'high':
-                    ret_val.append(float(day['high']))
-                case 'low':
-                    ret_val.append(float(day['low']))
-                case 'open':
-                    ret_val.append(float(day['open']))
-                case 'close':
-                    ret_val.append(float(day['close']))
-                case 'volume':
-                    ret_val.append(float(day['volume']))
-                case 'midpoint':
-                    ret_val.append(float(day['midpoint']))
-                case _:
-                    logging.warning("Invalid list_type")
-        except (ValueError, TypeError) as e:
-            logging.warning(
-                "Invalid historical data. Making a list of %s, but the data was %s", list_type, e)
-            continue
+            # Ensure log directory exists
+            self._log_path.parent.mkdir(parents=True, exist_ok=True)
 
-    return ret_val
+            # Open file with explicit newline handling
+            self._file = open( # pylint: disable=consider-using-with
+                self._log_path,
+                mode="w",
+                encoding="utf-8",
+                newline='\n',
+                buffering=1  # Line buffering
+            )
+        except (OSError, IOError) as e:
+            logging.error("Failed to initialize report file: %s", str(e))
+            raise RuntimeError(f"Could not initialize report file: {e}") from e
+
+    def write(self, content: Union[str, dict, list]) -> None:
+        """
+        Thread-safe method to write content to the report file.
+        
+        Args:
+            content: Content to write (string, dict, or list)
+            
+        Raises:
+            RuntimeError: If file is closed or write fails
+        """
+        if self._file is None:
+            raise RuntimeError("Attempted to write to a closed report file")
+
+        try:
+            with self._write_lock:
+                if isinstance(content, (dict, list)):
+                    formatted_content = json.dumps(content, indent=4, ensure_ascii=False)
+                else:
+                    formatted_content = str(content)
+
+                self._file.write(formatted_content + '\n')
+                self._file.flush()
+                os.fsync(self._file.fileno())  # Ensure write to disk
+
+        except (IOError, OSError) as e:
+            logging.error("Failed to write to report file: %s", str(e))
+            raise RuntimeError(f"Failed to write to report file: {e}") from e
+
+    def close(self) -> None:
+        """
+        Safely close the report file with proper error handling.
+        
+        This method is thread-safe and idempotent.
+        """
+        with self._lock:
+            if self._file is not None:
+                try:
+                    self._file.flush()
+                    os.fsync(self._file.fileno())
+                    self._file.close()
+                except (IOError, OSError) as e:
+                    logging.error("Error closing report file: %s", str(e))
+                finally:
+                    self._file = None
+
+    def __enter__(self) -> 'ReportSingleton':
+        """Enable context manager support."""
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        """Ensure proper cleanup when used as context manager."""
+        self.close()
+
+    def __del__(self) -> None:
+        """Ensure file is closed when object is garbage collected."""
+        self.close()
+
+    @property
+    def is_open(self) -> bool:
+        """Check if the report file is currently open."""
+        return self._file is not None and not self._file.closed
+
+    @classmethod
+    def reset(cls) -> None:
+        """
+        Reset the singleton instance.
+        
+        This is primarily useful for testing purposes.
+        """
+        with cls._lock:
+            if cls._instance is not None:
+                cls._instance.close()
+                cls._instance = None
