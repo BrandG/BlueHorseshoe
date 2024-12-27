@@ -1,3 +1,8 @@
+2024-12-26
+    I spent most of the day today trying to find good entry position calculations, but it was hard to find examples because, while my system did find almost all 
+winners today, the delta between today and right before Christmas was all messed up. Obviously, that's going to be a continuous problem. All I can do is try again
+tomorrow, when the numbers will presumably be more sane.
+
 2024-12-21
     I've moved to a swing-trading system now, which means I gutted a lot of stuff to make more basic predictions. If I am
 ever going to do day-trading, I've got this system for getting real-time data.

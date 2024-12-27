@@ -132,7 +132,7 @@ def save_historical_data_to_mongo(symbol, data, db):
     collection.update_one({"symbol": symbol}, {"$set": data}, upsert=True)
 
     # Store just the last year of data in a separate collection
-    data['days'] = data['days'][:240]
+    data['days'] = data['days'][-240:]
     recent_collection = db['recent_historical_data']
     recent_collection.update_one(
         {"symbol": symbol}, {"$set": data}, upsert=True)
@@ -186,7 +186,7 @@ def build_all_symbols_history(starting_at='', save_to_file=False, recent=False):
             else:
                 ReportSingleton().write(f"Invalid data format for {symbol}.")
                 return
-            df = df.sort_values(by='date').reset_index(drop=True)[:240]
+            df = df.sort_values(by='date').reset_index(drop=True)
 
             net_data['days'] = get_technical_indicators(df)
             if '_id' in net_data:
@@ -246,6 +246,8 @@ def get_technical_indicators(df):
     df['macd_signal'] = df['macd_signal'].round(4)
     df['macd_hist'] = df['macd_hist'].round(4)
     df['adx'] = ta.ADX(df['high'], df['low'], df['close'], timeperiod=14).round(4) # type: ignore
+    df['dmi_p'] = ta.PLUS_DI(df['high'],df['low'],df['close'],timeperiod=14).round(4) # type: ignore
+    df['dmi_n'] = ta.MINUS_DI(df['high'],df['low'],df['close'],timeperiod=14).round(4) # type: ignore
     df['rsi_14'] = ta.RSI(df['close'], timeperiod=14).round(4) # type: ignore
     df['atr_14'] = ta.ATR(df['high'], df['low'], df['close'], timeperiod=14).round(4) # type: ignore
     df['bb_upper'], df['bb_middle'], df['bb_lower'] = ta.BBANDS( # type: ignore
@@ -261,6 +263,8 @@ def get_technical_indicators(df):
     df['mfi'] = ta.MFI(df['high'], df['low'], df['close'], df['volume'], timeperiod=14).round(4) # type: ignore
     df['cci'] = ta.CCI(df['high'], df['low'], df['close'], timeperiod=14).round(4) # type: ignore
     df['willr'] = ta.WILLR(df['high'], df['low'], df['close'], timeperiod=14).round(4) # type: ignore
+    df['roc_5'] = ta.ROC(df['close'], timeperiod=5).round(4) # type: ignore
+    df['avg_volume_20'] = df['volume'].rolling(window=20).mean().round(4)
     return df.to_dict(orient='records')
 
 def load_historical_data_from_file(symbol):
