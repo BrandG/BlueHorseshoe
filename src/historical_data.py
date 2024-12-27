@@ -102,13 +102,14 @@ def load_historical_data_from_mongo(symbol, db):
         db (Database): The MongoDB database instance.
 
     Returns:
-        dict: A dictionary containing the historical data if found, None otherwise.
-        None: If no data is found for the given symbol.
+        dict: A dictionary containing the historical data if found, empty dictionary otherwise.
     """
-    data = None
+    data = {}
     try:
         collection = db['recent_historical_data']
         data = collection.find_one({"symbol": symbol})
+        if data is None:
+            data = {}
     except (ServerSelectionTimeoutError, OSError) as e:
         ReportSingleton().write(f"Error accessing MongoDB: {e}")
 
@@ -296,7 +297,7 @@ def load_historical_data_from_file(symbol):
         ReportSingleton().write(f"Error: Invalid JSON in {file_path}.")
     except PermissionError:
         ReportSingleton().write(f"Permission denied: {file_path}")
-    return None
+    return {}
 
 
 def load_historical_data(symbol):
@@ -316,6 +317,14 @@ def load_historical_data(symbol):
         data = load_historical_data_from_net(symbol, recent=False)
     if data and 'days' in data:
         data['days'] = sorted(data['days'], key=lambda x: x['date'])
+
+    if data is None:
+        return None
+    days = data['days']
+    if 'avg_volume_20' not in days[0]:
+        df = pd.DataFrame(days)
+        df['avg_volume_20'] = df['volume'].rolling(window=20).mean().round(4)
+        days = df.to_dict(orient='records')
 
     return data
 

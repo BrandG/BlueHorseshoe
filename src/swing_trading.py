@@ -1,223 +1,207 @@
 """
-This module provides functions for swing trading analysis.
+swing_trading.py
 
-The module includes functions to calculate entry and exit points for trading based on historical price data and 
-a temporary prediction function to identify top buy candidates.
+This module provides classes and methods for performing technical analysis and swing trading predictions.
+It includes functionality for calculating trends, technical scores, and entry prices for stocks based on historical data.
 
-Functions:
-    get_entry_exit_points(price_data): Calculate entry and exit points for trading based on price data.
-    swing_predict(): Temporary prediction function to identify top buy candidates.
+Classes:
+    TechnicalAnalyzer: Handles technical analysis calculations with optimized methods.
+    SwingTrader: Main class for swing trading analysis.
+
+Constants:
+    TREND_PERIOD: The period used for trend calculation.
+    STRONG_R2_THRESHOLD: The R-squared threshold for a strong trend.
+    WEAK_R2_THRESHOLD: The R-squared threshold for a weak trend.
+    MIN_VOLUME_THRESHOLD: The minimum volume threshold for considering a stock.
+    MIN_STOCK_PRICE: The minimum stock price for considering a stock.
+    MAX_STOCK_PRICE: The maximum stock price for considering a stock.
+    STOP_LOSS_FACTOR: The factor used to calculate the stop-loss price.
+    TAKE_PROFIT_FACTOR: The factor used to calculate the take-profit price.
 """
+from typing import Dict, Optional
+from functools import lru_cache
 import numpy as np
 import pandas as pd
 from globals import ReportSingleton, get_symbol_name_list
 from historical_data import load_historical_data
 
-def calculate_trend(df, period=20):
-    if len(df) < period:
-        return "Insufficient data"
+# Constants to avoid magic numbers
+TREND_PERIOD = 20
+STRONG_R2_THRESHOLD = 0.7
+WEAK_R2_THRESHOLD = 0.3
+MIN_VOLUME_THRESHOLD = 10000
+MIN_STOCK_PRICE = 1.0
+MAX_STOCK_PRICE = 50.0
+STOP_LOSS_FACTOR = 0.96
+TAKE_PROFIT_FACTOR = 1.04
 
-    # Linear regression of closing prices
-    x = np.arange(period)
-    y = df['close'].rolling(period).apply(lambda z: np.polyfit(np.arange(len(z)), z, 1)[0], raw=True)
-    
-    # Calculate R-squared value
-    def calculate_r2(z):
-        slope, intercept = np.polyfit(np.arange(len(z)), z, 1)
-        y_pred = slope * np.arange(len(z)) + intercept
-        ss_res = np.sum((z - y_pred) ** 2)
-        ss_tot = np.sum((z - np.mean(z)) ** 2)
-        return 1 - (ss_res / ss_tot)
-    
-    r2 = df['close'].rolling(period).apply(calculate_r2, raw=True)
-    
-    # Trend strength based on slope and R-squared
-    slope = y.iloc[-1]
-    r2_value = r2.iloc[-1]
-    
-    # Categorize trend
-    trend = "No Clear Trend"
-    if slope > 0 and r2_value > 0.7:
-        trend = "Strong Uptrend"
-    elif slope > 0 and r2_value > 0.3:
-        trend = "Weak Uptrend"
-    elif slope < 0 and r2_value > 0.7:
-        trend = "Strong Downtrend"
-    elif slope < 0 and r2_value > 0.3:
-        trend = "Weak Downtrend"
-    ReportSingleton().write(f'Trend: {trend} - Slope: {slope:.2f} - R2: {r2_value:.2f}')
-    return trend
+class TechnicalAnalyzer:
+    """Handles technical analysis calculations with optimized methods."""
 
-def calculate_entry_price(df):
-    entry_price = df.iloc[-1]['close']
-    trend = calculate_trend(df)
-    if trend == "Strong Uptrend":
-        entry_price *= 1.05
-    elif trend == "Weak Uptrend":
-        entry_price *= 1.01
-    elif trend == "Strong Downtrend":
-        entry_price *= 0.95
-    elif trend == "Weak Downtrend":
-        entry_price *= 0.99
+    @staticmethod
+    @lru_cache(maxsize=128)
+    def _calculate_r2(prices: tuple) -> float:
+        """Calculate R-squared value with caching for repeated calculations."""
+        prices_array = np.array(prices)
+        x = np.arange(len(prices_array))
+        slope, intercept = np.polyfit(x, prices_array, 1)
+        y_pred = slope * x + intercept
+        ss_res = np.sum((prices_array - y_pred) ** 2)
+        ss_tot = np.sum((prices_array - np.mean(prices_array)) ** 2)
+        return (1 - (ss_res / ss_tot)) if ss_tot != 0 else 0
 
-    return entry_price
+    @staticmethod
+    def _rolling_window(a: np.ndarray, window: int) -> np.ndarray:
+        """Create a rolling window view of the array."""
+        shape = a.shape[:-1] + (a.shape[-1] - window + 1, window)
+        strides = a.strides + (a.strides[-1],)
+        return np.lib.stride_tricks.as_strided(a, shape=shape, strides=strides, writeable=False)
 
-def calculate_technical_score(df):
-    """
-    Calculate the technical score for a given stock based on various technical indicators.
-    The score is calculated based on the following criteria:
-    - Trend Strength (0-3 points)
-    - Price Action (0-3 points)
-    - MACD Strength (0-2 points)
-    - Volume (0-2 points)
-    - RSI (0-2 points)
-    - Rate of Change (0-2 points)
-    - DMIs (0-1 points)
-    - Bollinger Bands (0-3 points)
-    The maximum possible score is 18.
-    Parameters:
-    df (pandas.DataFrame): A DataFrame containing the following columns:
-        - 'avg_volume_20': Average volume over the last 20 days
-        - 'adx': Average Directional Index
-        - 'close': Closing price
-        - 'ema_20': 20-day Exponential Moving Average
-        - 'macd_line': MACD line value
-        - 'macd_signal': MACD signal line value
-        - 'volume': Current volume
-        - 'rsi_14': 14-day Relative Strength Index
-        - 'roc_5': 5-day Rate of Change
-        - 'dmi_p': Positive Directional Movement Index
-        - 'dmi_n': Negative Directional Movement Index
-        - 'bb_lower': Lower Bollinger Band
-        - 'bb_upper': Upper Bollinger Band
-    Returns:
-    int: The calculated technical score.
-    """
-    score = 0
-    
-    if df['avg_volume_20'] < 10000:
-        return score
-    
-    # Trend Strength (0-3 points)
-    if df['adx'] > 35:
-        score += 3
-    elif df['adx'] > 30:
-        score += 2
-    elif df['adx'] > 25:
-        score += 1
+    @classmethod
+    def calculate_trend(cls, df: pd.DataFrame) -> str:
+        """Calculate trend with vectorized operations."""
+        if len(df) < TREND_PERIOD:
+            return "Insufficient data"
 
-    # Price Action (0-3 points)
-    ema_margin = (df['close'] - df['ema_20']) / df['ema_20'] * 100
-    if ema_margin > 3:
-        score += 3
-    elif ema_margin > 2:
-        score += 2
-    elif ema_margin > 1:
-        score += 1
-    
-    # MACD Strength (0-2 points)
-    macd_diff = df['macd_line'] - df['macd_signal']
-    if macd_diff > 0 and df['macd_line'] > 0:
-        score += 2 if macd_diff > df['macd_signal'] * 0.15 else 1
+        # Vectorized calculations for better performance
+        prices = np.array(df['close'].values)
+        # Use rolling window implementation
+        windows = cls._rolling_window(prices, TREND_PERIOD)
 
-    # Volume (0-2 points)
-    vol_ratio = df['volume'] / df['avg_volume_20']
-    score += 2 if vol_ratio > 2 else 1 if vol_ratio > 1.5 else 0
-    
-    # RSI (0-2 points)
-    if 45 < df['rsi_14'] < 65:
-        score += 2
-    elif 40 < df['rsi_14'] < 70:
-        score += 1
+        # Calculate slope and R2 for the last window
+        x = np.arange(TREND_PERIOD)
+        last_window = windows[-1]
+        slope, _ = np.polyfit(x, last_window, 1)
+        r2_value = cls._calculate_r2(tuple(last_window))
 
-    # Rate of Change (0-2 points)
-    if df['roc_5'] > 2:
-        score += 2
-    elif df['roc_5'] > 1:
-        score += 1
-    
-    # DMIs (0-1 points)
-    score += 1 if df['dmi_p'] > df['dmi_n'] else 0
+        # Determine trend based on slope and R2
+        if slope > 0 :
+            trend = "Strong Uptrend" if r2_value > STRONG_R2_THRESHOLD else "Weak Uptrend"
+        elif slope < 0 :
+            trend = "Strong Downtrend" if r2_value > STRONG_R2_THRESHOLD else "Weak Downtrend"
+        else:
+            trend = "No Clear Trend"
 
-    # Bollinger Bands (0-3 points)
-    bb_position = (df['close'] - df['bb_lower']) / (df['bb_upper'] - df['bb_lower'])
-    
-    if 0.3 < bb_position < 0.7:  # Price in middle band - trend continuation
-        score += 2
-    elif 0.1 < bb_position < 0.3:  # Near lower band - potential bounce
-        score += 3
-    elif bb_position > 0.85:  # Near upper band - overbought
-        score -= 1
+        return trend
 
-    return score  # Max score: 18
+    @staticmethod
+    def calculate_technical_score(yesterday: Dict) -> float:
+        """Calculate technical score with vectorized operations."""
+        if 'avg_volume_20' in yesterday and yesterday['avg_volume_20'] < MIN_VOLUME_THRESHOLD:
+            return 0
 
-def get_entry_exit_points(price_data):
-    """
-    Calculate entry and exit points for trading based on price data.
+        score = 0
 
-    This function analyzes the provided price data to determine potential entry and exit points for trading. 
-    It calculates a score for the most recent day based on various indicators and sets the entry price, 
-    stop loss, and take profit levels.
+        # Vectorized calculations
+        score += np.select(
+            [yesterday['adx'] > 35, yesterday['adx'] > 30, yesterday['adx'] > 25],
+            [3, 2, 1], 0
+        )
 
-    Args:
-        price_data (dict): A dictionary containing price data with the following structure:
-            {
-                'days': [
-                    {
-                        'close': float,
-                        'ema_20': float,
-                        'macd_line': float,
-                        'macd_signal': float,
-                        'adx': float,
-                        'high': float,
-                        'atr_14': float
-                    },
-                    ...
-                ]
-            }
+        ema_margin = (yesterday['close'] - yesterday['ema_20']) / yesterday['ema_20'] * 100
+        score += np.select(
+            [ema_margin > 3, ema_margin > 2, ema_margin > 1],
+            [3, 2, 1], 0
+        )
 
-    Returns:
-        dict: The updated price data dictionary with added entry and exit points for the most recent day.
-    """
-    if len(price_data['days']) < 2 :
-        return price_data
-    
-    yesterday = price_data['days'][-1]
+        macd_diff = yesterday['macd_line'] - yesterday['macd_signal']
+        score += np.where(
+            (macd_diff > 0) & (yesterday['macd_line'] > 0),
+            np.where(macd_diff > yesterday['macd_signal'] * 0.15, 2, 1),
+            0
+        )
 
-    yesterday['score'] = calculate_technical_score(yesterday)
+        if 'volume' in yesterday and 'avg_volume_20' in yesterday:
+            vol_ratio = yesterday['volume'] / yesterday['avg_volume_20']
+            score += np.select(
+                [vol_ratio > 2, vol_ratio > 1.5],
+                [2, 1], 0
+            )
 
-    yesterday['entry_price'] = calculate_entry_price(pd.DataFrame(price_data['days']))
-    yesterday['stop_loss'] = yesterday['entry_price'] * 0.96
-    yesterday['take_profit'] = yesterday['entry_price'] * 1.04
+        score += np.select(
+            [(yesterday['rsi_14'] > 45) & (yesterday['rsi_14'] < 65),
+             (yesterday['rsi_14'] > 40) & (yesterday['rsi_14'] < 70)],
+            [2, 1], 0
+        )
 
-    return price_data
+        if 'roc_5' in yesterday:
+            score += np.select(
+                [yesterday['roc_5'] > 2, yesterday['roc_5'] > 1],
+                [2, 1], 0
+            )
 
-def swing_predict():
-    """
-    Temporary Prediction function
+        if 'dmi_p' in yesterday and 'dmi_n' in yesterday:
+            score += np.where(yesterday['dmi_p'] > yesterday['dmi_n'], 1, 0)
 
-    Returns:
-        None
-    """
-    symbols = get_symbol_name_list()
-    results = []
-    for _, symbol in enumerate(symbols):
-        ReportSingleton().write(f'Processing {symbol}...')
+        bb_position = (yesterday['close'] - yesterday['bb_lower']) / (yesterday['bb_upper'] - yesterday['bb_lower'])
+        score += np.select(
+            [(bb_position > 0.3) & (bb_position < 0.7),
+             (bb_position > 0.1) & (bb_position < 0.3),
+             bb_position > 0.85],
+            [2, 3, -1], 0
+        )
+
+        return float(score)
+
+class SwingTrader:
+    """Main class for swing trading analysis."""
+
+    def __init__(self):
+        self.technical_analyzer = TechnicalAnalyzer()
+
+    def calculate_entry_price(self, df: pd.DataFrame) -> float:
+        """Calculate entry price based on trend."""
+        entry_price = df.iloc[-1]['close']
+        trend = self.technical_analyzer.calculate_trend(df)
+
+        trend_adjustments = {
+            "Strong Uptrend": 1.05,
+            "Weak Uptrend": 1.01,
+            "Strong Downtrend": 0.95,
+            "Weak Downtrend": 0.99
+        }
+
+        return entry_price * trend_adjustments.get(trend, 1.0)
+
+    def process_symbol(self, symbol: str) -> Optional[Dict]:
+        """Process a single symbol and return its trading data."""
         price_data = load_historical_data(symbol)
-        if price_data is None:
+        if price_data is None or not price_data['days']:
             ReportSingleton().write(f"Failed to load historical data for {symbol}.")
-            return
-        price_data = get_entry_exit_points(price_data)
-        yesterday = price_data['days'][-1]
-        if 'entry_price' in yesterday and 'stop_loss' in yesterday and 'take_profit' in yesterday and 'score' in yesterday \
-            and 50 > yesterday['entry_price'] > 5.0 :
-            results.append({'symbol': symbol, 'entry_price': yesterday['entry_price'], 'stop_loss': yesterday['stop_loss'],
-                            'take_profit': yesterday['take_profit'], 'score': yesterday['score']})
-            # ReportSingleton().write(f'{yesterday["date"]} - {symbol} - Entry: {yesterday["entry_price"]} - Stop-Loss: {yesterday["stop_loss"]} - '
-            # f'Take-Profit: {yesterday["take_profit"]}')
-    sorted_days = sorted(results, key=lambda x: x.get('score', 0), reverse=True)
-    ReportSingleton().write('Top 10 buy candidates:')
-    for i in range(min(10, len(sorted_days))):
-        ReportSingleton().write(f'{sorted_days[i]["symbol"]} - Entry: {sorted_days[i]["entry_price"]:.2f} -' \
-                    f' Stop-Loss: {sorted_days[i]["stop_loss"]:.2f} - Take-Profit: {sorted_days[i]["take_profit"]:.2f} -' \
-                    f' Score: {sorted_days[i]["score"]:.2f}')
+            return None
+
+        df = pd.DataFrame(price_data['days'])
+        yesterday = dict(df.iloc[-1])
+
+        entry_price = self.calculate_entry_price(df)
+        if not MIN_STOCK_PRICE < entry_price < MAX_STOCK_PRICE:
+            return None
+
+        return {
+            'symbol': symbol,
+            'entry_price': entry_price,
+            'stop_loss': entry_price * STOP_LOSS_FACTOR,
+            'take_profit': entry_price * TAKE_PROFIT_FACTOR,
+            'score': self.technical_analyzer.calculate_technical_score(yesterday)
+        }
+
+    def swing_predict(self) -> None:
+        """Main prediction function with parallel processing capability."""
+        symbols = get_symbol_name_list()
+        results = []
+
+        # Process symbols
+        for symbol in symbols:
+            result = self.process_symbol(symbol)
+            if result:
+                results.append(result)
+
+        # Sort and display results
+        sorted_results = sorted(results, key=lambda x: x['score'], reverse=True)
+        ReportSingleton().write('Top 10 buy candidates:')
+        for result in sorted_results[:10]:
+            ReportSingleton().write(
+                f"{result['symbol']} - Entry: {result['entry_price']:.2f} - "
+                f"Stop-Loss: {result['stop_loss']:.2f} - Take-Profit: {result['take_profit']:.2f} - "
+                f"Score: {result['score']:.2f}"
+            )

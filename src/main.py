@@ -30,7 +30,7 @@ from sklearn.exceptions import ConvergenceWarning
 
 from globals import ReportSingleton, get_mongo_client
 from historical_data import build_all_symbols_history
-from swing_trading import swing_predict
+from swing_trading import SwingTrader
 
 DEBUG_SYMBOL = 'ABVC'
 DEBUG = False
@@ -83,7 +83,7 @@ if __name__ == "__main__":
         build_all_symbols_history(recent=False)
         ReportSingleton().write("Full historical data updated.")
     elif "-p" in sys.argv:
-        swing_predict()
+        SwingTrader().swing_predict()
         ReportSingleton().write('Predicting next midpoints...')
     elif "-d" in sys.argv:
         ReportSingleton().write("Debugging...")
