@@ -48,9 +48,9 @@ your analysis by capturing signals that your current mix (DMI/ADX, EMA, MACD, Vo
 
 ## 3. Support & Resistance or Price-Based Signals
 
-1. **Pivot Points**  
-   - Classic pivot point formulas generate potential support/resistance levels (R1, R2, S1, S2).  
-   - You could score how price behaves near these levels: e.g., bouncing off a pivot line might be bullish.
+# 1. **Pivot Points**  
+#   - Classic pivot point formulas generate potential support/resistance levels (R1, R2, S1, S2).  
+#   - You could score how price behaves near these levels: e.g., bouncing off a pivot line might be bullish.
 
 2. **52-Week High/Low**  
    - Checking how close price is to its 52-week high or low can signal momentum or risk.  

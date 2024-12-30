@@ -1,7 +1,35 @@
+"""
+This module provides the `VolumeIndicator` class for calculating a score based on various volume indicators.
+
+Classes:
+    VolumeIndicator: A class to calculate a score based on volume indicators.
+
+Constants:
+    OBV_MULTIPLIER (float): Multiplier for the On-Balance Volume (OBV) score.
+    CMF_MULTIPLIER (float): Multiplier for the Chaikin Money Flow (CMF) score.
+    ATR_BAND_MULTIPLIER (float): Multiplier for the Average True Range (ATR) band score.
+    ATR_SPIKE_MULTIPLIER (float): Multiplier for the ATR spike score.
+    DEFAULT_WINDOW (int): Default window size for calculations.
+
+Methods:
+    __init__(self, data: pd.DataFrame):
+        Initializes the VolumeIndicator with the provided data.
+
+    score_atr_spike(self, window: int = 14, spike_multiplier: float = 1.5) -> float:
+
+    _score_atr_band(self, ma_window: int = 20, atr_multiplier: float = 2.0) -> float:
+        Otherwise => 0.
+
+    _calculate_cmf_with_ta(self, window: int = 20, threshold: float = 0.05) -> float:
+
+    _score_obv_trend(self, window: int = 5) -> float:
+
+    calculate_score(self) -> float:
+"""
 import numpy as np
 import pandas as pd
-from ta.volume import OnBalanceVolumeIndicator, ChaikinMoneyFlowIndicator
-from ta.volatility import AverageTrueRange
+from ta.volume import OnBalanceVolumeIndicator, ChaikinMoneyFlowIndicator #pylint: disable=import-error
+from ta.volatility import AverageTrueRange #pylint: disable=import-error
 
 OBV_MULTIPLIER = 1.0
 CMF_MULTIPLIER = 1.0
@@ -10,6 +38,9 @@ ATR_SPIKE_MULTIPLIER = 1.0
 DEFAULT_WINDOW = 14
 
 class VolumeIndicator:
+    """
+    A class to calculate a score based on volume indicators.
+    """
 
     def __init__(self, data: pd.DataFrame):
         required_cols = ['high', 'low', 'close', 'volume']
@@ -23,7 +54,7 @@ class VolumeIndicator:
                 window=DEFAULT_WINDOW
             ).average_true_range()
 
-    def _score_atr_spike(self, window: int = 14, spike_multiplier: float = 1.5) -> float:
+    def score_atr_spike(self, window: int = 14, spike_multiplier: float = 1.5) -> float:
         """
         Checks if today's ATR is more than 'spike_multiplier' times the ATR from 'window' bars ago.
         If so, returns -2 (indicating high volatility => more risk).
@@ -45,7 +76,7 @@ class VolumeIndicator:
             return -2.0
         return 0.0
 
-    def _score_atr_band(self, 
+    def _score_atr_band(self,
                     ma_window: int = 20,
                     atr_multiplier: float = 2.0) -> float:
         """
@@ -57,7 +88,7 @@ class VolumeIndicator:
         df = self.data
         if 'ATR' not in df.columns or len(df) == 0:
             return 0.0
-        
+
         # Compute the moving average of 'Close'
         df['MA'] = df['close'].rolling(window=ma_window, min_periods=1).mean()
 
@@ -74,10 +105,10 @@ class VolumeIndicator:
 
         if close > upper_band:
             return -1.0  # Overextended or overbought
-        elif close < lower_band:
+        if close < lower_band:
             return +1.0  # Oversold
-        else:
-            return 0.0
+
+        return 0.0
 
 
     def _calculate_cmf_with_ta(self, window: int = 20, threshold: float = 0.05) -> float:
@@ -113,18 +144,21 @@ class VolumeIndicator:
 
         if len(df) < window + 1:
             return 0.0  # Not enough data to compute a slope
-        
+
         # OBV difference over 'window' days
         obv_diff = df.iloc[-1]['OBV'] - df.iloc[-(window+1)]['OBV']
-        
+
         return float(np.select([obv_diff > 0, obv_diff < 0], [0, 1], default=0)) * OBV_MULTIPLIER
 
     def calculate_score(self):
+        """
+        Returns a score based on the volume indicators.
+        """
         score = 0
 
         score += self._score_obv_trend() * OBV_MULTIPLIER
         score += self._calculate_cmf_with_ta() * CMF_MULTIPLIER
-        score += self._score_atr_spike() * ATR_SPIKE_MULTIPLIER
         score += self._score_atr_band() * ATR_BAND_MULTIPLIER
+        score += self.score_atr_spike() * ATR_SPIKE_MULTIPLIER
 
         return score

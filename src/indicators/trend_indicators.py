@@ -1,3 +1,28 @@
+"""
+trend_indicators.py
+This module provides a class `TrendIndicator` to calculate a trend score based on multiple technical indicators.
+The indicators used include:
+The `TrendIndicator` class validates the input DataFrame to ensure it contains the required columns and provides methods to calculate scores based
+on each indicator. The final trend score is a combination of these individual scores.
+
+Classes:
+    TrendIndicator: A class to calculate a trend score based on various technical indicators.
+Constants:
+    STOCHASTIC_MULTIPLIER (float): Multiplier for the Stochastic Oscillator score.
+    ICHIMOKU_MULTIPLIER (float): Multiplier for the Ichimoku Cloud score.
+    PSAR_MULTIPLIER (float): Multiplier for the Parabolic SAR score.
+    HEIKEN_ASHI_MULTIPLIER (float): Multiplier for the Heiken Ashi score.
+    REQUIRED_COLUMNS (set): Set of required columns in the input DataFrame.
+Methods:
+    __init__(self, data: pd.DataFrame): Initializes the TrendIndicator with the given data.
+    validate_columns(self, df): Validates that the DataFrame has the required columns.
+    _calculate_psar_score(df: pd.DataFrame, step: float = 0.02, max_step: float = 0.2) -> float: Calculates a Parabolic SAR flip-based score.
+    _calculate_ichimoku(df): Calculates Ichimoku indicator lines and adds them to the DataFrame.
+    _calculate_ichimoku_score(self, days: pd.DataFrame) -> float: Calculates the Ichimoku-based score.
+    _calculate_heiken_ashi(self, days) -> float: Computes Heiken Ashi candles and calculates the score.
+    calculate_score(self): Calculates the overall trend score based on all indicators.
+"""
+
 import numpy as np
 import pandas as pd
 from ta.trend import PSARIndicator #pylint: disable=import-error
@@ -9,10 +34,24 @@ HEIKEN_ASHI_MULTIPLIER = 1.0
 REQUIRED_COLUMNS = {'high', 'low', 'close', 'open', 'stoch_k', 'stoch_d'}
 
 class TrendIndicator:
-    def __init__(self):
-        self.validated = False
+    """
+    Class to calculate a trend score based on the following indicators:
+    - Stochastic Oscillator
+    - Ichimoku Cloud
+    - Parabolic SAR
+    - Heiken Ashi
+    """
 
-    def _validate_columns(self, df):
+    def __init__(self, data: pd.DataFrame):
+        self.data = data
+        self.validated = False
+        self.validate_columns(data)
+
+    def validate_columns(self, df):
+        """
+        Validate that the DataFrame has the required columns.
+        """
+
         if not self.validated:
             missing = REQUIRED_COLUMNS - set(df.columns)
             if missing:
@@ -215,10 +254,19 @@ class TrendIndicator:
 
         return score
 
-    def calculate_score(self, days):
-        score = 0
+    def calculate_score(self):
+        """
+        Calculate the trend score based on the following indicators:
+        - Stochastic Oscillator
+        - Ichimoku Cloud
+        - Parabolic SAR
+        - Heiken Ashi
 
-        self._validate_columns(days)
+        Returns a float score.
+        """
+
+        days = self.data.copy()
+        score = 0
 
         # Shifted columns to detect crossovers from previous day:
         k_prev = days['stoch_k'].shift(1)

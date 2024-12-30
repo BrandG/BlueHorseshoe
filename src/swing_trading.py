@@ -25,8 +25,9 @@ from functools import lru_cache
 import concurrent.futures
 import numpy as np
 import pandas as pd
-from Indicators.trend_indicators import TrendIndicator
-from Indicators.volume_indicators import VolumeIndicator
+from indicators.limit_indicators import LimitIndicator
+from indicators.trend_indicators import TrendIndicator
+from indicators.volume_indicators import VolumeIndicator
 from globals import ReportSingleton, get_symbol_name_list
 from historical_data import load_historical_data
 
@@ -108,7 +109,7 @@ class TechnicalAnalyzer:
         Returns a float representing the sum of all indicator contributions.
         """
         yesterday = days.iloc[-1]
-        conditions = np.zeros(9, dtype=float)  # Pre-allocate array
+        conditions = np.zeros(10, dtype=float)  # Pre-allocate array
 
         # 1) Early exit if average volume is too low
         if len(days) == 0 or yesterday.get('avg_volume_20', 0) < MIN_VOLUME_THRESHOLD:
@@ -193,10 +194,13 @@ class TechnicalAnalyzer:
             ) * BB_MULTIPLIER
 
         # 9) Trend Indicators (Stochastic Oscillator, Ichimoku Cloud, Parabolic SAR (Stop and Reverse), Heiken Ashi (HA) Candles)
-        conditions[7] += TrendIndicator().calculate_score(days)
+        conditions[7] += TrendIndicator(days).calculate_score()
 
         # 10) Volume Indicator (On-Balance Volume, Chaikin Money Flow, Average True Range)
         conditions[8] += VolumeIndicator(days).calculate_score()
+
+        # 11) Limit Indicator (Pivot Points, 52-Week High/Low, Candlestick Patterns)
+        conditions[9] += LimitIndicator(days).calculate_score()
 
         logging.info("Technical conditions: %s", conditions)
         return float(conditions.sum())
