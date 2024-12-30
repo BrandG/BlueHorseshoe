@@ -1,3 +1,137 @@
+2024-12-27
+    I found out that I was reading the wrong dates for calculation, so that sucks. Anyway, I've been clarifying my situaton with scoring, using AIs. Now I have a few more
+possible tests to add. Here's the ChatGPT suggestion:
+
+Below are some commonly used **additional indicators** and **techniques** you might consider incorporating into your technical scoring system.
+Which ones make sense depends heavily on your **trading style**, **market context**, and **asset characteristics**. However, they can broaden
+your analysis by capturing signals that your current mix (DMI/ADX, EMA, MACD, Volume, RSI, Bollinger Bands, ROC) might not fully address.
+
+---
+
+## 1. Momentum & Trend Indicators
+
+#1. **Stochastic Oscillator**  
+#   - Measures the current price relative to its recent trading range (similar in spirit to RSI but with a slightly different formula and interpretation).  
+#   - Typical usage: a Stochastic %K line crossing above the %D line can be a bullish signal; crossing below can be bearish.
+
+#2. **Ichimoku Cloud**  
+#   - A more comprehensive trend and momentum indicator that includes multiple lines: Conversion Line, Base Line, Leading Spans A/B, and the Cloud.  
+#   - You could incorporate “price above/below the cloud,” or whether the Conversion Line is above the Base Line, etc.  
+#   - Many traders look for crossovers of these lines or a “thick” cloud indicating strong support/resistance.
+
+#3. **Parabolic SAR (Stop and Reverse)**  
+#   - Helps identify potential reversals in price direction.  
+#   - You could add or subtract points if the Parabolic SAR flips (i.e., goes from below price to above price, or vice versa).
+
+4. **Heiken Ashi (HA) Candles**  
+   - A different way of calculating candle data to smooth out noise.  
+   - You could look at whether the HA candles are showing consistent bullish/bearish color (trend).
+
+---
+
+## 2. Volume & Volatility Indicators
+
+1. **On-Balance Volume (OBV)**  
+   - Tracks cumulative volume flow. A rising OBV can confirm upward price momentum.  
+   - Could score the slope or recent changes in OBV.
+
+2. **Chaikin Money Flow (CMF)**  
+   - Focuses on the volume-weighted average price for the day.  
+   - Positive CMF might confirm buying pressure; negative CMF could indicate selling pressure.
+
+3. **ATR (Average True Range)**  
+   - Measures volatility.  
+   - You could adapt the Bollinger logic to ATR-based logic, e.g., checking if price is far above/below a moving average by a multiple of ATR.  
+   - Could be used for adaptive stop-loss or trailing logic, or as a signal if volatility spikes.
+
+---
+
+## 3. Support & Resistance or Price-Based Signals
+
+1. **Pivot Points**  
+   - Classic pivot point formulas generate potential support/resistance levels (R1, R2, S1, S2).  
+   - You could score how price behaves near these levels: e.g., bouncing off a pivot line might be bullish.
+
+2. **52-Week High/Low**  
+   - Checking how close price is to its 52-week high or low can signal momentum or risk.  
+   - Near new highs often indicates strong momentum; near new lows might be a red flag or a contrarian buy signal, depending on your strategy.
+
+3. **Price Action Patterns**  
+   - Candlestick patterns (e.g., bullish engulfing, hammer, doji) or chart patterns (e.g., breakout above a previous high).  
+   - These are less trivial to incorporate in a purely vectorized approach, but pattern recognition can add unique signals that standard indicators may miss.
+
+---
+
+## 4. Additional Moving Averages & Crossovers
+
+1. **Multiple EMA/SMA Crosses**  
+   - Many traders look for “Golden Cross” (50-day MA crossing above 200-day MA) or “Death Cross” (the reverse).  
+   - Could add or subtract points if a fast MA crosses a slow MA.
+
+2. **Dynamic Weighted Moving Averages**  
+   - Sometimes Weighted Moving Averages (WMA) or Volume Weighted Moving Averages (VWMA) provide signals that differ from EMA/SMA.  
+   - You could check if price is above/below VWMA if volume is critical to your strategy.
+
+---
+
+## 5. Relative Performance & Market Breadth
+
+1. **Relative Strength vs. Index**  
+   - Compare the asset’s performance to a benchmark index (S&P 500, NASDAQ, etc.).  
+   - If the asset is outperforming the index by a certain margin, add points; if underperforming, subtract points.
+
+2. **Market Breadth Indicators**  
+   - E.g., the Advance-Decline line or McClellan Oscillator.  
+   - If breadth is strongly bullish, your asset’s bullish signals might be more reliable. You could add a global multiplier or an incremental score.
+
+---
+
+## 6. Fundamental / Alternative Data (If Relevant)
+
+Though not purely “technical,” some traders add fundamental or alternative metrics for a more holistic view:
+
+1. **Earnings / Fundamental Score**  
+   - If you have fundamental data like Earnings Per Share (EPS) growth, Price-to-Earnings (P/E) ratios, or sector performance, you can incorporate a 
+   small weighting into your overall score.
+
+2. **News Sentiment**  
+   - If you have access to sentiment analysis from news or social media feeds, it can act as a bullish/bearish overlay.
+
+3. **Seasonality**  
+   - Certain assets have recurring seasonal patterns (e.g., agricultural commodities). You could factor in a seasonality score or multiplier.
+
+---
+
+## 7. Combining Indicators Intelligently
+
+1. **Weighting**  
+   - Not all indicators should be weighed equally. If Bollinger Bands historically outperform Stochastic for your asset, it might deserve a higher weight.  
+   - You could also dynamically weight indicators based on market regime (trending vs. ranging).
+
+2. **Avoid Overfitting / Overlapping Indicators**  
+   - Many momentum oscillators (like RSI, Stochastic, and Williams %R) give similar signals. Having too many can lead to redundancy.  
+   - Focus on a balanced approach: trend indicators, momentum oscillators, volume measures, volatility measures, etc.
+
+3. **Backtesting & Parameter Tuning**  
+   - Before adding an indicator permanently, backtest or forward-test it on real/historical data to see if it improves your risk-adjusted returns.
+
+---
+
+## Putting It All Together
+
+**Choosing which indicators to add** depends on your strategy and the nature of the asset(s) you trade. A few “broadening” suggestions:
+
+- Add a **trend strength** measure like Ichimoku or additional moving average crossovers.  
+- Add a **volume flow** measure like OBV or Chaikin Money Flow for deeper volume insight.  
+- Add a **volatility-based** measure like ATR to detect sudden changes in risk.  
+- Consider a **Stochastic Oscillator** or **Heiken Ashi** for alternative momentum or smoothing.  
+- Incorporate **relative performance** to an index or sector if you want a sense of how your asset behaves in the broader market.
+
+In the end, **less can often be more**—you don’t want an overly complicated “score” that is hard to interpret or maintain. The best approach is to **experiment**, 
+**backtest**, and **deploy** indicators that best fit your time horizon, asset class, and trading philosophy.
+
+
+
 2024-12-26
     I spent most of the day today trying to find good entry position calculations, but it was hard to find examples because, while my system did find almost all 
 winners today, the delta between today and right before Christmas was all messed up. Obviously, that's going to be a continuous problem. All I can do is try again

@@ -316,7 +316,7 @@ def get_symbol_list_from_file():
     except (OSError, IOError) as e:
         logging.error("An error occurred while reading the file: %s", e)
 
-    ReportSingleton().write(f"Error: Could not open file {file_path}. Please check the logs.")
+    logging.error("Error: Could not open file %s. Please check the logs.", file_path)
     return None
 
 def get_symbol_list():
@@ -344,7 +344,7 @@ def get_symbol_list():
             logging.error(
                 "An error occurred while writing the symbol list to file: %s", e)
 
-    ReportSingleton().write(f"Symbol list loaded. Length: {len(symbol_list)}")
+    logging.info("Symbol list loaded. Length: %d", len(symbol_list))
     return [symbol for symbol in symbol_list if symbol['symbol'] not in invalid_symbols]
 
 class ReportSingleton:
