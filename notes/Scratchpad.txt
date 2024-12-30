@@ -23,26 +23,26 @@ your analysis by capturing signals that your current mix (DMI/ADX, EMA, MACD, Vo
 #   - Helps identify potential reversals in price direction.  
 #   - You could add or subtract points if the Parabolic SAR flips (i.e., goes from below price to above price, or vice versa).
 
-4. **Heiken Ashi (HA) Candles**  
-   - A different way of calculating candle data to smooth out noise.  
-   - You could look at whether the HA candles are showing consistent bullish/bearish color (trend).
+# 4. **Heiken Ashi (HA) Candles**  
+#   - A different way of calculating candle data to smooth out noise.  
+#   - You could look at whether the HA candles are showing consistent bullish/bearish color (trend).
 
 ---
 
 ## 2. Volume & Volatility Indicators
 
-1. **On-Balance Volume (OBV)**  
-   - Tracks cumulative volume flow. A rising OBV can confirm upward price momentum.  
-   - Could score the slope or recent changes in OBV.
+# 1. **On-Balance Volume (OBV)**  
+#    - Tracks cumulative volume flow. A rising OBV can confirm upward price momentum.  
+#    - Could score the slope or recent changes in OBV.
 
-2. **Chaikin Money Flow (CMF)**  
-   - Focuses on the volume-weighted average price for the day.  
-   - Positive CMF might confirm buying pressure; negative CMF could indicate selling pressure.
+# 2. **Chaikin Money Flow (CMF)**  
+#   - Focuses on the volume-weighted average price for the day.  
+#   - Positive CMF might confirm buying pressure; negative CMF could indicate selling pressure.
 
-3. **ATR (Average True Range)**  
-   - Measures volatility.  
-   - You could adapt the Bollinger logic to ATR-based logic, e.g., checking if price is far above/below a moving average by a multiple of ATR.  
-   - Could be used for adaptive stop-loss or trailing logic, or as a signal if volatility spikes.
+# 3. **ATR (Average True Range)**  
+#   - Measures volatility.  
+#   - You could adapt the Bollinger logic to ATR-based logic, e.g., checking if price is far above/below a moving average by a multiple of ATR.  
+#   - Could be used for adaptive stop-loss or trailing logic, or as a signal if volatility spikes.
 
 ---
 
