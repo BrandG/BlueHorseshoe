@@ -25,7 +25,7 @@ from ratelimit import limits, sleep_and_retry #pylint: disable=import-error
 
 from pymongo.errors import ServerSelectionTimeoutError
 import talib as ta
-from globals import get_mongo_client, get_symbol_list, BASE_PATH
+from globals import GlobalData, get_mongo_client, get_symbol_list
 
 
 @sleep_and_retry
@@ -198,7 +198,7 @@ def build_all_symbols_history(starting_at='', save_to_file=False, recent=False):
             if save_to_file:
                 # write out new_data_json to file
                 file_path = os.path.join(
-                    BASE_PATH, f'StockPrice-{symbol}.json')
+                    GlobalData.BASE_PATH, f'StockPrice-{symbol}.json')
                 with open(f'{file_path}', 'w', encoding='utf-8') as file:
                     file.write(json.dumps(net_data))
                     logging.info("Saved data for %s to %s", symbol, file_path)
@@ -285,7 +285,7 @@ def load_historical_data_from_file(symbol):
     Raises:
         FileNotFoundError: If the file does not exist at the specified path.
     """
-    file_path = os.path.join(BASE_PATH, f'StockPrice-{symbol}.json')
+    file_path = os.path.join(GlobalData.BASE_PATH, f'StockPrice-{symbol}.json')
 
     try:
         with open(file_path, 'r', encoding='utf-8') as file:

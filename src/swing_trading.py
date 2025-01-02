@@ -25,10 +25,11 @@ from functools import lru_cache
 import concurrent.futures
 import numpy as np
 import pandas as pd
+from indicators.candlestick_indicators import CandlestickIndicator
 from indicators.limit_indicators import LimitIndicator
 from indicators.trend_indicators import TrendIndicator
 from indicators.volume_indicators import VolumeIndicator
-from globals import ReportSingleton, get_symbol_name_list
+from globals import GlobalData, ReportSingleton, get_symbol_name_list
 from historical_data import load_historical_data
 
 # Constants to avoid magic numbers
@@ -109,7 +110,7 @@ class TechnicalAnalyzer:
         Returns a float representing the sum of all indicator contributions.
         """
         yesterday = days.iloc[-1]
-        conditions = np.zeros(10, dtype=float)  # Pre-allocate array
+        conditions = np.zeros(11, dtype=float)  # Pre-allocate array
 
         # 1) Early exit if average volume is too low
         if len(days) == 0 or yesterday.get('avg_volume_20', 0) < MIN_VOLUME_THRESHOLD:
@@ -202,6 +203,9 @@ class TechnicalAnalyzer:
         # 11) Limit Indicator (Pivot Points, 52-Week High/Low, Candlestick Patterns)
         conditions[9] += LimitIndicator(days).calculate_score()
 
+        # 12) Candlestick Indicators
+        conditions[10] += CandlestickIndicator(days).calculate_score()
+
         logging.info("Technical conditions: %s", conditions)
         return float(conditions.sum())
 
@@ -235,13 +239,14 @@ class SwingTrader:
         df = pd.DataFrame(price_data['days'])
         yesterday = dict(df.iloc[-1])
 
-        last_trading_day = pd.Timestamp.now().normalize() - pd.offsets.BDay(1)
-        last_day_string = last_trading_day.strftime('%Y-%m-%d')
-        if yesterday['date'] != last_day_string:
-            logging.error("Data for %s on date %s is not %s.", symbol, yesterday['date'], last_day_string)
-            with open('src/error_symbols.txt', 'a', encoding='utf-8') as f:
-                f.write(f"{symbol}\n")
-            return None
+        if not GlobalData.HOLIDAY:
+            last_trading_day = pd.Timestamp.now().normalize() - pd.offsets.BDay(1)
+            last_day_string = last_trading_day.strftime('%Y-%m-%d')
+            if yesterday['date'] != last_day_string:
+                logging.error("Data for %s on date %s is not %s.", symbol, yesterday['date'], last_day_string)
+                with open('src/error_symbols.txt', 'a', encoding='utf-8') as f:
+                    f.write(f"{symbol}\n")
+                return None
 
         entry_price = self.calculate_entry_price(df)
         if not MIN_STOCK_PRICE < entry_price < MAX_STOCK_PRICE:

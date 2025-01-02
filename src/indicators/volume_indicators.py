@@ -110,6 +110,18 @@ class VolumeIndicator:
 
         return 0.0
 
+    def _calculate_avg_volume(self, window: int = 20) -> float:
+        """
+        Calculates the average volume over the last 'window' days.
+        """
+        df = self.data
+        if len(df) < window:
+            return 0.0
+        
+        avg_volume = df['volume'].tail(window).mean()
+        if avg_volume < 100000:
+            return -1.0
+        return 1.0
 
     def _calculate_cmf_with_ta(self, window: int = 20, threshold: float = 0.05) -> float:
         """
@@ -160,5 +172,6 @@ class VolumeIndicator:
         score += self._calculate_cmf_with_ta() * CMF_MULTIPLIER
         score += self._score_atr_band() * ATR_BAND_MULTIPLIER
         score += self.score_atr_spike() * ATR_SPIKE_MULTIPLIER
+        score += self._calculate_avg_volume() # No multiplier
 
         return score

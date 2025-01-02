@@ -1,3 +1,107 @@
+2024-12-30
+    Well, I spent all day setting up swing indicators, and I'm halfway through the list. However, I had an idea today when I saw that there
+was a periodical that tells you when stocks are going to hit crossover situations. The idea was that I set up a list of crossover indicators,
+strong indicators, and do the search through all the stocks for those. Initially, this is just going to be obvious stuff like the 20-day
+EMA crossing the 50-day EMA or whatever, but once I get those, I'll add candlestick reading as well. The swing trade indicators stuff is
+already returning some good suggestions.
+    Here is the list of crossovers:
+
+### **1. Golden Cross**
+- **Description**: Occurs when a short-term moving average (e.g., 50-day) crosses above a long-term moving average (e.g., 200-day). It is considered a **bullish indicator**, signaling the potential for an upward trend.
+
+### **2. Death Cross**
+- **Description**: The opposite of the Golden Cross, it occurs when a short-term moving average (e.g., 50-day) crosses below a long-term moving average (e.g., 200-day). This is viewed as a **bearish indicator**, signaling potential downward momentum.
+
+### **3. EMA Cross**
+- **Description**: A crossover between two Exponential Moving Averages (EMAs), such as the 20-day EMA crossing over the 50-day EMA (bullish) or below it (bearish). EMAs give more weight to recent data, making them responsive to recent price changes.
+
+### **4. SMA Cross**
+- **Description**: A crossover between two Simple Moving Averages (SMAs), such as the 10-day SMA crossing above the 50-day SMA (bullish) or below it (bearish). SMAs smooth out price data but are slower to react than EMAs.
+
+### **5. MACD Line and Signal Line Crossover**
+- **Description**: A signal is generated when the MACD line (difference between two EMAs, e.g., 12-day and 26-day) crosses above the signal line (9-day EMA of the MACD). A **bullish crossover** occurs when the MACD line crosses above, and a **bearish crossover** when it crosses below.
+
+### **6. MACD and Zero Line Crossover**
+- **Description**: Occurs when the MACD line crosses the zero line. A **bullish crossover** happens when it moves above zero, and a **bearish crossover** when it falls below zero. This signals a potential shift in momentum.
+
+### **7. RSI and Signal Line Crossover**
+- **Description**: Involves the Relative Strength Index (RSI) crossing over a specific signal line, such as 30 (oversold) or 70 (overbought). A **bullish crossover** occurs when RSI moves above 30, and a **bearish crossover** when it drops below 70.
+
+### **8. Stochastic Oscillator Cross**
+- **Description**: Occurs when the %K line of the Stochastic Oscillator (fast line) crosses above the %D line (slow line). A **bullish signal** is when %K crosses above %D, and a **bearish signal** is when it crosses below.
+
+### **9. Bollinger Bands Middle Line Crossover**
+- **Description**: When the price crosses the middle line (20-day SMA by default) of Bollinger Bands. A **bullish signal** occurs when the price moves above the middle line, and a **bearish signal** occurs when it moves below.
+
+### **10. Parabolic SAR Crossover**
+- **Description**: Occurs when the price crosses the Parabolic SAR indicator dots. A **bullish crossover** happens when the price moves above the dots, and a **bearish crossover** when it falls below.
+
+### **11. Price and MA Crossover**
+- **Description**: A crossover between the price itself and a moving average (e.g., price crossing above the 50-day SMA). A **bullish signal** occurs when the price moves above the MA, and a **bearish signal** when it moves below.
+
+### **12. Moving Average Ribbon Crossover**
+- **Description**: Uses a series of multiple MAs with different periods (e.g., 10, 20, 50, 100-day). Crossovers between shorter-term and longer-term ribbons indicate bullish or bearish trends, depending on the direction.
+
+### **13. Ichimoku Cloud Crossover (Tenkan-Sen/Kijun-Sen)**
+- **Description**: A crossover between the Tenkan-Sen (short-term average) and Kijun-Sen (longer-term average) in the Ichimoku Cloud system. A **bullish crossover** occurs when Tenkan-Sen crosses above Kijun-Sen, and a **bearish crossover** occurs when it crosses below.
+
+### **14. DMI (Directional Movement Index) ADX Crossover**
+- **Description**: Occurs when the +DI (positive directional index) crosses above the -DI (negative directional index) or vice versa. A **bullish signal** occurs when +DI > -DI, and a **bearish signal** when -DI > +DI.
+
+### **15. Keltner Channel Middle Line Crossover**
+- **Description**: Similar to Bollinger Bands, this occurs when the price crosses the middle line of the Keltner Channel. A **bullish crossover** is when the price moves above the middle line, and a **bearish crossover** when it moves below.
+
+### **16. Williams %R Crossover**
+- **Description**: Occurs when Williams %R crosses above -80 (bullish, indicating oversold conditions) or below -20 (bearish, indicating overbought conditions).
+
+### **17. CCI (Commodity Channel Index) Zero Line Crossover**
+- **Description**: A crossover of the CCI line through the zero line. A **bullish signal** occurs when CCI crosses above zero, and a **bearish signal** when it crosses below.
+
+### **18. Pivot Point Crossover**
+- **Description**: When the price crosses a pivot point (a calculated level of support/resistance). A **bullish crossover** occurs when the price rises above the pivot, and a **bearish crossover** when it falls below.
+
+### **19. VWAP Crossover**
+- **Description**: Occurs when the price crosses the Volume-Weighted Average Price (VWAP). A **bullish crossover** happens when the price moves above VWAP, indicating buying momentum, and a **bearish crossover** when it moves below.
+
+
+Using this endpoint: https://www.alphavantage.co/query?function=OVERVIEW&symbol=IBM&apikey=demo
+We can get fundamental info like:
+- Company Details
+    "Symbol": "IBM",
+    "AssetType": "Common Stock",
+    "Name": "International Business Machines",
+    "Description": "International Business Machines Corporation (IBM) is an American multinational technology company headquartered in Armonk, New York, with operations in over 170 countries. The company began in 1911, founded in Endicott, New York, as the Computing-Tabulating-Recording Company (CTR) and was renamed International Business Machines in 1924. IBM is incorporated in New York. IBM produces and sells computer hardware, middleware and software, and provides hosting and consulting services in areas ranging from mainframe computers to nanotechnology. IBM is also a major research organization, holding the record for most annual U.S. patents generated by a business (as of 2020) for 28 consecutive years. Inventions by IBM include the automated teller machine (ATM), the floppy disk, the hard disk drive, the magnetic stripe card, the relational database, the SQL programming language, the UPC barcode, and dynamic random-access memory (DRAM). The IBM mainframe, exemplified by the System/360, was the dominant computing platform during the 1960s and 1970s.",
+    "Exchange": "NYSE",
+    "Sector": "TECHNOLOGY",
+    "Industry": "COMPUTER & OFFICE EQUIPMENT",
+- Analyst
+    "AnalystTargetPrice": "217.12",
+    "AnalystRatingStrongBuy": "2",
+    "AnalystRatingBuy": "5",
+    "AnalystRatingHold": "9",
+    "AnalystRatingSell": "3",
+    "AnalystRatingStrongSell": "1",
+- Indicators
+    "52WeekHigh": "239.35",
+    "52WeekLow": "152.38",
+    "50DayMovingAverage": "221.35",
+    "200DayMovingAverage": "197.07",
+
+
+Using this endpoint: https://www.alphavantage.co/query?function=NEWS_SENTIMENT&tickers=AAPL&apikey=demo
+We can get these:
+{
+    "items": "50",
+    "sentiment_score_definition": "x <= -0.35: Bearish; -0.35 < x <= -0.15: Somewhat-Bearish; -0.15 < x < 0.15: Neutral; 0.15 <= x < 0.35: Somewhat_Bullish; x >= 0.35: Bullish",
+    "relevance_score_definition": "0 < x <= 1, with a higher score indicating higher relevance.",
+    "feed": [
+        {
+            "title": "Dow Jones 2024 Scoreboard: Top 5 Winners, Losers - And How Amazon, Nvidia Could Reshape 2025 - SPDR Dow Jones Industrial Average ETF  ( ARCA:DIA ) ",
+            "url": "https://www.benzinga.com/etfs/broad-u-s-equity-etfs/24/12/42726598/dow-jones-2024-scoreboard-top-5-winners-losers-and-how-amazon-nvidia-could-reshape-202",
+            "summary": "The Dow Jones Industrial Average hit an all-time high of over 45,000 points in December, one of several stock market indexes to hit records after Donald Trump won the 2024 presidential election.",
+            "overall_sentiment_score": 0.076114,
+            "overall_sentiment_label": "Neutral",
+
 2024-12-27
     I found out that I was reading the wrong dates for calculation, so that sucks. Anyway, I've been clarifying my situaton with scoring, using AIs. Now I have a few more
 possible tests to add. Here's the ChatGPT suggestion:
@@ -52,13 +156,13 @@ your analysis by capturing signals that your current mix (DMI/ADX, EMA, MACD, Vo
 #   - Classic pivot point formulas generate potential support/resistance levels (R1, R2, S1, S2).  
 #   - You could score how price behaves near these levels: e.g., bouncing off a pivot line might be bullish.
 
-2. **52-Week High/Low**  
-   - Checking how close price is to its 52-week high or low can signal momentum or risk.  
-   - Near new highs often indicates strong momentum; near new lows might be a red flag or a contrarian buy signal, depending on your strategy.
+# 2. **52-Week High/Low**  
+#   - Checking how close price is to its 52-week high or low can signal momentum or risk.  
+#   - Near new highs often indicates strong momentum; near new lows might be a red flag or a contrarian buy signal, depending on your strategy.
 
-3. **Price Action Patterns**  
-   - Candlestick patterns (e.g., bullish engulfing, hammer, doji) or chart patterns (e.g., breakout above a previous high).  
-   - These are less trivial to incorporate in a purely vectorized approach, but pattern recognition can add unique signals that standard indicators may miss.
+# 3. **Price Action Patterns**  
+#   - Candlestick patterns (e.g., bullish engulfing, hammer, doji) or chart patterns (e.g., breakout above a previous high).  
+#   - These are less trivial to incorporate in a purely vectorized approach, but pattern recognition can add unique signals that standard indicators may miss.
 
 ---
 

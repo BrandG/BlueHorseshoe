@@ -8,6 +8,7 @@ prices relative to these pivot levels.
 import pandas as pd
 
 PIVOT_MULTIPLIER = 1.0
+FIFTY_TWO_WEEK_MULTIPLIER = 1.0
 
 class LimitIndicator:
     """
@@ -114,6 +115,34 @@ class LimitIndicator:
             score += 1
 
         return score
+    
+    def _score_52_week_range(self, window: int = 252) -> float:
+        """
+        Scores if the Close price is at a 52-week high.
+        If Close is at a 52-week high => +1
+        Otherwise => 0
+        
+        :param window: lookback window for the 52-week high
+        :return: a float score
+        """
+        df = self.data
+        if len(df) < window:
+            return 0.0
+
+        last = df.iloc[-1]
+        close_price = last['close']
+
+        # Compute the 52-week high
+        high_52_week = df['high'].rolling(window=window, min_periods=1).max().iloc[-1]
+        low_52_week = df['low'].rolling(window=window, min_periods=1).min().iloc[-1]
+
+        position = (close_price - low_52_week) / (high_52_week - low_52_week) * 100
+
+        if position >= 90:
+            return 1.0
+        elif position <= 10:
+            return -1.0
+        return 0.0
 
     def calculate_score(self):
         """
@@ -128,5 +157,6 @@ class LimitIndicator:
         score = 0
 
         score += self._score_pivot_levels() * PIVOT_MULTIPLIER
+        score += self._score_52_week_range() * FIFTY_TWO_WEEK_MULTIPLIER
 
         return score
