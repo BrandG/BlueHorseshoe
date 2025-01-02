@@ -239,7 +239,7 @@ class SwingTrader:
         df = pd.DataFrame(price_data['days'])
         yesterday = dict(df.iloc[-1])
 
-        if not GlobalData.HOLIDAY:
+        if not GlobalData.holiday:
             last_trading_day = pd.Timestamp.now().normalize() - pd.offsets.BDay(1)
             last_day_string = last_trading_day.strftime('%Y-%m-%d')
             if yesterday['date'] != last_day_string:

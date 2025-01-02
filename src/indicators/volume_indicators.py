@@ -117,7 +117,7 @@ class VolumeIndicator:
         df = self.data
         if len(df) < window:
             return 0.0
-        
+
         avg_volume = df['volume'].tail(window).mean()
         if avg_volume < 100000:
             return -1.0

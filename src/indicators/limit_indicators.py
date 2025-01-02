@@ -115,7 +115,7 @@ class LimitIndicator:
             score += 1
 
         return score
-    
+
     def _score_52_week_range(self, window: int = 252) -> float:
         """
         Scores if the Close price is at a 52-week high.
@@ -138,11 +138,7 @@ class LimitIndicator:
 
         position = (close_price - low_52_week) / (high_52_week - low_52_week) * 100
 
-        if position >= 90:
-            return 1.0
-        elif position <= 10:
-            return -1.0
-        return 0.0
+        return 1.0 if position >= 90 else -1.0 if position <= 10 else 0.0
 
     def calculate_score(self):
         """

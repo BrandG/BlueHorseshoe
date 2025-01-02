@@ -68,11 +68,11 @@ class CandlestickIndicator:
         body_length = abs(close_price - open_price)
         upper_shadow = high_price - max(open_price, close_price)
         lower_shadow = min(open_price, close_price) - low_price
-        
+
         # Avoid division by zero
         if body_length == 0:
             return False
-            
+
         return (upper_shadow / body_length) <= body_ratio and (lower_shadow / body_length) <= body_ratio
 
     @staticmethod
@@ -95,20 +95,20 @@ class CandlestickIndicator:
 
         # Initialize result series
         df = self.data
-        
+
         # Need at least 3 candles to detect pattern
         if len(df) < 3:
             return 0.0
-        
+
         # Check last three consecutive candles
         candles = df.iloc[-2:]
-        
+
         # Condition 1: All three candles must be white (bullish)
         all_white = all(
             self._is_white_candle(open_price, close_price, price_threshold)
             for open_price, close_price in zip(candles['open'], candles['close'])
         )
-        
+
         # Condition 2: Each candle should have small shadows
         small_shadows = all(
             self._has_small_shadow(open_price, high_price, low_price, close_price, body_ratio)
@@ -116,7 +116,7 @@ class CandlestickIndicator:
                 candles['open'], candles['high'], candles['low'], candles['close']
             )
         )
-        
+
         # Condition 3: Each candle should open within the body of the previous candle
         higher_opens = all(
             self._is_higher_open(prev_close, curr_open, price_threshold)
@@ -124,7 +124,7 @@ class CandlestickIndicator:
                 candles['close'].iloc[:-1], candles['open'].iloc[1:]
             )
         )
-        
+
         # Condition 4: Each candle should close higher than the previous
         higher_closes = all(
             curr_close > prev_close + price_threshold
@@ -132,9 +132,9 @@ class CandlestickIndicator:
                 candles['close'].iloc[:-1], candles['close'].iloc[1:]
             )
         )
-            
+
         return 1.0 if all([all_white, small_shadows, higher_opens, higher_closes]) else 0.0
-    
+
     def find_rise_fall_3_methods(self) -> float:
         """
         Identifies the "Rising Three Methods" and "Falling Three Methods" candlestick patterns
@@ -161,7 +161,7 @@ class CandlestickIndicator:
 
         return 1.0 if rise_fall_3[-1] >= 100 else -1.0 if rise_fall_3[-1] <= -100 else 0.0
 
-    def find_Marubozu(self) -> float:
+    def find_marubozu(self) -> float:
         """
         Identifies the Marubozu candlestick pattern in the provided data.
 
@@ -185,7 +185,7 @@ class CandlestickIndicator:
 
         return 1.0 if marubozu[-1] >= 100 else -1.0 if marubozu[-1] <= -100 else 0.0
 
-    def find_Belt_Hold(self) -> float:
+    def find_belt_hold(self) -> float:
         """
         Detects the Belt Hold candlestick pattern in the provided data.
 
@@ -226,8 +226,8 @@ class CandlestickIndicator:
         """
         three_white_soldiers = self._detect_three_white_soldiers() * THREE_WHITE_SOLDIERS_MULTIPLIER
         rise_fall_3_methods = self.find_rise_fall_3_methods() * RISE_FALL_3_METHODS_MULTIPLIER
-        marubozu = self.find_Marubozu() * MARUBOZU_MULTIPLIER
-        belt_hold = self.find_Belt_Hold() * BELT_HOLD_MULTIPLIER
+        marubozu = self.find_marubozu() * MARUBOZU_MULTIPLIER
+        belt_hold = self.find_belt_hold() * BELT_HOLD_MULTIPLIER
 
         # Combine scores
         score = three_white_soldiers + rise_fall_3_methods + marubozu + belt_hold

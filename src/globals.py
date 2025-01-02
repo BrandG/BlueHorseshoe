@@ -70,10 +70,10 @@ class GlobalData:
     INVALID_SYMBOLS : list
         A list to store invalid stock symbols.
     """
-    BASE_PATH: str = '/workspaces/BlueHorseshoe/src/historical_data/'
-    MONGO_CLIENT: Optional[pymongo.MongoClient] = None
-    INVALID_SYMBOLS: list = field(default_factory=list)
-    HOLIDAY:bool = False # define whether yesterday was a holiday
+    base_path: str = '/workspaces/BlueHorseshoe/src/historical_data/'
+    mongo_client: Optional[pymongo.MongoClient] = None
+    invalid_symbols: list = field(default_factory=list)
+    holiday:bool = True # define whether yesterday was a holiday
 
 def load_invalid_symbols():
     """
@@ -90,10 +90,10 @@ def load_invalid_symbols():
     Logs:
         An error message if the file is not found, cannot be decoded, or if any other I/O error occurs.
     """
-    invalid_symbols_file_path = os.path.join(GlobalData.BASE_PATH, 'invalid_symbols.txt')
+    invalid_symbols_file_path = os.path.join(GlobalData.base_path, 'invalid_symbols.txt')
     try:
         with open(invalid_symbols_file_path, 'r', encoding='utf-8') as file:
-            GlobalData.INVALID_SYMBOLS = [line.strip() for line in file if line.strip()]
+            GlobalData.invalid_symbols = [line.strip() for line in file if line.strip()]
     except FileNotFoundError:
         logging.error("Error: File not found at %s. Please check the file path.", invalid_symbols_file_path)
     except UnicodeDecodeError:
@@ -126,14 +126,14 @@ def get_mongo_client(uri="", db_name="blueHorseshoe"):
     Returns:
         pymongo.database.Database: The database client connected to the specified database.
     """
-    if GlobalData.MONGO_CLIENT is None:
+    if GlobalData.mongo_client is None:
         try:
             if uri == "":
                 uri = os.getenv("MONGO_URI", "mongodb://mongo:27017")
-            GlobalData.MONGO_CLIENT = pymongo.MongoClient(uri)
+            GlobalData.mongo_client = pymongo.MongoClient(uri)
             # MONGO_CLIENT = MongoClient(
             #     uri, connectTimeoutMS=2000, serverSelectionTimeoutMS=2000)
-            server_info = GlobalData.MONGO_CLIENT.server_info()
+            server_info = GlobalData.mongo_client.server_info()
             logging.info("Connected to MongoDB server version %s",
                          server_info['version'])
         except (ConnectionFailure, ConfigurationError) as e:
@@ -141,7 +141,7 @@ def get_mongo_client(uri="", db_name="blueHorseshoe"):
                 "An error occurred while connecting to MongoDB: %s", e)
             return None
 
-    return GlobalData.MONGO_CLIENT[db_name]
+    return GlobalData.mongo_client.get_database(db_name)
 
 @dataclass
 class GraphData:
@@ -313,7 +313,7 @@ def get_symbol_list_from_file():
         list: A list of symbols if the file is successfully read and parsed.
         None: If an error occurs during file reading or parsing.
     """
-    file_path = os.path.join(GlobalData.BASE_PATH, 'symbol_list.json')
+    file_path = os.path.join(GlobalData.base_path, 'symbol_list.json')
     try:
         with open(file_path, 'r', encoding='utf-8') as file:
             return json.load(file)
@@ -344,10 +344,10 @@ def get_symbol_list():
         symbol_list = get_symbol_list_from_net()
         if symbol_list is None:
             return []
-        file_path = os.path.join(GlobalData.BASE_PATH, 'symbol_list.json')
+        file_path = os.path.join(GlobalData.base_path, 'symbol_list.json')
 
         # Create the directory if it does not exist
-        os.makedirs(GlobalData.BASE_PATH, exist_ok=True)
+        os.makedirs(GlobalData.base_path, exist_ok=True)
 
         try:
             with open(file_path, 'w', encoding='utf-8') as file:
@@ -357,7 +357,7 @@ def get_symbol_list():
                 "An error occurred while writing the symbol list to file: %s", e)
 
     logging.info("Symbol list loaded. Length: %d", len(symbol_list))
-    return [symbol for symbol in symbol_list if symbol['symbol'] not in GlobalData.INVALID_SYMBOLS]
+    return [symbol for symbol in symbol_list if symbol['symbol'] not in GlobalData.invalid_symbols]
 
 class ReportSingleton:
     """
