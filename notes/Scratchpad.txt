@@ -168,9 +168,9 @@ your analysis by capturing signals that your current mix (DMI/ADX, EMA, MACD, Vo
 
 ## 4. Additional Moving Averages & Crossovers
 
-1. **Multiple EMA/SMA Crosses**  
-   - Many traders look for “Golden Cross” (50-day MA crossing above 200-day MA) or “Death Cross” (the reverse).  
-   - Could add or subtract points if a fast MA crosses a slow MA.
+# 1. **Multiple EMA/SMA Crosses**  
+#   - Many traders look for “Golden Cross” (50-day MA crossing above 200-day MA) or “Death Cross” (the reverse).  
+#   - Could add or subtract points if a fast MA crosses a slow MA.
 
 2. **Dynamic Weighted Moving Averages**  
    - Sometimes Weighted Moving Averages (WMA) or Volume Weighted Moving Averages (VWMA) provide signals that differ from EMA/SMA.  

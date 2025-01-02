@@ -27,6 +27,7 @@ import numpy as np
 import pandas as pd
 from indicators.candlestick_indicators import CandlestickIndicator
 from indicators.limit_indicators import LimitIndicator
+from indicators.moving_average_indicators import MovingAverageIndicator
 from indicators.trend_indicators import TrendIndicator
 from indicators.volume_indicators import VolumeIndicator
 from globals import GlobalData, ReportSingleton, get_symbol_name_list
@@ -36,7 +37,7 @@ from historical_data import load_historical_data
 TREND_PERIOD = 20
 STRONG_R2_THRESHOLD = 0.7
 WEAK_R2_THRESHOLD = 0.3
-MIN_VOLUME_THRESHOLD = 10000
+MIN_VOLUME_THRESHOLD = 100000
 MIN_STOCK_PRICE = 1.0
 MAX_STOCK_PRICE = 50.0
 STOP_LOSS_FACTOR = 0.96
@@ -95,22 +96,21 @@ class TechnicalAnalyzer:
         return trend_map.get((slope > 0, r2_value > STRONG_R2_THRESHOLD), "No Clear Trend")
 
     @staticmethod
-    def calculate_technical_score(days: pd.DataFrame) -> float:
+    def calculate_technical_score(days: pd.DataFrame, symbol) -> float:
         """
         Calculate a technical score by analyzing multiple indicators from the given DataFrame:
         1. Volume threshold check
         2. DMI/ADX scoring (if dmi_p > dmi_n)
-        3. EMA margin scoring
-        4. MACD scoring
-        5. Volume ratio scoring
-        6. RSI scoring
-        7. ROC scoring (adaptive via rolling std)
-        8. Bollinger Band position scoring
+        3. MACD scoring
+        4. Volume ratio scoring
+        5. RSI scoring
+        6. ROC scoring (adaptive via rolling std)
+        7. Bollinger Band position scoring
         
         Returns a float representing the sum of all indicator contributions.
         """
         yesterday = days.iloc[-1]
-        conditions = np.zeros(11, dtype=float)  # Pre-allocate array
+        conditions = np.zeros(12, dtype=float)  # Pre-allocate array
 
         # 1) Early exit if average volume is too low
         if len(days) == 0 or yesterday.get('avg_volume_20', 0) < MIN_VOLUME_THRESHOLD:
@@ -127,38 +127,20 @@ class TechnicalAnalyzer:
                 ])
                 conditions[0] = np.select(dmi_conditions.tolist(), [3, 2, 1], 0) * ADX_MULTIPLIER if yesterday['dmi_p'] > yesterday['dmi_n'] else 0
 
-        # 3) EMA margin
-        if {'close', 'ema_20'}.issubset(yesterday):
-            ema_margin = (yesterday['close'] - yesterday['ema_20']) / yesterday['ema_20'] * 100
-            conditions[1] = np.select(
-                [ema_margin > 20, ema_margin > 10, ema_margin > 5],
-                [3, 2, 1],
-                0
-            ) * EMA_MARGIN_MULTIPLIER
-
-        # 4) MACD
+        # 3) MACD
         if {'macd_line', 'macd_signal'}.issubset(yesterday):
             macd_diff = yesterday['macd_line'] - yesterday['macd_signal']
             # If MACD diff and line are positive, score 1 or 2 depending on how large the diff is
             if (macd_diff > 0) and (yesterday['macd_line'] > 0):
-                conditions[2] = np.select(
+                conditions[1] = np.select(
                     [macd_diff > yesterday['macd_signal'] * MACD_SIGNAL_MULTIPLIER, macd_diff > yesterday['macd_signal']],
                     [2, 1],
                     0
                 ) * MACD_MULTIPLIER
 
-        # 5) Volume ratio
-        if {'volume', 'avg_volume_20'}.issubset(yesterday) and yesterday['avg_volume_20'] != 0:
-            vol_ratio = yesterday['volume'] / yesterday['avg_volume_20']
-            conditions[3] = np.select(
-                [vol_ratio > 2, vol_ratio > 1.5, vol_ratio < 0.5],
-                [2, 1, -1],
-                default=0
-            ) * VOLUME_MULTIPLIER
-
-        # 6) RSI scoring
+        # 4) RSI scoring
         if 'rsi_14' in yesterday:
-            conditions[4] = np.select(
+            conditions[2] = np.select(
                 [
                     (yesterday['rsi_14'] >= 45) & (yesterday['rsi_14'] <= 65),
                     (yesterday['rsi_14'] >= 40) & (yesterday['rsi_14'] <= 70)
@@ -167,24 +149,24 @@ class TechnicalAnalyzer:
                 0
             ) * RSI_MULTIPLIER
 
-        # 7) ROC scoring (adaptive)
+        # 5) ROC scoring (adaptive)
         if 'roc_5' in yesterday:
             # Rolling std over entire dataset
             roc_5_std = days['roc_5'].rolling(window=20).std().iloc[-1]
             if pd.notna(roc_5_std):
-                conditions[5] = np.select(
+                conditions[3] = np.select(
                     [(yesterday['roc_5'] > 2 * roc_5_std), (yesterday['roc_5'] > 1 * roc_5_std)],
                     [2, 1],
                     default=0
                 ) * ROC_MULTIPLIER
 
-        # 8) Bollinger Band position
+        # 6) Bollinger Band position
         bb_position = 0.0
         if ('bb_lower' in yesterday and 'bb_upper' in yesterday and (yesterday['bb_upper'] > yesterday['bb_lower'])):
             band_range = yesterday['bb_upper'] - yesterday['bb_lower']
             bb_position = (yesterday['close'] - yesterday['bb_lower']) / band_range
 
-            conditions[6] = np.select(
+            conditions[4] = np.select(
                 [
                     (bb_position >= 0.3) & (bb_position < 0.7),
                     (bb_position >= 0.1) & (bb_position < 0.3),
@@ -194,19 +176,22 @@ class TechnicalAnalyzer:
                 default=0
             ) * BB_MULTIPLIER
 
-        # 9) Trend Indicators (Stochastic Oscillator, Ichimoku Cloud, Parabolic SAR (Stop and Reverse), Heiken Ashi (HA) Candles)
-        conditions[7] += TrendIndicator(days).calculate_score()
+        # 7) Trend Indicators (Stochastic Oscillator, Ichimoku Cloud, Parabolic SAR (Stop and Reverse), Heiken Ashi (HA) Candles)
+        conditions[5] += TrendIndicator(days).calculate_score()
 
-        # 10) Volume Indicator (On-Balance Volume, Chaikin Money Flow, Average True Range)
-        conditions[8] += VolumeIndicator(days).calculate_score()
+        # 8) Volume Indicator (On-Balance Volume, Chaikin Money Flow, Average True Range)
+        conditions[6] += VolumeIndicator(days).calculate_score()
 
-        # 11) Limit Indicator (Pivot Points, 52-Week High/Low, Candlestick Patterns)
-        conditions[9] += LimitIndicator(days).calculate_score()
+        # 9) Limit Indicator (Pivot Points, 52-Week High/Low, Candlestick Patterns)
+        conditions[7] += LimitIndicator(days).calculate_score()
 
-        # 12) Candlestick Indicators
-        conditions[10] += CandlestickIndicator(days).calculate_score()
+        # 10) Candlestick Indicators
+        conditions[8] += CandlestickIndicator(days).calculate_score()
 
-        logging.info("Technical conditions: %s", conditions)
+        # 11) Moving Average Indicators
+        conditions[9] += MovingAverageIndicator(days).calculate_score()
+
+        logging.info("Technical conditions: %s - %s", symbol, conditions)
         return float(conditions.sum())
 
 class SwingTrader:
@@ -258,7 +243,7 @@ class SwingTrader:
             'entry_price': entry_price,
             'stop_loss': entry_price * STOP_LOSS_FACTOR,
             'take_profit': entry_price * TAKE_PROFIT_FACTOR,
-            'score': self.technical_analyzer.calculate_technical_score(df)
+            'score': self.technical_analyzer.calculate_technical_score(df,symbol)
         }
         logging.info("Processed %s with result: %s", symbol, ret_val)
         return ret_val

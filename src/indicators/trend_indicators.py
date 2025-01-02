@@ -279,11 +279,7 @@ class TrendIndicator:
         overbought = (days['stoch_k'] > 80).iloc[-1]
 
         score += np.select( [ crossover_up, crossover_down, oversold, overbought ] , [ 2, -2, 1, -1 ], default=0) * STOCHASTIC_MULTIPLIER
-
         score += self._calculate_ichimoku_score(days) * ICHIMOKU_MULTIPLIER
-
         score += self._calculate_psar_score(days) * PSAR_MULTIPLIER
-
         score += self._calculate_heiken_ashi(days) * HEIKEN_ASHI_MULTIPLIER
-
         return score
