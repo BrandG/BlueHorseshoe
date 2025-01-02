@@ -133,6 +133,5 @@ class MovingAverageIndicator: # pylint: disable=too-few-public-methods
             float: The score based on the moving average crossover signals.
         """
 
-        return self.calculate_ma_score() 
+        return self.calculate_ma_score()
             # + self.calculate_crossovers()
-
