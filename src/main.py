@@ -30,7 +30,7 @@ from sklearn.exceptions import ConvergenceWarning
 
 from globals import ReportSingleton, get_mongo_client
 from historical_data import build_all_symbols_history
-from swing_trading import swing_predict
+from swing_trading import SwingTrader
 
 DEBUG_SYMBOL = 'ABVC'
 DEBUG = False
@@ -44,12 +44,12 @@ def debug_test():
     pass    # pylint: disable=unnecessary-pass
 
 if __name__ == "__main__":
-    ReportSingleton().write(f'Starting BlueHorseshoe at {time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())}...')
-    start_time = time.time()
-
     logging.basicConfig(filename='/workspaces/BlueHorseshoe/src/logs/blueHorseshoe.log', filemode='w',
                         level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
     logging.getLogger('pymongo').setLevel(logging.WARNING)
+
+    logging.info('Starting BlueHorseshoe at %s...', time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()))
+    start_time = time.time()
 
     if get_mongo_client() is None:
         sys.exit(1)
@@ -63,7 +63,7 @@ if __name__ == "__main__":
                             message="Maximum Likelihood optimization failed to ")
     warnings.filterwarnings("ignore", category=ConvergenceWarning)
 
-    ReportSingleton().write('deleting graphs...')
+    logging.info('deleting graphs...')
     # Clear the graphs directory
     GRAPHS_DIR = '/workspaces/BlueHorseshoe/src/graphs'
     for filename in os.listdir(GRAPHS_DIR):
@@ -78,21 +78,23 @@ if __name__ == "__main__":
 
     if "-u" in sys.argv:
         build_all_symbols_history(recent=True)
-        ReportSingleton().write("Recent historical data updated.")
+        logging.info("Recent historical data updated.")
     elif "-b" in sys.argv:
         build_all_symbols_history(recent=False)
-        ReportSingleton().write("Full historical data updated.")
+        logging.info("Full historical data updated.")
     elif "-p" in sys.argv:
-        swing_predict()
-        ReportSingleton().write('Predicting next midpoints...')
+        logging.info('Predicting next midpoints...')
+        SwingTrader().swing_predict()
     elif "-d" in sys.argv:
-        ReportSingleton().write("Debugging...")
+        logging.info("Debugging...")
         debug_test()
     else:
-        ReportSingleton().write("Invalid arguments. Use -u to update historical data, -p to predict next day swing trading midpoints, -d "
-                                "to debug, or -b to build historical data.")
+        USAGE_STRING = "Invalid arguments. Use -u to update historical data, -p to predict next day swing trading midpoints, -d " \
+                                "to debug, or -b to build historical data."
+        logging.error(USAGE_STRING)
+        print(USAGE_STRING)
         sys.exit(1)
 
     end_time = time.time()
-    ReportSingleton().write(f'Execution time: {end_time - start_time:.2f} seconds')
+    logging.info('Execution time: %.2f seconds', end_time - start_time)
     ReportSingleton().close()

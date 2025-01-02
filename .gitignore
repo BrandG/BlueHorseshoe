@@ -1,4 +1,3 @@
-historical_data/
 graphs/
 *.pyc
 secrets.sh
@@ -11,3 +10,4 @@ linting.txt
 .coverage
 linting_sorted.txt
 src/backup/
+src/historical_data/symbol_list.json

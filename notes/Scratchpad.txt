@@ -1,3 +1,246 @@
+2024-12-30
+    Well, I spent all day setting up swing indicators, and I'm halfway through the list. However, I had an idea today when I saw that there
+was a periodical that tells you when stocks are going to hit crossover situations. The idea was that I set up a list of crossover indicators,
+strong indicators, and do the search through all the stocks for those. Initially, this is just going to be obvious stuff like the 20-day
+EMA crossing the 50-day EMA or whatever, but once I get those, I'll add candlestick reading as well. The swing trade indicators stuff is
+already returning some good suggestions.
+    Here is the list of crossovers:
+
+### **1. Golden Cross**
+- **Description**: Occurs when a short-term moving average (e.g., 50-day) crosses above a long-term moving average (e.g., 200-day). It is considered a **bullish indicator**, signaling the potential for an upward trend.
+
+### **2. Death Cross**
+- **Description**: The opposite of the Golden Cross, it occurs when a short-term moving average (e.g., 50-day) crosses below a long-term moving average (e.g., 200-day). This is viewed as a **bearish indicator**, signaling potential downward momentum.
+
+### **3. EMA Cross**
+- **Description**: A crossover between two Exponential Moving Averages (EMAs), such as the 20-day EMA crossing over the 50-day EMA (bullish) or below it (bearish). EMAs give more weight to recent data, making them responsive to recent price changes.
+
+### **4. SMA Cross**
+- **Description**: A crossover between two Simple Moving Averages (SMAs), such as the 10-day SMA crossing above the 50-day SMA (bullish) or below it (bearish). SMAs smooth out price data but are slower to react than EMAs.
+
+### **5. MACD Line and Signal Line Crossover**
+- **Description**: A signal is generated when the MACD line (difference between two EMAs, e.g., 12-day and 26-day) crosses above the signal line (9-day EMA of the MACD). A **bullish crossover** occurs when the MACD line crosses above, and a **bearish crossover** when it crosses below.
+
+### **6. MACD and Zero Line Crossover**
+- **Description**: Occurs when the MACD line crosses the zero line. A **bullish crossover** happens when it moves above zero, and a **bearish crossover** when it falls below zero. This signals a potential shift in momentum.
+
+### **7. RSI and Signal Line Crossover**
+- **Description**: Involves the Relative Strength Index (RSI) crossing over a specific signal line, such as 30 (oversold) or 70 (overbought). A **bullish crossover** occurs when RSI moves above 30, and a **bearish crossover** when it drops below 70.
+
+### **8. Stochastic Oscillator Cross**
+- **Description**: Occurs when the %K line of the Stochastic Oscillator (fast line) crosses above the %D line (slow line). A **bullish signal** is when %K crosses above %D, and a **bearish signal** is when it crosses below.
+
+### **9. Bollinger Bands Middle Line Crossover**
+- **Description**: When the price crosses the middle line (20-day SMA by default) of Bollinger Bands. A **bullish signal** occurs when the price moves above the middle line, and a **bearish signal** occurs when it moves below.
+
+### **10. Parabolic SAR Crossover**
+- **Description**: Occurs when the price crosses the Parabolic SAR indicator dots. A **bullish crossover** happens when the price moves above the dots, and a **bearish crossover** when it falls below.
+
+### **11. Price and MA Crossover**
+- **Description**: A crossover between the price itself and a moving average (e.g., price crossing above the 50-day SMA). A **bullish signal** occurs when the price moves above the MA, and a **bearish signal** when it moves below.
+
+### **12. Moving Average Ribbon Crossover**
+- **Description**: Uses a series of multiple MAs with different periods (e.g., 10, 20, 50, 100-day). Crossovers between shorter-term and longer-term ribbons indicate bullish or bearish trends, depending on the direction.
+
+### **13. Ichimoku Cloud Crossover (Tenkan-Sen/Kijun-Sen)**
+- **Description**: A crossover between the Tenkan-Sen (short-term average) and Kijun-Sen (longer-term average) in the Ichimoku Cloud system. A **bullish crossover** occurs when Tenkan-Sen crosses above Kijun-Sen, and a **bearish crossover** occurs when it crosses below.
+
+### **14. DMI (Directional Movement Index) ADX Crossover**
+- **Description**: Occurs when the +DI (positive directional index) crosses above the -DI (negative directional index) or vice versa. A **bullish signal** occurs when +DI > -DI, and a **bearish signal** when -DI > +DI.
+
+### **15. Keltner Channel Middle Line Crossover**
+- **Description**: Similar to Bollinger Bands, this occurs when the price crosses the middle line of the Keltner Channel. A **bullish crossover** is when the price moves above the middle line, and a **bearish crossover** when it moves below.
+
+### **16. Williams %R Crossover**
+- **Description**: Occurs when Williams %R crosses above -80 (bullish, indicating oversold conditions) or below -20 (bearish, indicating overbought conditions).
+
+### **17. CCI (Commodity Channel Index) Zero Line Crossover**
+- **Description**: A crossover of the CCI line through the zero line. A **bullish signal** occurs when CCI crosses above zero, and a **bearish signal** when it crosses below.
+
+### **18. Pivot Point Crossover**
+- **Description**: When the price crosses a pivot point (a calculated level of support/resistance). A **bullish crossover** occurs when the price rises above the pivot, and a **bearish crossover** when it falls below.
+
+### **19. VWAP Crossover**
+- **Description**: Occurs when the price crosses the Volume-Weighted Average Price (VWAP). A **bullish crossover** happens when the price moves above VWAP, indicating buying momentum, and a **bearish crossover** when it moves below.
+
+
+Using this endpoint: https://www.alphavantage.co/query?function=OVERVIEW&symbol=IBM&apikey=demo
+We can get fundamental info like:
+- Company Details
+    "Symbol": "IBM",
+    "AssetType": "Common Stock",
+    "Name": "International Business Machines",
+    "Description": "International Business Machines Corporation (IBM) is an American multinational technology company headquartered in Armonk, New York, with operations in over 170 countries. The company began in 1911, founded in Endicott, New York, as the Computing-Tabulating-Recording Company (CTR) and was renamed International Business Machines in 1924. IBM is incorporated in New York. IBM produces and sells computer hardware, middleware and software, and provides hosting and consulting services in areas ranging from mainframe computers to nanotechnology. IBM is also a major research organization, holding the record for most annual U.S. patents generated by a business (as of 2020) for 28 consecutive years. Inventions by IBM include the automated teller machine (ATM), the floppy disk, the hard disk drive, the magnetic stripe card, the relational database, the SQL programming language, the UPC barcode, and dynamic random-access memory (DRAM). The IBM mainframe, exemplified by the System/360, was the dominant computing platform during the 1960s and 1970s.",
+    "Exchange": "NYSE",
+    "Sector": "TECHNOLOGY",
+    "Industry": "COMPUTER & OFFICE EQUIPMENT",
+- Analyst
+    "AnalystTargetPrice": "217.12",
+    "AnalystRatingStrongBuy": "2",
+    "AnalystRatingBuy": "5",
+    "AnalystRatingHold": "9",
+    "AnalystRatingSell": "3",
+    "AnalystRatingStrongSell": "1",
+- Indicators
+    "52WeekHigh": "239.35",
+    "52WeekLow": "152.38",
+    "50DayMovingAverage": "221.35",
+    "200DayMovingAverage": "197.07",
+
+
+Using this endpoint: https://www.alphavantage.co/query?function=NEWS_SENTIMENT&tickers=AAPL&apikey=demo
+We can get these:
+{
+    "items": "50",
+    "sentiment_score_definition": "x <= -0.35: Bearish; -0.35 < x <= -0.15: Somewhat-Bearish; -0.15 < x < 0.15: Neutral; 0.15 <= x < 0.35: Somewhat_Bullish; x >= 0.35: Bullish",
+    "relevance_score_definition": "0 < x <= 1, with a higher score indicating higher relevance.",
+    "feed": [
+        {
+            "title": "Dow Jones 2024 Scoreboard: Top 5 Winners, Losers - And How Amazon, Nvidia Could Reshape 2025 - SPDR Dow Jones Industrial Average ETF  ( ARCA:DIA ) ",
+            "url": "https://www.benzinga.com/etfs/broad-u-s-equity-etfs/24/12/42726598/dow-jones-2024-scoreboard-top-5-winners-losers-and-how-amazon-nvidia-could-reshape-202",
+            "summary": "The Dow Jones Industrial Average hit an all-time high of over 45,000 points in December, one of several stock market indexes to hit records after Donald Trump won the 2024 presidential election.",
+            "overall_sentiment_score": 0.076114,
+            "overall_sentiment_label": "Neutral",
+
+2024-12-27
+    I found out that I was reading the wrong dates for calculation, so that sucks. Anyway, I've been clarifying my situaton with scoring, using AIs. Now I have a few more
+possible tests to add. Here's the ChatGPT suggestion:
+
+Below are some commonly used **additional indicators** and **techniques** you might consider incorporating into your technical scoring system.
+Which ones make sense depends heavily on your **trading style**, **market context**, and **asset characteristics**. However, they can broaden
+your analysis by capturing signals that your current mix (DMI/ADX, EMA, MACD, Volume, RSI, Bollinger Bands, ROC) might not fully address.
+
+---
+
+## 1. Momentum & Trend Indicators
+
+#1. **Stochastic Oscillator**  
+#   - Measures the current price relative to its recent trading range (similar in spirit to RSI but with a slightly different formula and interpretation).  
+#   - Typical usage: a Stochastic %K line crossing above the %D line can be a bullish signal; crossing below can be bearish.
+
+#2. **Ichimoku Cloud**  
+#   - A more comprehensive trend and momentum indicator that includes multiple lines: Conversion Line, Base Line, Leading Spans A/B, and the Cloud.  
+#   - You could incorporate “price above/below the cloud,” or whether the Conversion Line is above the Base Line, etc.  
+#   - Many traders look for crossovers of these lines or a “thick” cloud indicating strong support/resistance.
+
+#3. **Parabolic SAR (Stop and Reverse)**  
+#   - Helps identify potential reversals in price direction.  
+#   - You could add or subtract points if the Parabolic SAR flips (i.e., goes from below price to above price, or vice versa).
+
+# 4. **Heiken Ashi (HA) Candles**  
+#   - A different way of calculating candle data to smooth out noise.  
+#   - You could look at whether the HA candles are showing consistent bullish/bearish color (trend).
+
+---
+
+## 2. Volume & Volatility Indicators
+
+# 1. **On-Balance Volume (OBV)**  
+#    - Tracks cumulative volume flow. A rising OBV can confirm upward price momentum.  
+#    - Could score the slope or recent changes in OBV.
+
+# 2. **Chaikin Money Flow (CMF)**  
+#   - Focuses on the volume-weighted average price for the day.  
+#   - Positive CMF might confirm buying pressure; negative CMF could indicate selling pressure.
+
+# 3. **ATR (Average True Range)**  
+#   - Measures volatility.  
+#   - You could adapt the Bollinger logic to ATR-based logic, e.g., checking if price is far above/below a moving average by a multiple of ATR.  
+#   - Could be used for adaptive stop-loss or trailing logic, or as a signal if volatility spikes.
+
+---
+
+## 3. Support & Resistance or Price-Based Signals
+
+# 1. **Pivot Points**  
+#   - Classic pivot point formulas generate potential support/resistance levels (R1, R2, S1, S2).  
+#   - You could score how price behaves near these levels: e.g., bouncing off a pivot line might be bullish.
+
+# 2. **52-Week High/Low**  
+#   - Checking how close price is to its 52-week high or low can signal momentum or risk.  
+#   - Near new highs often indicates strong momentum; near new lows might be a red flag or a contrarian buy signal, depending on your strategy.
+
+# 3. **Price Action Patterns**  
+#   - Candlestick patterns (e.g., bullish engulfing, hammer, doji) or chart patterns (e.g., breakout above a previous high).  
+#   - These are less trivial to incorporate in a purely vectorized approach, but pattern recognition can add unique signals that standard indicators may miss.
+
+---
+
+## 4. Additional Moving Averages & Crossovers
+
+# 1. **Multiple EMA/SMA Crosses**  
+#   - Many traders look for “Golden Cross” (50-day MA crossing above 200-day MA) or “Death Cross” (the reverse).  
+#   - Could add or subtract points if a fast MA crosses a slow MA.
+
+2. **Dynamic Weighted Moving Averages**  
+   - Sometimes Weighted Moving Averages (WMA) or Volume Weighted Moving Averages (VWMA) provide signals that differ from EMA/SMA.  
+   - You could check if price is above/below VWMA if volume is critical to your strategy.
+
+---
+
+## 5. Relative Performance & Market Breadth
+
+1. **Relative Strength vs. Index**  
+   - Compare the asset’s performance to a benchmark index (S&P 500, NASDAQ, etc.).  
+   - If the asset is outperforming the index by a certain margin, add points; if underperforming, subtract points.
+
+2. **Market Breadth Indicators**  
+   - E.g., the Advance-Decline line or McClellan Oscillator.  
+   - If breadth is strongly bullish, your asset’s bullish signals might be more reliable. You could add a global multiplier or an incremental score.
+
+---
+
+## 6. Fundamental / Alternative Data (If Relevant)
+
+Though not purely “technical,” some traders add fundamental or alternative metrics for a more holistic view:
+
+1. **Earnings / Fundamental Score**  
+   - If you have fundamental data like Earnings Per Share (EPS) growth, Price-to-Earnings (P/E) ratios, or sector performance, you can incorporate a 
+   small weighting into your overall score.
+
+2. **News Sentiment**  
+   - If you have access to sentiment analysis from news or social media feeds, it can act as a bullish/bearish overlay.
+
+3. **Seasonality**  
+   - Certain assets have recurring seasonal patterns (e.g., agricultural commodities). You could factor in a seasonality score or multiplier.
+
+---
+
+## 7. Combining Indicators Intelligently
+
+1. **Weighting**  
+   - Not all indicators should be weighed equally. If Bollinger Bands historically outperform Stochastic for your asset, it might deserve a higher weight.  
+   - You could also dynamically weight indicators based on market regime (trending vs. ranging).
+
+2. **Avoid Overfitting / Overlapping Indicators**  
+   - Many momentum oscillators (like RSI, Stochastic, and Williams %R) give similar signals. Having too many can lead to redundancy.  
+   - Focus on a balanced approach: trend indicators, momentum oscillators, volume measures, volatility measures, etc.
+
+3. **Backtesting & Parameter Tuning**  
+   - Before adding an indicator permanently, backtest or forward-test it on real/historical data to see if it improves your risk-adjusted returns.
+
+---
+
+## Putting It All Together
+
+**Choosing which indicators to add** depends on your strategy and the nature of the asset(s) you trade. A few “broadening” suggestions:
+
+- Add a **trend strength** measure like Ichimoku or additional moving average crossovers.  
+- Add a **volume flow** measure like OBV or Chaikin Money Flow for deeper volume insight.  
+- Add a **volatility-based** measure like ATR to detect sudden changes in risk.  
+- Consider a **Stochastic Oscillator** or **Heiken Ashi** for alternative momentum or smoothing.  
+- Incorporate **relative performance** to an index or sector if you want a sense of how your asset behaves in the broader market.
+
+In the end, **less can often be more**—you don’t want an overly complicated “score” that is hard to interpret or maintain. The best approach is to **experiment**, 
+**backtest**, and **deploy** indicators that best fit your time horizon, asset class, and trading philosophy.
+
+
+
+2024-12-26
+    I spent most of the day today trying to find good entry position calculations, but it was hard to find examples because, while my system did find almost all 
+winners today, the delta between today and right before Christmas was all messed up. Obviously, that's going to be a continuous problem. All I can do is try again
+tomorrow, when the numbers will presumably be more sane.
+
 2024-12-21
     I've moved to a swing-trading system now, which means I gutted a lot of stuff to make more basic predictions. If I am
 ever going to do day-trading, I've got this system for getting real-time data.

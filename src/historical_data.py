@@ -16,6 +16,7 @@ Functions:
 
     build_all_symbols_history(starting_at='', save_to_file=False):
 """
+import logging
 import os
 import json
 import pandas as pd
@@ -24,7 +25,7 @@ from ratelimit import limits, sleep_and_retry #pylint: disable=import-error
 
 from pymongo.errors import ServerSelectionTimeoutError
 import talib as ta
-from globals import ReportSingleton, get_mongo_client, get_symbol_list, BASE_PATH
+from globals import GlobalData, get_mongo_client, get_symbol_list
 
 
 @sleep_and_retry
@@ -51,7 +52,7 @@ def load_historical_data_from_net(stock_symbol, recent=False):
                 Returns None if the 'Time Series (Daily)' key is not found in the response.
 
     Usage:
-        ReportSingleton().write(load_historical_data_from_net('QGEN', True))
+        logging.info(load_historical_data_from_net('QGEN', True))
 
     Raises:
         requests.exceptions.HTTPError: If the HTTP request returned an unsuccessful status code.
@@ -86,8 +87,7 @@ def load_historical_data_from_net(stock_symbol, recent=False):
 
             symbol['days'].append(daily_data)
     else:
-        ReportSingleton().write("'Time Series (Daily)' key not found in response for " +
-              f"{stock_symbol}. URL: {url}. Response: {json_data}")
+        logging.error("'Time Series (Daily)' key not found in response for %s. URL: %s. Response: %s", stock_symbol, url, json_data)
         return None
 
     return symbol
@@ -102,15 +102,16 @@ def load_historical_data_from_mongo(symbol, db):
         db (Database): The MongoDB database instance.
 
     Returns:
-        dict: A dictionary containing the historical data if found, None otherwise.
-        None: If no data is found for the given symbol.
+        dict: A dictionary containing the historical data if found, empty dictionary otherwise.
     """
-    data = None
+    data = {}
     try:
         collection = db['recent_historical_data']
         data = collection.find_one({"symbol": symbol})
+        if data is None:
+            data = {}
     except (ServerSelectionTimeoutError, OSError) as e:
-        ReportSingleton().write(f"Error accessing MongoDB: {e}")
+        logging.error("Error accessing MongoDB: %s", e)
 
     return data
 
@@ -132,7 +133,7 @@ def save_historical_data_to_mongo(symbol, data, db):
     collection.update_one({"symbol": symbol}, {"$set": data}, upsert=True)
 
     # Store just the last year of data in a separate collection
-    data['days'] = data['days'][:240]
+    data['days'] = data['days'][-240:]
     recent_collection = db['recent_historical_data']
     recent_collection.update_one(
         {"symbol": symbol}, {"$set": data}, upsert=True)
@@ -177,38 +178,38 @@ def build_all_symbols_history(starting_at='', save_to_file=False, recent=False):
         try:
             net_data = load_historical_data_from_net(stock_symbol=symbol, recent=recent)
             if net_data is None:
-                ReportSingleton().write(f"No data for {symbol}")
+                logging.error("No data for %s", symbol)
                 continue
             net_data['full_name'] = name
 
             if isinstance(net_data, dict) and 'days' in net_data:
                 df = pd.DataFrame(net_data['days'])
             else:
-                ReportSingleton().write(f"Invalid data format for {symbol}.")
+                logging.error("Invalid data format for %s.", symbol)
                 return
-            df = df.sort_values(by='date').reset_index(drop=True)[:240]
+            df = df.sort_values(by='date').reset_index(drop=True)
 
             net_data['days'] = get_technical_indicators(df)
             if '_id' in net_data:
                 del net_data['_id']
-            ReportSingleton().write(f'{index} - {symbol} ({percentage}%) - size: {len(net_data["days"])}')
+            logging.info('%d - %s (%d%%) - size: %d', index, symbol, percentage, len(net_data["days"]))
             save_historical_data_to_mongo(symbol, net_data, get_mongo_client())
 
             if save_to_file:
                 # write out new_data_json to file
                 file_path = os.path.join(
-                    BASE_PATH, f'StockPrice-{symbol}.json')
+                    GlobalData.base_path, f'StockPrice-{symbol}.json')
                 with open(f'{file_path}', 'w', encoding='utf-8') as file:
                     file.write(json.dumps(net_data))
-                    ReportSingleton().write(f"Saved data for {symbol} to {file_path}")
+                    logging.info("Saved data for %s to %s", symbol, file_path)
         except requests.exceptions.RequestException as e:
-            ReportSingleton().write(f'Network error: {e}')
+            logging.error('Network error: %s', e)
             continue
         except json.JSONDecodeError as e:
-            ReportSingleton().write(f'JSON decode error: {e}')
+            logging.error('JSON decode error: %s', e)
             continue
         except OSError as e:
-            ReportSingleton().write(f'OS error: {e}')
+            logging.error('OS error: %s', e)
             continue
 
 def get_technical_indicators(df):
@@ -246,6 +247,8 @@ def get_technical_indicators(df):
     df['macd_signal'] = df['macd_signal'].round(4)
     df['macd_hist'] = df['macd_hist'].round(4)
     df['adx'] = ta.ADX(df['high'], df['low'], df['close'], timeperiod=14).round(4) # type: ignore
+    df['dmi_p'] = ta.PLUS_DI(df['high'],df['low'],df['close'],timeperiod=14).round(4) # type: ignore
+    df['dmi_n'] = ta.MINUS_DI(df['high'],df['low'],df['close'],timeperiod=14).round(4) # type: ignore
     df['rsi_14'] = ta.RSI(df['close'], timeperiod=14).round(4) # type: ignore
     df['atr_14'] = ta.ATR(df['high'], df['low'], df['close'], timeperiod=14).round(4) # type: ignore
     df['bb_upper'], df['bb_middle'], df['bb_lower'] = ta.BBANDS( # type: ignore
@@ -261,6 +264,8 @@ def get_technical_indicators(df):
     df['mfi'] = ta.MFI(df['high'], df['low'], df['close'], df['volume'], timeperiod=14).round(4) # type: ignore
     df['cci'] = ta.CCI(df['high'], df['low'], df['close'], timeperiod=14).round(4) # type: ignore
     df['willr'] = ta.WILLR(df['high'], df['low'], df['close'], timeperiod=14).round(4) # type: ignore
+    df['roc_5'] = ta.ROC(df['close'], timeperiod=5).round(4) # type: ignore
+    df['avg_volume_20'] = df['volume'].rolling(window=20).mean().round(4)
     return df.to_dict(orient='records')
 
 def load_historical_data_from_file(symbol):
@@ -268,7 +273,7 @@ def load_historical_data_from_file(symbol):
     Loads historical stock price data from a JSON file for a given symbol.
 
     Usage:
-        ReportSingleton().write(load_historical_data_from_file('QGEN'))
+        print(load_historical_data_from_file('QGEN'))
 
     Args:
         symbol (str): The stock symbol for which to load historical data.
@@ -280,19 +285,19 @@ def load_historical_data_from_file(symbol):
     Raises:
         FileNotFoundError: If the file does not exist at the specified path.
     """
-    file_path = os.path.join(BASE_PATH, f'StockPrice-{symbol}.json')
+    file_path = os.path.join(GlobalData.base_path, f'StockPrice-{symbol}.json')
 
     try:
         with open(file_path, 'r', encoding='utf-8') as file:
             data = json.load(file)
             return data
     except FileNotFoundError:
-        ReportSingleton().write(f"File not found: {file_path}")
+        logging.warning("File not found: %s", file_path)
     except json.JSONDecodeError:
-        ReportSingleton().write(f"Error: Invalid JSON in {file_path}.")
+        logging.error("Error: Invalid JSON in %s.", file_path)
     except PermissionError:
-        ReportSingleton().write(f"Permission denied: {file_path}")
-    return None
+        logging.warning("Permission denied: %s", file_path)
+    return {}
 
 
 def load_historical_data(symbol):
@@ -312,6 +317,14 @@ def load_historical_data(symbol):
         data = load_historical_data_from_net(symbol, recent=False)
     if data and 'days' in data:
         data['days'] = sorted(data['days'], key=lambda x: x['date'])
+
+    if data is None:
+        return None
+    days = data['days']
+    if 'avg_volume_20' not in days[0]:
+        df = pd.DataFrame(days)
+        df['avg_volume_20'] = df['volume'].rolling(window=20).mean().round(4)
+        days = df.to_dict(orient='records')
 
     return data
 

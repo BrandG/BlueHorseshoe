@@ -1,3 +1,3 @@
 date
-pylint ./src/*.py > linting.txt
+pylint $(git ls-files '*.py') > linting.txt
 date
