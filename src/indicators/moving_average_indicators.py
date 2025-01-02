@@ -121,7 +121,9 @@ class MovingAverageIndicator: # pylint: disable=too-few-public-methods
         med_ema = data['close'].ewm(span=21).mean()
         slow_ema = (data['close'].ewm(span=50).mean() + data['close'].ewm(span=200).mean()) / 2
 
-        return 1.0 if fast_ema[-1] > med_ema[-1] > slow_ema[-1] else 0.0
+        if not fast_ema.empty and not med_ema.empty and not slow_ema.empty:
+            return 1.0 if fast_ema.iloc[-1] > med_ema.iloc[-1] > slow_ema.iloc[-1] else 0.0
+        return 0.0
 
     def calculate_score(self) -> float:
         """
@@ -133,5 +135,4 @@ class MovingAverageIndicator: # pylint: disable=too-few-public-methods
             float: The score based on the moving average crossover signals.
         """
 
-        return self.calculate_ma_score()
-            # + self.calculate_crossovers()
+        return self.calculate_ma_score() + self.calculate_crossovers()
