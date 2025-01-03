@@ -19,12 +19,15 @@ Functions:
 import logging
 import os
 import json
+import sys
 import pandas as pd
 import requests
 from ratelimit import limits, sleep_and_retry #pylint: disable=import-error
 
 from pymongo.errors import ServerSelectionTimeoutError
 import talib as ta
+sys.path.append('/workspaces/BlueHorseshoe/src')
+
 from globals import GlobalData, get_mongo_client, get_symbol_list
 
 
@@ -158,6 +161,10 @@ def build_all_symbols_history(starting_at='', save_to_file=False, recent=False):
     """
 
     symbol_list = get_symbol_list()
+    if symbol_list is None:
+        logging.error("Symbol list is None.")
+        return
+
     index = 0
 
     skip = bool(starting_at)
@@ -180,14 +187,21 @@ def build_all_symbols_history(starting_at='', save_to_file=False, recent=False):
             if net_data is None:
                 logging.error("No data for %s", symbol)
                 continue
-            net_data['full_name'] = name
+            if 'full_name' in net_data and name != '':
+                net_data['full_name'] = name
+            else:
+                logging.error("No full name for net loaded data for %s.", symbol)
 
             if isinstance(net_data, dict) and 'days' in net_data:
                 df = pd.DataFrame(net_data['days'])
             else:
                 logging.error("Invalid data format for %s.", symbol)
                 return
-            df = df.sort_values(by='date').reset_index(drop=True)
+            if 'date' in df.columns:
+                df = df.sort_values(by='date').reset_index(drop=True)
+            else:
+                logging.error("Column 'date' not found in DataFrame for %s.", symbol)
+                continue
 
             net_data['days'] = get_technical_indicators(df)
             if '_id' in net_data:
@@ -321,7 +335,7 @@ def load_historical_data(symbol):
     if data is None:
         return None
     days = data['days']
-    if 'avg_volume_20' not in days[0]:
+    if len(days) > 0 and 'avg_volume_20' not in days[0]:
         df = pd.DataFrame(days)
         df['avg_volume_20'] = df['volume'].rolling(window=20).mean().round(4)
         days = df.to_dict(orient='records')

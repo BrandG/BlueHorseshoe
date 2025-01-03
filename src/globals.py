@@ -90,6 +90,7 @@ def load_invalid_symbols():
     Logs:
         An error message if the file is not found, cannot be decoded, or if any other I/O error occurs.
     """
+    GlobalData.invalid_symbols = []
     invalid_symbols_file_path = os.path.join(GlobalData.base_path, 'invalid_symbols.txt')
     try:
         with open(invalid_symbols_file_path, 'r', encoding='utf-8') as file:
@@ -250,7 +251,7 @@ def graph(graph_data: GraphData):
         plt.legend()  # Add this line to show the legend
         plt.gca().xaxis.set_major_locator(MultipleLocator(20))
         plt.grid(which='both', linestyle='--', linewidth=0.5)
-        current_time_ms = int(datetime.now().timestamp() * 1000)
+        current_time_ms = int(datetime.now().timestamp())
         plt.savefig(f'/workspaces/BlueHorseshoe/src/graphs/{graph_data.title}_{current_time_ms}.png')
         # plt.show()
         plt.clf()
@@ -460,6 +461,7 @@ class ReportSingleton:
                     logging.error("Error closing report file: %s", str(e))
                 finally:
                     self._file = None
+                    self._initialized = False
 
     def __enter__(self) -> 'ReportSingleton':
         """Enable context manager support."""

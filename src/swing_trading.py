@@ -222,6 +222,9 @@ class SwingTrader:
             return None
 
         df = pd.DataFrame(price_data['days'])
+        if df.empty:
+            logging.error("DataFrame is empty for %s.", symbol)
+            return None
         yesterday = dict(df.iloc[-1])
 
         if not GlobalData.holiday:
