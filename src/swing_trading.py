@@ -25,13 +25,13 @@ from functools import lru_cache
 import concurrent.futures
 import numpy as np
 import pandas as pd
+from globals import GlobalData, ReportSingleton, get_symbol_name_list
+from historical_data import load_historical_data
 from indicators.candlestick_indicators import CandlestickIndicator
 from indicators.limit_indicators import LimitIndicator
 from indicators.moving_average_indicators import MovingAverageIndicator
 from indicators.trend_indicators import TrendIndicator
 from indicators.volume_indicators import VolumeIndicator
-from globals import GlobalData, ReportSingleton, get_symbol_name_list
-from historical_data import load_historical_data
 
 # Constants to avoid magic numbers
 TREND_PERIOD = 20
@@ -222,13 +222,16 @@ class SwingTrader:
             return None
 
         df = pd.DataFrame(price_data['days'])
+        if df.empty:
+            logging.error("DataFrame is empty for %s.", symbol)
+            return None
         yesterday = dict(df.iloc[-1])
 
         if not GlobalData.holiday:
             last_trading_day = pd.Timestamp.now().normalize() - pd.offsets.BDay(1)
-            last_day_string = last_trading_day.strftime('%Y-%m-%d')
-            if yesterday['date'] != last_day_string:
-                logging.error("Data for %s on date %s is not %s.", symbol, yesterday['date'], last_day_string)
+            yesterday['date'] = pd.to_datetime(yesterday['date'])
+            if yesterday['date'] != last_trading_day:
+                logging.error("Data for %s on date '%s' is not '%s'.", symbol, yesterday['date'], last_trading_day)
                 with open('src/error_symbols.txt', 'a', encoding='utf-8') as f:
                     f.write(f"{symbol}\n")
                 return None
@@ -250,15 +253,28 @@ class SwingTrader:
 
     def swing_predict(self) -> None:
         """Main prediction function with parallel processing capability."""
-        # Use ProcessPoolExecutor instead of ThreadPoolExecutor for CPU-bound tasks
-        max_workers = min(32, (os.cpu_count() or 0) + 4)  # Optimal worker count
         symbols = get_symbol_name_list()
+        # Use ProcessPoolExecutor instead of ThreadPoolExecutor for CPU-bound tasks
+        max_workers = min(32, (os.cpu_count() or 0) + 4, len(symbols))  # Optimal worker count
         chunk_size = len(symbols) // max_workers
         results = []
+
+        ReportSingleton().write(f"Yesterday was {'not' if GlobalData.holiday else ''} a holiday.")
 
         logging.info("Processing %d symbols...", len(symbols))
         with concurrent.futures.ProcessPoolExecutor(max_workers=max_workers) as executor:
             results = list(executor.map(self.process_symbol, symbols, chunksize=chunk_size))
+
+        # Get frequency list based on results['score']
+        score_frequency = {}
+        for result in [result for result in results if result is not None]:
+            score = result['score']
+            if score in score_frequency:
+                score_frequency[score] += 1
+            else:
+                score_frequency[score] = 1
+
+        logging.info("Score frequency: %s", score_frequency)
 
         # Filter None results and sort in one pass
         sorted_results = sorted(

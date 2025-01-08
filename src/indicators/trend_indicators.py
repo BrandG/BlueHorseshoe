@@ -16,10 +16,10 @@ Constants:
 Methods:
     __init__(self, data: pd.DataFrame): Initializes the TrendIndicator with the given data.
     validate_columns(self, df): Validates that the DataFrame has the required columns.
-    _calculate_psar_score(df: pd.DataFrame, step: float = 0.02, max_step: float = 0.2) -> float: Calculates a Parabolic SAR flip-based score.
-    _calculate_ichimoku(df): Calculates Ichimoku indicator lines and adds them to the DataFrame.
-    _calculate_ichimoku_score(self, days: pd.DataFrame) -> float: Calculates the Ichimoku-based score.
-    _calculate_heiken_ashi(self, days) -> float: Computes Heiken Ashi candles and calculates the score.
+    calculate_psar_score(df: pd.DataFrame, step: float = 0.02, max_step: float = 0.2) -> float: Calculates a Parabolic SAR flip-based score.
+    calculate_ichimoku(df): Calculates Ichimoku indicator lines and adds them to the DataFrame.
+    calculate_ichimoku_score(self, days: pd.DataFrame) -> float: Calculates the Ichimoku-based score.
+    calculate_heiken_ashi(self, days) -> float: Computes Heiken Ashi candles and calculates the score.
     calculate_score(self): Calculates the overall trend score based on all indicators.
 """
 
@@ -59,7 +59,7 @@ class TrendIndicator:
             self.validated = True
 
     @staticmethod
-    def _calculate_psar_score(df: pd.DataFrame, step: float = 0.02, max_step: float = 0.2) -> float:
+    def calculate_psar_score(df: pd.DataFrame, step: float = 0.02, max_step: float = 0.2) -> float:
         """
         Calculates a Parabolic SAR flip-based score for the latest row in 'df'.
         
@@ -117,7 +117,7 @@ class TrendIndicator:
         return score
 
     @staticmethod
-    def _calculate_ichimoku(df):
+    def calculate_ichimoku(df):
         """
         Calculate Ichimoku indicator lines and add them to df.
         Expects columns: 'high', 'low', 'close'.
@@ -147,13 +147,13 @@ class TrendIndicator:
 
         return df
 
-    def _calculate_ichimoku_score(self, days: pd.DataFrame) -> float:
+    def calculate_ichimoku_score(self, days: pd.DataFrame) -> float:
         """
         Calculate your existing technical score, plus Ichimoku-based signals.
         df is your DataFrame with Ichimoku columns: 'tenkan', 'kijun', 'spanA', 'spanB', 'Close'.
         Returns a float score.
         """
-        days = self._calculate_ichimoku(days)
+        days = self.calculate_ichimoku(days)
 
         # 1) Suppose you already have your existing score from RSI, MACD, etc.
         score = 0
@@ -209,7 +209,7 @@ class TrendIndicator:
 
         return float(score)
 
-    def _calculate_heiken_ashi(self, days) -> float:
+    def calculate_heiken_ashi(self, days) -> float:
         """
         Computes Heiken Ashi candles for the given DataFrame (df),
         which should have columns: ['open', 'High', 'Low', 'Close'].
@@ -279,7 +279,7 @@ class TrendIndicator:
         overbought = (days['stoch_k'] > 80).iloc[-1]
 
         score += np.select( [ crossover_up, crossover_down, oversold, overbought ] , [ 2, -2, 1, -1 ], default=0) * STOCHASTIC_MULTIPLIER
-        score += self._calculate_ichimoku_score(days) * ICHIMOKU_MULTIPLIER
-        score += self._calculate_psar_score(days) * PSAR_MULTIPLIER
-        score += self._calculate_heiken_ashi(days) * HEIKEN_ASHI_MULTIPLIER
+        score += self.calculate_ichimoku_score(days) * ICHIMOKU_MULTIPLIER
+        score += self.calculate_psar_score(days) * PSAR_MULTIPLIER
+        score += self.calculate_heiken_ashi(days) * HEIKEN_ASHI_MULTIPLIER
         return score

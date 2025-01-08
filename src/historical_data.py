@@ -16,16 +16,17 @@ Functions:
 
     build_all_symbols_history(starting_at='', save_to_file=False):
 """
+import sys
 import logging
 import os
 import json
 import pandas as pd
 import requests
 from ratelimit import limits, sleep_and_retry #pylint: disable=import-error
-
 from pymongo.errors import ServerSelectionTimeoutError
 import talib as ta
-from globals import GlobalData, get_mongo_client, get_symbol_list
+sys.path.append('/workspaces/BlueHorseshoe/src')
+from globals import GlobalData, get_mongo_client, get_symbol_list #pylint: disable=wrong-import-position
 
 
 @sleep_and_retry
@@ -158,59 +159,115 @@ def build_all_symbols_history(starting_at='', save_to_file=False, recent=False):
     """
 
     symbol_list = get_symbol_list()
-    index = 0
+    if symbol_list is None:
+        logging.error("Symbol list is None.")
+        return
 
     skip = bool(starting_at)
 
-    for row in symbol_list:
-        index += 1
-        percentage = round(index/len(symbol_list)*100)
-
+    for index, row in enumerate(symbol_list, start=1):
         if skip:
             if row['symbol'] == starting_at:
                 skip = False
             else:
                 continue
+        process_symbol(row, index, len(symbol_list), save_to_file, recent)
 
-        symbol = row['symbol']
-        name = row['name']
+def process_symbol(row, index, total_symbols, save_to_file, recent):
+    """
+    Processes a stock symbol by loading its historical data, validating it, 
+    calculating technical indicators, and saving the data to MongoDB and optionally to a file.
 
-        try:
-            net_data = load_historical_data_from_net(stock_symbol=symbol, recent=recent)
-            if net_data is None:
-                logging.error("No data for %s", symbol)
-                continue
-            net_data['full_name'] = name
+    Args:
+        row (dict): A dictionary containing 'symbol' and 'name' of the stock.
+        index (int): The current index of the symbol being processed.
+        total_symbols (int): The total number of symbols to be processed.
+        save_to_file (bool): A flag indicating whether to save the data to a file.
+        recent (bool): A flag indicating whether to load recent historical data.
 
-            if isinstance(net_data, dict) and 'days' in net_data:
-                df = pd.DataFrame(net_data['days'])
-            else:
-                logging.error("Invalid data format for %s.", symbol)
-                return
-            df = df.sort_values(by='date').reset_index(drop=True)
+    Returns:
+        None
 
-            net_data['days'] = get_technical_indicators(df)
-            if '_id' in net_data:
-                del net_data['_id']
-            logging.info('%d - %s (%d%%) - size: %d', index, symbol, percentage, len(net_data["days"]))
-            save_historical_data_to_mongo(symbol, net_data, get_mongo_client())
+    Raises:
+        requests.exceptions.RequestException: If there is an error with the network request.
+        json.JSONDecodeError: If there is an error decoding the JSON response.
+        OSError: If there is an OS-related error.
+    """
+    symbol = row['symbol']
+    name = row['name']
+    percentage = round(index/total_symbols*100)
 
-            if save_to_file:
-                # write out new_data_json to file
-                file_path = os.path.join(
-                    GlobalData.base_path, f'StockPrice-{symbol}.json')
-                with open(f'{file_path}', 'w', encoding='utf-8') as file:
-                    file.write(json.dumps(net_data))
-                    logging.info("Saved data for %s to %s", symbol, file_path)
-        except requests.exceptions.RequestException as e:
-            logging.error('Network error: %s', e)
-            continue
-        except json.JSONDecodeError as e:
-            logging.error('JSON decode error: %s', e)
-            continue
-        except OSError as e:
-            logging.error('OS error: %s', e)
-            continue
+    try:
+        net_data = load_historical_data_from_net(stock_symbol=symbol, recent=recent)
+        if not validate_net_data(net_data, symbol, name):
+            return
+
+        if net_data and 'days' in net_data:
+            df = pd.DataFrame(net_data['days'])
+        else:
+            logging.error("No 'days' data found for %s.", symbol)
+            return
+        if 'date' not in df.columns:
+            logging.error("Column 'date' not found in DataFrame for %s.", symbol)
+            return
+
+        df = df.sort_values(by='date').reset_index(drop=True)
+        net_data['days'] = get_technical_indicators(df)
+        if '_id' in net_data:
+            del net_data['_id']
+
+        logging.info('%d - %s (%d%%) - size: %d', index, symbol, percentage, len(net_data["days"]))
+        save_historical_data_to_mongo(symbol, net_data, get_mongo_client())
+
+        if save_to_file:
+            save_data_to_file(symbol, net_data)
+    except (requests.exceptions.RequestException, json.JSONDecodeError, OSError) as e:
+        logging.error('%s error: %s', type(e).__name__, e)
+
+def validate_net_data(net_data, symbol, name):
+    """
+    Validates the provided net data for a given symbol and name.
+
+    Args:
+        net_data (dict): The net data to validate.
+        symbol (str): The symbol associated with the net data.
+        name (str): The full name to be assigned to the net data if available.
+
+    Returns:
+        bool: True if the net data is valid, False otherwise.
+
+    Logs:
+        Logs an error message if the net data is None, does not contain a 'full_name' key when a name is provided,
+        or if the net data is not a dictionary or does not contain a 'days' key.
+    """
+    if net_data is None:
+        logging.error("No data for %s", symbol)
+        return False
+    if 'full_name' in net_data and name:
+        net_data['full_name'] = name
+    else:
+        logging.error("No full name for net loaded data for %s.", symbol)
+        net_data['full_name'] = symbol
+    if not isinstance(net_data, dict) or 'days' not in net_data:
+        logging.error("Invalid data format for %s.", symbol)
+        return False
+    return True
+
+def save_data_to_file(symbol, net_data):
+    """
+    Save stock price data to a JSON file.
+
+    Args:
+        symbol (str): The stock symbol for which the data is being saved.
+        net_data (dict): The stock price data to be saved.
+
+    Returns:
+        None
+    """
+    file_path = os.path.join(GlobalData.base_path, f'StockPrice-{symbol}.json')
+    with open(file_path, 'w', encoding='utf-8') as file:
+        file.write(json.dumps(net_data))
+    logging.info("Saved data for %s to %s", symbol, file_path)
 
 def get_technical_indicators(df):
     """
@@ -321,7 +378,7 @@ def load_historical_data(symbol):
     if data is None:
         return None
     days = data['days']
-    if 'avg_volume_20' not in days[0]:
+    if len(days) > 0 and 'avg_volume_20' not in days[0]:
         df = pd.DataFrame(days)
         df['avg_volume_20'] = df['volume'].rolling(window=20).mean().round(4)
         days = df.to_dict(orient='records')

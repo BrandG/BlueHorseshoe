@@ -17,12 +17,12 @@ Methods:
 
     score_atr_spike(self, window: int = 14, spike_multiplier: float = 1.5) -> float:
 
-    _score_atr_band(self, ma_window: int = 20, atr_multiplier: float = 2.0) -> float:
+    score_atr_band(self, ma_window: int = 20, atr_multiplier: float = 2.0) -> float:
         Otherwise => 0.
 
-    _calculate_cmf_with_ta(self, window: int = 20, threshold: float = 0.05) -> float:
+    calculate_cmf_with_ta(self, window: int = 20, threshold: float = 0.05) -> float:
 
-    _score_obv_trend(self, window: int = 5) -> float:
+    score_obv_trend(self, window: int = 5) -> float:
 
     calculate_score(self) -> float:
 """
@@ -76,7 +76,7 @@ class VolumeIndicator:
             return -2.0
         return 0.0
 
-    def _score_atr_band(self,
+    def score_atr_band(self,
                     ma_window: int = 20,
                     atr_multiplier: float = 2.0) -> float:
         """
@@ -110,7 +110,7 @@ class VolumeIndicator:
 
         return 0.0
 
-    def _calculate_avg_volume(self, window: int = 20) -> float:
+    def calculate_avg_volume(self, window: int = 20) -> float:
         """
         Calculates the average volume over the last 'window' days.
         """
@@ -123,7 +123,7 @@ class VolumeIndicator:
             return -1.0
         return 1.0
 
-    def _calculate_cmf_with_ta(self, window: int = 20, threshold: float = 0.05) -> float:
+    def calculate_cmf_with_ta(self, window: int = 20, threshold: float = 0.05) -> float:
         """
         Calculates Chaikin Money Flow (CMF) using the 'ta' library and
         adds a new column 'CMF' to df.
@@ -146,7 +146,7 @@ class VolumeIndicator:
             [0.0, 2.0, 1.0, -2.0],
             default=-1.0)) * CMF_MULTIPLIER
 
-    def _score_obv_trend(self, window: int = 5) -> float:
+    def score_obv_trend(self, window: int = 5) -> float:
         """
         Returns a score based on whether OBV is rising or falling
         over the last 'window' days.
@@ -168,10 +168,10 @@ class VolumeIndicator:
         """
         score = 0
 
-        score += self._score_obv_trend() * OBV_MULTIPLIER
-        score += self._calculate_cmf_with_ta() * CMF_MULTIPLIER
-        score += self._score_atr_band() * ATR_BAND_MULTIPLIER
+        score += self.score_obv_trend() * OBV_MULTIPLIER
+        score += self.calculate_cmf_with_ta() * CMF_MULTIPLIER
+        score += self.score_atr_band() * ATR_BAND_MULTIPLIER
         score += self.score_atr_spike() * ATR_SPIKE_MULTIPLIER
-        score += self._calculate_avg_volume() # No multiplier
+        score += self.calculate_avg_volume() # No multiplier
 
         return score
