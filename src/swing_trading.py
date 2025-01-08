@@ -253,11 +253,9 @@ class SwingTrader:
 
     def swing_predict(self) -> None:
         """Main prediction function with parallel processing capability."""
-        # Use ProcessPoolExecutor instead of ThreadPoolExecutor for CPU-bound tasks
-        max_workers = min(32, (os.cpu_count() or 0) + 4)  # Optimal worker count
         symbols = get_symbol_name_list()
-        if len(symbols) < max_workers:
-            max_workers = len(symbols)
+        # Use ProcessPoolExecutor instead of ThreadPoolExecutor for CPU-bound tasks
+        max_workers = min(32, (os.cpu_count() or 0) + 4, len(symbols))  # Optimal worker count
         chunk_size = len(symbols) // max_workers
         results = []
 
