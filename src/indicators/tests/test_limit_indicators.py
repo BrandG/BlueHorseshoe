@@ -1,45 +1,54 @@
-import pytest
-import pandas as pd
-from src.indicators.limit_indicators import LimitIndicator
+"""
+Unit tests for the LimitIndicator class.
 
-@pytest.fixture
-def sample_data():
-    df = pd.DataFrame([
-    { 'open': 1, 'high': 1, 'low': 1, 'close': 1 },
-    { 'open': 2, 'high': 2, 'low': 2, 'close': 2 },
-    { 'open': 3, 'high': 3, 'low': 3, 'close': 3 },
-    { 'open': 4, 'high': 4, 'low': 4, 'close': 4 },
-    { 'open': 5, 'high': 5, 'low': 5, 'close': 5 },
-    { 'open': 6, 'high': 6, 'low': 6, 'close': 6 },
-    { 'open': 7, 'high': 7, 'low': 7, 'close': 7 },
-    { 'open': 8, 'high': 8, 'low': 8, 'close': 8 },
-    { 'open': 9, 'high': 9, 'low': 9, 'close': 9 },
-    { 'open': 10, 'high': 10, 'low': 10, 'close': 10 },
-    { 'open': 11, 'high': 11, 'low': 11, 'close': 11 },
-    { 'open': 12, 'high': 12, 'low': 12, 'close': 12 },
-    { 'open': 13, 'high': 13, 'low': 13, 'close': 13 },
-    { 'open': 14, 'high': 14, 'low': 14, 'close': 14 },
-    { 'open': 15, 'high': 15, 'low': 15, 'close': 15 },
-    { 'open': 16, 'high': 16, 'low': 16, 'close': 16 },
-    { 'open': 17, 'high': 17, 'low': 17, 'close': 17 },
-    { 'open': 18, 'high': 18, 'low': 18, 'close': 18 },
-    { 'open': 19, 'high': 19, 'low': 19, 'close': 19 },
-    { 'open': 20, 'high': 20, 'low': 20, 'close': 20 },
-    { 'open': 21, 'high': 21, 'low': 21, 'close': 21 },
-    { 'open': 22, 'high': 22, 'low': 22, 'close': 22 },
-    { 'open': 23, 'high': 23, 'low': 23, 'close': 23 },
-    { 'open': 24, 'high': 24, 'low': 24, 'close': 24 },
-    { 'open': 25, 'high': 25, 'low': 25, 'close': 25 },
-    { 'open': 26, 'high': 26, 'low': 26, 'close': 26 },
-    { 'open': 27, 'high': 27, 'low': 27, 'close': 27 },
-    { 'open': 28, 'high': 28, 'low': 28, 'close': 28 },
-    { 'open': 29, 'high': 29, 'low': 29, 'close': 29 },
-    { 'open': 30, 'high': 30, 'low': 30, 'close': 30 }
-    ])
-    return df.astype(float)
+This module contains test functions for verifying the functionality of the LimitIndicator
+class methods. The tests cover calculation of pivot points, scoring of pivot levels,
+52-week range scoring, and overall indicator score calculation.
 
-def test_calculate_pivot_points(sample_data):
-    indicator = LimitIndicator(sample_data)
+The module uses a sample DataFrame with synthetic OHLC (Open, High, Low, Close) price 
+data for testing purposes. The sample data consists of 30 rows where all OHLC values 
+increment by 1 from 1 to 30.
+
+Test Functions:
+    - test_calculate_pivot_points: Tests pivot point level calculations
+    - test_score_pivot_levels: Tests pivot level scoring
+    - test_score_52_week_range: Tests 52-week range scoring
+    - test_calculate_score: Tests overall indicator score calculation
+
+Dependencies:
+    - pandas
+    - sys
+    - indicators.limit_indicators.LimitIndicator
+"""
+
+
+import sys
+
+sys.path.append('/workspaces/BlueHorseshoe/src')
+from indicators.limit_indicators import LimitIndicator # pylint: disable=wrong-import-position
+from indicators.tests.test_candlestick_indicators import sample_data # pylint: disable=wrong-import-position
+
+def test_calculate_pivot_points():
+    """
+    Test the calculation of pivot points.
+
+    This test function verifies that the calculate_pivot_points method of LimitIndicator
+    correctly calculates and returns a DataFrame with the expected pivot point levels.
+
+    The test checks for the presence of the following columns:
+    - Pivot: The pivot point
+    - R1: First resistance level
+    - R2: Second resistance level
+    - S1: First support level
+    - S2: Second support level
+
+    Returns:
+        None
+
+    Raises:
+        AssertionError: If any of the expected columns are missing from the result DataFrame
+    """
+    indicator = LimitIndicator(sample_data())
     df = indicator.calculate_pivot_points()
 
     assert 'Pivot' in df.columns
@@ -48,20 +57,61 @@ def test_calculate_pivot_points(sample_data):
     assert 'S1' in df.columns
     assert 'S2' in df.columns
 
-def test_score_pivot_levels(sample_data):
-    indicator = LimitIndicator(sample_data)
-    score = indicator._score_pivot_levels()
+def test_score_pivot_levels():
+    """Tests score_pivot_levels method of LimitIndicator class.
+
+    This test verifies that the score_pivot_levels method returns a float value
+    representing the pivot levels score calculated from the sample data.
+
+    Returns:
+        None
+
+    Raises:
+        AssertionError: If returned score is not a float type
+    """
+    indicator = LimitIndicator(sample_data())
+    score = indicator.score_pivot_levels()
 
     assert isinstance(score, float)
 
-def test_score_52_week_range(sample_data):
-    indicator = LimitIndicator(sample_data)
-    score = indicator._score_52_week_range()
+def test_score_52_week_range():
+    """
+    Test the score_52_week_range method of the LimitIndicator class.
+
+    This test verifies that the score_52_week_range method returns a float value
+    representing the stock's position within its 52-week trading range.
+
+    Parameters
+    ----------
+    None
+
+    Returns
+    -------
+    None
+
+    Raises
+    ------
+    AssertionError
+        If the returned score is not a float
+    """
+    indicator = LimitIndicator(sample_data())
+    score = indicator.score_52_week_range()
 
     assert isinstance(score, float)
 
-def test_calculate_score(sample_data):
-    indicator = LimitIndicator(sample_data)
+def test_calculate_score():
+    """Test the calculation of a score by the LimitIndicator.
+
+    This test function verifies that the calculate_score method of LimitIndicator
+    returns a float value when provided with sample data.
+
+    Returns:
+        None
+
+    Assertions:
+        - The returned score is an instance of float
+    """
+    indicator = LimitIndicator(sample_data())
     score = indicator.calculate_score()
 
     assert isinstance(score, float)

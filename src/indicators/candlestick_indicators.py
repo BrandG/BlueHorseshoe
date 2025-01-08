@@ -55,12 +55,12 @@ class CandlestickIndicator:
         self.data = data[required_cols].copy()
 
     @staticmethod
-    def _is_white_candle(open_price, close_price, threshold=0.0001) -> bool:
+    def is_white_candle(open_price, close_price, threshold=0.0001) -> bool:
         """Check if a candle is bullish (white)"""
         return close_price > open_price + threshold
 
     @staticmethod
-    def _has_small_shadow(open_price, high_price, low_price, close_price, body_ratio=0.3) -> bool:
+    def has_small_shadow(open_price, high_price, low_price, close_price, body_ratio=0.3) -> bool:
         """
         Check if the candle has relatively small shadows
         body_ratio: maximum allowed ratio of shadow length to body length
@@ -76,11 +76,11 @@ class CandlestickIndicator:
         return (upper_shadow / body_length) <= body_ratio and (lower_shadow / body_length) <= body_ratio
 
     @staticmethod
-    def _is_higher_open(prev_close, curr_open, threshold=0.0001) -> bool:
+    def is_higher_open(prev_close, curr_open, threshold=0.0001) -> bool:
         """Check if current candle opens higher than previous close"""
         return curr_open > prev_close + threshold
 
-    def _detect_three_white_soldiers(self, body_ratio=0.3, price_threshold=0.0001) -> float:
+    def detect_three_white_soldiers(self, body_ratio=0.3, price_threshold=0.0001) -> float:
         """
         Detects the "Three White Soldiers" candlestick pattern in the given data.
         The "Three White Soldiers" pattern is a bullish reversal pattern consisting of three consecutive long-bodied candlesticks that open within
@@ -105,13 +105,13 @@ class CandlestickIndicator:
 
         # Condition 1: All three candles must be white (bullish)
         all_white = all(
-            self._is_white_candle(open_price, close_price, price_threshold)
+            self.is_white_candle(open_price, close_price, price_threshold)
             for open_price, close_price in zip(candles['open'], candles['close'])
         )
 
         # Condition 2: Each candle should have small shadows
         small_shadows = all(
-            self._has_small_shadow(open_price, high_price, low_price, close_price, body_ratio)
+            self.has_small_shadow(open_price, high_price, low_price, close_price, body_ratio)
             for open_price, high_price, low_price, close_price in zip(
                 candles['open'], candles['high'], candles['low'], candles['close']
             )
@@ -119,7 +119,7 @@ class CandlestickIndicator:
 
         # Condition 3: Each candle should open within the body of the previous candle
         higher_opens = all(
-            self._is_higher_open(prev_close, curr_open, price_threshold)
+            self.is_higher_open(prev_close, curr_open, price_threshold)
             for prev_close, curr_open in zip(
                 candles['close'].iloc[:-1], candles['open'].iloc[1:]
             )
@@ -224,7 +224,7 @@ class CandlestickIndicator:
             - Marubozu
             - Belt Hold
         """
-        three_white_soldiers = self._detect_three_white_soldiers() * THREE_WHITE_SOLDIERS_MULTIPLIER
+        three_white_soldiers = self.detect_three_white_soldiers() * THREE_WHITE_SOLDIERS_MULTIPLIER
         rise_fall_3_methods = self.find_rise_fall_3_methods() * RISE_FALL_3_METHODS_MULTIPLIER
         marubozu = self.find_marubozu() * MARUBOZU_MULTIPLIER
         belt_hold = self.find_belt_hold() * BELT_HOLD_MULTIPLIER

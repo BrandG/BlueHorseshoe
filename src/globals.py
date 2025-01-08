@@ -73,7 +73,7 @@ class GlobalData:
     base_path: str = '/workspaces/BlueHorseshoe/src/historical_data/'
     mongo_client: Optional[pymongo.MongoClient] = None
     invalid_symbols: list = field(default_factory=list)
-    holiday:bool = True # define whether yesterday was a holiday
+    holiday:bool = False # define whether yesterday was a holiday
 
 def load_invalid_symbols():
     """
@@ -175,7 +175,7 @@ class GraphData:
     title: str = 'title'
 
 
-def graph(graph_data: GraphData):
+def graph(graph_data: GraphData) -> str:
     """
     Plots a graph with the given labels, title, curves, lines, and points.
 
@@ -251,12 +251,15 @@ def graph(graph_data: GraphData):
         plt.legend()  # Add this line to show the legend
         plt.gca().xaxis.set_major_locator(MultipleLocator(20))
         plt.grid(which='both', linestyle='--', linewidth=0.5)
-        current_time_ms = int(datetime.now().timestamp())
-        plt.savefig(f'/workspaces/BlueHorseshoe/src/graphs/{graph_data.title}_{current_time_ms}.png')
+        current_time_ms = int(datetime.now().timestamp()) * 1000
+        file_path = f'/workspaces/BlueHorseshoe/src/graphs/{graph_data.title}_{current_time_ms}.png'
+        plt.savefig(file_path)
         # plt.show()
         plt.clf()
+        return file_path
     except (ValueError, TypeError, KeyError) as e:
         logging.error("An error occurred while plotting the graph: %s", e)
+    return ""
 
 
 @sleep_and_retry
@@ -301,7 +304,7 @@ def get_symbol_list_from_net():
     return final_data
 
 
-def get_symbol_list_from_file():
+def get_symbol_list_from_file() -> dict:
     """
     Reads a list of symbols from a JSON file.
 
@@ -330,7 +333,7 @@ def get_symbol_list_from_file():
         logging.error("An error occurred while reading the file: %s", e)
 
     logging.error("Error: Could not open file %s. Please check the logs.", file_path)
-    return None
+    return {}
 
 def get_symbol_list():
     """
@@ -395,7 +398,7 @@ class ReportSingleton:
             if not getattr(self, '_initialized', False):
                 self._file = None
                 self._write_lock = Lock()
-                self._log_path = Path("/workspaces/BlueHorseshoe/src/logs/report.txt")
+                self.log_path = Path("/workspaces/BlueHorseshoe/src/logs/report.txt")
                 self._initialize_file()
                 self._initialized = True
 
@@ -403,11 +406,11 @@ class ReportSingleton:
         """Initialize the log file with proper directory creation and error handling."""
         try:
             # Ensure log directory exists
-            self._log_path.parent.mkdir(parents=True, exist_ok=True)
+            self.log_path.parent.mkdir(parents=True, exist_ok=True)
 
             # Open file with explicit newline handling
             self._file = open( # pylint: disable=consider-using-with
-                self._log_path,
+                self.log_path,
                 mode="w",
                 encoding="utf-8",
                 newline='\n',

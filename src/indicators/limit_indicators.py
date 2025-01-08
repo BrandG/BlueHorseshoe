@@ -64,7 +64,7 @@ class LimitIndicator:
 
         return df
 
-    def _score_pivot_levels(self, proximity_pct: float = 0.5) -> float:
+    def score_pivot_levels(self, proximity_pct: float = 0.5) -> float:
         """
         Scores how price behaves near or beyond pivot levels:
         - If Close is above R2 => +2
@@ -116,7 +116,7 @@ class LimitIndicator:
 
         return score
 
-    def _score_52_week_range(self, window: int = 252) -> float:
+    def score_52_week_range(self, window: int = 252) -> float:
         """
         Scores if the Close price is at a 52-week high.
         If Close is at a 52-week high => +1
@@ -152,7 +152,7 @@ class LimitIndicator:
         """
         score = 0
 
-        score += self._score_pivot_levels() * PIVOT_MULTIPLIER
-        score += self._score_52_week_range() * FIFTY_TWO_WEEK_MULTIPLIER
+        score += self.score_pivot_levels() * PIVOT_MULTIPLIER
+        score += self.score_52_week_range() * FIFTY_TWO_WEEK_MULTIPLIER
 
         return score

@@ -1,12 +1,58 @@
-import pytest
-import pandas as pd
+"""Unit tests for the TrendIndicator class.
+
+This module contains test cases for the TrendIndicator class methods,
+including validation of required columns, calculation of various technical indicators
+and their respective scores.
+
+The test suite covers:
+- Column validation
+- PSAR (Parabolic Stop and Reverse) score calculation
+- Ichimoku Cloud calculations and scoring
+- Heiken Ashi calculations and scoring
+- Overall trend score calculation
+
+Test data includes a DataFrame with OHLC and stochastic indicator values
+spanning 30 periods with incrementing values.
+
+Classes:
+    None (contains only test functions)
+
+Functions:
+    test_validate_columns: Tests column validation on initialization
+    test_validate_columns_missing: Tests error handling for missing columns
+    test_calculate_psar_score: Tests PSAR score calculation
+    test_calculate_ichimoku: Tests Ichimoku Cloud component calculations
+    test_calculate_ichimoku_score: Tests Ichimoku scoring
+    test_calculate_heiken_ashi: Tests Heiken Ashi score calculation
+    test_calculate_score: Tests overall trend score calculation
+"""
+
 import sys
-import os
+import pandas as pd
+import pytest
+sys.path.append('/workspaces/BlueHorseshoe/src')
+from indicators.trend_indicators import TrendIndicator # pylint: disable=wrong-import-position
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..')))
-from src.indicators.trend_indicators import TrendIndicator
+def sample_data() -> pd.DataFrame:
+    """
+    Generate a sample DataFrame with financial data for testing purposes.
 
-test_data = pd.DataFrame([
+    The DataFrame contains 30 rows with incrementing values from 1 to 30,
+    where each row has the following columns:
+    - open: Opening price
+    - high: Highest price 
+    - low: Lowest price
+    - close: Closing price 
+    - stoch_k: Stochastic oscillator %K value
+    - stoch_d: Stochastic oscillator %D value
+
+    Returns
+    -------
+    pandas.DataFrame
+        A DataFrame containing sample financial data with all values as float type.
+        Each column (open, high, low, close, stoch_k, stoch_d) contains values from 1 to 30.
+    """
+    df = pd.DataFrame([
     { 'open': 1, 'high': 1, 'low': 1, 'close': 1, 'stoch_k': 1, 'stoch_d': 1 },
     { 'open': 2, 'high': 2, 'low': 2, 'close': 2, 'stoch_k': 2, 'stoch_d': 2 },
     { 'open': 3, 'high': 3, 'low': 3, 'close': 3, 'stoch_k': 3, 'stoch_d': 3 },
@@ -38,27 +84,94 @@ test_data = pd.DataFrame([
     { 'open': 29, 'high': 29, 'low': 29, 'close': 29, 'stoch_k': 29, 'stoch_d': 29 },
     { 'open': 30, 'high': 30, 'low': 30, 'close': 30, 'stoch_k': 30, 'stoch_d': 30 }
     ])
+    return df.astype(float)
 
 def test_validate_columns():
-    indicator = TrendIndicator(test_data)
+    """
+    Test that validates the column validation functionality of TrendIndicator class.
+
+    This test verifies that when a TrendIndicator object is instantiated with test_data,
+    the validate_columns() method is called internally and sets the validated flag to True.
+
+    Args:
+        None
+
+    Returns:
+        None
+
+    Raises:
+        AssertionError: If indicator.validated is False after initialization
+    """
+    indicator = TrendIndicator(sample_data())
     assert indicator.validated
 
 def test_validate_columns_missing():
-    test_data = pd.DataFrame([
-        { 'open': 1, 'low': 1, 'close': 1, 'stoch_k': 1, 'stoch_d': 1 },
-        { 'open': 2, 'low': 2, 'close': 2, 'stoch_k': 2, 'stoch_d': 2 },
-        { 'open': 3, 'low': 3, 'close': 3, 'stoch_k': 3, 'stoch_d': 3 },
-        { 'open': 4, 'low': 4, 'close': 4, 'stoch_k': 4, 'stoch_d': 4 }])
+    """Tests if the TrendIndicator class correctly raises a ValueError when required columns are missing.
 
+    The test creates a DataFrame with missing 'high' column (one of the required columns) and verifies
+    that the TrendIndicator constructor raises a ValueError when initialized with invalid data.
+
+    Args:
+        None
+
+    Returns:
+        None
+
+    Raises:
+        pytest.raises: Expects ValueError to be raised due to missing required column
+    """
     with pytest.raises(ValueError):
-        TrendIndicator(test_data)
+        TrendIndicator(pd.DataFrame([
+    { 'open': 1, 'bobo': 1, 'low': 1, 'close': 1, 'stoch_k': 1, 'stoch_d': 1 },
+    { 'open': 2, 'bobo': 2, 'low': 2, 'close': 2, 'stoch_k': 2, 'stoch_d': 2 },
+    { 'open': 3, 'bobo': 3, 'low': 3, 'close': 3, 'stoch_k': 3, 'stoch_d': 3 },
+    { 'open': 4, 'bobo': 4, 'low': 4, 'close': 4, 'stoch_k': 4, 'stoch_d': 4 }]))
 
 def test_calculate_psar_score():
-    score = TrendIndicator._calculate_psar_score(test_data)
+    """Test the calculation of PSAR (Parabolic Stop And Reverse) score.
+
+    This test function verifies that the calculate_psar_score method returns a float value
+    when provided with test data. The PSAR indicator is used to identify potential reversal
+    points in market trends.
+
+    Args:
+        None
+
+    Returns:
+        None
+
+    Raises:
+        AssertionError: If the returned score is not a float
+
+    Test Data:
+        Uses test_data fixture defined in the test setup
+    """
+    indicator = TrendIndicator(sample_data())
+    score = indicator.calculate_psar_score(sample_data())
     assert isinstance(score, float)
 
 def test_calculate_ichimoku():
-    result = TrendIndicator._calculate_ichimoku(test_data)
+    """Test the calculation of Ichimoku Cloud indicator.
+
+    This test function verifies that the calculate_ichimoku method correctly calculates
+    all components of the Ichimoku Cloud technical indicator:
+    - Tenkan-sen (Conversion Line)
+    - Kijun-sen (Base Line)
+    - Senkou Span A (Leading Span A)
+    - Senkou Span B (Leading Span B)
+    - Chikou Span (Lagging Span)
+
+    The test checks that the returned DataFrame contains all required columns for
+    the Ichimoku Cloud calculation.
+
+    Returns:
+        None
+
+    Raises:
+        AssertionError: If any of the required Ichimoku components are missing from results
+    """
+    indicator = TrendIndicator(sample_data())
+    result = indicator.calculate_ichimoku(sample_data())
     assert 'tenkan' in result.columns
     assert 'kijun' in result.columns
     assert 'spanA' in result.columns
@@ -66,16 +179,53 @@ def test_calculate_ichimoku():
     assert 'chikou' in result.columns
 
 def test_calculate_ichimoku_score():
-    indicator = TrendIndicator(test_data)
-    score = indicator._calculate_ichimoku_score(test_data)
+    """
+    Test the calculation of the Ichimoku score.
+
+    This function tests the calculate_ichimoku_score method of the TrendIndicator class.
+    It ensures that the method returns a float value representing the Ichimoku score
+    for the given test data.
+
+    Returns:
+        None
+
+    Asserts:
+        - The returned score is an instance of float
+    """
+    indicator = TrendIndicator(sample_data())
+    score = indicator.calculate_ichimoku_score(sample_data())
     assert isinstance(score, float)
 
 def test_calculate_heiken_ashi():
-    indicator = TrendIndicator(test_data)
-    score = indicator._calculate_heiken_ashi(test_data)
+    """Test the calculation of Heiken Ashi indicator score.
+
+    This test function verifies that the calculate_heiken_ashi method 
+    properly calculates a Heiken Ashi score from the provided test data 
+    and returns a float value.
+
+    Args:
+        None
+
+    Returns:
+        None
+
+    Raises:
+        AssertionError: If the returned score is not a float
+    """
+    indicator = TrendIndicator(sample_data())
+    score = indicator.calculate_heiken_ashi(sample_data())
     assert isinstance(score, float)
 
 def test_calculate_score():
-    indicator = TrendIndicator(test_data)
+    """
+    Test the calculate_score method of TrendIndicator class.
+
+    Tests that the method properly calculates and returns a score value based on the
+    provided test data. The test verifies that the returned value is a float type.
+
+    Returns:
+        None
+    """
+    indicator = TrendIndicator(sample_data())
     score = indicator.calculate_score()
     assert isinstance(score, float)
