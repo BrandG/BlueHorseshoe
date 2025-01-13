@@ -13,7 +13,9 @@ Usage example:
 import numpy as np
 import pandas as pd
 
-class MovingAverageIndicator: # pylint: disable=too-few-public-methods
+from indicators.indicator import Indicator, IndicatorScore
+
+class MovingAverageIndicator(Indicator):
     """
     A class to calculate moving average crossover signals from financial data.
 
@@ -25,8 +27,8 @@ class MovingAverageIndicator: # pylint: disable=too-few-public-methods
     """
 
     def __init__(self, data: pd.DataFrame):
-        required_cols = ['close', 'volume']
-        self.data = data[required_cols].copy()
+        self.required_cols = ['close', 'volume']
+        super().__init__(data)
 
     def calculate_wma(self) -> pd.Series:
         """
@@ -37,7 +39,6 @@ class MovingAverageIndicator: # pylint: disable=too-few-public-methods
         :param price_col:  The column name containing prices (default 'Close')
         :return:           A Pandas Series containing the WMA
         """
-        df = self.data
         # The weights are 1, 2, ..., window
         weights = np.arange(1, 20 + 1)
 
@@ -45,7 +46,7 @@ class MovingAverageIndicator: # pylint: disable=too-few-public-methods
         def wma_function(x):
             return np.dot(x, weights) / weights.sum()
 
-        wma_series = df['close'].rolling(window=20).apply(wma_function, raw=True)
+        wma_series = self.days['close'].rolling(window=20).apply(wma_function, raw=True)
         return wma_series
 
     def calculate_vwma(self) -> pd.Series:
@@ -58,11 +59,10 @@ class MovingAverageIndicator: # pylint: disable=too-few-public-methods
         :param volume_col:  The column name for volume (default 'Volume')
         :return:            A Pandas Series for the VWMA
         """
-        df = self.data
         # Rolling sum of (Price * Volume) / rolling sum of Volume
-        pv = df['close'] * df['volume']
+        pv = self.days['close'] * self.days['volume']
         rolling_pv = pv.rolling(window=20).sum()
-        rolling_vol = df['volume'].rolling(window=20).sum() + 1e-10  # Avoid division by zero
+        rolling_vol = self.days['volume'].rolling(window=20).sum() + 1e-10  # Avoid division by zero
 
         return rolling_pv / rolling_vol
 
@@ -82,11 +82,11 @@ class MovingAverageIndicator: # pylint: disable=too-few-public-methods
         vwma_20 = self.calculate_vwma()
 
         # We'll examine the latest row (if it exists)
-        if len(self.data) < 1:
+        if len(self.days) < 1:
             return score  # Not enough data
 
         # Grab the last bar's values
-        last_row = self.data.iloc[-1]
+        last_row = self.days.iloc[-1]
         close_price = last_row['close']
 
         # 3) Score logic: +1 if above WMA, +1 if above VWMA
@@ -115,17 +115,15 @@ class MovingAverageIndicator: # pylint: disable=too-few-public-methods
         Returns:
             float: 1.0 if the fast EMA is greater than the medium EMA and the medium EMA is greater than the slow EMA, otherwise 0.0.
         """
-        data = self.data
-
-        fast_ema = data['close'].ewm(span=9).mean()
-        med_ema = data['close'].ewm(span=21).mean()
-        slow_ema = (data['close'].ewm(span=50).mean() + data['close'].ewm(span=200).mean()) / 2
+        fast_ema = self.days['close'].ewm(span=9).mean()
+        med_ema = self.days['close'].ewm(span=21).mean()
+        slow_ema = (self.days['close'].ewm(span=50).mean() + self.days['close'].ewm(span=200).mean()) / 2
 
         if not fast_ema.empty and not med_ema.empty and not slow_ema.empty:
             return 1.0 if fast_ema.iloc[-1] > med_ema.iloc[-1] > slow_ema.iloc[-1] else 0.0
         return 0.0
 
-    def calculate_score(self) -> float:
+    def get_score(self) -> IndicatorScore:
         """
         Calculate the score based on the moving average crossover signals.
 
@@ -135,4 +133,10 @@ class MovingAverageIndicator: # pylint: disable=too-few-public-methods
             float: The score based on the moving average crossover signals.
         """
 
-        return self.calculate_ma_score() + self.calculate_crossovers()
+        buy_score = self.calculate_ma_score() + self.calculate_crossovers()
+        sell_score = 0
+
+        return IndicatorScore(buy_score, sell_score)
+
+    def graph(self) -> None:
+        pass

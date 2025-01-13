@@ -20,14 +20,17 @@ Usage example:
     indicator = CandlestickIndicator(data)
     score = indicator.calculate_score()
 """
+import pandas as pd
 import talib
+
+from indicators.indicator import Indicator, IndicatorScore
 
 RISE_FALL_3_METHODS_MULTIPLIER = 1.0
 THREE_WHITE_SOLDIERS_MULTIPLIER = 1.0
 MARUBOZU_MULTIPLIER = 1.0
 BELT_HOLD_MULTIPLIER = 1.0
 
-class CandlestickIndicator:
+class CandlestickIndicator(Indicator):
     """
     CandlestickIndicator class for detecting various candlestick patterns in financial data.
     This class provides methods to detect specific candlestick patterns such as "Three White Soldiers",
@@ -50,9 +53,9 @@ class CandlestickIndicator:
         calculate_score() -> float:
     """
 
-    def __init__(self, data):
-        required_cols = ['open', 'close', 'high', 'low']
-        self.data = data[required_cols].copy()
+    def __init__(self, data: pd.DataFrame):
+        self.required_cols = ['open', 'close', 'high', 'low']
+        super().__init__(data)
 
     @staticmethod
     def is_white_candle(open_price, close_price, threshold=0.0001) -> bool:
@@ -93,15 +96,12 @@ class CandlestickIndicator:
             float: Returns 1.0 if the "Three White Soldiers" pattern is detected, otherwise returns 0.0.
         """
 
-        # Initialize result series
-        df = self.data
-
         # Need at least 3 candles to detect pattern
-        if len(df) < 3:
+        if len(self.days) < 3:
             return 0.0
 
         # Check last three consecutive candles
-        candles = df.iloc[-2:]
+        candles = self.days.iloc[-2:]
 
         # Condition 1: All three candles must be white (bullish)
         all_white = all(
@@ -149,13 +149,11 @@ class CandlestickIndicator:
             - -1.0 if a bearish "Falling Three Methods" pattern is detected on the last bar.
             - 0.0 if no pattern is detected on the last bar.
         """
-        df = self.data
-
         # Convert your columns to numpy arrays as required by TA-Lib
-        opens = df['open'].values
-        highs = df['high'].values
-        lows = df['low'].values
-        closes = df['close'].values
+        opens = self.days['open'].values
+        highs = self.days['high'].values
+        lows = self.days['low'].values
+        closes = self.days['close'].values
 
         rise_fall_3 = talib.CDLRISEFALL3METHODS(opens, highs, lows, closes) # type: ignore
 
@@ -175,13 +173,11 @@ class CandlestickIndicator:
                -1.0 if a Bearish Marubozu pattern is detected,
                 0.0 if no pattern is detected.
         """
-        df = self.data
-
         marubozu = talib.CDLMARUBOZU( # type: ignore
-            df['open'].values,
-            df['high'].values,
-            df['low'].values,
-            df['close'].values)
+            self.days['open'].values,
+            self.days['high'].values,
+            self.days['low'].values,
+            self.days['close'].values)
 
         return 1.0 if marubozu[-1] >= 100 else -1.0 if marubozu[-1] <= -100 else 0.0
 
@@ -198,17 +194,15 @@ class CandlestickIndicator:
                 -1.0 if a Bearish Belt Hold pattern is detected,
                 0.0 if no Belt Hold pattern is detected.
         """
-        df = self.data
-
         belt_hold = talib.CDLBELTHOLD( # type: ignore
-            df['open'].values,
-            df['high'].values,
-            df['low'].values,
-            df['close'].values)
+            self.days['open'].values,
+            self.days['high'].values,
+            self.days['low'].values,
+            self.days['close'].values)
 
         return 1.0 if belt_hold[-1] >= 100 else -1.0 if belt_hold[-1] <= -100 else 0.0
 
-    def calculate_score(self) -> float:
+    def get_score(self) -> IndicatorScore:
         """
         Calculate the combined score based on various candlestick patterns.
 
@@ -224,12 +218,14 @@ class CandlestickIndicator:
             - Marubozu
             - Belt Hold
         """
-        three_white_soldiers = self.detect_three_white_soldiers() * THREE_WHITE_SOLDIERS_MULTIPLIER
-        rise_fall_3_methods = self.find_rise_fall_3_methods() * RISE_FALL_3_METHODS_MULTIPLIER
-        marubozu = self.find_marubozu() * MARUBOZU_MULTIPLIER
-        belt_hold = self.find_belt_hold() * BELT_HOLD_MULTIPLIER
+        buy_score = 0.0
+        buy_score += self.detect_three_white_soldiers() * THREE_WHITE_SOLDIERS_MULTIPLIER
+        buy_score += self.find_rise_fall_3_methods() * RISE_FALL_3_METHODS_MULTIPLIER
+        buy_score += self.find_marubozu() * MARUBOZU_MULTIPLIER
+        buy_score += self.find_belt_hold() * BELT_HOLD_MULTIPLIER
+        sell_score = 0.0
 
-        # Combine scores
-        score = three_white_soldiers + rise_fall_3_methods + marubozu + belt_hold
+        return IndicatorScore(buy_score, sell_score)
 
-        return score
+    def graph(self) -> None:
+        pass

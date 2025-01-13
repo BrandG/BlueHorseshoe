@@ -177,19 +177,19 @@ class TechnicalAnalyzer:
             ) * BB_MULTIPLIER
 
         # 7) Trend Indicators (Stochastic Oscillator, Ichimoku Cloud, Parabolic SAR (Stop and Reverse), Heiken Ashi (HA) Candles)
-        conditions[5] += TrendIndicator(days).calculate_score()
+        conditions[5] += TrendIndicator(days).get_score().buy
 
         # 8) Volume Indicator (On-Balance Volume, Chaikin Money Flow, Average True Range)
-        conditions[6] += VolumeIndicator(days).calculate_score()
+        conditions[6] += VolumeIndicator(days).get_score().buy
 
         # 9) Limit Indicator (Pivot Points, 52-Week High/Low, Candlestick Patterns)
-        conditions[7] += LimitIndicator(days).calculate_score()
+        conditions[7] += LimitIndicator(days).get_score().buy
 
         # 10) Candlestick Indicators
-        conditions[8] += CandlestickIndicator(days).calculate_score()
+        conditions[8] += CandlestickIndicator(days).get_score().buy
 
         # 11) Moving Average Indicators
-        conditions[9] += MovingAverageIndicator(days).calculate_score()
+        conditions[9] += MovingAverageIndicator(days).get_score().buy
 
         logging.info("Technical conditions: %s - %s", symbol, conditions)
         return float(conditions.sum())
@@ -259,7 +259,7 @@ class SwingTrader:
         chunk_size = len(symbols) // max_workers
         results = []
 
-        ReportSingleton().write(f"Yesterday was {'not' if GlobalData.holiday else ''} a holiday.")
+        ReportSingleton().write(f"Yesterday was {'not ' if not GlobalData.holiday else ''}a holiday.")
 
         logging.info("Processing %d symbols...", len(symbols))
         with concurrent.futures.ProcessPoolExecutor(max_workers=max_workers) as executor:

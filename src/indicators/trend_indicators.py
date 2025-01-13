@@ -25,15 +25,16 @@ Methods:
 
 import numpy as np
 import pandas as pd
-from ta.trend import PSARIndicator #pylint: disable=import-error
+from ta.trend import PSARIndicator
+
+from indicators.indicator import Indicator, IndicatorScore #pylint: disable=import-error
 
 STOCHASTIC_MULTIPLIER = 1.0
 ICHIMOKU_MULTIPLIER = 1.0
 PSAR_MULTIPLIER = 1.0
 HEIKEN_ASHI_MULTIPLIER = 1.0
-REQUIRED_COLUMNS = {'high', 'low', 'close', 'open', 'stoch_k', 'stoch_d'}
 
-class TrendIndicator:
+class TrendIndicator(Indicator):
     """
     Class to calculate a trend score based on the following indicators:
     - Stochastic Oscillator
@@ -43,23 +44,10 @@ class TrendIndicator:
     """
 
     def __init__(self, data: pd.DataFrame):
-        self.data = data
-        self.validated = False
-        self.validate_columns(data)
+        self.required_cols = ['high', 'low', 'close', 'open', 'stoch_k', 'stoch_d']
+        super().__init__(data)
 
-    def validate_columns(self, df):
-        """
-        Validate that the DataFrame has the required columns.
-        """
-
-        if not self.validated:
-            missing = REQUIRED_COLUMNS - set(df.columns)
-            if missing:
-                raise ValueError(f"Missing required columns: {missing}")
-            self.validated = True
-
-    @staticmethod
-    def calculate_psar_score(df: pd.DataFrame, step: float = 0.02, max_step: float = 0.2) -> float:
+    def calculate_psar_score(self, step: float = 0.02, max_step: float = 0.2) -> float:
         """
         Calculates a Parabolic SAR flip-based score for the latest row in 'df'.
         
@@ -73,32 +61,32 @@ class TrendIndicator:
         """
 
         # Ensure we have enough data for at least 2 rows (to detect a flip)
-        if len(df) < 2:
+        if len(self.days) < 2:
             return 0.0
 
         # 1) Compute Parabolic SAR using the 'ta' library
         psar_indicator = PSARIndicator(
-            high=df['high'],
-            low=df['low'],
-            close=df['close'],
+            high=self.days['high'],
+            low=self.days['low'],
+            close=self.days['close'],
             step=step,
             max_step=max_step
         )
 
         # The library provides the psar values for each row
-        df['psar'] = psar_indicator.psar()
+        self.days['psar'] = psar_indicator.psar()
 
         # 2) Identify if there's a flip from yesterday to today
         #    We'll see if SAR was above price vs. below price, day-to-day.
 
         # Today's values
-        psar_today = df.iloc[-1]['psar']
-        close_today = df.iloc[-1]['close']
+        psar_today = self.days.iloc[-1]['psar']
+        close_today = self.days.iloc[-1]['close']
         psar_above_today = psar_today > close_today
 
         # Yesterday's values
-        psar_yesterday = df.iloc[-2]['psar']
-        close_yesterday = df.iloc[-2]['close']
+        psar_yesterday = self.days.iloc[-2]['psar']
+        close_yesterday = self.days.iloc[-2]['close']
         psar_above_yesterday = psar_yesterday > close_yesterday
 
         # 3) Determine the flip and assign a score
@@ -116,8 +104,7 @@ class TrendIndicator:
 
         return score
 
-    @staticmethod
-    def calculate_ichimoku(df):
+    def calculate_ichimoku(self):
         """
         Calculate Ichimoku indicator lines and add them to df.
         Expects columns: 'high', 'low', 'close'.
@@ -125,35 +112,35 @@ class TrendIndicator:
         'tenkan', 'kijun', 'spanA', 'spanB', 'chikou'
         """
         # Tenkan-sen (Conversion Line) - 9 period
-        high_9 = df['high'].rolling(window=9).max()
-        low_9 = df['low'].rolling(window=9).min()
-        df['tenkan'] = (high_9 + low_9) / 2
+        high_9 = self.days['high'].rolling(window=9).max()
+        low_9 = self.days['low'].rolling(window=9).min()
+        self.days['tenkan'] = (high_9 + low_9) / 2
 
         # Kijun-sen (Base Line) - 26 period
-        high_26 = df['high'].rolling(window=26).max()
-        low_26 = df['low'].rolling(window=26).min()
-        df['kijun'] = (high_26 + low_26) / 2
+        high_26 = self.days['high'].rolling(window=26).max()
+        low_26 = self.days['low'].rolling(window=26).min()
+        self.days['kijun'] = (high_26 + low_26) / 2
 
         # Senkou Span A (Leading Span A) = (tenkan + kijun) / 2, shifted forward 26
-        df['spanA'] = ((df['tenkan'] + df['kijun']) / 2).shift(26)
+        self.days['spanA'] = ((self.days['tenkan'] + self.days['kijun']) / 2).shift(26)
 
         # Senkou Span B (Leading Span B) - 52 period, also shifted forward 26
-        high_52 = df['high'].rolling(window=52).max()
-        low_52 = df['low'].rolling(window=52).min()
-        df['spanB'] = ((high_52 + low_52) / 2).shift(26)
+        high_52 = self.days['high'].rolling(window=52).max()
+        low_52 = self.days['low'].rolling(window=52).min()
+        self.days['spanB'] = ((high_52 + low_52) / 2).shift(26)
 
         # Chikou Span (Lagging Span) - Close shifted back 26 periods
-        df['chikou'] = df['close'].shift(-26)
+        self.days['chikou'] = self.days['close'].shift(-26)
 
-        return df
+        return self.days
 
-    def calculate_ichimoku_score(self, days: pd.DataFrame) -> float:
+    def calculate_ichimoku_score(self) -> float:
         """
         Calculate your existing technical score, plus Ichimoku-based signals.
-        df is your DataFrame with Ichimoku columns: 'tenkan', 'kijun', 'spanA', 'spanB', 'Close'.
+        self.days is your DataFrame with Ichimoku columns: 'tenkan', 'kijun', 'spanA', 'spanB', 'Close'.
         Returns a float score.
         """
-        days = self.calculate_ichimoku(days)
+        days = self.calculate_ichimoku()
 
         # 1) Suppose you already have your existing score from RSI, MACD, etc.
         score = 0
@@ -209,7 +196,7 @@ class TrendIndicator:
 
         return float(score)
 
-    def calculate_heiken_ashi(self, days) -> float:
+    def calculate_heiken_ashi(self) -> float:
         """
         Computes Heiken Ashi candles for the given DataFrame (df),
         which should have columns: ['open', 'High', 'Low', 'Close'].
@@ -218,25 +205,20 @@ class TrendIndicator:
         'HA_open', 'HA_High', 'HA_Low', 'HA_Close'
         """
 
-        # Make a copy so we don't mutate the original DataFrame
-        required_cols = ['open', 'high', 'low', 'close']
-        ha_df = days[required_cols].copy()
+        self.days['HA_close'] = (self.days['open'] + self.days['high'] + self.days['low'] + self.days['close']) / 4.0
+        self.days['HA_open'] = (self.days['open'].shift(1) + self.days['close'].shift(1)) / 2.0
+        self.days['HA_high'] = self.days[['high', 'HA_open', 'HA_close']].max(axis=1)
+        self.days['HA_low'] = self.days[['low', 'HA_open', 'HA_close']].min(axis=1)
 
-        ha_df['HA_close'] = (ha_df['open'] + ha_df['high'] + ha_df['low'] + ha_df['close']) / 4.0
-        ha_df['HA_open'] = (ha_df['open'].shift(1) + ha_df['close'].shift(1)) / 2.0
-        ha_df['HA_high'] = ha_df[['high', 'HA_open', 'HA_close']].max(axis=1)
-        ha_df['HA_low'] = ha_df[['low', 'HA_open', 'HA_close']].min(axis=1)
-
-        last_row = ha_df.iloc[-1]
+        last_row = self.days.iloc[-1]
         ha_open  = last_row['HA_open']
         ha_close = last_row['HA_close']
 
         score = 0.0
 
         # For example, count the last n candles if they're all bullish:
-        n = 3
-        last_n_rows = ha_df.iloc[-n:]
-        bullish_count = (last_n_rows['HA_close'].values > last_n_rows['HA_open'].values).sum()
+        last_n_rows = self.days.iloc[-3:]
+        bullish_count = last_n_rows[last_n_rows['HA_close'] > last_n_rows['HA_open']].shape[0]
 
         # If all 3 are bullish => +2, if 2 are bullish => +1, etc.
         if bullish_count == 3:
@@ -254,7 +236,7 @@ class TrendIndicator:
 
         return score
 
-    def calculate_score(self):
+    def get_score(self) -> IndicatorScore:
         """
         Calculate the trend score based on the following indicators:
         - Stochastic Oscillator
@@ -265,21 +247,25 @@ class TrendIndicator:
         Returns a float score.
         """
 
-        days = self.data.copy()
-        score = 0
+        buy_score = 0
 
         # Shifted columns to detect crossovers from previous day:
-        k_prev = days['stoch_k'].shift(1)
-        d_prev = days['stoch_d'].shift(1)
+        k_prev = self.days['stoch_k'].shift(1)
+        d_prev = self.days['stoch_d'].shift(1)
 
         # Conditions:
-        crossover_up = ((days['stoch_k'] > days['stoch_d']) & (k_prev <= d_prev)).iloc[-1]  # cross up
-        crossover_down = ((days['stoch_k'] < days['stoch_d']) & (k_prev >= d_prev)).iloc[-1]  # cross down
-        oversold = (days['stoch_k'] < 20).iloc[-1]
-        overbought = (days['stoch_k'] > 80).iloc[-1]
+        crossover_up = ((self.days['stoch_k'] > self.days['stoch_d']) & (k_prev <= d_prev)).iloc[-1]  # cross up
+        crossover_down = ((self.days['stoch_k'] < self.days['stoch_d']) & (k_prev >= d_prev)).iloc[-1]  # cross down
+        oversold = (self.days['stoch_k'] < 20).iloc[-1]
+        overbought = (self.days['stoch_k'] > 80).iloc[-1]
 
-        score += np.select( [ crossover_up, crossover_down, oversold, overbought ] , [ 2, -2, 1, -1 ], default=0) * STOCHASTIC_MULTIPLIER
-        score += self.calculate_ichimoku_score(days) * ICHIMOKU_MULTIPLIER
-        score += self.calculate_psar_score(days) * PSAR_MULTIPLIER
-        score += self.calculate_heiken_ashi(days) * HEIKEN_ASHI_MULTIPLIER
-        return score
+        buy_score += np.select( [ crossover_up, crossover_down, oversold, overbought ] , [ 2, -2, 1, -1 ], default=0).sum() * STOCHASTIC_MULTIPLIER
+        buy_score += self.calculate_ichimoku_score() * ICHIMOKU_MULTIPLIER
+        buy_score += self.calculate_psar_score() * PSAR_MULTIPLIER
+        buy_score += self.calculate_heiken_ashi() * HEIKEN_ASHI_MULTIPLIER
+        sell_score = 0
+
+        return IndicatorScore(buy_score, sell_score)
+
+    def graph(self) -> None:
+        pass

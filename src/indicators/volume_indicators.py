@@ -29,7 +29,9 @@ Methods:
 import numpy as np
 import pandas as pd
 from ta.volume import OnBalanceVolumeIndicator, ChaikinMoneyFlowIndicator #pylint: disable=import-error
-from ta.volatility import AverageTrueRange #pylint: disable=import-error
+from ta.volatility import AverageTrueRange
+
+from indicators.indicator import Indicator, IndicatorScore #pylint: disable=import-error
 
 OBV_MULTIPLIER = 1.0
 CMF_MULTIPLIER = 1.0
@@ -37,20 +39,20 @@ ATR_BAND_MULTIPLIER = 1.0
 ATR_SPIKE_MULTIPLIER = 1.0
 DEFAULT_WINDOW = 14
 
-class VolumeIndicator:
+class VolumeIndicator(Indicator):
     """
     A class to calculate a score based on volume indicators.
     """
 
     def __init__(self, data: pd.DataFrame):
-        required_cols = ['high', 'low', 'close', 'volume']
-        self.data = data[required_cols].copy()
+        self.required_cols = ['high', 'low', 'close', 'volume']
+        super().__init__(data)
 
-        if DEFAULT_WINDOW <= len(self.data):
-            self.data['ATR'] = AverageTrueRange(
-                high=self.data['high'],
-                low=self.data['low'],
-                close=self.data['close'],
+        if DEFAULT_WINDOW <= len(self.days):
+            self.days['ATR'] = AverageTrueRange(
+                high=self.days['high'],
+                low=self.days['low'],
+                close=self.days['close'],
                 window=DEFAULT_WINDOW
             ).average_true_range()
 
@@ -61,12 +63,11 @@ class VolumeIndicator:
         Otherwise returns 0.
         """
 
-        df = self.data
-        if 'ATR' not in df.columns or len(df) < window + 1:
+        if 'ATR' not in self.days.columns or len(self.days) < window + 1:
             return 0.0  # Not enough data or ATR not computed
 
-        atr_today = df.iloc[-1]['ATR']
-        atr_past = df.iloc[-(window+1)]['ATR']
+        atr_today = self.days.iloc[-1]['ATR']
+        atr_past = self.days.iloc[-(window+1)]['ATR']
 
         if atr_past == 0 or pd.isna(atr_past):
             return 0.0
@@ -85,14 +86,13 @@ class VolumeIndicator:
         If close < MA - X * ATR => potentially oversold => +1
         Otherwise => 0
         """
-        df = self.data
-        if 'ATR' not in df.columns or len(df) == 0:
+        if 'ATR' not in self.days.columns or len(self.days) == 0:
             return 0.0
 
         # Compute the moving average of 'Close'
-        df['MA'] = df['close'].rolling(window=ma_window, min_periods=1).mean()
+        self.days['MA'] = self.days['close'].rolling(window=ma_window, min_periods=1).mean()
 
-        last_row = df.iloc[-1]
+        last_row = self.days.iloc[-1]
         if pd.isna(last_row['ATR']):
             return 0.0
 
@@ -114,11 +114,10 @@ class VolumeIndicator:
         """
         Calculates the average volume over the last 'window' days.
         """
-        df = self.data
-        if len(df) < window:
+        if len(self.days) < window:
             return 0.0
 
-        avg_volume = df['volume'].tail(window).mean()
+        avg_volume = self.days['volume'].tail(window).mean()
         if avg_volume < 100000:
             return -1.0
         return 1.0
@@ -126,17 +125,16 @@ class VolumeIndicator:
     def calculate_cmf_with_ta(self, window: int = 20, threshold: float = 0.05) -> float:
         """
         Calculates Chaikin Money Flow (CMF) using the 'ta' library and
-        adds a new column 'CMF' to df.
+        adds a new column 'CMF' to self.days.
 
         Expects columns: 'high', 'low', 'close', 'volume'.
         The 'window' is typically 20.
         """
-        df = self.data
         cmf = ChaikinMoneyFlowIndicator(
-            high=df['high'],
-            low=df['low'],
-            close=df['close'],
-            volume=df['volume'],
+            high=self.days['high'],
+            low=self.days['low'],
+            close=self.days['close'],
+            volume=self.days['volume'],
             window=window
         ).chaikin_money_flow()
 
@@ -151,27 +149,30 @@ class VolumeIndicator:
         Returns a score based on whether OBV is rising or falling
         over the last 'window' days.
         """
-        df = self.data
-        df['OBV'] = OnBalanceVolumeIndicator( close=df['close'], volume=df['volume'] ).on_balance_volume()
+        self.days['OBV'] = OnBalanceVolumeIndicator( close=self.days['close'], volume=self.days['volume'] ).on_balance_volume()
 
-        if len(df) < window + 1:
+        if len(self.days) < window + 1:
             return 0.0  # Not enough data to compute a slope
 
         # OBV difference over 'window' days
-        obv_diff = df.iloc[-1]['OBV'] - df.iloc[-(window+1)]['OBV']
+        obv_diff = self.days.iloc[-1]['OBV'] - self.days.iloc[-(window+1)]['OBV']
 
         return float(np.select([obv_diff > 0, obv_diff < 0], [0, 1], default=0)) * OBV_MULTIPLIER
 
-    def calculate_score(self):
+    def get_score(self) -> IndicatorScore:
         """
         Returns a score based on the volume indicators.
         """
-        score = 0
+        buy_score = 0
 
-        score += self.score_obv_trend() * OBV_MULTIPLIER
-        score += self.calculate_cmf_with_ta() * CMF_MULTIPLIER
-        score += self.score_atr_band() * ATR_BAND_MULTIPLIER
-        score += self.score_atr_spike() * ATR_SPIKE_MULTIPLIER
-        score += self.calculate_avg_volume() # No multiplier
+        buy_score += self.score_obv_trend() * OBV_MULTIPLIER
+        buy_score += self.calculate_cmf_with_ta() * CMF_MULTIPLIER
+        buy_score += self.score_atr_band() * ATR_BAND_MULTIPLIER
+        buy_score += self.score_atr_spike() * ATR_SPIKE_MULTIPLIER
+        buy_score += self.calculate_avg_volume() # No multiplier
+        sell_score = 0
 
-        return score
+        return IndicatorScore(buy_score, sell_score)
+
+    def graph(self) -> None:
+        pass
