@@ -11,3 +11,4 @@ linting.txt
 linting_sorted.txt
 src/backup/
 src/historical_data/symbol_list.json
+src/error_symbols.txt

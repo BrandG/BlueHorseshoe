@@ -1,3 +1,30 @@
+2025-01-13
+    Well, I had a humiliating morning. I found out that the YouTuber I was following had been sued for 3 million dollars by the SEC, and was known for
+fraud. So (sigh), yeah. I'm still looking at ways of doing this, just not feeling as strong about it as I had. It seems to me that there are two main
+things I want to work on next. 1) Backtesting, and 2) Inter-day trading. I don't know how to do the inter-day trading while still being at work, so I'm kinda
+screwed there, so I'm going to work on backtesting for now.
+    Backtesting Design:
+        1. Come up with a way to apply a strategy to a date range. This should receive a days list, and return the buy point (if any), sell point,
+            and stop-loss point.
+        2. Get a way to compare that result to the following day's action, and return the profit (if any)
+        3. Get an aggregator to do this for all stocks over all days.
+
+2025-01-08
+    Here's a system that I got from YouTube. Worth checking because, if I'd been using it, I never would have got into the stock I bought this morning. :P
+
+    Anyway, You need these things (for long trades):
+    9-day EMA > 20-day EMA > 200-day EMA
+    Price > VWAP
+    MACD > Signal
+    Large buying volume
+    
+    Relative Volume > 5x the 50-day average
+
+
+    For the MACD distance, I found a way to normalize that value so that different stocks could be compared fairly. That function is histogram / price.
+    Now, it's possible I'm not storing the histogram, in which case, we can either build it dynamically, or use this formula instead: 
+    (MACD - Signal) / stdev(MACD).
+    
 2024-12-30
     Well, I spent all day setting up swing indicators, and I'm halfway through the list. However, I had an idea today when I saw that there
 was a periodical that tells you when stocks are going to hit crossover situations. The idea was that I set up a list of crossover indicators,
