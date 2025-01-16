@@ -1,3 +1,73 @@
+2025-01-16
+    Today should basically be a redesign day, because the scenery has changed a bit. I'm learning more about day trading, and it seems like I 
+should be able to make the 1-2% profit every day if I follow a specific strategy. The best way to put this is to watch the beginning of the day
+and set that high as a resistance. Then, you can put a buy order slightly higher than that resistance, and the stock should blow past that within 
+the next half hour. If my stock selection is correct about picking ones that always go up, then this system should allow me to get out at 1-2%
+fairly consistently.
+    However, that is very different from the setup I have been using so far. So, I'm thinking about keeping the code that scores each stock, but
+shifting future development over to day trading. That means, I will need to be able to do the following:
+    Every minute, get live data for that minute.
+    As long as the high for that minute is greater than the previous high, set it as the new high.
+    Once the high is lower than the latest high value, set that latest high value to be our resistance level.
+    This means we can set a buy price slightly higher than the resistance level. (We'll need to work on what that "slightly higher" calculates to)
+    We post the buy order and wait for confirmation. Here are the equations I'll use to determine prices:
+        starting_cash = 500
+        local_high = 10
+        profit_percent = 2%
+        loss_percent = 3%
+        commission = 1
+        buy_price = local_high
+        buy_amount = starting_cash / buy_price
+        profit_price = ((starting_cash*(1+profit_percent)) + (2*commission)) / buy_amount
+        loss price = ((starting_cash*(1-loss_percent)) - (2*commission)) / buy_amount
+    Thinking about it some more, I'm wondering if I could use a system for finding curves, feed it the last few 1-minute bars, and tell whether it's 
+rising or falling, then use the relative volume to tell when to get in.
+    Here's some code to tell whether you are matching a curve:
+
+
+    import numpy as np
+
+def find_curve_in_timeseries(timeseries, curve_template):
+  """
+  Finds occurrences of a curve template in a time series using normalized cross-correlation.
+
+  Args:
+    timeseries: The time series data (a NumPy array).
+    curve_template: The curve template (a NumPy array).
+
+  Returns:
+    A list of indices where the correlation exceeds a threshold, indicating potential matches.
+  """
+  correlation = np.correlate(timeseries - np.mean(timeseries), curve_template - np.mean(curve_template), mode='valid')
+  correlation /= (np.std(timeseries) * np.std(curve_template) * len(curve_template)) # Normalize
+
+  threshold = 0.8  # Adjust this threshold based on your data and desired sensitivity
+  matches = np.where(correlation > threshold)[0]
+  return matches
+
+# Example Usage (replace with your actual data):
+timeseries = np.random.rand(1000)  # Example time series
+curve_template = np.array([0, 1, 2, 3, 2, 1, 0]) # Example curve
+
+match_indices = find_curve_in_timeseries(timeseries, curve_template)
+
+if match_indices.size > 0:
+    print(f"Curve found at indices: {match_indices}")
+else:
+    print("Curve not found in the time series.")
+
+Here's a new algorithm I want to try:
+    Over the last 3 bars, if the high is within X% of its average, But then the next step is outside that range, going up, with high relative volume, buy.
+    Do backchecking with several versions of X to see if it works.
+
+Okay, so back to the action items:
+    1) Get 1-minute realtime quotes from the internet
+    2) Implement whatever strategy seems to be working.
+        2A) Remember to add in other indicators, like high relative volume and an MACD that is arcing upward
+    3) Get the ability to send orders
+
+Oh, also, I want to start getting news when I get my top-10 stocks. I think that will help as an indiator, as well as telling how great the volatility is.
+
 2025-01-13
     Well, I had a humiliating morning. I found out that the YouTuber I was following had been sued for 3 million dollars by the SEC, and was known for
 fraud. So (sigh), yeah. I'm still looking at ways of doing this, just not feeling as strong about it as I had. It seems to me that there are two main
