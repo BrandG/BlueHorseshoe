@@ -29,7 +29,7 @@ Methods:
 import numpy as np
 import pandas as pd
 from ta.volume import OnBalanceVolumeIndicator, ChaikinMoneyFlowIndicator #pylint: disable=import-error
-from ta.volatility import AverageTrueRange
+from ta.volatility import AverageTrueRange # pylint: disable=import-error
 
 from indicators.indicator import Indicator, IndicatorScore #pylint: disable=import-error
 
@@ -163,14 +163,14 @@ class VolumeIndicator(Indicator):
         """
         Returns a score based on the volume indicators.
         """
-        buy_score = 0
+        buy_score = 0.0
 
         buy_score += self.score_obv_trend() * OBV_MULTIPLIER
         buy_score += self.calculate_cmf_with_ta() * CMF_MULTIPLIER
         buy_score += self.score_atr_band() * ATR_BAND_MULTIPLIER
         buy_score += self.score_atr_spike() * ATR_SPIKE_MULTIPLIER
         buy_score += self.calculate_avg_volume() # No multiplier
-        sell_score = 0
+        sell_score = 0.0
 
         return IndicatorScore(buy_score, sell_score)
 

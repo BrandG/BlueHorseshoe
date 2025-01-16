@@ -20,9 +20,13 @@ Usage example:
     indicator = CandlestickIndicator(data)
     score = indicator.calculate_score()
 """
+from matplotlib import pyplot as plt
+import numpy as np
 import pandas as pd
 import talib
+import mplfinance as mpf #pylint: disable=import-error
 
+from globals import GraphData, graph
 from indicators.indicator import Indicator, IndicatorScore
 
 RISE_FALL_3_METHODS_MULTIPLIER = 1.0
@@ -55,7 +59,21 @@ class CandlestickIndicator(Indicator):
 
     def __init__(self, data: pd.DataFrame):
         self.required_cols = ['open', 'close', 'high', 'low']
+        self.symbol = 'NONAME'
         super().__init__(data)
+
+    def set_title(self, symbol: str) :
+        """
+        Sets the title for the candlestick indicator by appending an underscore to the given symbol.
+
+        Args:
+            symbol (str): The symbol to be used as the title.
+
+        Returns:
+            self: The instance of the class with the updated title.
+        """
+        self.symbol = symbol+'_'
+        return self
 
     @staticmethod
     def is_white_candle(open_price, close_price, threshold=0.0001) -> bool:
@@ -228,4 +246,46 @@ class CandlestickIndicator(Indicator):
         return IndicatorScore(buy_score, sell_score)
 
     def graph(self) -> None:
-        pass
+        graph_data = GraphData(
+            labels={'x_label':'Date', 'y_label':'Price', 'title':self.symbol+'Candlestick_Patterns'},
+            curves=[],
+        )
+        price_list = self.days['close'].tolist()[-60:]
+        if graph_data.candles:
+            candle_data = {
+                'Date': self.days['date'].tolist()[-60:],
+                'Open': self.days['open'].tolist()[-60:],
+                'High': self.days['high'].tolist()[-60:],
+                'Low': self.days['low'].tolist()[-60:],
+                'Close': self.days['close'].tolist()[-60:],
+                'Volume': self.days['volume'].tolist()[-60:]
+            }
+            mpf.plot(candle_data, type='candle', style='charles', ax=plt.gca(), volume=True, title=self.symbol+'Candlestick_Patterns')
+
+        graph_data.curves.append({"curve": price_list, "color": "k", "label": "Price"})
+        found_one = False
+
+        def mask_curve(curve, exclude_last_n):
+            deleted_length = len(curve) - exclude_last_n
+            masked_curve = [np.nan] * deleted_length + curve[deleted_length:]
+            return masked_curve
+
+        if self.detect_three_white_soldiers() > 0:
+            found_one = True
+            curve = (self.days['close']*0.9999).tolist()[-60:]
+            graph_data.curves.append({"curve": mask_curve(curve, 3), "color": "b", "label": "Three White Soldiers"})
+        if self.find_rise_fall_3_methods() > 0:
+            found_one = True
+            curve = (self.days['close']*0.9998).tolist()[-60:]
+            graph_data.curves.append({"curve": mask_curve(curve, 3), "color": "g", "label": "Rise / Fall 3 Methods"})
+        if self.find_marubozu() > 0:
+            found_one = True
+            curve = (self.days['close']*1.0001).tolist()[-60:]
+            graph_data.curves.append({"curve": mask_curve(curve, 3), "color": "r", "label": "Marubozu"})
+        if self.find_belt_hold() > 0:
+            found_one = True
+            curve = (self.days['close']*1.0002).tolist()[-60:]
+            graph_data.curves.append({"curve": mask_curve(curve, 3), "color": "y", "label": "Belt Hold"})
+
+        if found_one:
+            graph(graph_data)

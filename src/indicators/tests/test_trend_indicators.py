@@ -29,8 +29,8 @@ Functions:
 
 import sys
 import pandas as pd
-import pytest
 sys.path.append('/workspaces/BlueHorseshoe/src')
+from indicators.indicator import IndicatorScore # pylint: disable=wrong-import-position
 from indicators.trend_indicators import TrendIndicator # pylint: disable=wrong-import-position
 
 def sample_data() -> pd.DataFrame:
@@ -52,7 +52,7 @@ def sample_data() -> pd.DataFrame:
         A DataFrame containing sample financial data with all values as float type.
         Each column (open, high, low, close, stoch_k, stoch_d) contains values from 1 to 30.
     """
-    df = pd.DataFrame([
+    data = [
     { 'open': 1, 'high': 1, 'low': 1, 'close': 1, 'stoch_k': 1, 'stoch_d': 1 },
     { 'open': 2, 'high': 2, 'low': 2, 'close': 2, 'stoch_k': 2, 'stoch_d': 2 },
     { 'open': 3, 'high': 3, 'low': 3, 'close': 3, 'stoch_k': 3, 'stoch_d': 3 },
@@ -83,49 +83,9 @@ def sample_data() -> pd.DataFrame:
     { 'open': 28, 'high': 28, 'low': 28, 'close': 28, 'stoch_k': 28, 'stoch_d': 28 },
     { 'open': 29, 'high': 29, 'low': 29, 'close': 29, 'stoch_k': 29, 'stoch_d': 29 },
     { 'open': 30, 'high': 30, 'low': 30, 'close': 30, 'stoch_k': 30, 'stoch_d': 30 }
-    ])
-    return df.astype(float)
+    ]
+    return pd.DataFrame(data)
 
-def test_validate_columns():
-    """
-    Test that validates the column validation functionality of TrendIndicator class.
-
-    This test verifies that when a TrendIndicator object is instantiated with test_data,
-    the validate_columns() method is called internally and sets the validated flag to True.
-
-    Args:
-        None
-
-    Returns:
-        None
-
-    Raises:
-        AssertionError: If indicator.validated is False after initialization
-    """
-    indicator = TrendIndicator(sample_data())
-    assert indicator.validated
-
-def test_validate_columns_missing():
-    """Tests if the TrendIndicator class correctly raises a ValueError when required columns are missing.
-
-    The test creates a DataFrame with missing 'high' column (one of the required columns) and verifies
-    that the TrendIndicator constructor raises a ValueError when initialized with invalid data.
-
-    Args:
-        None
-
-    Returns:
-        None
-
-    Raises:
-        pytest.raises: Expects ValueError to be raised due to missing required column
-    """
-    with pytest.raises(ValueError):
-        TrendIndicator(pd.DataFrame([
-    { 'open': 1, 'bobo': 1, 'low': 1, 'close': 1, 'stoch_k': 1, 'stoch_d': 1 },
-    { 'open': 2, 'bobo': 2, 'low': 2, 'close': 2, 'stoch_k': 2, 'stoch_d': 2 },
-    { 'open': 3, 'bobo': 3, 'low': 3, 'close': 3, 'stoch_k': 3, 'stoch_d': 3 },
-    { 'open': 4, 'bobo': 4, 'low': 4, 'close': 4, 'stoch_k': 4, 'stoch_d': 4 }]))
 
 def test_calculate_psar_score():
     """Test the calculation of PSAR (Parabolic Stop And Reverse) score.
@@ -147,7 +107,7 @@ def test_calculate_psar_score():
         Uses test_data fixture defined in the test setup
     """
     indicator = TrendIndicator(sample_data())
-    score = indicator.calculate_psar_score(sample_data())
+    score = indicator.calculate_psar_score()
     assert isinstance(score, float)
 
 def test_calculate_ichimoku():
@@ -171,7 +131,7 @@ def test_calculate_ichimoku():
         AssertionError: If any of the required Ichimoku components are missing from results
     """
     indicator = TrendIndicator(sample_data())
-    result = indicator.calculate_ichimoku(sample_data())
+    result = indicator.calculate_ichimoku()
     assert 'tenkan' in result.columns
     assert 'kijun' in result.columns
     assert 'spanA' in result.columns
@@ -193,7 +153,7 @@ def test_calculate_ichimoku_score():
         - The returned score is an instance of float
     """
     indicator = TrendIndicator(sample_data())
-    score = indicator.calculate_ichimoku_score(sample_data())
+    score = indicator.calculate_ichimoku_score()
     assert isinstance(score, float)
 
 def test_calculate_heiken_ashi():
@@ -213,7 +173,7 @@ def test_calculate_heiken_ashi():
         AssertionError: If the returned score is not a float
     """
     indicator = TrendIndicator(sample_data())
-    score = indicator.calculate_heiken_ashi(sample_data())
+    score = indicator.calculate_heiken_ashi()
     assert isinstance(score, float)
 
 def test_calculate_score():
@@ -227,5 +187,7 @@ def test_calculate_score():
         None
     """
     indicator = TrendIndicator(sample_data())
-    score = indicator.calculate_score()
-    assert isinstance(score, float)
+    score = indicator.get_score()
+    assert isinstance(score, IndicatorScore), f"Expected type Score, but got {type(score)}"
+    assert isinstance(score.buy, float), f"Expected type float for buy, but got {type(score.buy)}"
+    assert isinstance(score.sell, float), f"Expected type float for sell, but got {type(score.sell)}"

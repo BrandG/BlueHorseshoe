@@ -7,6 +7,7 @@ prices relative to these pivot levels.
 
 import pandas as pd
 
+from globals import GraphData, graph
 from indicators.indicator import Indicator, IndicatorScore
 
 PIVOT_MULTIPLIER = 1.0
@@ -30,9 +31,23 @@ class LimitIndicator(Indicator):
     """
 
     def __init__(self, data: pd.DataFrame):
+        self.symbol = 'NONAME'
         self.required_cols = ['close', 'high', 'low']
         super().__init__(data)
         self.days = self.calculate_pivot_points()
+
+    def set_title(self, symbol: str) :
+        """
+        Sets the title for the provided symbol by appending an underscore.
+
+        Args:
+            symbol (str): The base symbol to modify.
+
+        Returns:
+            self: The current instance for chaining.
+        """
+        self.symbol = symbol+'_'
+        return self
 
     def calculate_pivot_points(self) -> pd.DataFrame:
         """
@@ -148,14 +163,35 @@ class LimitIndicator(Indicator):
         Returns:
             int: The calculated score.
         """
-        buy_score = 0
+        buy_score = 0.0
 
         buy_score += self.score_pivot_levels() * PIVOT_MULTIPLIER
         buy_score += self.score_52_week_range() * FIFTY_TWO_WEEK_MULTIPLIER
-        sell_score = 0
+        sell_score = 0.0
 
         return IndicatorScore(buy_score, sell_score)
-    
-    def graph(self):
-        pass
 
+    def graph(self):
+        graph_data = GraphData(
+            labels={'x_label':'Date', 'y_label':'Price', 'title':self.symbol+'Limit_Indicators'},
+            curves=[],
+        )
+        price_list = self.days['close'].tolist()[-60:]
+        graph_data.curves.append({"curve": price_list, "color": "k", "label": "Price"})
+        found_one = False
+        if self.score_pivot_levels() != 0:
+            found_one = True
+            graph_data.lines.append({'y': self.days['Pivot'].tolist()[-1], 'color': 'b', 'label': 'Pivot'})
+            graph_data.lines.append({'y': self.days['R1'].tolist()[-1], 'color': 'g', 'label': 'R1'})
+            graph_data.lines.append({'y': self.days['R2'].tolist()[-1], 'color': 'y', 'label': 'R2'})
+            graph_data.lines.append({'y': self.days['S1'].tolist()[-1], 'color': 'r', 'label': 'S1'})
+            graph_data.lines.append({'y': self.days['S2'].tolist()[-1], 'color': 'c', 'label': 'S2'})
+        if self.score_52_week_range() != 0:
+            found_one = True
+            high_52_week = self.days['high'].rolling(window=252, min_periods=1).max().iloc[-1]
+            low_52_week = self.days['low'].rolling(window=252, min_periods=1).min().iloc[-1]
+            graph_data.lines.append({'line': high_52_week, 'color': 'm', 'label': '52 week high'})
+            graph_data.lines.append({'line': low_52_week, 'color': 'm', 'label': '52 week low'})
+
+        if found_one:
+            graph(graph_data)

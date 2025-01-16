@@ -134,7 +134,7 @@ class MovingAverageIndicator(Indicator):
         """
 
         buy_score = self.calculate_ma_score() + self.calculate_crossovers()
-        sell_score = 0
+        sell_score = 0.0
 
         return IndicatorScore(buy_score, sell_score)
 

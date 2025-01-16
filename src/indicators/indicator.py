@@ -1,10 +1,65 @@
+"""
+Abstract base class for financial indicators.
+
+This class provides a template for creating financial indicators that can
+validate required columns in a DataFrame, calculate buy and sell scores, and
+generate graphs. Subclasses should implement the `get_score` and `graph`
+methods to provide specific functionality for different types of indicators.
+
+Attributes:
+    required_cols (list): A list of column names required in the input data.
+
+Methods:
+    __init__(data: pd.DataFrame):
+        Initializes the Indicator with the provided data if it contains the
+        required columns.
+
+    _validate_columns(data: pd.DataFrame, columns: list[str]) -> bool:
+        Validates that the provided data contains the required columns.
+
+    get_score() -> IndicatorScore:
+        Abstract method to calculate and return the buy and sell scores.
+        Must be implemented by subclasses.
+
+    graph() -> None:
+        Abstract method to generate a graph for the indicator.
+        Must be implemented by subclasses.
+"""
+
 from collections import namedtuple
-import pandas as pd
 from abc import ABC, abstractmethod
+import pandas as pd
 
 IndicatorScore = namedtuple('Score', ['buy', 'sell'])
 
 class Indicator(ABC):
+    """
+    Abstract base class for financial indicators.
+
+    This class provides a template for creating financial indicators that can
+    validate required columns in a DataFrame, calculate buy and sell scores, and
+    generate graphs. Subclasses should implement the `get_score` and `graph`
+    methods to provide specific functionality for different types of indicators.
+
+    Attributes:
+        required_cols (list): A list of column names required in the input data.
+
+    Methods:
+        __init__(data: pd.DataFrame):
+            Initializes the Indicator with the provided data if it contains the
+            required columns.
+
+        _validate_columns(data: pd.DataFrame, columns: list[str]) -> bool:
+            Validates that the provided data contains the required columns.
+
+        get_score() -> IndicatorScore:
+            Abstract method to calculate and return the buy and sell scores.
+            Must be implemented by subclasses.
+
+        graph() -> None:
+            Abstract method to generate a graph for the indicator.
+            Must be implemented by subclasses.
+    """
 
     required_cols = []
 
@@ -28,8 +83,16 @@ class Indicator(ABC):
         Returns:
             tuple[float, float]: A tuple containing the buy score and the sell score.
         """
-        pass
+        return IndicatorScore(0.0, 0.0)
 
     @abstractmethod
     def graph(self) -> None:
-        pass
+        """
+        Generates a graph for the indicator.
+
+        This method is intended to be overridden by subclasses to provide
+        specific graphing functionality for different types of indicators.
+
+        Returns:
+            None
+        """

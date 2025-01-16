@@ -25,10 +25,11 @@ Methods:
 
 import numpy as np
 import pandas as pd
-from ta.trend import PSARIndicator
+from ta.trend import PSARIndicator # pylint: disable=import-error
 
 from indicators.indicator import Indicator, IndicatorScore #pylint: disable=import-error
 
+ADX_MULTIPLIER = 1.0
 STOCHASTIC_MULTIPLIER = 1.0
 ICHIMOKU_MULTIPLIER = 1.0
 PSAR_MULTIPLIER = 1.0
@@ -41,11 +42,32 @@ class TrendIndicator(Indicator):
     - Ichimoku Cloud
     - Parabolic SAR
     - Heiken Ashi
+    - ADX (Directional Movement Index)
     """
 
     def __init__(self, data: pd.DataFrame):
         self.required_cols = ['high', 'low', 'close', 'open', 'stoch_k', 'stoch_d']
         super().__init__(data)
+
+    def calculate_dmi_adx(self) -> float:
+        """
+        Calculates a numerical score for the ADX (Average Directional Index) based on the previous day's
+        DMI (Directional Movement Index) positive and negative components. If the positive DMI is higher
+        than the negative DMI, this function returns an integer score corresponding to the ADX value:
+            • Returns 3 if ADX is above 35.
+            • Returns 2 if ADX is above 30 (but 35 or below).
+            • Returns 1 if ADX is above 25 (but 30 or below).
+            • Returns 0 otherwise.
+
+        Returns:
+            float: An integer-converted float representing the ADX-related score based on DMI.
+        """
+        yesterday = self.days.iloc[-1]
+        if {'dmi_p', 'dmi_n', 'adx'}.issubset(self.days.columns) and yesterday['dmi_p'] > yesterday['dmi_n']:
+            # Score ADX levels: above 35 => +3, above 30 => +2, above 25 => +1
+            return np.select([yesterday['adx'] > 35, yesterday['adx'] > 30, yesterday['adx'] > 25],
+                             [3, 2, 1], 0).item() if yesterday['dmi_p'] > yesterday['dmi_n'] else 0
+        return 0.0
 
     def calculate_psar_score(self, step: float = 0.02, max_step: float = 0.2) -> float:
         """
@@ -70,39 +92,29 @@ class TrendIndicator(Indicator):
             low=self.days['low'],
             close=self.days['close'],
             step=step,
-            max_step=max_step
+            max_step=max_step,
+            fillna=True
         )
 
         # The library provides the psar values for each row
-        self.days['psar'] = psar_indicator.psar()
+        self.days['psar'] = psar_indicator.psar().astype(float)
 
         # 2) Identify if there's a flip from yesterday to today
         #    We'll see if SAR was above price vs. below price, day-to-day.
 
         # Today's values
-        psar_today = self.days.iloc[-1]['psar']
-        close_today = self.days.iloc[-1]['close']
-        psar_above_today = psar_today > close_today
+        psar_above_today = self.days.iloc[-1]['psar'] > self.days.iloc[-1]['close']
 
         # Yesterday's values
-        psar_yesterday = self.days.iloc[-2]['psar']
-        close_yesterday = self.days.iloc[-2]['close']
-        psar_above_yesterday = psar_yesterday > close_yesterday
-
-        # 3) Determine the flip and assign a score
-        score = 0.0
+        psar_above_yesterday = self.days.iloc[-2]['psar'] > self.days.iloc[-2]['close']
 
         # If Parabolic SAR was above price yesterday but is now below => bullish flip
         if psar_above_yesterday and not psar_above_today:
             # e.g. +2 points for a bullish flip
-            score += 2.0
+            return 2.0
 
         # If Parabolic SAR was below price yesterday but is now above => bearish flip
-        elif not psar_above_yesterday and psar_above_today:
-            # e.g. -2 points for a bearish flip
-            score -= 2.0
-
-        return score
+        return -2.0 if not psar_above_yesterday and psar_above_today else 0.0
 
     def calculate_ichimoku(self):
         """
@@ -247,7 +259,7 @@ class TrendIndicator(Indicator):
         Returns a float score.
         """
 
-        buy_score = 0
+        buy_score = 0.0
 
         # Shifted columns to detect crossovers from previous day:
         k_prev = self.days['stoch_k'].shift(1)
@@ -263,9 +275,10 @@ class TrendIndicator(Indicator):
         buy_score += self.calculate_ichimoku_score() * ICHIMOKU_MULTIPLIER
         buy_score += self.calculate_psar_score() * PSAR_MULTIPLIER
         buy_score += self.calculate_heiken_ashi() * HEIKEN_ASHI_MULTIPLIER
-        sell_score = 0
+        buy_score += self.calculate_dmi_adx() * ADX_MULTIPLIER
+        sell_score = 0.0
 
-        return IndicatorScore(buy_score, sell_score)
+        return IndicatorScore(buy=buy_score, sell=sell_score)
 
     def graph(self) -> None:
         pass
