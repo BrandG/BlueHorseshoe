@@ -16,6 +16,7 @@ Functions:
 """
 import sys
 import pandas as pd
+from src.indicators.indicator import IndicatorScore  # pylint: disable=import-error
 sys.path.append('/workspaces/BlueHorseshoe/src')
 from indicators.candlestick_indicators import CandlestickIndicator # pylint: disable=wrong-import-position
 
@@ -176,4 +177,4 @@ def test_calculate_score():
     and asserts that the calculate_score method returns 0.0.
     """
     indicator = CandlestickIndicator(sample_data())
-    assert indicator.calculate_score() == 0.0
+    assert indicator.get_score() == IndicatorScore(buy=0.0, sell=0.0)

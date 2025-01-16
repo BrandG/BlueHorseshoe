@@ -29,6 +29,7 @@ from globals import GlobalData, ReportSingleton, get_symbol_name_list
 from historical_data import load_historical_data
 from indicators.candlestick_indicators import CandlestickIndicator
 from indicators.limit_indicators import LimitIndicator
+from indicators.momentum_indicators import MomentumIndicator
 from indicators.moving_average_indicators import MovingAverageIndicator
 from indicators.trend_indicators import TrendIndicator
 from indicators.volume_indicators import VolumeIndicator
@@ -42,15 +43,9 @@ MIN_STOCK_PRICE = 1.0
 MAX_STOCK_PRICE = 50.0
 STOP_LOSS_FACTOR = 0.96
 TAKE_PROFIT_FACTOR = 1.04
-MACD_SIGNAL_MULTIPLIER = 0.15
 
-ADX_MULTIPLIER = 1.0
 EMA_MARGIN_MULTIPLIER = 1.0
-MACD_MULTIPLIER = 1.0
 VOLUME_MULTIPLIER = 1.0
-RSI_MULTIPLIER = 1.0
-ROC_MULTIPLIER = 1.0
-BB_MULTIPLIER = 1.0
 
 class TechnicalAnalyzer:
     """Handles technical analysis calculations with optimized methods."""
@@ -96,7 +91,7 @@ class TechnicalAnalyzer:
         return trend_map.get((slope > 0, r2_value > STRONG_R2_THRESHOLD), "No Clear Trend")
 
     @staticmethod
-    def calculate_technical_score(days: pd.DataFrame, symbol) -> float:
+    def calculate_technical_score(days: pd.DataFrame) -> float:
         """
         Calculate a technical score by analyzing multiple indicators from the given DataFrame:
         1. Volume threshold check
@@ -109,90 +104,16 @@ class TechnicalAnalyzer:
         
         Returns a float representing the sum of all indicator contributions.
         """
-        yesterday = days.iloc[-1]
-        conditions = np.zeros(12, dtype=float)  # Pre-allocate array
-
         # 1) Early exit if average volume is too low
-        if len(days) == 0 or yesterday.get('avg_volume_20', 0) < MIN_VOLUME_THRESHOLD:
+        if len(days) == 0 or days.iloc[-1].get('avg_volume_20', 0) < MIN_VOLUME_THRESHOLD:
             return 0.0
 
-        # 2) DMI/ADX
-        if {'dmi_p', 'dmi_n', 'adx'}.issubset(days.columns):
-            if yesterday['dmi_p'] > yesterday['dmi_n']:
-                # Score ADX levels: above 35 => +3, above 30 => +2, above 25 => +1
-                dmi_conditions = np.array([
-                    yesterday['adx'] > 35,
-                    yesterday['adx'] > 30,
-                    yesterday['adx'] > 25
-                ])
-                conditions[0] = np.select(dmi_conditions.tolist(), [3, 2, 1], 0) * ADX_MULTIPLIER if yesterday['dmi_p'] > yesterday['dmi_n'] else 0
+        total_score : float = 0
+        for indicator in [TrendIndicator(days), VolumeIndicator(days), LimitIndicator(days), CandlestickIndicator(days),
+                          MovingAverageIndicator(days), MomentumIndicator(days)]:
+            total_score += indicator.get_score().buy
 
-        # 3) MACD
-        if {'macd_line', 'macd_signal'}.issubset(yesterday):
-            macd_diff = yesterday['macd_line'] - yesterday['macd_signal']
-            # If MACD diff and line are positive, score 1 or 2 depending on how large the diff is
-            if (macd_diff > 0) and (yesterday['macd_line'] > 0):
-                conditions[1] = np.select(
-                    [macd_diff > yesterday['macd_signal'] * MACD_SIGNAL_MULTIPLIER, macd_diff > yesterday['macd_signal']],
-                    [2, 1],
-                    0
-                ) * MACD_MULTIPLIER
-
-        # 4) RSI scoring
-        if 'rsi_14' in yesterday:
-            conditions[2] = np.select(
-                [
-                    (yesterday['rsi_14'] >= 45) & (yesterday['rsi_14'] <= 65),
-                    (yesterday['rsi_14'] >= 40) & (yesterday['rsi_14'] <= 70)
-                ],
-                [2, 1],
-                0
-            ) * RSI_MULTIPLIER
-
-        # 5) ROC scoring (adaptive)
-        if 'roc_5' in yesterday:
-            # Rolling std over entire dataset
-            roc_5_std = days['roc_5'].rolling(window=20).std().iloc[-1]
-            if pd.notna(roc_5_std):
-                conditions[3] = np.select(
-                    [(yesterday['roc_5'] > 2 * roc_5_std), (yesterday['roc_5'] > 1 * roc_5_std)],
-                    [2, 1],
-                    default=0
-                ) * ROC_MULTIPLIER
-
-        # 6) Bollinger Band position
-        bb_position = 0.0
-        if ('bb_lower' in yesterday and 'bb_upper' in yesterday and (yesterday['bb_upper'] > yesterday['bb_lower'])):
-            band_range = yesterday['bb_upper'] - yesterday['bb_lower']
-            bb_position = (yesterday['close'] - yesterday['bb_lower']) / band_range
-
-            conditions[4] = np.select(
-                [
-                    (bb_position >= 0.3) & (bb_position < 0.7),
-                    (bb_position >= 0.1) & (bb_position < 0.3),
-                    bb_position >= 0.85
-                ],
-                [2, 3, -1],
-                default=0
-            ) * BB_MULTIPLIER
-
-        # 7) Trend Indicators (Stochastic Oscillator, Ichimoku Cloud, Parabolic SAR (Stop and Reverse), Heiken Ashi (HA) Candles)
-        conditions[5] += TrendIndicator(days).calculate_score()
-
-        # 8) Volume Indicator (On-Balance Volume, Chaikin Money Flow, Average True Range)
-        conditions[6] += VolumeIndicator(days).calculate_score()
-
-        # 9) Limit Indicator (Pivot Points, 52-Week High/Low, Candlestick Patterns)
-        conditions[7] += LimitIndicator(days).calculate_score()
-
-        # 10) Candlestick Indicators
-        conditions[8] += CandlestickIndicator(days).calculate_score()
-
-        # 11) Moving Average Indicators
-        conditions[9] += MovingAverageIndicator(days).calculate_score()
-
-        logging.info("Technical conditions: %s - %s", symbol, conditions)
-        return float(conditions.sum())
+        return total_score
 
 class SwingTrader:
     """Main class for swing trading analysis."""
@@ -246,7 +167,7 @@ class SwingTrader:
             'entry_price': entry_price,
             'stop_loss': entry_price * STOP_LOSS_FACTOR,
             'take_profit': entry_price * TAKE_PROFIT_FACTOR,
-            'score': self.technical_analyzer.calculate_technical_score(df,symbol)
+            'score': self.technical_analyzer.calculate_technical_score(df)
         }
         logging.info("Processed %s with result: %s", symbol, ret_val)
         return ret_val
@@ -259,7 +180,7 @@ class SwingTrader:
         chunk_size = len(symbols) // max_workers
         results = []
 
-        ReportSingleton().write(f"Yesterday was {'not' if GlobalData.holiday else ''} a holiday.")
+        ReportSingleton().write(f"Yesterday was {'not ' if not GlobalData.holiday else ''}a holiday.")
 
         logging.info("Processing %d symbols...", len(symbols))
         with concurrent.futures.ProcessPoolExecutor(max_workers=max_workers) as executor:
@@ -283,7 +204,18 @@ class SwingTrader:
             reverse=True
         )
         ReportSingleton().write('Top 10 buy candidates:')
-        for result in sorted_results[:10]:
+        for result_index in range(10):
+            result = sorted_results[result_index]
+            price_data = load_historical_data(result['symbol'])
+            if price_data is None or not price_data['days']:
+                logging.error("Failed to load historical data for %s.", result['symbol'])
+                continue
+
+            df = pd.DataFrame(price_data['days'])
+            title = f'{result_index}-'+result['symbol']
+            CandlestickIndicator(df.copy()).set_title(title).graph()
+            LimitIndicator(df.copy()).set_title(title).graph()
+
             ReportSingleton().write(
                 f"{result['symbol']} - Entry: {result['entry_price']:.2f} - "
                 f"Stop-Loss: {result['stop_loss']:.2f} - Take-Profit: {result['take_profit']:.2f} - "

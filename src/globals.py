@@ -55,6 +55,7 @@ import matplotlib.pyplot as plt
 from ratelimit import limits, sleep_and_retry #pylint: disable=import-error
 from pymongo.errors import ConnectionFailure, ConfigurationError
 from matplotlib.ticker import MultipleLocator
+import mplfinance as mpf #pylint: disable=import-error
 
 @dataclass
 class GlobalData:
@@ -151,12 +152,8 @@ class GraphData:
 
     Attributes
     ----------
-    x_label : str
-        The label for the x-axis (default is 'x')
-    y_label : str
-        The label for the y-axis (default is 'y')
-    title : str
-        The title of the graph (default is 'title')
+    labels : dict
+        A dictionary to store labels for the x-axis, y-axis, and title.
     curves : list
         A list to store curve data (default is an empty list)
     lines : list
@@ -165,14 +162,15 @@ class GraphData:
         A list to store point data (default is an empty list)
     x_values : list
         A list to store x-axis values (default is an empty list)
+    candles : list
+        A list to store candlestick data (default is an empty list)
     """
+    labels: dict = field(default_factory=lambda: {'x_label': 'x', 'y_label': 'y', 'title': 'title'})
     curves: list = field(default_factory=list)
     points: list = field(default_factory=list)
     x_values: list = field(default_factory=list)
     lines: list = field(default_factory=list)
-    x_label: str = 'x'
-    y_label: str = 'y'
-    title: str = 'title'
+    candles: list = field(default_factory=list)
 
 
 def graph(graph_data: GraphData) -> str:
@@ -230,13 +228,25 @@ def graph(graph_data: GraphData) -> str:
         graph_data.lines = []
     if graph_data.points is None:
         graph_data.points = []
+    if graph_data.candles is None:
+        graph_data.candles = []
     try:
         if graph_data.x_values is not None and len(graph_data.x_values) != 0:
             plt.xticks(ticks=range(len(graph_data.x_values)),
                        labels=graph_data.x_values, rotation=45)
-        plt.xlabel(graph_data.x_label)
-        plt.ylabel(graph_data.y_label)
-        plt.title(graph_data.title)
+        plt.xlabel(graph_data.labels['x_label'])
+        plt.ylabel(graph_data.labels['y_label'])
+        plt.title(graph_data.labels['title'])
+        for candle in graph_data.candles:
+            data = {
+                'date': graph_data.x_values,
+                'open': candle['open'],
+                'high': candle['high'],
+                'low': candle['low'],
+                'close': candle['close'],
+                'volume': candle['volume']
+            }
+            mpf.plot(data, type='candle', style='charles', title='Candlestick Chart', ylabel='Price', volume=True)
         for curve in graph_data.curves:
             plt.plot(curve.get('curve', []), color=curve.get(
                 'color', 'b'), label=curve.get('label', 'Curve'))
@@ -252,19 +262,22 @@ def graph(graph_data: GraphData) -> str:
         plt.gca().xaxis.set_major_locator(MultipleLocator(20))
         plt.grid(which='both', linestyle='--', linewidth=0.5)
         current_time_ms = int(datetime.now().timestamp()) * 1000
-        file_path = f'/workspaces/BlueHorseshoe/src/graphs/{graph_data.title}_{current_time_ms}.png'
+        file_path = f'/workspaces/BlueHorseshoe/src/graphs/{graph_data.labels["title"]}_{current_time_ms}.png'
         plt.savefig(file_path)
         # plt.show()
+        plt.gcf().canvas.draw_idle()
         plt.clf()
         return file_path
     except (ValueError, TypeError, KeyError) as e:
         logging.error("An error occurred while plotting the graph: %s", e)
+        plt.gcf().canvas.draw_idle()
+        plt.clf()
     return ""
 
 
 @sleep_and_retry
 @limits(calls=1, period=1)
-def get_symbol_list_from_net():
+def get_symbol_list_from_net() -> list:
     """
     Fetches a list of active stock symbols from the NYSE exchange using the Alpha Vantage API.
 
@@ -343,10 +356,15 @@ def get_symbol_list():
     Returns:
         list: A list of symbols.
     """
+    print("Fetching symbol list...")
     symbol_list = get_symbol_list_from_file()
     if symbol_list is None:
+        print("Fetching symbol list from the internet...")
         symbol_list = get_symbol_list_from_net()
-        if symbol_list is None:
+        if symbol_list is not None:
+            print(f"Symbol list loaded. Length: {len(symbol_list)}")
+        else:
+            print("Symbol list is None.")
             return []
         file_path = os.path.join(GlobalData.base_path, 'symbol_list.json')
 

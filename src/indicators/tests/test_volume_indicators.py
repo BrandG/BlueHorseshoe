@@ -25,11 +25,14 @@ Dependencies:
 """
 
 import sys
+from collections import namedtuple
 import pandas as pd
 sys.path.append('/workspaces/BlueHorseshoe/src')
 from indicators.volume_indicators import VolumeIndicator # pylint: disable=wrong-import-position
 
-def sample_data():
+Score = namedtuple('Score', ['buy', 'sell'])
+
+def sample_data() -> pd.DataFrame:
     """
     Generate a sample pandas DataFrame with financial market data.
 
@@ -198,6 +201,6 @@ def test_calculate_score():
         AssertionError: If the calculated score does not match the expected result
     """
     vi = VolumeIndicator(sample_data())
-    result = vi.calculate_score()
-    expected_result = -1.0  # Update this value based on the expected result
+    result = vi.get_score()
+    expected_result = Score(buy=-1.0, sell=0)  # Update this value based on the expected result
     assert result == expected_result, f"Expected {expected_result}, but got {result}"

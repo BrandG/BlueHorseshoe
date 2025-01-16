@@ -20,8 +20,9 @@ Functions:
 """
 
 from datetime import datetime
+import json
 import os
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch, MagicMock, mock_open
 import sys
 import pytest
 
@@ -37,6 +38,9 @@ from globals import (  # pylint: disable=wrong-import-position
     GraphData,
     ReportSingleton
 )
+
+# Mock data for the symbol list as a JSON string
+mock_symbol_list = json.dumps([{"symbol": "AAPL", "name": "Apple Inc"}, {"symbol": "GOOGL", "name": "Alphabet Inc"}])
 
 @pytest.fixture
 def setup_invalid_symbols_file(tmp_path):
@@ -130,13 +134,15 @@ def test_get_symbol_list_from_net(mock_get):
     symbols = get_symbol_list_from_net()
     assert symbols == [{"symbol": "AAPL", "name": "Apple Inc"}, {"symbol": "GOOGL", "name": "Alphabet Inc"}]
 
-def test_get_symbol_list_from_file():
+@patch("builtins.open", new_callable=mock_open, read_data=mock_symbol_list)
+@patch("os.path.exists", return_value=True)
+def test_get_symbol_list_from_file( mock_open, mock_exists): # pylint: disable=unused-argument, redefined-outer-name
     """
     Test the get_symbol_list_from_file function.
 
-    This test checks if the get_symbol_list_from_file function correctly 
-    retrieves a list of symbols from a file. It uses a mock file to simulate 
-    the file input and asserts that the returned list of symbols matches 
+    This test checks if the get_symbol_list_from_file function correctly
+    retrieves a list of symbols from a file. It uses a mock file to simulate
+    the file input and asserts that the returned list of symbols matches
     the expected output.
 
     Asserts:
@@ -144,9 +150,11 @@ def test_get_symbol_list_from_file():
     """
     symbols = get_symbol_list_from_file()
     assert len(symbols) > 0
+    assert symbols == [{"symbol": "AAPL", "name": "Apple Inc"}, {"symbol": "GOOGL", "name": "Alphabet Inc"}]
 
 @patch("globals.get_symbol_list_from_net")
-def test_get_symbol_list(mock_get_symbol_list_from_net):
+@patch("globals.get_symbol_list_from_file")
+def test_get_symbol_list(mock_get_symbol_list_from_file, mock_get_symbol_list_from_net):
     """
     Test the get_symbol_list function.
 
@@ -162,9 +170,11 @@ def test_get_symbol_list(mock_get_symbol_list_from_net):
     Asserts:
         The returned list of symbols matches the expected list.
     """
+    mock_get_symbol_list_from_file.return_value = [{"symbol": "AAPL", "name": "Apple Inc"}]
     mock_get_symbol_list_from_net.return_value = [{"symbol": "AAPL", "name": "Apple Inc"}]
     symbols = get_symbol_list()
     assert len(symbols) > 0
+    assert symbols == [{"symbol": "AAPL", "name": "Apple Inc"}]
 
 @patch("datetime.datetime")
 def test_graph(mock_datetime):
@@ -193,9 +203,7 @@ def test_graph(mock_datetime):
     """
     mock_datetime.now.return_value = datetime(2021, 1, 1)
     graph_data = GraphData(
-        x_label="X Axis",
-        y_label="Y Axis",
-        title="Test Graph",
+        labels={'x_label':'X Axis', 'y_label':'Y Axis', 'title':"Test Graph"},
         curves=[{"curve": [1, 2, 3], "color": "b", "label": "Curve 1"}],
         lines=[{"y": 2, "color": "r", "linestyle": "--", "label": "Line 1"}],
         points=[{"x": 1, "y": 2, "color": "g"}],

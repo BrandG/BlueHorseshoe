@@ -24,6 +24,7 @@ Dependencies:
 
 import sys
 
+from indicators.indicator import IndicatorScore
 sys.path.append('/workspaces/BlueHorseshoe/src')
 from indicators.limit_indicators import LimitIndicator # pylint: disable=wrong-import-position
 from indicators.tests.test_candlestick_indicators import sample_data # pylint: disable=wrong-import-position
@@ -112,6 +113,4 @@ def test_calculate_score():
         - The returned score is an instance of float
     """
     indicator = LimitIndicator(sample_data())
-    score = indicator.calculate_score()
-
-    assert isinstance(score, float)
+    assert indicator.get_score() == IndicatorScore(buy=2.0, sell=0.0)

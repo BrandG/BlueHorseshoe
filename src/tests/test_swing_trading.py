@@ -114,9 +114,9 @@ def test_calculate_technical_score(sample_data):  # pylint: disable=redefined-ou
         sample_data (dict): A dictionary containing sample stock data.
 
     Asserts:
-        The calculated technical score for the given stock symbol 'IBM' is greater than 0.
+        The calculated technical score for the given data is greater than 0.
     """
-    score = TechnicalAnalyzer.calculate_technical_score(sample_data, 'IBM')
+    score = TechnicalAnalyzer.calculate_technical_score(sample_data)
     assert score > 0
 
 def test_process_symbol(swing_trader, sample_data, mocker): # pylint: disable=redefined-outer-name

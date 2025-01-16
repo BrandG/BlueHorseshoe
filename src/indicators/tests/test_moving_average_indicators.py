@@ -26,6 +26,7 @@ import sys
 import pandas as pd
 sys.path.append('/workspaces/BlueHorseshoe/src')
 from indicators.moving_average_indicators import MovingAverageIndicator # pylint: disable=wrong-import-position
+from indicators.indicator import IndicatorScore # pylint: disable=wrong-import-position
 
 def sample_data():
     """
@@ -180,5 +181,5 @@ def test_calculate_score():
         AssertionError: If the returned score is not a float
     """
     indicator = MovingAverageIndicator(sample_data())
-    score = indicator.calculate_score()
-    assert isinstance(score, float)
+    score = indicator.get_score()
+    assert isinstance(score, IndicatorScore)
