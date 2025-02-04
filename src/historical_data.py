@@ -30,7 +30,7 @@ from globals import GlobalData, get_mongo_client, get_symbol_list #pylint: disab
 
 
 @sleep_and_retry
-@limits(calls=60, period=60)  # 60 calls per 60 seconds
+@limits(calls=70, period=60)  # 60 calls per 60 seconds
 def load_historical_data_from_net(stock_symbol, recent=False):
     """
     Fetch historical stock data from Alpha Vantage API.

@@ -1,3 +1,38 @@
+2025-02-04
+    I've now set up an EC2 instance that is tied to a DynamoDB instance. I can read and write to it, so the next step is for me to go
+through all the entries in mongoDB and transcribe it to DynamoDB. Those code snippets are in the ec2 instance. Here's my next step:
+
+From ChatGPT: 
+    "For your scenario—thousands of daily calls at a fixed rate, taking potentially hours—the sweet spot is to containerize your code and 
+    run it as a Fargate task:
+
+    1) Build a Docker Container that:
+        a) Has Python + dependencies.
+        b) Contains your script that loops over all needed requests, sleeps 1 second between calls, then updates the DB.
+    2) Push the Image to ECR (Amazon Elastic Container Registry).
+    3) Create an ECS Fargate Task Definition:
+        a) Points to your ECR image.
+        b) Give it enough CPU/memory.
+        c) Set environment variables or store config in SSM Parameter Store/Secrets Manager for credentials (if needed).
+    4) Schedule via EventBridge:
+        a) In the AWS Console under EventBridge → Rules, create a rule that triggers daily at, say, midnight UTC.
+        b) Target = “ECS Task” with the Fargate launch type.
+        c) Provide your cluster name and task definition.
+    5) Run & Forget:
+        a) Each day, your container starts, runs for several hours while making the calls, finishes, and stops.
+        b) You’re only billed for the Fargate runtime and minimal data transfer, with no persistent servers.
+    "
+
+    Now, it's worth noting that this only solves the stock updating problem. This does nothing for the retrieval/evaluation/prediction
+stuff. That is for another day.
+
+2025-01-17
+    I'm really tired today, so I'm kinda out of it. I tried something different today. I took a look at stocks that had a greater than average 
+volume (which I found using MarketWatch). One of the things I tried was tracking the RSI. Any time it's been going down for the last three one-minute
+bars, but then goes up on the latest bar, we buy. I don't know how valid that is, but the examples I've tried at work have made money. I'll set it up
+in the backchecking system at home, and see how it goes.
+    Based on the first one I tried, using the daily RSI over a month, it worked pretty well.
+    did not work with hourly bars over 10 days.
 2025-01-16
     Today should basically be a redesign day, because the scenery has changed a bit. I'm learning more about day trading, and it seems like I 
 should be able to make the 1-2% profit every day if I follow a specific strategy. The best way to put this is to watch the beginning of the day
