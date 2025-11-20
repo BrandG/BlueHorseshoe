@@ -5,6 +5,8 @@ from typing import Optional
 import os
 from pymongo import MongoClient
 from . import service
+from .globals import get_symbol_list_from_net  # adjust import path
+from .service import sync_symbols_to_mongo
 
 app = FastAPI()
 
@@ -60,3 +62,31 @@ def run_daily(force: Optional[bool] = Query(False, description="Ignore caches an
     result = service.run_daily()
     result["force"] = force
     return result
+
+@app.post("/load_symbols")
+@app.get("/load_symbols")
+def load_symbols():
+    """
+    Fetch the symbol list from Alpha Vantage and store it in MongoDB.
+
+    Returns:
+        {
+            "count": number of symbols inserted/updated,
+            "sample": [...]
+        }
+    """
+    try:
+        symbols = get_symbol_list_from_net()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch symbols: {e}")
+
+    if not symbols:
+        raise HTTPException(status_code=500, detail="Symbol list is empty")
+
+    count = sync_symbols_to_mongo(symbols)
+
+    return {
+        "status": "ok",
+        "count": count,
+        "sample": symbols[:5],  # convenient sanity check
+    }
