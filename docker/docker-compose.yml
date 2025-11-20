@@ -1,8 +1,6 @@
 services:
   mongo:
-    build:
-      context: ..
-      dockerfile: docker/Dockerfile.mongo
+    image: mongo:7
     container_name: mongo
     ports:
       - "27017:27017"

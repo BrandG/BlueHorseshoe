@@ -1,15 +1,25 @@
-FROM continuumio/miniconda3:23.3.1-0
-ENV PYTHONUNBUFFERED=1
-# Set the working directory
+FROM python:3.12-slim
+
 WORKDIR /workspaces/BlueHorseshoe
 
+# Install TA-Lib dependencies
+RUN apt-get update && apt-get install -y \
+    build-essential wget \
+    && rm -rf /var/lib/apt/lists/*
+
+# Build TA-Lib from source
+RUN wget http://prdownloads.sourceforge.net/ta-lib/ta-lib-0.4.0-src.tar.gz && \
+    tar -xzf ta-lib-0.4.0-src.tar.gz && \
+    cd ta-lib && ./configure --prefix=/usr && make && make install && \
+    cd .. && rm -rf ta-lib ta-lib-0.4.0-src.tar.gz
+
 COPY docker/requirements.txt .
-RUN yes | conda install -c conda-forge ta-lib
-RUN pip3 install -r requirements.txt
-ENV PYTHONPATH=${PYTHONPATH}:/workspaces/BlueHorseshoe
+RUN pip install --no-cache-dir -r requirements.txt
+
+ENV PYTHONPATH=/workspaces/BlueHorseshoe/src
 
 EXPOSE 80
-EXPOSE 7496
 
-# Keep the container running in an interactive state
-CMD ["tail", "-f", "/dev/null"]
+CMD ["uvicorn", "bluehorseshoe.api:app", "--host", "0.0.0.0", "--port", "80"]
+#CMD ["tail", "-f", "/dev/null"]
+
