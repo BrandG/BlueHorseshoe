@@ -2,8 +2,6 @@ services:
   mongo:
     image: mongo:7
     container_name: mongo
-    ports:
-      - "27017:27017"
     volumes:
       - mongo_data:/data/db
     networks:
@@ -18,14 +16,14 @@ services:
       - "80:80"
     environment:
       MONGO_URI: "mongodb://mongo:27017"
+      ALPHAVANTAGE_KEY: ${ALPHAVANTAGE_KEY}
     depends_on:
       - mongo
     networks:
       - app_net
     volumes:
       # Mount the src folder from host into the container
-      - ../src:/workspaces/BlueHorseshoe/src
-
+      - ..:/workspaces/BlueHorseshoe
 networks:
   app_net:
 

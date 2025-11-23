@@ -48,6 +48,55 @@ def run_daily() -> Dict[str, Any]:
 MONGO_URI = os.environ.get("MONGO_URI", "mongodb://mongo:27017")
 _client = MongoClient(MONGO_URI)
 _db = _client["bluehorseshoe"]
+
+
+def handle_trigger_action(action: str, payload: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Flexible action handler for development triggers.
+    
+    This function serves as a central dispatch point for temporary/development
+    actions that you want to trigger from the API. Modify this function to
+    add, remove, or change actions as needed during development.
+    
+    Args:
+        action: String identifier for the action
+        payload: Dictionary with action parameters
+        
+    Returns:
+        Dictionary with action results
+    """
+    
+    if action == "hello":
+        # Simple test action
+        name = payload.get("name", "World")
+        return {"message": f"Hello, {name}!"}
+    
+    elif action == "test_db":
+        # Test database connection and show collection stats
+        try:
+            collections = _db.list_collection_names()
+            stats = {}
+            for col_name in collections:
+                stats[col_name] = _db[col_name].count_documents({})
+            return {
+                "collections": collections,
+                "document_counts": stats
+            }
+        except Exception as e:
+            return {"error": f"Database test failed: {e}"}
+        
+    # Add more actions here as needed during development
+    # Just add new elif statements for different action names
+    
+    else:
+        # Unknown action
+        available_actions = ["hello", "test_db", "debug_symbols", "temp_calculation"]
+        return {
+            "error": f"Unknown action: {action}",
+            "available_actions": available_actions,
+            "hint": "Modify handle_trigger_action() in service.py to add new actions"
+        }
+        
 _symbols = _db["symbols"]
 
 # Create a unique index on symbol so upserts behave cleanly

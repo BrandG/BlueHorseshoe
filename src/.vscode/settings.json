@@ -1,0 +1,15 @@
+{
+    "window.title": "BlueHorseshoe — DROPLET",
+    "workbench.colorCustomizations": {
+        "titleBar.activeBackground": "#8B0000",
+        "titleBar.activeForeground": "#ffffff",
+        "titleBar.inactiveBackground": "#8B0000AA",
+        "titleBar.inactiveForeground": "#ffffffAA",
+
+        "window.activeBorder": "#ff0000",
+        "window.inactiveBorder": "#ff000088",
+        "activityBar.background": "#8B0000",
+        "statusBar.background": "#8B0000",
+        "statusBar.foreground": "#ffffff",
+    }
+}

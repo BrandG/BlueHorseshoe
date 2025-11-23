@@ -1,12 +1,11 @@
 # src/bluehorseshoe/api.py
-from fastapi import FastAPI, Query, HTTPException
+from fastapi import FastAPI, Query, HTTPException, Body
 from datetime import date
-from typing import Optional
+from typing import Optional, Dict, Any
 import os
 from pymongo import MongoClient
 from . import service
-from .globals import get_symbol_list_from_net  # adjust import path
-from .service import sync_symbols_to_mongo
+from .symbols import refresh_symbols, refresh_historical_for_symbol, get_historical_from_mongo
 
 app = FastAPI()
 
@@ -63,30 +62,46 @@ def run_daily(force: Optional[bool] = Query(False, description="Ignore caches an
     result["force"] = force
     return result
 
+@app.post("/trigger")
+@app.get("/trigger")
+def trigger_action(action: str = Query(..., description="Name of the action to trigger"), 
+                  payload: Optional[Dict[str, Any]] = Body(default=None)):
+    """
+    Flexible endpoint for triggering backend actions during development.
+    
+    This endpoint allows you to trigger custom backend actions without needing to
+    create specific endpoints for each temporary action. Perfect for development
+    and testing scenarios where the action logic changes frequently.
+    
+    Args:
+        action: String identifier for the action to trigger
+        payload: Optional JSON payload with parameters for the action
+        
+    Examples:
+        POST /trigger?action=test_analysis
+        POST /trigger?action=debug_symbols {"symbol": "AAPL", "verbose": true}
+        POST /trigger?action=cleanup_data {"days_old": 30}
+    """
+    try:
+        result = service.handle_trigger_action(action, payload or {})
+        return {
+            "status": "success",
+            "action": action,
+            "result": result
+        }
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Action '{action}' failed: {str(e)}")
+
 @app.post("/load_symbols")
 @app.get("/load_symbols")
 def load_symbols():
-    """
-    Fetch the symbol list from Alpha Vantage and store it in MongoDB.
+    return refresh_symbols()
 
-    Returns:
-        {
-            "count": number of symbols inserted/updated,
-            "sample": [...]
-        }
-    """
-    try:
-        symbols = get_symbol_list_from_net()
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to fetch symbols: {e}")
+@app.post("/load_symbol/{symbol}")
+@app.get("/load_symbol/{symbol}")
+def load_symbol(symbol: str, recent: bool = False):
+    return refresh_historical_for_symbol(symbol, recent=recent)
 
-    if not symbols:
-        raise HTTPException(status_code=500, detail="Symbol list is empty")
-
-    count = sync_symbols_to_mongo(symbols)
-
-    return {
-        "status": "ok",
-        "count": count,
-        "sample": symbols[:5],  # convenient sanity check
-    }
+@app.get("/historicals/{symbol}")
+def historicals(symbol: str, recent: bool = False):
+    return {"symbol": symbol, "days": get_historical_from_mongo(symbol, recent=recent)}

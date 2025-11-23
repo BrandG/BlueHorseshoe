@@ -76,47 +76,6 @@ class GlobalData:
     invalid_symbols: list = field(default_factory=list)
     holiday:bool = False # define whether yesterday was a holiday
 
-def load_invalid_symbols():
-    """
-    Loads invalid symbols from a file and stores them in the global variable `invalid_symbols`.
-
-    The function attempts to read a file named 'invalid_symbols.txt' located in the directory specified by `BASE_PATH`.
-    Each line in the file is expected to contain one invalid symbol. Empty lines are ignored.
-
-    Raises:
-        FileNotFoundError: If the file does not exist at the specified path.
-        UnicodeDecodeError: If the file cannot be decoded using UTF-8 encoding.
-        OSError, IOError: If an error occurs while reading the file.
-
-    Logs:
-        An error message if the file is not found, cannot be decoded, or if any other I/O error occurs.
-    """
-    GlobalData.invalid_symbols = []
-    invalid_symbols_file_path = os.path.join(GlobalData.base_path, 'invalid_symbols.txt')
-    try:
-        with open(invalid_symbols_file_path, 'r', encoding='utf-8') as file:
-            GlobalData.invalid_symbols = [line.strip() for line in file if line.strip()]
-    except FileNotFoundError:
-        logging.error("Error: File not found at %s. Please check the file path.", invalid_symbols_file_path)
-    except UnicodeDecodeError:
-        logging.error("Error: Unable to decode the file %s. Please check the file encoding.", invalid_symbols_file_path)
-    except (OSError, IOError) as e:
-        logging.error("An error occurred while reading the file: %s", e)
-load_invalid_symbols()
-
-def get_symbol_name_list():
-    """
-    Retrieves a list of symbol names.
-
-    This function calls `get_symbol_list()` to get a list of symbols, 
-    and then extracts and returns the 'symbol' field from each symbol in the list.
-
-    Returns:
-        list: A list of symbol names.
-    """
-    symbol_list = get_symbol_list()
-    return [symbol['symbol'] for symbol in symbol_list]
-
 def get_mongo_client(uri="", db_name="blueHorseshoe"):
     """
     Creates and returns a MongoDB client connected to the specified URI and database.
@@ -275,112 +234,6 @@ def graph(graph_data: GraphData) -> str:
     return ""
 
 
-@sleep_and_retry
-@limits(calls=1, period=1)
-def get_symbol_list_from_net() -> list:
-    """
-    Fetches a list of active stock symbols from the NYSE exchange using the Alpha Vantage API.
-
-    This function makes an HTTP GET request to the Alpha Vantage API to retrieve a CSV file containing
-    the listing status of various assets. It then filters the data to include only active stocks listed
-    on the NYSE exchange, excluding symbols that contain a hyphen.
-
-    Returns:
-        list: A list of dictionaries, each containing the 'symbol' and 'name' of an active stock on the NYSE.
-
-    Raises:
-        requests.exceptions.HTTPError: If the HTTP request returned an unsuccessful status code.
-    """
-    response = requests.get(
-        "https://www.alphavantage.co/query?function=LISTING_STATUS&apikey=JFRQJ8YWSX8UK50X", timeout=10)
-
-    response.raise_for_status()  # Raise an exception for bad status codes
-
-    # Use StringIO to treat the response content as a file
-    csv_file = io.StringIO(response.text)
-    reader = csv.DictReader(csv_file)
-
-    # Store the data in a list of dictionaries
-    loaded_data = list(reader)
-
-    final_data = []
-    for row in loaded_data:
-        if (row['status'] == 'Active' and
-            (row['exchange'] == 'NYSE' or row['exchange'] == 'NASDAQ') and
-            row['assetType'] == 'Stock' and
-                '-' not in row['symbol']):
-            final_data.append({
-                'symbol': row['symbol'].replace("/", ""),
-                'name': row['name']
-            })
-
-    return final_data
-
-
-def get_symbol_list_from_file() -> dict:
-    """
-    Reads a list of symbols from a JSON file.
-
-    The function attempts to open and read a JSON file containing a list of symbols.
-    If the file is not found, it prints an error message indicating the file path.
-    If the JSON data is invalid, it prints an error message indicating the issue.
-    For any other exceptions, it prints a generic error message with the exception details.
-
-    Returns:
-        list: A list of symbols if the file is successfully read and parsed.
-        None: If an error occurs during file reading or parsing.
-    """
-    file_path = os.path.join(GlobalData.base_path, 'symbol_list.json')
-    try:
-        with open(file_path, 'r', encoding='utf-8') as file:
-            return json.load(file)
-    except FileNotFoundError:
-        logging.error(
-            "Error: File not found at %s. Please check the file path.", file_path)
-    except UnicodeDecodeError:
-        logging.error(
-            "Error: Unable to decode the file %s. Please check the file encoding.", file_path)
-    except json.JSONDecodeError:
-        logging.error("Error: Invalid JSON data in %s.", file_path)
-    except (OSError, IOError) as e:
-        logging.error("An error occurred while reading the file: %s", e)
-
-    logging.error("Error: Could not open file %s. Please check the logs.", file_path)
-    return {}
-
-def get_symbol_list():
-    """
-    Retrieves a list of symbols. The function first attempts to read the symbol list from a file.
-    If the file does not exist or is empty, it fetches the symbol list from the internet and writes it to the file.
-
-    Returns:
-        list: A list of symbols.
-    """
-    print("Fetching symbol list...")
-    symbol_list = get_symbol_list_from_file()
-    if symbol_list is None:
-        print("Fetching symbol list from the internet...")
-        symbol_list = get_symbol_list_from_net()
-        if symbol_list is not None:
-            print(f"Symbol list loaded. Length: {len(symbol_list)}")
-        else:
-            print("Symbol list is None.")
-            return []
-        file_path = os.path.join(GlobalData.base_path, 'symbol_list.json')
-
-        # Create the directory if it does not exist
-        os.makedirs(GlobalData.base_path, exist_ok=True)
-
-        try:
-            with open(file_path, 'w', encoding='utf-8') as file:
-                json.dump(symbol_list, file)
-        except (OSError, IOError, json.JSONDecodeError) as e:
-            logging.error(
-                "An error occurred while writing the symbol list to file: %s", e)
-
-    logging.info("Symbol list loaded. Length: %d", len(symbol_list))
-    return [symbol for symbol in symbol_list if symbol['symbol'] not in GlobalData.invalid_symbols]
-
 class ReportSingleton:
     """
     A thread-safe singleton class to manage writing to a report file.
@@ -512,3 +365,31 @@ class ReportSingleton:
             if cls._instance is not None:
                 cls._instance.close()
                 cls._instance = None
+
+def load_invalid_symbols():
+    """
+    Loads invalid symbols from a file and stores them in the global variable `invalid_symbols`.
+
+    The function attempts to read a file named 'invalid_symbols.txt' located in the directory specified by `BASE_PATH`.
+    Each line in the file is expected to contain one invalid symbol. Empty lines are ignored.
+
+    Raises:
+        FileNotFoundError: If the file does not exist at the specified path.
+        UnicodeDecodeError: If the file cannot be decoded using UTF-8 encoding.
+        OSError, IOError: If an error occurs while reading the file.
+
+    Logs:
+        An error message if the file is not found, cannot be decoded, or if any other I/O error occurs.
+    """
+    GlobalData.invalid_symbols = []
+    invalid_symbols_file_path = os.path.join(GlobalData.base_path, 'invalid_symbols.txt')
+    try:
+        with open(invalid_symbols_file_path, 'r', encoding='utf-8') as file:
+            GlobalData.invalid_symbols = [line.strip() for line in file if line.strip()]
+    except FileNotFoundError:
+        logging.error("Error: File not found at %s. Please check the file path.", invalid_symbols_file_path)
+    except UnicodeDecodeError:
+        logging.error("Error: Unable to decode the file %s. Please check the file encoding.", invalid_symbols_file_path)
+    except (OSError, IOError) as e:
+        logging.error("An error occurred while reading the file: %s", e)
+load_invalid_symbols()

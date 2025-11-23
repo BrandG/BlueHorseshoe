@@ -9,5 +9,19 @@
         "src"
     ],
     "python.testing.unittestEnabled": false,
-    "python.testing.pytestEnabled": true
+    "python.testing.pytestEnabled": true,
+
+    "window.title": "BlueHorseshoe — LOCAL",
+    "workbench.colorCustomizations": {
+        "titleBar.activeBackground": "#005f9e",
+        "titleBar.activeForeground": "#ffffff",
+        "titleBar.inactiveBackground": "#005f9eAA",
+        "titleBar.inactiveForeground": "#ffffffAA",
+        "window.activeBorder": "#005f9e",
+        "window.inactiveBorder": "#005f9eAA",
+        "activityBar.background": "#005f9eAA",
+        "statusBar.background": "#005f9e",
+        "statusBar.foreground": "#ffffff",
+    }
+
 }
