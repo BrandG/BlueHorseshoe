@@ -1,0 +1,41 @@
+2025-12-01 01:51:31,808 - INFO - Symbol universe updated. Processed 6806 symbols. Database changes: 33
+2025-12-01 02:02:33,742 - ERROR - No Time Series (Daily) for ALT. Response keys: []
+2025-12-01 02:02:33,742 - ERROR - Failed to update ALT: 'Time Series (Daily)' missing for ALT
+2025-12-01 02:02:36,096 - ERROR - No Time Series (Daily) for AMBC. Response keys: ['Error Message']
+2025-12-01 02:02:36,096 - ERROR - Failed to update AMBC: 'Time Series (Daily)' missing for AMBC
+2025-12-01 02:04:50,437 - ERROR - No Time Series (Daily) for BCPA. Response keys: ['Error Message']
+2025-12-01 02:04:50,437 - ERROR - Failed to update BCPA: 'Time Series (Daily)' missing for BCPA
+2025-12-01 02:04:50,597 - ERROR - No Time Series (Daily) for BCPB. Response keys: ['Error Message']
+2025-12-01 02:04:50,597 - ERROR - Failed to update BCPB: 'Time Series (Daily)' missing for BCPB
+2025-12-01 02:15:34,604 - ERROR - No Time Series (Daily) for FGIWW. Response keys: []
+2025-12-01 02:15:34,604 - ERROR - Failed to update FGIWW: 'Time Series (Daily)' missing for FGIWW
+2025-12-01 02:25:45,367 - ERROR - No Time Series (Daily) for MESA. Response keys: ['Error Message']
+2025-12-01 02:25:45,367 - ERROR - Failed to update MESA: 'Time Series (Daily)' missing for MESA
+2025-12-01 02:29:40,278 - ERROR - No Time Series (Daily) for NXT(EXP20091224). Response keys: ['Error Message']
+2025-12-01 02:29:40,278 - ERROR - Failed to update NXT(EXP20091224): 'Time Series (Daily)' missing for NXT(EXP20091224)
+2025-12-01 02:30:38,222 - ERROR - No Time Series (Daily) for OPT. Response keys: ['Error Message']
+2025-12-01 02:30:38,223 - ERROR - Failed to update OPT: 'Time Series (Daily)' missing for OPT
+2025-12-01 22:14:32,468 - ERROR - No Time Series (Daily) for AMBC. Response keys: ['Error Message']
+2025-12-01 22:14:32,468 - ERROR - Failed to update AMBC: 'Time Series (Daily)' missing for AMBC
+2025-12-01 22:16:28,976 - ERROR - No Time Series (Daily) for AUBN. Response keys: []
+2025-12-01 22:16:28,976 - ERROR - Failed to update AUBN: 'Time Series (Daily)' missing for AUBN
+2025-12-01 22:16:56,645 - ERROR - No Time Series (Daily) for BCPA. Response keys: ['Error Message']
+2025-12-01 22:16:56,646 - ERROR - Failed to update BCPA: 'Time Series (Daily)' missing for BCPA
+2025-12-01 22:16:56,799 - ERROR - No Time Series (Daily) for BCPB. Response keys: ['Error Message']
+2025-12-01 22:16:56,799 - ERROR - Failed to update BCPB: 'Time Series (Daily)' missing for BCPB
+2025-12-01 22:33:30,573 - ERROR - No Time Series (Daily) for INZY. Response keys: []
+2025-12-01 22:33:30,573 - ERROR - Failed to update INZY: 'Time Series (Daily)' missing for INZY
+2025-12-01 22:37:52,133 - ERROR - No Time Series (Daily) for MESA. Response keys: ['Error Message']
+2025-12-01 22:37:52,134 - ERROR - Failed to update MESA: 'Time Series (Daily)' missing for MESA
+2025-12-01 22:41:46,468 - ERROR - No Time Series (Daily) for NXT(EXP20091224). Response keys: ['Error Message']
+2025-12-01 22:41:46,469 - ERROR - Failed to update NXT(EXP20091224): 'Time Series (Daily)' missing for NXT(EXP20091224)
+2025-12-01 22:42:38,200 - ERROR - No Time Series (Daily) for OPT. Response keys: ['Error Message']
+2025-12-01 22:42:38,200 - ERROR - Failed to update OPT: 'Time Series (Daily)' missing for OPT
+2025-12-01 22:56:34,192 - ERROR - No Time Series (Daily) for WSBF. Response keys: []
+2025-12-01 22:56:34,193 - ERROR - Failed to update WSBF: 'Time Series (Daily)' missing for WSBF
+2025-12-02 11:10:24,197 - ERROR - No Time Series (Daily) for AMBC. Response keys: ['Error Message']
+2025-12-02 11:10:24,198 - ERROR - Failed to update AMBC: 'Time Series (Daily)' missing for AMBC
+2025-12-02 11:12:45,656 - ERROR - No Time Series (Daily) for BCPA. Response keys: ['Error Message']
+2025-12-02 11:12:45,657 - ERROR - Failed to update BCPA: 'Time Series (Daily)' missing for BCPA
+2025-12-02 11:12:45,794 - ERROR - No Time Series (Daily) for BCPB. Response keys: ['Error Message']
+2025-12-02 11:12:45,794 - ERROR - Failed to update BCPB: 'Time Series (Daily)' missing for BCPB

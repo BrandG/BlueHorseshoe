@@ -2,6 +2,7 @@ services:
   mongo:
     image: mongo:7
     container_name: mongo
+    restart: always
     volumes:
       - mongo_data:/data/db
     networks:
@@ -13,7 +14,7 @@ services:
       dockerfile: docker/Dockerfile.bluehorseshoe
     container_name: bluehorseshoe
     ports:
-      - "80:80"
+      - "8001:80"
     environment:
       MONGO_URI: "mongodb://mongo:27017"
       ALPHAVANTAGE_KEY: ${ALPHAVANTAGE_KEY}

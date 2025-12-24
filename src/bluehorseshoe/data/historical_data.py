@@ -25,8 +25,8 @@ import requests
 from ratelimit import limits, sleep_and_retry #pylint: disable=import-error
 from pymongo.errors import ServerSelectionTimeoutError
 import talib as ta
-sys.path.append('/workspaces/BlueHorseshoe/src')
-from globals import GlobalData, get_mongo_client, get_symbol_list #pylint: disable=wrong-import-position
+from bluehorseshoe.core.globals import GlobalData, get_mongo_client
+from bluehorseshoe.core.symbols import get_symbol_list
 
 
 @sleep_and_retry
@@ -34,31 +34,7 @@ from globals import GlobalData, get_mongo_client, get_symbol_list #pylint: disab
 def load_historical_data_from_net(stock_symbol, recent=False):
     """
     Fetch historical stock data from Alpha Vantage API.
-
-    This function retrieves daily historical stock data for a given stock symbol
-    from the Alpha Vantage API. It can fetch either the full historical data or
-    just the most recent data based on the `recent` parameter.
-
-    Args:
-        stock_symbol (str): The stock symbol to fetch data for.
-        recent (bool, optional): If True, fetch only the most recent data. 
-                                    If False, fetch the full historical data. 
-                                    Defaults to False.
-
-    Returns:
-        dict: A dictionary containing the stock symbol and a list of daily records.
-                Each daily record includes the date, open, high, low, close, volume,
-                midpoint, high-low delta, open-close delta, high-low delta percentage,
-                and close-open delta percentage.
-                Returns None if the 'Time Series (Daily)' key is not found in the response.
-
-    Usage:
-        logging.info(load_historical_data_from_net('QGEN', True))
-
-    Raises:
-        requests.exceptions.HTTPError: If the HTTP request returned an unsuccessful status code.
     """
-    # Rate limiting is handled by the @limits decorator
     symbol = {'name': stock_symbol}
 
     outputsize = 'full' if not recent else 'compact'
@@ -97,13 +73,6 @@ def load_historical_data_from_net(stock_symbol, recent=False):
 def load_historical_data_from_mongo(symbol, db):
     """
     Loads historical stock price data from MongoDB for a given symbol.
-
-    Args:
-        symbol (str): The stock symbol for which to load historical data.
-        db (Database): The MongoDB database instance.
-
-    Returns:
-        dict: A dictionary containing the historical data if found, empty dictionary otherwise.
     """
     data = {}
     try:
@@ -120,15 +89,6 @@ def load_historical_data_from_mongo(symbol, db):
 def save_historical_data_to_mongo(symbol, data, db):
     """
     Saves historical stock price data to MongoDB for a given symbol, performing an upsert operation.
-    Saves historical stock price data to MongoDB for a given symbol.
-
-    Args:
-        symbol (str): The stock symbol for which to save historical data.
-        data (dict): The historical data to save.
-        db (Database): The MongoDB database instance.
-
-    Returns:
-        None
     """
     collection = db['historical_data']
     collection.update_one({"symbol": symbol}, {"$set": data}, upsert=True)
@@ -142,20 +102,6 @@ def save_historical_data_to_mongo(symbol, data, db):
 def build_all_symbols_history(starting_at='', save_to_file=False, recent=False):
     """
     Builds historical data for all stock symbols and saves them as JSON files.
-
-    Args:
-        starting_at (str, optional): The stock symbol to start processing from. 
-            If not provided, processing starts from the beginning of the symbol 
-            list.
-
-    Returns:
-        None
-
-    This function retrieves a list of stock symbols from the network and iterates
-        through each symbol to fetch its historical data. The data is then saved
-        as a JSON file in a specified directory. If a starting symbol is provided,
-        the function skips all symbols until it reaches the specified starting
-        symbol.
     """
 
     symbol_list = get_symbol_list()
@@ -177,21 +123,6 @@ def process_symbol(row, index, total_symbols, save_to_file, recent):
     """
     Processes a stock symbol by loading its historical data, validating it, 
     calculating technical indicators, and saving the data to MongoDB and optionally to a file.
-
-    Args:
-        row (dict): A dictionary containing 'symbol' and 'name' of the stock.
-        index (int): The current index of the symbol being processed.
-        total_symbols (int): The total number of symbols to be processed.
-        save_to_file (bool): A flag indicating whether to save the data to a file.
-        recent (bool): A flag indicating whether to load recent historical data.
-
-    Returns:
-        None
-
-    Raises:
-        requests.exceptions.RequestException: If there is an error with the network request.
-        json.JSONDecodeError: If there is an error decoding the JSON response.
-        OSError: If there is an OS-related error.
     """
     symbol = row['symbol']
     name = row['name']
@@ -227,18 +158,6 @@ def process_symbol(row, index, total_symbols, save_to_file, recent):
 def validate_net_data(net_data, symbol, name):
     """
     Validates the provided net data for a given symbol and name.
-
-    Args:
-        net_data (dict): The net data to validate.
-        symbol (str): The symbol associated with the net data.
-        name (str): The full name to be assigned to the net data if available.
-
-    Returns:
-        bool: True if the net data is valid, False otherwise.
-
-    Logs:
-        Logs an error message if the net data is None, does not contain a 'full_name' key when a name is provided,
-        or if the net data is not a dictionary or does not contain a 'days' key.
     """
     if net_data is None:
         logging.error("No data for %s", symbol)
@@ -256,13 +175,6 @@ def validate_net_data(net_data, symbol, name):
 def save_data_to_file(symbol, net_data):
     """
     Save stock price data to a JSON file.
-
-    Args:
-        symbol (str): The stock symbol for which the data is being saved.
-        net_data (dict): The stock price data to be saved.
-
-    Returns:
-        None
     """
     file_path = os.path.join(GlobalData.base_path, f'StockPrice-{symbol}.json')
     with open(file_path, 'w', encoding='utf-8') as file:
@@ -272,30 +184,6 @@ def save_data_to_file(symbol, net_data):
 def get_technical_indicators(df):
     """
     Calculate various technical indicators for a given DataFrame containing historical stock data.
-
-    Parameters:
-    df (pandas.DataFrame): DataFrame containing historical stock data with columns 'close', 'high', 'low', and 'volume'.
-
-    Returns:
-    list[dict]: A list of dictionaries where each dictionary represents a row of the DataFrame with the calculated technical indicators.
-
-    The following technical indicators are calculated:
-    - ema_20: 20-period Exponential Moving Average of the 'close' price.
-    - macd_line: MACD line (difference between 12-period and 26-period EMA of the 'close' price).
-    - macd_signal: Signal line (9-period EMA of the MACD line).
-    - macd_hist: MACD histogram (difference between MACD line and Signal line).
-    - adx: Average Directional Index.
-    - rsi_14: 14-period Relative Strength Index.
-    - atr_14: 14-period Average True Range.
-    - bb_upper: Upper Bollinger Band.
-    - bb_middle: Middle Bollinger Band (20-period SMA).
-    - bb_lower: Lower Bollinger Band.
-    - stoch_k: Stochastic %K.
-    - stoch_d: Stochastic %D.
-    - obv: On-Balance Volume.
-    - mfi: 14-period Money Flow Index.
-    - cci: 14-period Commodity Channel Index.
-    - willr: 14-period Williams %R.
     """
     df['ema_20'] = df['close'].ewm(span=20, adjust=False).mean().round(4)
     df['macd_line'], df['macd_signal'], df['macd_hist'] = ta.MACD( # type: ignore
@@ -328,19 +216,6 @@ def get_technical_indicators(df):
 def load_historical_data_from_file(symbol):
     """
     Loads historical stock price data from a JSON file for a given symbol.
-
-    Usage:
-        print(load_historical_data_from_file('QGEN'))
-
-    Args:
-        symbol (str): The stock symbol for which to load historical data.
-
-    Returns:
-        dict: A dictionary containing the historical data if the file is found and successfully read.
-        None: If the file is not found or an error occurs during reading.
-
-    Raises:
-        FileNotFoundError: If the file does not exist at the specified path.
     """
     file_path = os.path.join(GlobalData.base_path, f'StockPrice-{symbol}.json')
 
@@ -360,34 +235,21 @@ def load_historical_data_from_file(symbol):
 def load_historical_data(symbol):
     """
     Loads historical stock price data for a given symbol from a file or the network.
-
-    Args:
-        symbol (str): The stock symbol for which to load historical data.
-
-    Returns:
-        dict: A dictionary containing the historical data.
     """
     data = load_historical_data_from_mongo(symbol, get_mongo_client())
-    if data is None:
+    if not data:
         data = load_historical_data_from_file(symbol)
-    if data is None:
+    if not data:
         data = load_historical_data_from_net(symbol, recent=False)
     if data and 'days' in data:
         data['days'] = sorted(data['days'], key=lambda x: x['date'])
 
     if data is None:
         return None
-    days = data['days']
+    days = data.get('days', [])
     if len(days) > 0 and 'avg_volume_20' not in days[0]:
         df = pd.DataFrame(days)
         df['avg_volume_20'] = df['volume'].rolling(window=20).mean().round(4)
-        days = df.to_dict(orient='records')
+        data['days'] = df.to_dict(orient='records')
 
     return data
-
-# if __name__ == "__main__":
-#     ReportSingleton().write('Running historicalData.py')
-    # ReportSingleton().write(load_historical_data_from_net('AAPL'))
-    # ReportSingleton().write(merge_data({'days': []}, {'name': 'AAPL', 'days': []}))
-    # build_all_symbols_history()
-    # ReportSingleton().write(load_historical_data('AAPL'))

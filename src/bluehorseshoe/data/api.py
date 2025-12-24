@@ -1,11 +1,11 @@
-# src/bluehorseshoe/api.py
+# src/bluehorseshoe/data/api.py
 from fastapi import FastAPI, Query, HTTPException, Body
 from datetime import date
 from typing import Optional, Dict, Any
 import os
 from pymongo import MongoClient
-from . import service
-from .symbols import refresh_symbols, refresh_historical_for_symbol, get_historical_from_mongo
+from bluehorseshoe.core import service
+from bluehorseshoe.core.symbols import refresh_symbols, refresh_historical_for_symbol, get_historical_from_mongo
 
 app = FastAPI()
 
@@ -46,21 +46,10 @@ def backtest(
     result = service.run_backtest(symbol=symbol, start=start, end=end, strategy=strategy)
     return result
 
-
-@app.post("/run_daily")
 @app.get("/run_daily")
-def run_daily(force: Optional[bool] = Query(False, description="Ignore caches and force a full run")):
-    """
-    Trigger the daily BlueHorseshoe pipeline.
-
-    In the future, you can:
-      - use `force` to bypass cached results
-      - kick off more expensive recomputations
-    """
-    # For now, we just ignore `force` and return stub data.
-    result = service.run_daily()
-    result["force"] = force
-    return result
+@app.post("/run_daily")
+def run_daily():
+    return service.run_daily()
 
 @app.post("/trigger")
 @app.get("/trigger")
@@ -105,3 +94,16 @@ def load_symbol(symbol: str, recent: bool = False):
 @app.get("/historicals/{symbol}")
 def historicals(symbol: str, recent: bool = False):
     return {"symbol": symbol, "days": get_historical_from_mongo(symbol, recent=recent)}
+
+from bluehorseshoe.core.batch_loader import run_historical_batch, clear_checkpoint
+
+@app.post("/run_historical_batch")
+@app.get("/run_historical_batch")
+def run_hist_batch(limit: int = 50, recent_only: bool = False):
+    return run_historical_batch(limit=limit, recent_only=recent_only)
+
+@app.post("/reset_historical_batch")
+@app.get("/reset_historical_batch")
+def reset_hist_batch():
+    clear_checkpoint()
+    return {"status": "ok", "message": "checkpoint cleared"}

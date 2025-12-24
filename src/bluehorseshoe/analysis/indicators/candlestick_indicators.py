@@ -26,8 +26,8 @@ import pandas as pd
 import talib
 import mplfinance as mpf #pylint: disable=import-error
 
-from globals import GraphData, graph
-from indicators.indicator import Indicator, IndicatorScore
+from bluehorseshoe.reporting.report_generator import GraphData, graph
+from bluehorseshoe.analysis.indicators.indicator import Indicator, IndicatorScore
 
 RISE_FALL_3_METHODS_MULTIPLIER = 1.0
 THREE_WHITE_SOLDIERS_MULTIPLIER = 1.0

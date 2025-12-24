@@ -1,23 +1,8 @@
-"""
-Module for testing historical data functions.
-
-This module contains unit tests for the following functions in the historical_data module:
-- load_historical_data_from_net
-- load_historical_data_from_mongo
-- save_historical_data_to_mongo
-- build_all_symbols_history
-- get_technical_indicators
-- load_historical_data_from_file
-- load_historical_data
-
-"""
-
 import sys
 from unittest.mock import patch, MagicMock
 import pandas as pd
 
-sys.path.append('/workspaces/BlueHorseshoe/src') # pylint: disable=wrong-import-position
-from historical_data import (
+from bluehorseshoe.data.historical_data import (
     load_historical_data_from_net,
     load_historical_data_from_mongo,
     save_historical_data_to_mongo,
@@ -26,7 +11,7 @@ from historical_data import (
     load_historical_data
 )
 
-@patch('historical_data.requests.get')
+@patch('bluehorseshoe.data.historical_data.requests.get')
 def test_load_historical_data_from_net(mock_get):
     """
     Test the load_historical_data_from_net function to ensure it correctly loads and parses
@@ -67,7 +52,7 @@ def test_load_historical_data_from_net(mock_get):
     assert result['days'][0]['date'] == '2023-01-01'
     assert result['days'][0]['open'] == 100.0
 
-@patch('historical_data.get_mongo_client')
+@patch('bluehorseshoe.data.historical_data.get_mongo_client')
 def test_load_historical_data_from_mongo(mock_get_mongo_client):
     """
     Test the load_historical_data_from_mongo function to ensure it correctly loads
@@ -99,7 +84,7 @@ def test_load_historical_data_from_mongo(mock_get_mongo_client):
     assert result['symbol'] == 'AAPL'
     assert 'days' in result
 
-@patch('historical_data.get_mongo_client')
+@patch('bluehorseshoe.data.historical_data.get_mongo_client')
 def test_save_historical_data_to_mongo(mock_get_mongo_client):
     """
     Test the save_historical_data_to_mongo function to ensure it correctly saves data to MongoDB.
@@ -108,8 +93,8 @@ def test_save_historical_data_to_mongo(mock_get_mongo_client):
         mock_get_mongo_client (MagicMock): Mocked function to get the MongoDB client.
 
     Mocks:
-        mock_db (MagicMock): Mocked MongoDB database.
-        mock_collection (MagicMock): Mocked MongoDB collection.
+        - mock_db (MagicMock): Mocked MongoDB database.
+        - mock_collection (MagicMock): Mocked MongoDB collection.
 
     Test:
         - Mocks the MongoDB client, database, and collection.
@@ -125,10 +110,10 @@ def test_save_historical_data_to_mongo(mock_get_mongo_client):
     save_historical_data_to_mongo('AAPL', data, mock_db)
     mock_collection.update_one.assert_called()
 
-@patch('historical_data.get_symbol_list', return_value=[{'symbol': 'AAPL', 'name': 'Apple Inc.'}])
-@patch('historical_data.load_historical_data_from_net', return_value={'symbol': 'AAPL', 'full_name': 'Apple', 'days':
+@patch('bluehorseshoe.data.historical_data.get_symbol_list', return_value=[{'symbol': 'AAPL', 'name': 'Apple Inc.'}])
+@patch('bluehorseshoe.data.historical_data.load_historical_data_from_net', return_value={'symbol': 'AAPL', 'full_name': 'Apple', 'days':
     [{'date': '2023-01-01', 'open': 100.0, 'close': 105.0, 'high': 110.0, 'low': 90.0, 'volume': 1000}]})
-@patch('historical_data.save_historical_data_to_mongo')
+@patch('bluehorseshoe.data.historical_data.save_historical_data_to_mongo')
 def test_build_all_symbols_history(mock_save_historical_data_to_mongo, mock_load_historical_data_from_net, mock_get_symbol_list):
     """
     Test the build_all_symbols_history function.
@@ -182,9 +167,9 @@ def test_get_technical_indicators():
     result = get_technical_indicators(df)
     assert 'ema_20' in result[0]
 
-@patch('historical_data.load_historical_data_from_mongo')
-@patch('historical_data.load_historical_data_from_file')
-@patch('historical_data.load_historical_data_from_net')
+@patch('bluehorseshoe.data.historical_data.load_historical_data_from_mongo')
+@patch('bluehorseshoe.data.historical_data.load_historical_data_from_file')
+@patch('bluehorseshoe.data.historical_data.load_historical_data_from_net')
 def test_load_historical_data(mock_net, mock_file, mock_mongo):
     """
     Test the load_historical_data function.

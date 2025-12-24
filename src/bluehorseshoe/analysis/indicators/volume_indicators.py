@@ -31,7 +31,7 @@ import pandas as pd
 from ta.volume import OnBalanceVolumeIndicator, ChaikinMoneyFlowIndicator #pylint: disable=import-error
 from ta.volatility import AverageTrueRange # pylint: disable=import-error
 
-from indicators.indicator import Indicator, IndicatorScore #pylint: disable=import-error
+from bluehorseshoe.analysis.indicators.indicator import Indicator, IndicatorScore
 
 OBV_MULTIPLIER = 1.0
 CMF_MULTIPLIER = 1.0

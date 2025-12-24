@@ -28,9 +28,10 @@ import os
 
 from sklearn.exceptions import ConvergenceWarning
 
-from globals import ReportSingleton, get_mongo_client
-from historical_data import build_all_symbols_history
-from swing_trading import SwingTrader
+from bluehorseshoe.reporting.report_generator import ReportSingleton
+from bluehorseshoe.core.globals import get_mongo_client
+from bluehorseshoe.data.historical_data import build_all_symbols_history
+from bluehorseshoe.analysis.strategy import SwingTrader
 
 DEBUG_SYMBOL = 'ABVC'
 DEBUG = False

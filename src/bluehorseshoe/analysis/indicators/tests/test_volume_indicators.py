@@ -21,14 +21,12 @@ Test Fixtures:
 Dependencies:
     - pandas 
     - pytest
-    - indicators.volume_indicators.VolumeIndicator
+    - bluehorseshoe.analysis.indicators.volume_indicators.VolumeIndicator
 """
 
-import sys
 from collections import namedtuple
 import pandas as pd
-sys.path.append('/workspaces/BlueHorseshoe/src')
-from indicators.volume_indicators import VolumeIndicator # pylint: disable=wrong-import-position
+from bluehorseshoe.analysis.indicators.volume_indicators import VolumeIndicator
 
 Score = namedtuple('Score', ['buy', 'sell'])
 

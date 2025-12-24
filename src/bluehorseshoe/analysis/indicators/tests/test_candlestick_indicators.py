@@ -14,11 +14,9 @@ Functions:
     test_find_belt_hold(sample_data): Tests the `find_belt_hold` method of `CandlestickIndicator`.
     test_calculate_score(sample_data): Tests the `calculate_score` method of `CandlestickIndicator`.
 """
-import sys
 import pandas as pd
-from src.indicators.indicator import IndicatorScore  # pylint: disable=import-error
-sys.path.append('/workspaces/BlueHorseshoe/src')
-from indicators.candlestick_indicators import CandlestickIndicator # pylint: disable=wrong-import-position
+from bluehorseshoe.analysis.indicators.indicator import IndicatorScore
+from bluehorseshoe.analysis.indicators.candlestick_indicators import CandlestickIndicator
 
 def sample_data():
     """

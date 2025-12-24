@@ -17,17 +17,12 @@ Test Functions:
 
 Dependencies:
     - pandas
-    - sys
-    - indicators.limit_indicators.LimitIndicator
+    - bluehorseshoe.analysis.indicators.limit_indicators.LimitIndicator
 """
 
-
-import sys
-
-from indicators.indicator import IndicatorScore
-sys.path.append('/workspaces/BlueHorseshoe/src')
-from indicators.limit_indicators import LimitIndicator # pylint: disable=wrong-import-position
-from indicators.tests.test_candlestick_indicators import sample_data # pylint: disable=wrong-import-position
+from bluehorseshoe.analysis.indicators.indicator import IndicatorScore
+from bluehorseshoe.analysis.indicators.limit_indicators import LimitIndicator
+from bluehorseshoe.analysis.indicators.tests.test_candlestick_indicators import sample_data
 
 def test_calculate_pivot_points():
     """

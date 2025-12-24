@@ -14,7 +14,7 @@ Fixtures:
 
 import pytest
 import pandas as pd
-from swing_trading import SwingTrader, TechnicalAnalyzer
+from bluehorseshoe.analysis.strategy import SwingTrader, TechnicalAnalyzer
 
 @pytest.fixture
 def sample_data():
@@ -140,10 +140,10 @@ def test_process_symbol(swing_trader, sample_data, mocker): # pylint: disable=re
         The result's take_profit is greater than 0.
         The result's score is greater than 0.
     """
-    mocker.patch('swing_trading.load_historical_data', return_value={'days': sample_data.to_dict('records'),
+    mocker.patch('bluehorseshoe.analysis.strategy.load_historical_data', return_value={'days': sample_data.to_dict('records'),
                                                                      'symbol':'IBM', 'full_name': 'Test Stock'})
-    mocker.patch('swing_trading.GlobalData', holiday=False)
-    mocker.patch('swing_trading.pd.Timestamp.now', return_value=pd.Timestamp.now().normalize())
+    mocker.patch('bluehorseshoe.analysis.strategy.GlobalData', holiday=False)
+    mocker.patch('bluehorseshoe.analysis.strategy.pd.Timestamp.now', return_value=pd.Timestamp.now().normalize())
 
     result = swing_trader.process_symbol('IBM')
     assert result is not None

@@ -25,14 +25,16 @@ from functools import lru_cache
 import concurrent.futures
 import numpy as np
 import pandas as pd
-from globals import GlobalData, ReportSingleton, get_symbol_name_list
-from historical_data import load_historical_data
-from indicators.candlestick_indicators import CandlestickIndicator
-from indicators.limit_indicators import LimitIndicator
-from indicators.momentum_indicators import MomentumIndicator
-from indicators.moving_average_indicators import MovingAverageIndicator
-from indicators.trend_indicators import TrendIndicator
-from indicators.volume_indicators import VolumeIndicator
+from bluehorseshoe.core.globals import GlobalData
+from bluehorseshoe.reporting.report_generator import ReportSingleton
+from bluehorseshoe.core.symbols import get_symbol_name_list
+from bluehorseshoe.data.historical_data import load_historical_data
+from bluehorseshoe.analysis.indicators.candlestick_indicators import CandlestickIndicator
+from bluehorseshoe.analysis.indicators.limit_indicators import LimitIndicator
+from bluehorseshoe.analysis.indicators.momentum_indicators import MomentumIndicator
+from bluehorseshoe.analysis.indicators.moving_average_indicators import MovingAverageIndicator
+from bluehorseshoe.analysis.indicators.trend_indicators import TrendIndicator
+from bluehorseshoe.analysis.indicators.volume_indicators import VolumeIndicator
 
 # Constants to avoid magic numbers
 TREND_PERIOD = 20

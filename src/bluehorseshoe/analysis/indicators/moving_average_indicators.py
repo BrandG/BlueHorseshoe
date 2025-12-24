@@ -13,7 +13,7 @@ Usage example:
 import numpy as np
 import pandas as pd
 
-from indicators.indicator import Indicator, IndicatorScore
+from bluehorseshoe.analysis.indicators.indicator import Indicator, IndicatorScore
 
 class MovingAverageIndicator(Indicator):
     """

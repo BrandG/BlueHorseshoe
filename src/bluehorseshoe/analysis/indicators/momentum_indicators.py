@@ -25,7 +25,7 @@ Methods:
 import numpy as np
 import pandas as pd
 
-from indicators.indicator import Indicator, IndicatorScore
+from bluehorseshoe.analysis.indicators.indicator import Indicator, IndicatorScore
 
 RSI_MULTIPLIER = 1.0
 ROC_MULTIPLIER = 1.0

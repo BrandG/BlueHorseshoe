@@ -27,11 +27,9 @@ Functions:
     test_calculate_score: Tests overall trend score calculation
 """
 
-import sys
 import pandas as pd
-sys.path.append('/workspaces/BlueHorseshoe/src')
-from indicators.indicator import IndicatorScore # pylint: disable=wrong-import-position
-from indicators.trend_indicators import TrendIndicator # pylint: disable=wrong-import-position
+from bluehorseshoe.analysis.indicators.indicator import IndicatorScore
+from bluehorseshoe.analysis.indicators.trend_indicators import TrendIndicator
 
 def sample_data() -> pd.DataFrame:
     """

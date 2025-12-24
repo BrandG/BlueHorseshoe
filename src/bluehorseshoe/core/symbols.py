@@ -1,19 +1,17 @@
 """
-symbols.py (v1.0)
+symbols.py (v1.2)
 
 Core utilities for:
 1) Fetching active symbols from Alpha Vantage and upserting to MongoDB.
 2) Loading symbols from MongoDB.
 3) Fetching historical OHLC data for one symbol from Alpha Vantage and upserting to MongoDB.
 4) Loading historical OHLC data from MongoDB.
-
-This module is intentionally I/O focused (net + mongo). Analysis stays elsewhere.
 """
 
 from __future__ import annotations
 
-from datetime import datetime
-from typing import Any, Dict, List, Optional, Iterable, Tuple
+from datetime import datetime, date
+from typing import Any, Dict, List, Optional, Iterable
 import os
 import csv
 import io
@@ -21,20 +19,23 @@ import logging
 
 import requests
 from ratelimit import limits, sleep_and_retry
-from pymongo import MongoClient, UpdateOne
-from pymongo.collection import Collection
+from pymongo import UpdateOne
 from pymongo.results import BulkWriteResult
-from pymongo.errors import ServerSelectionTimeoutError
+
+# Import the centralized database instance
+from .database import db
 
 # ---------------------------------------------------------------------
 # Config
 # ---------------------------------------------------------------------
 
-MONGO_URI = os.environ.get("MONGO_URI", "mongodb://mongo:27017")
-DB_NAME = os.environ.get("MONGO_DB", "bluehorseshoe")
 ALPHAVANTAGE_KEY = os.environ.get("ALPHAVANTAGE_KEY", "")
 
-# Alpha Vantage endpoints
+# Rate Limit Configuration
+# Default to 5 calls/min (Free Tier) if not set, or 75/150 for Premium.
+# Users should set this env var based on their subscription.
+RPM = int(os.environ.get("ALPHAVANTAGE_RPM", "150"))
+
 LISTING_STATUS_URL = "https://www.alphavantage.co/query?function=LISTING_STATUS&apikey={key}"
 DAILY_SERIES_URL = (
     "https://www.alphavantage.co/query"
@@ -44,35 +45,7 @@ DAILY_SERIES_URL = (
     "&apikey={key}"
 )
 
-# Historical "recent window" (trading days ~ 1 year)
 RECENT_TRADING_DAYS = int(os.environ.get("RECENT_TRADING_DAYS", "240"))
-
-# ---------------------------------------------------------------------
-# Mongo wiring
-# ---------------------------------------------------------------------
-
-_client = MongoClient(MONGO_URI)
-_db = _client[DB_NAME]
-
-_symbols: Collection = _db["symbols"]
-_symbols.create_index("symbol", unique=True)
-
-_prices: Collection = _db["historical_prices"]
-_prices.create_index("symbol", unique=True)
-
-_prices_recent: Collection = _db["historical_prices_recent"]
-_prices_recent.create_index("symbol", unique=True)
-
-
-def get_client() -> MongoClient:
-    """Accessor for tests or external reuse."""
-    return _client
-
-
-def get_db():
-    """Accessor for tests or external reuse."""
-    return _db
-
 
 # ---------------------------------------------------------------------
 # Goal 1: Fetch symbol list from net -> upsert to Mongo
@@ -83,9 +56,6 @@ def get_db():
 def fetch_symbol_list_from_net() -> List[Dict[str, Any]]:
     """
     Fetch active NYSE/NASDAQ stock symbols from Alpha Vantage LISTING_STATUS.
-
-    Returns:
-        List of dicts like {"symbol": "AAPL", "name": "Apple Inc."}
     """
     if not ALPHAVANTAGE_KEY:
         raise RuntimeError("ALPHAVANTAGE_KEY not set in environment")
@@ -101,6 +71,7 @@ def fetch_symbol_list_from_net() -> List[Dict[str, Any]]:
     symbols: List[Dict[str, str]] = []
     for row in rows:
         sym = (row.get("symbol") or "").replace("/", "")
+        # Basic filtering for valid common stocks
         if (
             row.get("status") == "Active"
             and row.get("exchange") in {"NYSE", "NASDAQ"}
@@ -116,10 +87,14 @@ def fetch_symbol_list_from_net() -> List[Dict[str, Any]]:
 def upsert_symbols_to_mongo(symbols: Iterable[Dict[str, Any]]) -> int:
     """
     Upsert symbol documents into MongoDB.
-
-    Returns:
-        Number of documents inserted or modified.
     """
+    # Use the centralized db
+    _db = db.get_db()
+    _symbols_col = _db["symbols"]
+    
+    # Create index if it doesn't exist (idempotent)
+    _symbols_col.create_index("symbol", unique=True)
+
     ops = [
         UpdateOne({"symbol": s["symbol"]}, {"$set": s}, upsert=True)
         for s in symbols
@@ -128,16 +103,13 @@ def upsert_symbols_to_mongo(symbols: Iterable[Dict[str, Any]]) -> int:
     if not ops:
         return 0
 
-    result: BulkWriteResult = _symbols.bulk_write(ops, ordered=False)
+    result: BulkWriteResult = _symbols_col.bulk_write(ops, ordered=False)
     return (result.upserted_count or 0) + (result.modified_count or 0)
 
 
 def refresh_symbols() -> Dict[str, Any]:
     """
     Fetch symbols from net and store in MongoDB.
-
-    Returns:
-        status payload for API/UI usage.
     """
     symbols = fetch_symbol_list_from_net()
     if not symbols:
@@ -159,29 +131,33 @@ def refresh_symbols() -> Dict[str, Any]:
 
 def get_symbols_from_mongo(limit: Optional[int] = None) -> List[Dict[str, Any]]:
     """Return stored symbols sorted alphabetically."""
-    cursor = _symbols.find({}, {"_id": 0}).sort("symbol", 1)
+    _db = db.get_db()
+    cursor = _db["symbols"].find({}, {"_id": 0}).sort("symbol", 1)
     if limit:
         cursor = cursor.limit(limit)
     return list(cursor)
 
 
-def get_symbol_list(prefer_net: bool = True) -> List[Dict[str, Any]]:
+def get_symbol_list(prefer_net: bool = False) -> List[Dict[str, Any]]:
     """
     Convenience getter:
       - prefer_net=True: try net, fall back to mongo on error/empty.
       - prefer_net=False: mongo only.
     """
-    if not prefer_net:
-        return get_symbols_from_mongo()
-
-    try:
-        symbols = fetch_symbol_list_from_net()
-        if symbols:
-            return symbols
-    except Exception as e:
-        logging.warning("Net symbol fetch failed; falling back to Mongo: %s", e)
+    if prefer_net:
+        try:
+            symbols = fetch_symbol_list_from_net()
+            if symbols:
+                return symbols
+        except Exception as e:
+            logging.warning("Net symbol fetch failed; falling back to Mongo: %s", e)
 
     return get_symbols_from_mongo()
+
+
+def get_symbol_name_list() -> List[str]:
+    """Retrieves a list of symbol names."""
+    return [s['symbol'] for s in get_symbol_list()]
 
 
 # ---------------------------------------------------------------------
@@ -189,13 +165,11 @@ def get_symbol_list(prefer_net: bool = True) -> List[Dict[str, Any]]:
 # ---------------------------------------------------------------------
 
 @sleep_and_retry
-@limits(calls=70, period=60)
+@limits(calls=RPM, period=60)
 def fetch_daily_ohlc_from_net(symbol: str, recent: bool = False) -> Dict[str, Any]:
     """
     Fetch daily OHLC data from Alpha Vantage TIME_SERIES_DAILY.
-
-    Returns:
-        {"symbol": "AAPL", "days": [ {date, open, high, low, close, volume, midpoint}, ... ]}
+    Rate limit is controlled by ALPHAVANTAGE_RPM env var.
     """
     if not ALPHAVANTAGE_KEY:
         raise RuntimeError("ALPHAVANTAGE_KEY not set in environment")
@@ -231,7 +205,7 @@ def fetch_daily_ohlc_from_net(symbol: str, recent: bool = False) -> Dict[str, An
         }
         days.append(day)
 
-    # AlphaVantage gives newest-first. Store oldest-first for sanity.
+    # Sort oldest-first
     days.sort(key=lambda x: x["date"])
 
     return {"symbol": sym, "days": days}
@@ -245,11 +219,18 @@ def upsert_historical_to_mongo(symbol: str, days: List[Dict[str, Any]]) -> None:
     sym = symbol.upper().strip()
     if not sym:
         raise ValueError("symbol is required")
+    
+    _db = db.get_db()
+    _prices = _db["historical_prices"]
+    _prices_recent = _db["historical_prices_recent"]
 
     now = datetime.utcnow().isoformat()
+    
+    # Update Full History
     full_doc = {"symbol": sym, "days": days, "last_updated": now}
     _prices.update_one({"symbol": sym}, {"$set": full_doc}, upsert=True)
 
+    # Update Recent History (Used for scanning)
     recent_days = days[-RECENT_TRADING_DAYS:] if days else []
     recent_doc = {"symbol": sym, "days": recent_days, "last_updated": now}
     _prices_recent.update_one({"symbol": sym}, {"$set": recent_doc}, upsert=True)
@@ -258,7 +239,6 @@ def upsert_historical_to_mongo(symbol: str, days: List[Dict[str, Any]]) -> None:
 def refresh_historical_for_symbol(symbol: str, recent: bool = False) -> Dict[str, Any]:
     """
     Fetch OHLC from net and upsert to Mongo.
-    Returns the stored full doc (without _id).
     """
     data = fetch_daily_ohlc_from_net(symbol, recent=recent)
     days = data.get("days", [])
@@ -276,21 +256,16 @@ def refresh_historical_for_symbol(symbol: str, recent: bool = False) -> Dict[str
     }
 
 
-# ---------------------------------------------------------------------
-# Goal 4: Load historical OHLC from Mongo
-# ---------------------------------------------------------------------
-
 def get_historical_from_mongo(symbol: str, recent: bool = False) -> List[Dict[str, Any]]:
     """
     Load historical data for a symbol from MongoDB.
-
-    Args:
-        recent: if True, read from historical_prices_recent, else historical_prices.
     """
     sym = symbol.upper().strip()
     if not sym:
         raise ValueError("symbol is required")
 
-    col = _prices_recent if recent else _prices
+    _db = db.get_db()
+    col = _db["historical_prices_recent"] if recent else _db["historical_prices"]
+    
     doc = col.find_one({"symbol": sym}, {"_id": 0, "days": 1})
     return (doc or {}).get("days", [])

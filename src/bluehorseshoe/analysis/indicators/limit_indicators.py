@@ -5,10 +5,10 @@ based on historical high, low, and close prices, and to score the behavior of
 prices relative to these pivot levels.
 """
 
+import numpy as np
 import pandas as pd
-
-from globals import GraphData, graph
-from indicators.indicator import Indicator, IndicatorScore
+from bluehorseshoe.reporting.report_generator import GraphData, graph
+from bluehorseshoe.analysis.indicators.indicator import Indicator, IndicatorScore
 
 PIVOT_MULTIPLIER = 1.0
 FIFTY_TWO_WEEK_MULTIPLIER = 1.0

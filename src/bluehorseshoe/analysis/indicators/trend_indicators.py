@@ -27,7 +27,7 @@ import numpy as np
 import pandas as pd
 from ta.trend import PSARIndicator # pylint: disable=import-error
 
-from indicators.indicator import Indicator, IndicatorScore #pylint: disable=import-error
+from bluehorseshoe.analysis.indicators.indicator import Indicator, IndicatorScore
 
 ADX_MULTIPLIER = 1.0
 STOCHASTIC_MULTIPLIER = 1.0

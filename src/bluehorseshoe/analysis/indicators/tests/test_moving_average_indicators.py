@@ -19,14 +19,12 @@ Test Functions:
 
 Dependencies:
     pandas
-    indicators.moving_average_indicators.MovingAverageIndicator
+    bluehorseshoe.analysis.indicators.moving_average_indicators.MovingAverageIndicator
 """
 
-import sys
 import pandas as pd
-sys.path.append('/workspaces/BlueHorseshoe/src')
-from indicators.moving_average_indicators import MovingAverageIndicator # pylint: disable=wrong-import-position
-from indicators.indicator import IndicatorScore # pylint: disable=wrong-import-position
+from bluehorseshoe.analysis.indicators.moving_average_indicators import MovingAverageIndicator
+from bluehorseshoe.analysis.indicators.indicator import IndicatorScore
 
 def sample_data():
     """
