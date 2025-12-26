@@ -98,10 +98,11 @@ def save_historical_data_to_mongo(symbol, data, db):
     collection.update_one({"symbol": symbol}, {"$set": data}, upsert=True)
 
     # Store just the last year of data in a separate collection
-    data['days'] = data['days'][-240:]
+    recent_data = data.copy()
+    recent_data['days'] = data['days'][-240:]
     recent_collection = db['recent_historical_data']
     recent_collection.update_one(
-        {"symbol": symbol}, {"$set": data}, upsert=True)
+        {"symbol": symbol}, {"$set": recent_data}, upsert=True)
 
 def build_all_symbols_history(starting_at='', save_to_file=False, recent=False):
     """
@@ -189,6 +190,8 @@ def get_technical_indicators(df):
     """
     Calculate various technical indicators for a given DataFrame containing historical stock data.
     """
+    if 'midpoint' not in df.columns:
+        df['midpoint'] = round((df['open'] + df['close']) / 2, 4)
     df['ema_20'] = df['close'].ewm(span=20, adjust=False).mean().round(4)
     df['macd_line'], df['macd_signal'], df['macd_hist'] = ta.MACD( # type: ignore
         df['close'], fastperiod=12, slowperiod=26, signalperiod=9)
@@ -248,12 +251,17 @@ def load_historical_data(symbol):
     if data and 'days' in data:
         data['days'] = sorted(data['days'], key=lambda x: x['date'])
 
-    if data is None:
-        return None
-    days = data.get('days', [])
-    if len(days) > 0 and 'avg_volume_20' not in days[0]:
-        df = pd.DataFrame(days)
-        df['avg_volume_20'] = df['volume'].rolling(window=20).mean().round(4)
-        data['days'] = df.to_dict(orient='records')
+        days = data['days']
+        if len(days) > 0:
+            # Ensure 'midpoint' is present for all days (easy check)
+            for day in days:
+                if 'midpoint' not in day and 'open' in day and 'close' in day:
+                    day['midpoint'] = round((day['open'] + day['close']) / 2, 4)
+            # Check if complex technical indicators are missing (using proxies)
+            # We check the last day to see if calculation is needed
+            if len(days) >= 20 and ('ema_20' not in days[-1] or 'avg_volume_20' not in days[-1]):
+                df = pd.DataFrame(days)
+                data['days'] = get_technical_indicators(df)
+                save_historical_data_to_mongo(symbol, data, get_mongo_client())
 
     return data
