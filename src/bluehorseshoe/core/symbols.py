@@ -32,9 +32,8 @@ from .database import db
 ALPHAVANTAGE_KEY = os.environ.get("ALPHAVANTAGE_KEY", "")
 
 # Rate Limit Configuration
-# Default to 5 calls/min (Free Tier) if not set, or 75/150 for Premium.
-# Users should set this env var based on their subscription.
-RPM = int(os.environ.get("ALPHAVANTAGE_RPM", "150"))
+# Default to 5 calls/sec (Premium Tier standard) if not set.
+CPS = int(os.environ.get("ALPHAVANTAGE_CPS", "5"))
 
 LISTING_STATUS_URL = "https://www.alphavantage.co/query?function=LISTING_STATUS&apikey={key}"
 DAILY_SERIES_URL = (
@@ -165,7 +164,7 @@ def get_symbol_name_list() -> List[str]:
 # ---------------------------------------------------------------------
 
 @sleep_and_retry
-@limits(calls=RPM, period=60)
+@limits(calls=1, period=1.0/CPS)
 def fetch_daily_ohlc_from_net(symbol: str, recent: bool = False) -> Dict[str, Any]:
     """
     Fetch daily OHLC data from Alpha Vantage TIME_SERIES_DAILY.

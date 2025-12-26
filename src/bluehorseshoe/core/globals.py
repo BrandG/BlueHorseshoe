@@ -27,7 +27,7 @@ Global Variables:
 
 Functions:
     - load_invalid_symbols(): Loads invalid symbols from a file and stores them in the global variable `invalid_symbols`.
-    - get_mongo_client(uri="", db_name="blueHorseshoe"): Creates and returns a MongoDB client connected to the specified URI and database.
+    - get_mongo_client(uri="", db_name="bluehorseshoe"): Creates and returns a MongoDB client connected to the specified URI and database.
     - graph(graph_data: GraphData): Plots a graph with the given labels, title, curves, lines, and points.
     - get_symbol_list_from_net(): Fetches a list of active stock symbols from the NYSE exchange using the Alpha Vantage API.
     - get_symbol_list_from_file(): Reads a list of symbols from a JSON file.
@@ -66,17 +66,20 @@ class GlobalData:
     invalid_symbols: list = field(default_factory=list)
     holiday:bool = False # define whether yesterday was a holiday
 
-def get_mongo_client(uri="", db_name="blueHorseshoe"):
+def get_mongo_client(uri="", db_name=""):
     """
     Creates and returns a MongoDB client connected to the specified URI and database.
 
     Args:
-        uri (str): The URI for the MongoDB connection. Default is "mongodb://localhost:27017/".
-        db_name (str): The name of the database to connect to. Default is "blueHorseshoe".
+        uri (str): The URI for the MongoDB connection. Default is "mongodb://mongo:27017".
+        db_name (str): The name of the database to connect to. Default is "bluehorseshoe".
 
     Returns:
         pymongo.database.Database: The database client connected to the specified database.
     """
+    if db_name == "":
+        db_name = os.getenv("MONGO_DB", "bluehorseshoe")
+
     if GlobalData.mongo_client is None:
         try:
             if uri == "":

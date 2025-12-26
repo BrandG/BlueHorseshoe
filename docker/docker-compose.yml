@@ -18,6 +18,7 @@ services:
     environment:
       MONGO_URI: "mongodb://mongo:27017"
       ALPHAVANTAGE_KEY: ${ALPHAVANTAGE_KEY}
+      ALPHAVANTAGE_CPS: ${ALPHAVANTAGE_CPS:-5}
     depends_on:
       - mongo
     networks:

@@ -59,8 +59,8 @@ def update_history_batch(limit: int = 0, recent_only: bool = True):
     print(f"Found {len(all_symbols)} symbols in database. Starting batch update...")
     
     # Dynamic rate limit logging
-    current_rpm = getattr(symbols, 'RPM', 'Unknown')
-    print(f"Note: Rate limiting is active ({current_rpm} calls/min). This may take a while.")
+    current_cps = getattr(symbols, 'CPS', 'Unknown')
+    print(f"Note: Rate limiting is active ({current_cps} calls/sec). This may take a while.")
 
     success_count = 0
     error_count = 0

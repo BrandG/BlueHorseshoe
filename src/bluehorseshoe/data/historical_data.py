@@ -29,8 +29,12 @@ from bluehorseshoe.core.globals import GlobalData, get_mongo_client
 from bluehorseshoe.core.symbols import get_symbol_list
 
 
+# Rate Limit Configuration
+CPS = int(os.environ.get("ALPHAVANTAGE_CPS", "5"))
+ALPHAVANTAGE_KEY = os.environ.get("ALPHAVANTAGE_KEY", "JFRQJ8YWSX8UK50X")
+
 @sleep_and_retry
-@limits(calls=70, period=60)  # 60 calls per 60 seconds
+@limits(calls=1, period=1.0/CPS)
 def load_historical_data_from_net(stock_symbol, recent=False):
     """
     Fetch historical stock data from Alpha Vantage API.
@@ -39,7 +43,7 @@ def load_historical_data_from_net(stock_symbol, recent=False):
 
     outputsize = 'full' if not recent else 'compact'
     url = f"https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&outputsize={outputsize}" + \
-        f"&symbol={stock_symbol}&apikey=JFRQJ8YWSX8UK50X"
+        f"&symbol={stock_symbol}&apikey={ALPHAVANTAGE_KEY}"
 
     response = requests.get(url, timeout=10)
     response.raise_for_status()  # Raise an exception for bad status codes
