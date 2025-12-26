@@ -21,7 +21,7 @@ Constants:
 import logging
 import os
 from typing import Dict, Optional
-from functools import lru_cache
+from functools import lru_cache, partial
 import concurrent.futures
 import numpy as np
 import pandas as pd
@@ -41,8 +41,8 @@ TREND_PERIOD = 20
 STRONG_R2_THRESHOLD = 0.7
 WEAK_R2_THRESHOLD = 0.3
 MIN_VOLUME_THRESHOLD = 100000
-MIN_STOCK_PRICE = 1.0
-MAX_STOCK_PRICE = 50.0
+MIN_STOCK_PRICE = 5.0
+MAX_STOCK_PRICE = 500.0
 STOP_LOSS_FACTOR = 0.96
 TAKE_PROFIT_FACTOR = 1.04
 
@@ -137,7 +137,7 @@ class SwingTrader:
 
         return entry_price * trend_adjustments.get(trend, 1.0)
 
-    def process_symbol(self, symbol: str) -> Optional[Dict]:
+    def process_symbol(self, symbol: str, target_date: Optional[str] = None) -> Optional[Dict]:
         """Process a single symbol and return its trading data."""
         price_data = load_historical_data(symbol)
         if price_data is None or not price_data['days']:
@@ -148,16 +148,24 @@ class SwingTrader:
         if df.empty:
             logging.error("DataFrame is empty for %s.", symbol)
             return None
-        yesterday = dict(df.iloc[-1])
 
-        if not GlobalData.holiday:
-            last_trading_day = pd.Timestamp.now().normalize() - pd.offsets.BDay(1)
-            yesterday['date'] = pd.to_datetime(yesterday['date'])
-            if yesterday['date'] != last_trading_day:
-                logging.error("Data for %s on date '%s' is not '%s'.", symbol, yesterday['date'], last_trading_day)
-                with open('src/error_symbols.txt', 'a', encoding='utf-8') as f:
-                    f.write(f"{symbol}\n")
+        if target_date:
+            df['date'] = pd.to_datetime(df['date'])
+            target_ts = pd.to_datetime(target_date)
+            df = df[df['date'] <= target_ts]
+            if df.empty:
                 return None
+            yesterday = dict(df.iloc[-1])
+        else:
+            yesterday = dict(df.iloc[-1])
+            if not GlobalData.holiday:
+                last_trading_day = pd.Timestamp.now().normalize() - pd.offsets.BDay(1)
+                yesterday['date'] = pd.to_datetime(yesterday['date'])
+                if yesterday['date'] != last_trading_day:
+                    logging.error("Data for %s on date '%s' is not '%s'.", symbol, yesterday['date'], last_trading_day)
+                    with open('src/error_symbols.txt', 'a', encoding='utf-8') as f:
+                        f.write(f"{symbol}\n")
+                    return None
 
         entry_price = self.calculate_entry_price(df)
         if not MIN_STOCK_PRICE < entry_price < MAX_STOCK_PRICE:
@@ -174,19 +182,37 @@ class SwingTrader:
         logging.info("Processed %s with result: %s", symbol, ret_val)
         return ret_val
 
-    def swing_predict(self) -> None:
+    def swing_predict(self, target_date: Optional[str] = None) -> None:
         """Main prediction function with parallel processing capability."""
         symbols = get_symbol_name_list()
-        # Use ProcessPoolExecutor instead of ThreadPoolExecutor for CPU-bound tasks
-        max_workers = min(32, (os.cpu_count() or 0) + 4, len(symbols))  # Optimal worker count
-        chunk_size = len(symbols) // max_workers
+        # Reduce max_workers to avoid pegging CPU, and use as_completed for progress logging
+        max_workers = min(8, os.cpu_count() or 4)
         results = []
 
         ReportSingleton().write(f"Yesterday was {'not ' if not GlobalData.holiday else ''}a holiday.")
+        if target_date:
+            ReportSingleton().write(f"Predicting for historical date: {target_date}")
 
-        logging.info("Processing %d symbols...", len(symbols))
+        logging.info("Processing %d symbols with %d workers...", len(symbols), max_workers)
+        
         with concurrent.futures.ProcessPoolExecutor(max_workers=max_workers) as executor:
-            results = list(executor.map(self.process_symbol, symbols, chunksize=chunk_size))
+            process_func = partial(self.process_symbol, target_date=target_date)
+            future_to_symbol = {executor.submit(process_func, sym): sym for sym in symbols}
+            
+            processed_count = 0
+            total_symbols = len(symbols)
+            for future in concurrent.futures.as_completed(future_to_symbol):
+                processed_count += 1
+                try:
+                    result = future.result()
+                    results.append(result)
+                except Exception as e:
+                    symbol = future_to_symbol[future]
+                    logging.error("%s generated an exception: %s", symbol, e)
+                
+                if processed_count % 100 == 0 or processed_count == total_symbols:
+                    logging.info("Progress: %d/%d symbols processed (%.1f%%)", 
+                                 processed_count, total_symbols, (processed_count/total_symbols)*100)
 
         # Get frequency list based on results['score']
         score_frequency = {}
@@ -206,7 +232,7 @@ class SwingTrader:
             reverse=True
         )
         ReportSingleton().write('Top 10 buy candidates:')
-        for result_index in range(10):
+        for result_index in range(min(10, len(sorted_results))):
             result = sorted_results[result_index]
             price_data = load_historical_data(result['symbol'])
             if price_data is None or not price_data['days']:
@@ -214,6 +240,11 @@ class SwingTrader:
                 continue
 
             df = pd.DataFrame(price_data['days'])
+            if target_date:
+                df['date'] = pd.to_datetime(df['date'])
+                target_ts = pd.to_datetime(target_date)
+                df = df[df['date'] <= target_ts]
+            
             title = f'{result_index}-'+result['symbol']
             CandlestickIndicator(df.copy()).set_title(title).graph()
             LimitIndicator(df.copy()).set_title(title).graph()

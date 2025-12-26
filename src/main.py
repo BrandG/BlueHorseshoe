@@ -86,11 +86,44 @@ if __name__ == "__main__":
     elif "-p" in sys.argv:
         logging.info('Predicting next midpoints...')
         SwingTrader().swing_predict()
+    elif "-t" in sys.argv:
+        try:
+            test_idx = sys.argv.index("-t")
+            target_date = sys.argv[test_idx + 1]
+            
+            # Optional parameters
+            target_profit = 1.01
+            stop_loss = 0.98
+            hold_days = 3
+            
+            if "--target" in sys.argv:
+                target_profit = float(sys.argv[sys.argv.index("--target") + 1])
+            if "--stop" in sys.argv:
+                stop_loss = float(sys.argv[sys.argv.index("--stop") + 1])
+            if "--hold" in sys.argv:
+                hold_days = int(sys.argv[sys.argv.index("--hold") + 1])
+            
+            from bluehorseshoe.analysis.backtest import Backtester
+            tester = Backtester(target_profit_factor=target_profit, 
+                               stop_loss_factor=stop_loss, 
+                               hold_days=hold_days)
+
+            if "--end" in sys.argv:
+                end_date = sys.argv[sys.argv.index("--end") + 1]
+                interval = int(sys.argv[sys.argv.index("--interval") + 1]) if "--interval" in sys.argv else 7
+                logging.info("Running range backtest from %s to %s...", target_date, end_date)
+                tester.run_range_backtest(target_date, end_date, interval_days=interval)
+            else:
+                logging.info("Running backtest for %s...", target_date)
+                tester.run_backtest(target_date)
+        except (IndexError, ValueError) as e:
+            logging.error("Invalid arguments for backtesting: %s", e)
+            print("Usage: python main.py -t START_DATE [--end END_DATE] [--interval 7] [--target 1.01] [--stop 0.98] [--hold 3]")
     elif "-d" in sys.argv:
         logging.info("Debugging...")
         debug_test()
     else:
-        USAGE_STRING = "Invalid arguments. Use -u to update historical data, -p to predict next day swing trading midpoints, -d " \
+        USAGE_STRING = "Invalid arguments. Use -u to update historical data, -p to predict next day swing trading midpoints, -t YYYY-MM-DD to backtest, -d " \
                                 "to debug, or -b to build historical data."
         logging.error(USAGE_STRING)
         print(USAGE_STRING)
