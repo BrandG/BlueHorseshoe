@@ -27,6 +27,8 @@ from pymongo.errors import ServerSelectionTimeoutError
 import talib as ta
 from bluehorseshoe.core.globals import GlobalData, get_mongo_client
 from bluehorseshoe.core.symbols import get_symbol_list
+from bluehorseshoe.core.scores import score_manager
+from bluehorseshoe.analysis.technical_analyzer import TechnicalAnalyzer
 
 
 # Rate Limit Configuration
@@ -149,6 +151,27 @@ def process_symbol(row, index, total_symbols, save_to_file, recent):
 
         df = df.sort_values(by='date').reset_index(drop=True)
         net_data['days'] = get_technical_indicators(df)
+        
+        # Calculate and save score for the latest day
+        try:
+            # We need the full DF with indicators to calculate the score
+            full_df = pd.DataFrame(net_data['days'])
+            score = TechnicalAnalyzer.calculate_technical_score(full_df)
+            last_date = net_data['days'][-1]['date']
+            
+            score_manager.save_scores([{
+                "symbol": symbol,
+                "date": last_date,
+                "score": score,
+                "strategy": "baseline",
+                "version": "1.0",
+                "metadata": {
+                    "source": "update_process"
+                }
+            }])
+        except Exception as e:
+            logging.error("Failed to calculate/save score for %s: %s", symbol, e)
+
         if '_id' in net_data:
             del net_data['_id']
 
@@ -191,7 +214,10 @@ def get_technical_indicators(df):
     Calculate various technical indicators for a given DataFrame containing historical stock data.
     """
     if 'midpoint' not in df.columns:
-        df['midpoint'] = round((df['open'] + df['close']) / 2, 4)
+        if 'open' in df.columns:
+            df['midpoint'] = round((df['open'] + df['close']) / 2, 4)
+        else:
+            df['midpoint'] = df['close']
     df['ema_20'] = df['close'].ewm(span=20, adjust=False).mean().round(4)
     df['macd_line'], df['macd_signal'], df['macd_hist'] = ta.MACD( # type: ignore
         df['close'], fastperiod=12, slowperiod=26, signalperiod=9)
@@ -263,5 +289,21 @@ def load_historical_data(symbol):
                 df = pd.DataFrame(days)
                 data['days'] = get_technical_indicators(df)
                 save_historical_data_to_mongo(symbol, data, get_mongo_client())
+                
+                # Also update score
+                try:
+                    full_df = pd.DataFrame(data['days'])
+                    score = TechnicalAnalyzer.calculate_technical_score(full_df)
+                    last_date = data['days'][-1]['date']
+                    score_manager.save_scores([{
+                        "symbol": symbol,
+                        "date": last_date,
+                        "score": score,
+                        "strategy": "baseline",
+                        "version": "1.0",
+                        "metadata": {"source": "load_process"}
+                    }])
+                except Exception as e:
+                    logging.error("Failed to update score for %s during load: %s", symbol, e)
 
     return data
