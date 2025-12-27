@@ -44,6 +44,13 @@ DAILY_SERIES_URL = (
     "&apikey={key}"
 )
 
+OVERVIEW_URL = (
+    "https://www.alphavantage.co/query"
+    "?function=OVERVIEW"
+    "&symbol={symbol}"
+    "&apikey={key}"
+)
+
 RECENT_TRADING_DAYS = int(os.environ.get("RECENT_TRADING_DAYS", "240"))
 
 # ---------------------------------------------------------------------
@@ -253,6 +260,56 @@ def refresh_historical_for_symbol(symbol: str, recent: bool = False) -> Dict[str
         "last_date": days[-1]["date"],
         "last_updated": datetime.utcnow().isoformat(),
     }
+
+
+@sleep_and_retry
+@limits(calls=1, period=1.0/CPS)
+def fetch_overview_from_net(symbol: str) -> Dict[str, Any]:
+    """
+    Fetch company overview data (Sector, Industry, MarketCap, etc.) from Alpha Vantage.
+    """
+    if not ALPHAVANTAGE_KEY:
+        raise RuntimeError("ALPHAVANTAGE_KEY not set in environment")
+
+    sym = symbol.upper().strip()
+    url = OVERVIEW_URL.format(symbol=sym, key=ALPHAVANTAGE_KEY)
+
+    response = requests.get(url, timeout=15)
+    response.raise_for_status()
+    json_data = response.json()
+    
+    if not json_data or "Symbol" not in json_data:
+        logging.error("No overview data for %s. Response: %s", sym, json_data)
+        return {}
+
+    return json_data
+
+
+def upsert_overview_to_mongo(symbol: str, overview: Dict[str, Any]) -> None:
+    """
+    Store company overview metadata in the symbol_overviews collection.
+    """
+    sym = symbol.upper().strip()
+    if not sym:
+        raise ValueError("symbol is required")
+    
+    _db = db.get_db()
+    _overviews = _db["symbol_overviews"]
+
+    overview["symbol"] = sym
+    overview["last_updated"] = datetime.utcnow().isoformat()
+    
+    _overviews.update_one({"symbol": sym}, {"$set": overview}, upsert=True)
+
+
+def get_overview_from_mongo(symbol: str) -> Dict[str, Any]:
+    """
+    Load company overview for a symbol from MongoDB.
+    """
+    sym = symbol.upper().strip()
+    _db = db.get_db()
+    doc = _db["symbol_overviews"].find_one({"symbol": sym}, {"_id": 0})
+    return doc or {}
 
 
 def get_historical_from_mongo(symbol: str, recent: bool = False) -> List[Dict[str, Any]]:

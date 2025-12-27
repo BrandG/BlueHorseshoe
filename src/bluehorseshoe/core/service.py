@@ -6,6 +6,13 @@ import pandas as pd  # Added pandas import
 from .models import DailyReport, Candidate
 from .database import db
 from bluehorseshoe.analysis import legacy_strategy as strategy
+from .symbols import (
+    get_symbols_from_mongo, 
+    fetch_overview_from_net, 
+    upsert_overview_to_mongo,
+    get_overview_from_mongo
+)
+import time
 
 def run_backtest(symbol: str, start: date, end: date, strategy_name: str = "baseline") -> Dict[str, Any]:
     """
@@ -47,11 +54,29 @@ def handle_trigger_action(action: str, payload: Dict[str, Any]) -> Dict[str, Any
             }
         except Exception as e:
             return {"error": f"Database test failed: {e}"}
+            
+    elif action == "backfill_overviews":
+        limit = payload.get("limit", 10)
+        symbols = get_symbols_from_mongo(limit=limit)
+        count = 0
+        for s in symbols:
+            sym = s["symbol"]
+            # Check if already exists
+            if not get_overview_from_mongo(sym):
+                try:
+                    ov = fetch_overview_from_net(sym)
+                    if ov:
+                        upsert_overview_to_mongo(sym, ov)
+                        count += 1
+                        time.sleep(0.2) # Small delay
+                except Exception as e:
+                    print(f"Failed to fetch overview for {sym}: {e}")
+        return {"status": "ok", "backfilled_count": count}
         
     else:
         return {
             "error": f"Unknown action: {action}",
-            "available_actions": ["hello", "test_db"],
+            "available_actions": ["hello", "test_db", "backfill_overviews"],
         }
 
 def run_daily() -> Dict[str, Any]:
