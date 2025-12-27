@@ -12,3 +12,6 @@ linting_sorted.txt
 src/backup/
 src/historical_data/symbol_list.json
 src/error_symbols.txt
+src/logs/failure_analysis.csv
+src/logs/test.log
+src/logs/fail_script.log
