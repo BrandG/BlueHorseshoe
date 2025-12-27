@@ -95,16 +95,11 @@ class TechnicalAnalyzer:
     @staticmethod
     def calculate_technical_score(days: pd.DataFrame) -> float:
         """
-        Calculate a technical score by analyzing multiple indicators from the given DataFrame:
-        1. Volume threshold check
-        2. DMI/ADX scoring (if dmi_p > dmi_n)
-        3. MACD scoring
-        4. Volume ratio scoring
-        5. RSI scoring
-        6. ROC scoring (adaptive via rolling std)
-        7. Bollinger Band position scoring
-        
-        Returns a float representing the sum of all indicator contributions.
+        Calculate a technical score by analyzing multiple indicators and applying safety filters:
+        1. Base indicator scoring (Trend, Volume, Momentum, etc.)
+        2. Overextension Penalty: Subtract points if price is too far above EMAs.
+        3. RSI Overbought Penalty: Subtract points if RSI > 70.
+        4. Volume Exhaustion Penalty: Subtract points if volume spike is too extreme.
         """
         # 1) Early exit if average volume is too low
         if len(days) == 0 or days.iloc[-1].get('avg_volume_20', 0) < MIN_VOLUME_THRESHOLD:
@@ -115,7 +110,33 @@ class TechnicalAnalyzer:
                           MovingAverageIndicator(days), MomentumIndicator(days)]:
             total_score += indicator.get_score().buy
 
-        return total_score
+        # --- SAFETY FILTERS (Penalties for 'Buying the Peak') ---
+        last_row = days.iloc[-1]
+        
+        # A) EMA Overextension (Mean Reversion Risk)
+        # Using 9-day EMA to check for short-term overextension
+        ema9 = days['close'].ewm(span=9).mean().iloc[-1]
+        dist_ema9 = (last_row['close'] / ema9) - 1
+        if dist_ema9 > 0.10: # > 10% above EMA9
+            total_score -= 5.0
+            logging.debug("Penalty: Overextended above EMA9 (%.2f%%)", dist_ema9 * 100)
+
+        # B) RSI Overbought (Exhaustion Risk)
+        rsi = last_row.get('rsi_14', 50)
+        if rsi > 75:
+            total_score -= 3.0
+            logging.debug("Penalty: RSI Overbought (%.2f)", rsi)
+        elif rsi > 70:
+            total_score -= 1.0
+
+        # C) Volume Exhaustion (Blow-off Top Risk)
+        avg_vol = last_row.get('avg_volume_20', 1)
+        vol_ratio = last_row['volume'] / avg_vol
+        if vol_ratio > 3.0: # > 3x average volume
+            total_score -= 2.0
+            logging.debug("Penalty: Volume Exhaustion (%.2f ratio)", vol_ratio)
+
+        return float(total_score)
 
 class SwingTrader:
     """Main class for swing trading analysis."""
