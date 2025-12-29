@@ -156,17 +156,19 @@ def process_symbol(row, index, total_symbols, save_to_file, recent):
         try:
             # We need the full DF with indicators to calculate the score
             full_df = pd.DataFrame(net_data['days'])
-            score = TechnicalAnalyzer.calculate_technical_score(full_df)
+            score_components = TechnicalAnalyzer.calculate_technical_score(full_df)
+            total_score = score_components.pop("total", 0.0)
             last_date = net_data['days'][-1]['date']
             
             score_manager.save_scores([{
                 "symbol": symbol,
                 "date": last_date,
-                "score": score,
+                "score": total_score,
                 "strategy": "baseline",
-                "version": "1.0",
+                "version": "1.1",
                 "metadata": {
-                    "source": "update_process"
+                    "source": "update_process",
+                    "components": score_components
                 }
             }])
         except Exception as e:
@@ -293,15 +295,19 @@ def load_historical_data(symbol):
                 # Also update score
                 try:
                     full_df = pd.DataFrame(data['days'])
-                    score = TechnicalAnalyzer.calculate_technical_score(full_df)
+                    score_components = TechnicalAnalyzer.calculate_technical_score(full_df)
+                    total_score = score_components.pop("total", 0.0)
                     last_date = data['days'][-1]['date']
                     score_manager.save_scores([{
                         "symbol": symbol,
                         "date": last_date,
-                        "score": score,
+                        "score": total_score,
                         "strategy": "baseline",
-                        "version": "1.0",
-                        "metadata": {"source": "load_process"}
+                        "version": "1.1",
+                        "metadata": {
+                            "source": "load_process",
+                            "components": score_components
+                        }
                     }])
                 except Exception as e:
                     logging.error("Failed to update score for %s during load: %s", symbol, e)

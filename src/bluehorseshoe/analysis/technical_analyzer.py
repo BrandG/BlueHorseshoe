@@ -58,47 +58,58 @@ class TechnicalAnalyzer:
         return trend_map.get((slope > 0, r2_value > STRONG_R2_THRESHOLD), "No Clear Trend")
 
     @staticmethod
-    def calculate_technical_score(days: pd.DataFrame) -> float:
+    def calculate_technical_score(days: pd.DataFrame) -> Dict[str, float]:
         """
-        Calculate a technical score by analyzing multiple indicators and applying safety filters:
-        1. Base indicator scoring (Trend, Volume, Momentum, etc.)
-        2. Overextension Penalty: Subtract points if price is too far above EMAs.
-        3. RSI Overbought Penalty: Subtract points if RSI > 70.
-        4. Volume Exhaustion Penalty: Subtract points if volume spike is too extreme.
+        Calculate a technical score by analyzing multiple indicators and applying safety filters.
+        Returns a dictionary of component scores for granular analysis.
         """
+        components = {}
+        
         # 1) Early exit if average volume is too low
         if len(days) == 0 or days.iloc[-1].get('avg_volume_20', 0) < MIN_VOLUME_THRESHOLD:
-            return 0.0
+            return {"total": 0.0}
 
-        total_score : float = 0
-        for indicator in [TrendIndicator(days), VolumeIndicator(days), LimitIndicator(days), CandlestickIndicator(days),
-                          MovingAverageIndicator(days), MomentumIndicator(days)]:
-            total_score += indicator.get_score().buy
+        # Base indicator scoring
+        indicators = {
+            "trend": TrendIndicator(days),
+            "volume": VolumeIndicator(days),
+            "limit": LimitIndicator(days),
+            "candlestick": CandlestickIndicator(days),
+            "moving_average": MovingAverageIndicator(days),
+            "momentum": MomentumIndicator(days)
+        }
+        
+        total_score = 0.0
+        for name, indicator in indicators.items():
+            score = indicator.get_score().buy
+            components[name] = float(score)
+            total_score += score
 
-        # --- SAFETY FILTERS (Penalties for 'Buying the Peak') ---
+        # --- SAFETY FILTERS (Penalties) ---
         last_row = days.iloc[-1]
         
-        # A) EMA Overextension (Mean Reversion Risk)
-        # Using 9-day EMA to check for short-term overextension
+        # A) EMA Overextension
         ema9 = days['close'].ewm(span=9).mean().iloc[-1]
         dist_ema9 = (last_row['close'] / ema9) - 1
-        if dist_ema9 > 0.10: # > 10% above EMA9
+        if dist_ema9 > 0.10:
+            components["penalty_ema_overextension"] = -5.0
             total_score -= 5.0
-            logging.debug("Penalty: Overextended above EMA9 (%.2f%%)", dist_ema9 * 100)
 
-        # B) RSI Overbought (Exhaustion Risk)
+        # B) RSI Overbought
         rsi = last_row.get('rsi_14', 50)
         if rsi > 75:
+            components["penalty_rsi"] = -3.0
             total_score -= 3.0
-            logging.debug("Penalty: RSI Overbought (%.2f)", rsi)
         elif rsi > 70:
+            components["penalty_rsi"] = -1.0
             total_score -= 1.0
 
-        # C) Volume Exhaustion (Blow-off Top Risk)
+        # C) Volume Exhaustion
         avg_vol = last_row.get('avg_volume_20', 1)
         vol_ratio = last_row['volume'] / avg_vol
-        if vol_ratio > 3.0: # > 3x average volume
+        if vol_ratio > 3.0:
+            components["penalty_volume_exhaustion"] = -2.0
             total_score -= 2.0
-            logging.debug("Penalty: Volume Exhaustion (%.2f ratio)", vol_ratio)
 
-        return float(total_score)
+        components["total"] = float(total_score)
+        return components
