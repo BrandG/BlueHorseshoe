@@ -50,6 +50,8 @@ The system implements two primary scoring strategies in `TechnicalAnalyzer`:
 ## Analysis & Scoring Notes
 - **Baseline Strategy:** Includes momentum and breakout logic, but has been enhanced to also reward **oversold entry signals** (e.g., RSI < 30) when a trend is establishing.
 - **Data Integrity:** Strategy scoring requires at least 2 days of historical data to compare "current" vs "previous" states (prevents `KeyError`). Symbols with very short histories (e.g., < 14 days) may still cause index errors in indicators like RSI.
+- **Backtesting Performance:** A 6-month weekly backtest (approx. 30 dates) takes ~75 minutes to complete.
+- **Data Requirements:** Symbols with < 30 days of history may trigger `IndexError` during indicator calculation (specifically RSI/ATR). Future runs should filter these out during the batch loading phase.
 
 ## Developer Notes
 - Adhere to the scoring constants defined in `src/bluehorseshoe/analysis/constants.py`.
