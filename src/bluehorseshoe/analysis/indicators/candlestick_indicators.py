@@ -6,10 +6,10 @@ The class includes methods to identify specific candlestick patterns such as "Th
 Classes:
     CandlestickIndicator: A class for detecting candlestick patterns and calculating a combined score.
 Constants:
-    RISE_FALL_3_METHODS_MULTIPLIER (float): Multiplier for the "Rising/Falling Three Methods" pattern score.
-    THREE_WHITE_SOLDIERS_MULTIPLIER (float): Multiplier for the "Three White Soldiers" pattern score.
-    MARUBOZU_MULTIPLIER (float): Multiplier for the "Marubozu" pattern score.
-    BELT_HOLD_MULTIPLIER (float): Multiplier for the "Belt Hold" pattern score.
+    self.weights['RISE_FALL_3_METHODS_MULTIPLIER'] (float): Multiplier for the "Rising/Falling Three Methods" pattern score.
+    self.weights['THREE_WHITE_SOLDIERS_MULTIPLIER'] (float): Multiplier for the "Three White Soldiers" pattern score.
+    self.weights['MARUBOZU_MULTIPLIER'] (float): Multiplier for the "Marubozu" pattern score.
+    self.weights['BELT_HOLD_MULTIPLIER'] (float): Multiplier for the "Belt Hold" pattern score.
 Usage example:
     data = pd.DataFrame({
         'open': [...],
@@ -28,11 +28,12 @@ import mplfinance as mpf #pylint: disable=import-error
 
 from bluehorseshoe.reporting.report_generator import GraphData, graph
 from bluehorseshoe.analysis.indicators.indicator import Indicator, IndicatorScore
+from bluehorseshoe.core.config import weights_config
 
-RISE_FALL_3_METHODS_MULTIPLIER = 1.0
-THREE_WHITE_SOLDIERS_MULTIPLIER = 1.0
-MARUBOZU_MULTIPLIER = 1.0
-BELT_HOLD_MULTIPLIER = 1.0
+
+
+
+
 
 class CandlestickIndicator(Indicator):
     """
@@ -58,6 +59,7 @@ class CandlestickIndicator(Indicator):
     """
 
     def __init__(self, data: pd.DataFrame):
+        self.weights = weights_config.get_weights('candlestick')
         self.required_cols = ['open', 'close', 'high', 'low']
         self.symbol = 'NONAME'
         super().__init__(data)
@@ -237,10 +239,10 @@ class CandlestickIndicator(Indicator):
             - Belt Hold
         """
         buy_score = 0.0
-        buy_score += self.detect_three_white_soldiers() * THREE_WHITE_SOLDIERS_MULTIPLIER
-        buy_score += self.find_rise_fall_3_methods() * RISE_FALL_3_METHODS_MULTIPLIER
-        buy_score += self.find_marubozu() * MARUBOZU_MULTIPLIER
-        buy_score += self.find_belt_hold() * BELT_HOLD_MULTIPLIER
+        buy_score += self.detect_three_white_soldiers() * self.weights['THREE_WHITE_SOLDIERS_MULTIPLIER']
+        buy_score += self.find_rise_fall_3_methods() * self.weights['RISE_FALL_3_METHODS_MULTIPLIER']
+        buy_score += self.find_marubozu() * self.weights['MARUBOZU_MULTIPLIER']
+        buy_score += self.find_belt_hold() * self.weights['BELT_HOLD_MULTIPLIER']
         sell_score = 0.0
 
         return IndicatorScore(buy_score, sell_score)

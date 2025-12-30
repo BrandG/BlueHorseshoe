@@ -32,6 +32,7 @@ from bluehorseshoe.reporting.report_generator import ReportSingleton
 from bluehorseshoe.core.globals import get_mongo_client
 from bluehorseshoe.data.historical_data import build_all_symbols_history
 from bluehorseshoe.analysis.strategy import SwingTrader
+from bluehorseshoe.analysis.optimizer import WeightOptimizer
 
 DEBUG_SYMBOL = 'ABVC'
 DEBUG = False
@@ -108,17 +109,24 @@ if __name__ == "__main__":
                                stop_loss_factor=stop_loss, 
                                hold_days=hold_days)
 
+            strategy = "baseline"
+            if "--strategy" in sys.argv:
+                strategy = sys.argv[sys.argv.index("--strategy") + 1]
+
             if "--end" in sys.argv:
                 end_date = sys.argv[sys.argv.index("--end") + 1]
                 interval = int(sys.argv[sys.argv.index("--interval") + 1]) if "--interval" in sys.argv else 7
-                logging.info("Running range backtest from %s to %s...", target_date, end_date)
-                tester.run_range_backtest(target_date, end_date, interval_days=interval)
+                logging.info("Running range backtest from %s to %s | Strategy: %s...", target_date, end_date, strategy)
+                tester.run_range_backtest(target_date, end_date, interval_days=interval, strategy=strategy)
             else:
-                logging.info("Running backtest for %s...", target_date)
-                tester.run_backtest(target_date)
+                logging.info("Running backtest for %s | Strategy: %s...", target_date, strategy)
+                tester.run_backtest(target_date, strategy=strategy)
         except (IndexError, ValueError) as e:
             logging.error("Invalid arguments for backtesting: %s", e)
             print("Usage: python main.py -t START_DATE [--end END_DATE] [--interval 7] [--target 1.01] [--stop 0.98] [--hold 3]")
+    elif "-o" in sys.argv:
+        logging.info("Optimizing indicator weights...")
+        WeightOptimizer().run_optimization()
     elif "-d" in sys.argv:
         logging.info("Debugging...")
         debug_test()

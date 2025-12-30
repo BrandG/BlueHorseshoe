@@ -32,7 +32,7 @@ from bluehorseshoe.analysis.technical_analyzer import TechnicalAnalyzer
 
 
 # Rate Limit Configuration
-CPS = int(os.environ.get("ALPHAVANTAGE_CPS", "5"))
+CPS = int(os.environ.get("ALPHAVANTAGE_CPS", "2"))
 ALPHAVANTAGE_KEY = os.environ.get("ALPHAVANTAGE_KEY", "JFRQJ8YWSX8UK50X")
 
 @sleep_and_retry

@@ -7,11 +7,11 @@ aggregates their scores into a final buy and sell indicator.
 Classes:
     MomentumIndicator: A class to calculate various momentum-based technical indicators.
 Constants:
-    RSI_MULTIPLIER (float): Multiplier for the RSI score.
-    ROC_MULTIPLIER (float): Multiplier for the ROC score.
-    MACD_MULTIPLIER (float): Multiplier for the MACD score.
-    MACD_SIGNAL_MULTIPLIER (float): Multiplier for the MACD signal score.
-    BB_MULTIPLIER (float): Multiplier for the Bollinger Bands position score.
+    self.weights['RSI_MULTIPLIER'] (float): Multiplier for the RSI score.
+    self.weights['ROC_MULTIPLIER'] (float): Multiplier for the ROC score.
+    self.weights['MACD_MULTIPLIER'] (float): Multiplier for the MACD score.
+    self.weights['MACD_SIGNAL_MULTIPLIER'] (float): Multiplier for the MACD signal score.
+    self.weights['BB_MULTIPLIER'] (float): Multiplier for the Bollinger Bands position score.
 Methods:
     __init__(data: pd.DataFrame):
     calculate_rsi() -> float:
@@ -26,12 +26,13 @@ import numpy as np
 import pandas as pd
 
 from bluehorseshoe.analysis.indicators.indicator import Indicator, IndicatorScore
+from bluehorseshoe.core.config import weights_config
 
-RSI_MULTIPLIER = 1.0
-ROC_MULTIPLIER = 1.0
-MACD_MULTIPLIER = 1.0
-MACD_SIGNAL_MULTIPLIER = 0.15
-BB_MULTIPLIER = 1.0
+
+
+
+
+
 
 class MomentumIndicator(Indicator):
     """
@@ -65,6 +66,7 @@ class MomentumIndicator(Indicator):
         """
 
     def __init__(self, data: pd.DataFrame):
+        self.weights = weights_config.get_weights('momentum')
         self.required_cols = ['close', 'high', 'low']
         super().__init__(data)
 
@@ -141,7 +143,7 @@ class MomentumIndicator(Indicator):
             # If MACD diff and line are positive, score 1 or 2 depending on how large the diff is
             if (macd_diff > 0) and (yesterday['macd_line'] > 0):
                 return np.select(
-                    [macd_diff > yesterday['macd_signal'] * MACD_SIGNAL_MULTIPLIER, macd_diff > yesterday['macd_signal']],
+                    [macd_diff > yesterday['macd_signal'] * self.weights['MACD_SIGNAL_MULTIPLIER'], macd_diff > yesterday['macd_signal']],
                     [2, 1],
                     0
                 ).item()
@@ -183,10 +185,10 @@ class MomentumIndicator(Indicator):
     def get_score(self) -> IndicatorScore:
         buy_score = 0.0
 
-        buy_score += self.calculate_macd() * MACD_MULTIPLIER
-        buy_score += self.calculate_roc() * ROC_MULTIPLIER
-        buy_score += self.calculate_rsi() * RSI_MULTIPLIER
-        buy_score += self.calculate_bb_position() * BB_MULTIPLIER
+        buy_score += self.calculate_macd() * self.weights['MACD_MULTIPLIER']
+        buy_score += self.calculate_roc() * self.weights['ROC_MULTIPLIER']
+        buy_score += self.calculate_rsi() * self.weights['RSI_MULTIPLIER']
+        buy_score += self.calculate_bb_position() * self.weights['BB_MULTIPLIER']
         sell_score = 0.0
 
         return IndicatorScore(buy_score, sell_score)

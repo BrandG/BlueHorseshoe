@@ -20,7 +20,7 @@ def process_date(date_str, tester, top_n=10):
     predictions = []
     
     max_workers = min(8, os.cpu_count() or 4)
-    with concurrent.futures.ProcessPoolExecutor(max_workers=max_workers) as executor:
+    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
         process_func = partial(tester.trader.process_symbol, target_date=date_str)
         future_to_symbol = {executor.submit(process_func, sym): sym for sym in symbols}
         

@@ -100,17 +100,17 @@ class Backtester:
             'days_held': len(future_data[future_data['date'] <= pd.to_datetime(exit_date)]) if exit_date else self.hold_days
         }
 
-    def run_backtest(self, target_date: str, top_n: int = 10):
+    def run_backtest(self, target_date: str, strategy: str = "baseline", top_n: int = 10):
         """Runs a backtest for a specific historical date and returns results."""
-        ReportSingleton().write(f"\n--- Backtest Report for {target_date} (Hold: {self.hold_days} days) ---")
+        ReportSingleton().write(f"\n--- {strategy.title()} Backtest Report for {target_date} (Hold: {self.hold_days} days) ---")
         
         symbols = get_symbol_name_list()
         max_workers = min(8, os.cpu_count() or 4)
         
-        logging.info("Generating predictions for %s...", target_date)
+        logging.info("Generating %s predictions for %s...", strategy, target_date)
         predictions = []
         
-        with concurrent.futures.ProcessPoolExecutor(max_workers=max_workers) as executor:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
             process_func = partial(self.trader.process_symbol, target_date=target_date)
             future_to_symbol = {executor.submit(process_func, sym): sym for sym in symbols}
             
@@ -121,9 +121,12 @@ class Backtester:
                 except Exception as e:
                     logging.error("Exception during prediction: %s", e)
 
+        # Use strategy-specific score key
+        score_key = "baseline_score" if strategy == "baseline" else "mr_score"
+        
         valid_predictions = sorted(
             (p for p in predictions if p is not None),
-            key=lambda x: x['score'],
+            key=lambda x: x.get(score_key, 0.0),
             reverse=True
         )
 
@@ -140,7 +143,8 @@ class Backtester:
             if 'entry' in eval_result and 'exit_price' in eval_result:
                 pnl = ((eval_result['exit_price'] / eval_result['entry']) - 1) * 100
             
-            msg = f"{pred['symbol']} (Score: {pred['score']:.2f}): {eval_result['status']}"
+            score_val = pred.get(score_key, 0.0)
+            msg = f"{pred['symbol']} (Score: {score_val:.2f}): {eval_result['status']}"
             if 'entry' in eval_result:
                 msg += f" | PnL: {pnl:.2f}%"
             ReportSingleton().write(msg)
@@ -154,7 +158,7 @@ class Backtester:
         
         return results
 
-    def run_range_backtest(self, start_date: str, end_date: str, interval_days: int = 7, top_n: int = 10):
+    def run_range_backtest(self, start_date: str, end_date: str, interval_days: int = 7, top_n: int = 10, strategy: str = "baseline"):
         """Runs backtests over a range of dates at set intervals."""
         start_ts = pd.to_datetime(start_date)
         end_ts = pd.to_datetime(end_date)
@@ -163,14 +167,14 @@ class Backtester:
         all_results = []
         
         ReportSingleton().write(f"\n==========================================")
-        ReportSingleton().write(f"STRESS TEST: {start_date} to {end_date}")
+        ReportSingleton().write(f"STRESS TEST: {start_date} to {end_date} | Strategy: {strategy}")
         ReportSingleton().write(f"Interval: {interval_days} days | Hold: {self.hold_days} days")
         ReportSingleton().write(f"Target: {self.target_profit_factor} | Stop: {self.stop_loss_factor}")
         ReportSingleton().write(f"==========================================\n")
 
         while current_ts <= end_ts:
             date_str = current_ts.strftime('%Y-%m-%d')
-            day_results = self.run_backtest(date_str, top_n=top_n)
+            day_results = self.run_backtest(date_str, strategy=strategy, top_n=top_n)
             all_results.extend(day_results)
             current_ts += pd.Timedelta(days=interval_days)
 

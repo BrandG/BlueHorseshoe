@@ -30,10 +30,11 @@ from bluehorseshoe.core.symbols import get_symbol_name_list
 from bluehorseshoe.data.historical_data import load_historical_data
 from bluehorseshoe.analysis.indicators.candlestick_indicators import CandlestickIndicator
 from bluehorseshoe.analysis.indicators.limit_indicators import LimitIndicator
+from ta.volatility import AverageTrueRange
 from bluehorseshoe.core.scores import score_manager
 from bluehorseshoe.analysis.constants import (
     MIN_VOLUME_THRESHOLD, MIN_STOCK_PRICE, MAX_STOCK_PRICE,
-    STOP_LOSS_FACTOR, TAKE_PROFIT_FACTOR
+    STOP_LOSS_FACTOR, TAKE_PROFIT_FACTOR, ATR_WINDOW, ATR_MULTIPLIER_UPTREND, ATR_MULTIPLIER_DOWNTREND
 )
 from bluehorseshoe.analysis.technical_analyzer import TechnicalAnalyzer
 
@@ -44,18 +45,36 @@ class SwingTrader:
         self.technical_analyzer = TechnicalAnalyzer()
 
     def calculate_entry_price(self, df: pd.DataFrame) -> float:
-        """Calculate entry price based on trend."""
-        entry_price = df.iloc[-1]['close']
+        """
+        Calculate entry price using Average True Range (ATR) for volatility-adjusted 
+        entry discounts. This replaces fixed percentage adjustments.
+        """
+        last_close = df.iloc[-1]['close']
         trend = self.technical_analyzer.calculate_trend(df)
+        
+        # Ensure ATR is available
+        if 'ATR' not in df.columns:
+            df['ATR'] = AverageTrueRange(
+                high=df['high'], 
+                low=df['low'], 
+                close=df['close'], 
+                window=ATR_WINDOW
+            ).average_true_range()
+            
+        atr = df.iloc[-1]['ATR']
+        if pd.isna(atr):
+            atr = 0
 
-        trend_adjustments = {
-            "Strong Uptrend": 1.05,
-            "Weak Uptrend": 1.01,
-            "Strong Downtrend": 0.95,
-            "Weak Downtrend": 0.99
-        }
-
-        return entry_price * trend_adjustments.get(trend, 1.0)
+        # Optimization: In uptrends, we want to buy 'dips' relative to volatility.
+        # In downtrends, we want a larger margin of safety.
+        if 'Uptrend' in trend:
+            # Entry = Close - (0.5 * ATR)
+            return last_close - (ATR_MULTIPLIER_UPTREND * atr)
+        elif 'Downtrend' in trend:
+            # Entry = Close - (1.0 * ATR)
+            return last_close - (ATR_MULTIPLIER_DOWNTREND * atr)
+            
+        return last_close
 
     def process_symbol(self, symbol: str, target_date: Optional[str] = None) -> Optional[Dict]:
         """Process a single symbol and return its trading data."""
@@ -91,8 +110,11 @@ class SwingTrader:
         if not MIN_STOCK_PRICE < entry_price < MAX_STOCK_PRICE:
             return None
 
-        score_components = self.technical_analyzer.calculate_technical_score(df)
-        total_score = score_components.pop("total", 0.0)
+        score_components_baseline = self.technical_analyzer.calculate_technical_score(df, strategy="baseline")
+        total_score_baseline = score_components_baseline.pop("total", 0.0)
+
+        score_components_mr = self.technical_analyzer.calculate_technical_score(df, strategy="mean_reversion")
+        total_score_mr = score_components_mr.pop("total", 0.0)
 
         ret_val = {
             'symbol': symbol,
@@ -101,29 +123,28 @@ class SwingTrader:
             'entry_price': entry_price,
             'stop_loss': entry_price * STOP_LOSS_FACTOR,
             'take_profit': entry_price * TAKE_PROFIT_FACTOR,
-            'score': total_score,
-            'components': score_components
+            'baseline_score': total_score_baseline,
+            'baseline_components': score_components_baseline,
+            'mr_score': total_score_mr,
+            'mr_components': score_components_mr
         }
         logging.info("Processed %s with result: %s", symbol, ret_val)
         return ret_val
 
-    def swing_predict(self, target_date: Optional[str] = None, inverted: bool = False) -> None:
+    def swing_predict(self, target_date: Optional[str] = None) -> None:
         """Main prediction function with parallel processing capability."""
         symbols = get_symbol_name_list()
         # Reduce max_workers to avoid pegging CPU, and use as_completed for progress logging
         max_workers = min(8, os.cpu_count() or 4)
         results = []
 
-        strategy_name = "mean_reversion" if inverted else "baseline"
-        version = "1.2" if inverted else "1.1"
-
         ReportSingleton().write(f"Yesterday was {'not ' if not GlobalData.holiday else ''}a holiday.")
         if target_date:
-            ReportSingleton().write(f"Predicting for historical date: {target_date} | Strategy: {strategy_name}")
+            ReportSingleton().write(f"Predicting for historical date: {target_date}")
 
         logging.info("Processing %d symbols with %d workers...", len(symbols), max_workers)
         
-        with concurrent.futures.ProcessPoolExecutor(max_workers=max_workers) as executor:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
             process_func = partial(self.process_symbol, target_date=target_date)
             future_to_symbol = {executor.submit(process_func, sym): sym for sym in symbols}
             
@@ -145,40 +166,59 @@ class SwingTrader:
         # Filter None results
         valid_results = [r for r in results if r is not None]
         
-        # Sort based on mode
-        sorted_results = sorted(
-            valid_results,
-            key=lambda x: x['score'],
-            reverse=not inverted # Highest first for trend, Lowest first for mean reversion
-        )
-
-        ReportSingleton().write(f'Top 10 {strategy_name} candidates:')
-        for result_index in range(min(10, len(sorted_results))):
-            result = sorted_results[result_index]
-            # ... (graphing logic remains the same)
+        # 1. Handle Baseline (Trend) Results
+        baseline_sorted = sorted(valid_results, key=lambda x: x['baseline_score'], reverse=True)
+        ReportSingleton().write('\n--- Top 5 Baseline (Trend) Candidates ---')
+        for i in range(min(5, len(baseline_sorted))):
+            res = baseline_sorted[i]
             ReportSingleton().write(
-                f"{result['symbol']} - Entry: {result['entry_price']:.2f} - "
-                f"Stop-Loss: {result['stop_loss']:.2f} - Take-Profit: {result['take_profit']:.2f} - "
-                f"Score: {result['score']:.2f} - Name: {result['name']}"
+                f"{res['symbol']} - Entry: {res['entry_price']:.2f} - "
+                f"Score: {res['baseline_score']:.2f} - Name: {res['name']}"
             )
 
-        # Save all results to the trade_scores collection
-        if results:
-            score_data = [
-                {
+        # 2. Handle Mean Reversion (Dip) Results
+        mr_sorted = sorted(valid_results, key=lambda x: x['mr_score'], reverse=True)
+        ReportSingleton().write('\n--- Top 5 Mean Reversion (Dip) Candidates ---')
+        for i in range(min(5, len(mr_sorted))):
+            res = mr_sorted[i]
+            ReportSingleton().write(
+                f"{res['symbol']} - Entry: {res['entry_price']:.2f} - "
+                f"Score: {res['mr_score']:.2f} - Name: {res['name']}"
+            )
+
+        # Save results to the trade_scores collection
+        if valid_results:
+            score_data = []
+            for r in valid_results:
+                # Add Baseline score
+                score_data.append({
                     "symbol": r["symbol"],
                     "date": r["date"][:10],
-                    "score": r["score"],
-                    "strategy": strategy_name,
-                    "version": version,
+                    "score": r["baseline_score"],
+                    "strategy": "baseline",
+                    "version": "1.3",
                     "metadata": {
                         "entry_price": r["entry_price"],
                         "stop_loss": r["stop_loss"],
                         "take_profit": r["take_profit"],
-                        "components": r["components"]
+                        "components": r["baseline_components"]
                     }
-                }
-                for r in valid_results
-            ]
+                })
+                # Add Mean Reversion score
+                score_data.append({
+                    "symbol": r["symbol"],
+                    "date": r["date"][:10],
+                    "score": r["mr_score"],
+                    "strategy": "mean_reversion",
+                    "version": "1.3",
+                    "metadata": {
+                        "entry_price": r["entry_price"],
+                        "stop_loss": r["stop_loss"],
+                        "take_profit": r["take_profit"],
+                        "components": r["mr_components"]
+                    }
+                })
+            
             score_manager.save_scores(score_data)
-            logging.info("Saved %d scores to trade_scores for strategy: %s", len(score_data), strategy_name)
+            logging.info("Saved %d scores (Baseline & Mean Reversion) to trade_scores", len(score_data))
+

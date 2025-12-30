@@ -1,0 +1,28 @@
+{
+    "trend": {
+        "ADX_MULTIPLIER": 1.0,
+        "STOCHASTIC_MULTIPLIER": 1.0,
+        "ICHIMOKU_MULTIPLIER": 1.0,
+        "PSAR_MULTIPLIER": 1.0,
+        "HEIKEN_ASHI_MULTIPLIER": 1.0
+    },
+    "momentum": {
+        "RSI_MULTIPLIER": 1.0,
+        "ROC_MULTIPLIER": 1.0,
+        "MACD_MULTIPLIER": 1.0,
+        "MACD_SIGNAL_MULTIPLIER": 0.15,
+        "BB_MULTIPLIER": 1.0
+    },
+    "volume": {
+        "OBV_MULTIPLIER": 1.0,
+        "CMF_MULTIPLIER": 1.0,
+        "ATR_BAND_MULTIPLIER": 1.0,
+        "ATR_SPIKE_MULTIPLIER": 1.0
+    },
+    "candlestick": {
+        "RISE_FALL_3_METHODS_MULTIPLIER": 1.0,
+        "THREE_WHITE_SOLDIERS_MULTIPLIER": 1.0,
+        "MARUBOZU_MULTIPLIER": 1.0,
+        "BELT_HOLD_MULTIPLIER": 1.0
+    }
+}

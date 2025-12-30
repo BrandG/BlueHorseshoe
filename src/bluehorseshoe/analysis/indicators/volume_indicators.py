@@ -5,10 +5,10 @@ Classes:
     VolumeIndicator: A class to calculate a score based on volume indicators.
 
 Constants:
-    OBV_MULTIPLIER (float): Multiplier for the On-Balance Volume (OBV) score.
-    CMF_MULTIPLIER (float): Multiplier for the Chaikin Money Flow (CMF) score.
-    ATR_BAND_MULTIPLIER (float): Multiplier for the Average True Range (ATR) band score.
-    ATR_SPIKE_MULTIPLIER (float): Multiplier for the ATR spike score.
+    self.weights['OBV_MULTIPLIER'] (float): Multiplier for the On-Balance Volume (OBV) score.
+    self.weights['CMF_MULTIPLIER'] (float): Multiplier for the Chaikin Money Flow (CMF) score.
+    self.weights['ATR_BAND_MULTIPLIER'] (float): Multiplier for the Average True Range (ATR) band score.
+    self.weights['ATR_SPIKE_MULTIPLIER'] (float): Multiplier for the ATR spike score.
     DEFAULT_WINDOW (int): Default window size for calculations.
 
 Methods:
@@ -32,11 +32,12 @@ from ta.volume import OnBalanceVolumeIndicator, ChaikinMoneyFlowIndicator #pylin
 from ta.volatility import AverageTrueRange # pylint: disable=import-error
 
 from bluehorseshoe.analysis.indicators.indicator import Indicator, IndicatorScore
+from bluehorseshoe.core.config import weights_config
 
-OBV_MULTIPLIER = 1.0
-CMF_MULTIPLIER = 1.0
-ATR_BAND_MULTIPLIER = 1.0
-ATR_SPIKE_MULTIPLIER = 1.0
+
+
+
+
 DEFAULT_WINDOW = 14
 
 class VolumeIndicator(Indicator):
@@ -45,6 +46,7 @@ class VolumeIndicator(Indicator):
     """
 
     def __init__(self, data: pd.DataFrame):
+        self.weights = weights_config.get_weights('volume')
         self.required_cols = ['high', 'low', 'close', 'volume']
         super().__init__(data)
 
@@ -142,7 +144,7 @@ class VolumeIndicator(Indicator):
         return float(np.select(
             [ pd.isna(cmf_value), cmf_value > threshold, cmf_value > 0, cmf_value < -threshold ],
             [0.0, 2.0, 1.0, -2.0],
-            default=-1.0)) * CMF_MULTIPLIER
+            default=-1.0)) * self.weights['CMF_MULTIPLIER']
 
     def score_obv_trend(self, window: int = 5) -> float:
         """
@@ -157,7 +159,7 @@ class VolumeIndicator(Indicator):
         # OBV difference over 'window' days
         obv_diff = self.days.iloc[-1]['OBV'] - self.days.iloc[-(window+1)]['OBV']
 
-        return float(np.select([obv_diff > 0, obv_diff < 0], [0, 1], default=0)) * OBV_MULTIPLIER
+        return float(np.select([obv_diff > 0, obv_diff < 0], [1, -1], default=0)) * self.weights['OBV_MULTIPLIER']
 
     def get_score(self) -> IndicatorScore:
         """
@@ -165,10 +167,10 @@ class VolumeIndicator(Indicator):
         """
         buy_score = 0.0
 
-        buy_score += self.score_obv_trend() * OBV_MULTIPLIER
-        buy_score += self.calculate_cmf_with_ta() * CMF_MULTIPLIER
-        buy_score += self.score_atr_band() * ATR_BAND_MULTIPLIER
-        buy_score += self.score_atr_spike() * ATR_SPIKE_MULTIPLIER
+        buy_score += self.score_obv_trend() * self.weights['OBV_MULTIPLIER']
+        buy_score += self.calculate_cmf_with_ta() * self.weights['CMF_MULTIPLIER']
+        buy_score += self.score_atr_band() * self.weights['ATR_BAND_MULTIPLIER']
+        buy_score += self.score_atr_spike() * self.weights['ATR_SPIKE_MULTIPLIER']
         buy_score += self.calculate_avg_volume() # No multiplier
         sell_score = 0.0
 

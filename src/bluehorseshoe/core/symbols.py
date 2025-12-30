@@ -33,7 +33,7 @@ ALPHAVANTAGE_KEY = os.environ.get("ALPHAVANTAGE_KEY", "")
 
 # Rate Limit Configuration
 # Default to 5 calls/sec (Premium Tier standard) if not set.
-CPS = int(os.environ.get("ALPHAVANTAGE_CPS", "5"))
+CPS = int(os.environ.get("ALPHAVANTAGE_CPS", "2"))
 
 LISTING_STATUS_URL = "https://www.alphavantage.co/query?function=LISTING_STATUS&apikey={key}"
 DAILY_SERIES_URL = (

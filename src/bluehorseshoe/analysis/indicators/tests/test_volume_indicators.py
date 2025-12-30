@@ -180,7 +180,7 @@ def test_score_obv_trend():
     """
     vi = VolumeIndicator(sample_data())
     result = vi.score_obv_trend()
-    expected_result = 0.0  # Update this value based on the expected result
+    expected_result = 1.0  # Corrected from 0.0 after fixing inversion
     assert result == expected_result, f"Expected {expected_result}, but got {result}"
 
 def test_calculate_score():
@@ -200,5 +200,5 @@ def test_calculate_score():
     """
     vi = VolumeIndicator(sample_data())
     result = vi.get_score()
-    expected_result = Score(buy=-1.0, sell=0)  # Update this value based on the expected result
+    expected_result = Score(buy=0.0, sell=0.0)  # Corrected from -1.0 after fixing OBV inversion
     assert result == expected_result, f"Expected {expected_result}, but got {result}"

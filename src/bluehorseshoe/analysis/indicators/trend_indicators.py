@@ -8,10 +8,10 @@ on each indicator. The final trend score is a combination of these individual sc
 Classes:
     TrendIndicator: A class to calculate a trend score based on various technical indicators.
 Constants:
-    STOCHASTIC_MULTIPLIER (float): Multiplier for the Stochastic Oscillator score.
-    ICHIMOKU_MULTIPLIER (float): Multiplier for the Ichimoku Cloud score.
-    PSAR_MULTIPLIER (float): Multiplier for the Parabolic SAR score.
-    HEIKEN_ASHI_MULTIPLIER (float): Multiplier for the Heiken Ashi score.
+    self.weights['STOCHASTIC_MULTIPLIER'] (float): Multiplier for the Stochastic Oscillator score.
+    self.weights['ICHIMOKU_MULTIPLIER'] (float): Multiplier for the Ichimoku Cloud score.
+    self.weights['PSAR_MULTIPLIER'] (float): Multiplier for the Parabolic SAR score.
+    self.weights['HEIKEN_ASHI_MULTIPLIER'] (float): Multiplier for the Heiken Ashi score.
     REQUIRED_COLUMNS (set): Set of required columns in the input DataFrame.
 Methods:
     __init__(self, data: pd.DataFrame): Initializes the TrendIndicator with the given data.
@@ -28,12 +28,13 @@ import pandas as pd
 from ta.trend import PSARIndicator # pylint: disable=import-error
 
 from bluehorseshoe.analysis.indicators.indicator import Indicator, IndicatorScore
+from bluehorseshoe.core.config import weights_config
 
-ADX_MULTIPLIER = 1.0
-STOCHASTIC_MULTIPLIER = 1.0
-ICHIMOKU_MULTIPLIER = 1.0
-PSAR_MULTIPLIER = 1.0
-HEIKEN_ASHI_MULTIPLIER = 1.0
+
+
+
+
+
 
 class TrendIndicator(Indicator):
     """
@@ -46,6 +47,7 @@ class TrendIndicator(Indicator):
     """
 
     def __init__(self, data: pd.DataFrame):
+        self.weights = weights_config.get_weights('trend')
         self.required_cols = ['high', 'low', 'close', 'open', 'stoch_k', 'stoch_d']
         super().__init__(data)
 
@@ -271,11 +273,11 @@ class TrendIndicator(Indicator):
         oversold = (self.days['stoch_k'] < 20).iloc[-1]
         overbought = (self.days['stoch_k'] > 80).iloc[-1]
 
-        buy_score += np.select( [ crossover_up, crossover_down, oversold, overbought ] , [ 2, -2, 1, -1 ], default=0).sum() * STOCHASTIC_MULTIPLIER
-        buy_score += self.calculate_ichimoku_score() * ICHIMOKU_MULTIPLIER
-        buy_score += self.calculate_psar_score() * PSAR_MULTIPLIER
-        buy_score += self.calculate_heiken_ashi() * HEIKEN_ASHI_MULTIPLIER
-        buy_score += self.calculate_dmi_adx() * ADX_MULTIPLIER
+        buy_score += np.select( [ crossover_up, crossover_down, oversold, overbought ] , [ 2, -2, 1, -1 ], default=0).sum() * self.weights['STOCHASTIC_MULTIPLIER']
+        buy_score += self.calculate_ichimoku_score() * self.weights['ICHIMOKU_MULTIPLIER']
+        buy_score += self.calculate_psar_score() * self.weights['PSAR_MULTIPLIER']
+        buy_score += self.calculate_heiken_ashi() * self.weights['HEIKEN_ASHI_MULTIPLIER']
+        buy_score += self.calculate_dmi_adx() * self.weights['ADX_MULTIPLIER']
         sell_score = 0.0
 
         return IndicatorScore(buy=buy_score, sell=sell_score)
