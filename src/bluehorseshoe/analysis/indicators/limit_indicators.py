@@ -7,6 +7,7 @@ prices relative to these pivot levels.
 
 import numpy as np
 import pandas as pd
+from typing import Optional
 from bluehorseshoe.reporting.report_generator import GraphData, graph
 from bluehorseshoe.analysis.indicators.indicator import Indicator, IndicatorScore
 
@@ -153,22 +154,31 @@ class LimitIndicator(Indicator):
 
         return 1.0 if position >= 90 else -1.0 if position <= 10 else 0.0
 
-    def get_score(self) -> IndicatorScore:
+    def get_score(self, enabled_sub_indicators: Optional[list[str]] = None, aggregation: str = "sum") -> IndicatorScore:
         """
         Calculate the score based on pivot levels and a multiplier.
-
-        This method calculates the score by summing the product of the pivot levels score
-        and a predefined multiplier.
-
-        Returns:
-            int: The calculated score.
         """
-        buy_score = 0.0
+        buy_score = 1.0 if aggregation == "product" else 0.0
+        active_count = 0
 
-        buy_score += self.score_pivot_levels() * PIVOT_MULTIPLIER
-        buy_score += self.score_52_week_range() * FIFTY_TWO_WEEK_MULTIPLIER
+        sub_map = {
+            'pivot': (self.score_pivot_levels, PIVOT_MULTIPLIER),
+            '52_week': (self.score_52_week_range, FIFTY_TWO_WEEK_MULTIPLIER)
+        }
+
+        for name, (func, multiplier) in sub_map.items():
+            if enabled_sub_indicators is None or name in enabled_sub_indicators:
+                score = func() * multiplier
+                if aggregation == "product":
+                    buy_score *= score
+                else:
+                    buy_score += score
+                active_count += 1
+
+        if active_count == 0 or (aggregation == "product" and buy_score == 0):
+            buy_score = 0.0
+
         sell_score = 0.0
-
         return IndicatorScore(buy_score, sell_score)
 
     def graph(self):

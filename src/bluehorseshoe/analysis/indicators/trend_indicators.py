@@ -25,6 +25,7 @@ Methods:
 
 import numpy as np
 import pandas as pd
+from typing import Optional
 from ta.trend import PSARIndicator # pylint: disable=import-error
 
 from bluehorseshoe.analysis.indicators.indicator import Indicator, IndicatorScore
@@ -250,36 +251,51 @@ class TrendIndicator(Indicator):
 
         return score
 
-    def get_score(self) -> IndicatorScore:
+    def get_score(self, enabled_sub_indicators: Optional[list[str]] = None, aggregation: str = "sum") -> IndicatorScore:
         """
         Calculate the trend score based on the following indicators:
-        - Stochastic Oscillator
-        - Ichimoku Cloud
-        - Parabolic SAR
-        - Heiken Ashi
+        - Stochastic Oscillator (stochastic)
+        - Ichimoku Cloud (ichimoku)
+        - Parabolic SAR (psar)
+        - Heiken Ashi (heiken_ashi)
+        - ADX/DMI (adx)
 
         Returns a float score.
         """
+        buy_score = 1.0 if aggregation == "product" else 0.0
+        active_count = 0
 
-        buy_score = 0.0
+        # Sub-indicator mapping
+        def calc_stochastic():
+            k_prev = self.days['stoch_k'].shift(1)
+            d_prev = self.days['stoch_d'].shift(1)
+            crossover_up = ((self.days['stoch_k'] > self.days['stoch_d']) & (k_prev <= d_prev)).iloc[-1]
+            crossover_down = ((self.days['stoch_k'] < self.days['stoch_d']) & (k_prev >= d_prev)).iloc[-1]
+            oversold = (self.days['stoch_k'] < 20).iloc[-1]
+            overbought = (self.days['stoch_k'] > 80).iloc[-1]
+            return np.select([crossover_up, crossover_down, oversold, overbought], [2, -2, 1, -1], default=0).sum()
 
-        # Shifted columns to detect crossovers from previous day:
-        k_prev = self.days['stoch_k'].shift(1)
-        d_prev = self.days['stoch_d'].shift(1)
+        sub_map = {
+            'stochastic': (calc_stochastic, 'STOCHASTIC_MULTIPLIER'),
+            'ichimoku': (self.calculate_ichimoku_score, 'ICHIMOKU_MULTIPLIER'),
+            'psar': (self.calculate_psar_score, 'PSAR_MULTIPLIER'),
+            'heiken_ashi': (self.calculate_heiken_ashi, 'HEIKEN_ASHI_MULTIPLIER'),
+            'adx': (self.calculate_dmi_adx, 'ADX_MULTIPLIER')
+        }
 
-        # Conditions:
-        crossover_up = ((self.days['stoch_k'] > self.days['stoch_d']) & (k_prev <= d_prev)).iloc[-1]  # cross up
-        crossover_down = ((self.days['stoch_k'] < self.days['stoch_d']) & (k_prev >= d_prev)).iloc[-1]  # cross down
-        oversold = (self.days['stoch_k'] < 20).iloc[-1]
-        overbought = (self.days['stoch_k'] > 80).iloc[-1]
+        for name, (func, weight_key) in sub_map.items():
+            if enabled_sub_indicators is None or name in enabled_sub_indicators:
+                score = func() * self.weights[weight_key]
+                if aggregation == "product":
+                    buy_score *= score
+                else:
+                    buy_score += score
+                active_count += 1
 
-        buy_score += np.select( [ crossover_up, crossover_down, oversold, overbought ] , [ 2, -2, 1, -1 ], default=0).sum() * self.weights['STOCHASTIC_MULTIPLIER']
-        buy_score += self.calculate_ichimoku_score() * self.weights['ICHIMOKU_MULTIPLIER']
-        buy_score += self.calculate_psar_score() * self.weights['PSAR_MULTIPLIER']
-        buy_score += self.calculate_heiken_ashi() * self.weights['HEIKEN_ASHI_MULTIPLIER']
-        buy_score += self.calculate_dmi_adx() * self.weights['ADX_MULTIPLIER']
+        if active_count == 0 or (aggregation == "product" and buy_score == 0):
+            buy_score = 0.0
+
         sell_score = 0.0
-
         return IndicatorScore(buy=buy_score, sell=sell_score)
 
     def graph(self) -> None:

@@ -12,6 +12,7 @@ Usage example:
 """
 import numpy as np
 import pandas as pd
+from typing import Optional
 
 from bluehorseshoe.analysis.indicators.indicator import Indicator, IndicatorScore
 
@@ -123,19 +124,31 @@ class MovingAverageIndicator(Indicator):
             return 1.0 if fast_ema.iloc[-1] > med_ema.iloc[-1] > slow_ema.iloc[-1] else 0.0
         return 0.0
 
-    def get_score(self) -> IndicatorScore:
+    def get_score(self, enabled_sub_indicators: Optional[list[str]] = None, aggregation: str = "sum") -> IndicatorScore:
         """
         Calculate the score based on the moving average crossover signals.
-
-        This function calculates the moving average crossover signal and assigns a score based on the result.
-
-        Returns:
-            float: The score based on the moving average crossover signals.
         """
+        buy_score = 1.0 if aggregation == "product" else 0.0
+        active_count = 0
+        
+        sub_map = {
+            'ma_score': self.calculate_ma_score,
+            'crossovers': self.calculate_crossovers
+        }
 
-        buy_score = self.calculate_ma_score() + self.calculate_crossovers()
+        for name, func in sub_map.items():
+            if enabled_sub_indicators is None or name in enabled_sub_indicators:
+                score = func()
+                if aggregation == "product":
+                    buy_score *= score
+                else:
+                    buy_score += score
+                active_count += 1
+
+        if active_count == 0 or (aggregation == "product" and buy_score == 0):
+            buy_score = 0.0
+
         sell_score = 0.0
-
         return IndicatorScore(buy_score, sell_score)
 
     def graph(self) -> None:

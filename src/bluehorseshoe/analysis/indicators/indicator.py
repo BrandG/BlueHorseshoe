@@ -65,7 +65,7 @@ class Indicator(ABC):
 
     def __init__(self, data: pd.DataFrame):
         if self._validate_columns(data, self.required_cols):
-            self.days = data[self.required_cols].copy()
+            self.days = data.copy()
         else:
             self.days = pd.DataFrame()
 

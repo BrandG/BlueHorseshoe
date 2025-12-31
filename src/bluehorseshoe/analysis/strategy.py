@@ -76,7 +76,7 @@ class SwingTrader:
             
         return last_close
 
-    def process_symbol(self, symbol: str, target_date: Optional[str] = None) -> Optional[Dict]:
+    def process_symbol(self, symbol: str, target_date: Optional[str] = None, enabled_indicators: Optional[list[str]] = None, aggregation: str = "sum") -> Optional[Dict]:
         """Process a single symbol and return its trading data."""
         price_data = load_historical_data(symbol)
         if price_data is None or not price_data['days']:
@@ -94,9 +94,22 @@ class SwingTrader:
             df = df[df['date'] <= target_ts]
             if df.empty:
                 return None
-            yesterday = dict(df.iloc[-1])
-        else:
-            yesterday = dict(df.iloc[-1])
+            
+            # Staleness check: If the last available data is more than 7 days older than the target_date,
+            # it means the symbol was likely delisted or has a massive data gap.
+            last_date = pd.to_datetime(df.iloc[-1]['date'])
+            if (target_ts - last_date).days > 7:
+                logging.info("Symbol %s data is too stale for target date %s (Last date: %s). Skipping.", 
+                             symbol, target_date, last_date.strftime('%Y-%m-%d'))
+                return None
+            
+        if len(df) < 30:
+            logging.info("Symbol %s has insufficient data (%d days) for target date. Skipping.", symbol, len(df))
+            return None
+
+        yesterday = dict(df.iloc[-1])
+
+        if not target_date:
             if not GlobalData.holiday:
                 last_trading_day = pd.Timestamp.now().normalize() - pd.offsets.BDay(1)
                 yesterday['date'] = pd.to_datetime(yesterday['date'])
@@ -110,7 +123,7 @@ class SwingTrader:
         if not MIN_STOCK_PRICE < entry_price < MAX_STOCK_PRICE:
             return None
 
-        score_components_baseline = self.technical_analyzer.calculate_technical_score(df, strategy="baseline")
+        score_components_baseline = self.technical_analyzer.calculate_baseline_score(df, enabled_indicators=enabled_indicators, aggregation=aggregation)
         total_score_baseline = score_components_baseline.pop("total", 0.0)
 
         score_components_mr = self.technical_analyzer.calculate_technical_score(df, strategy="mean_reversion")
@@ -131,7 +144,7 @@ class SwingTrader:
         logging.info("Processed %s with result: %s", symbol, ret_val)
         return ret_val
 
-    def swing_predict(self, target_date: Optional[str] = None) -> None:
+    def swing_predict(self, target_date: Optional[str] = None, enabled_indicators: Optional[list[str]] = None, aggregation: str = "sum") -> None:
         """Main prediction function with parallel processing capability."""
         symbols = get_symbol_name_list()
         # Reduce max_workers to avoid pegging CPU, and use as_completed for progress logging
@@ -145,7 +158,7 @@ class SwingTrader:
         logging.info("Processing %d symbols with %d workers...", len(symbols), max_workers)
         
         with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
-            process_func = partial(self.process_symbol, target_date=target_date)
+            process_func = partial(self.process_symbol, target_date=target_date, enabled_indicators=enabled_indicators, aggregation=aggregation)
             future_to_symbol = {executor.submit(process_func, sym): sym for sym in symbols}
             
             processed_count = 0

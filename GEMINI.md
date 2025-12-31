@@ -48,13 +48,25 @@ The system implements two primary scoring strategies in `TechnicalAnalyzer`:
 - **Applying Changes:** After modifying `.env`, containers must be restarted: `cd docker && docker compose up -d`.
 
 ## Analysis & Scoring Notes
-- **Baseline Strategy:** Includes momentum and breakout logic, but has been enhanced to also reward **oversold entry signals** (e.g., RSI < 30) when a trend is establishing.
-- **Data Integrity:** Strategy scoring requires at least 2 days of historical data to compare "current" vs "previous" states (prevents `KeyError`). Symbols with very short histories (e.g., < 14 days) may still cause index errors in indicators like RSI.
-- **Backtesting Performance:** A 6-month weekly backtest (approx. 30 dates) takes ~75 minutes to complete.
-- **Data Requirements:** Symbols with < 30 days of history may trigger `IndexError` during indicator calculation (specifically RSI/ATR). Future runs should filter these out during the batch loading phase.
+
+- **Indicator Testing Infrastructure:** A new script `src/run_indicator_analysis.py` allows for 6-month backtests of individual or combined indicators using the `--indicators` flag (e.g., `momentum:macd,momentum:rsi`).
+
+- **Aggregation Models:** Added support for both `sum` (additive) and `product` (convergence) scoring in `TechnicalAnalyzer`. Convergence currently requires very precise timing and may need further threshold relaxation.
+
+- **Baseline Strategy:** Currently undergoing single-factor analysis to optimize weights.
+
+- **MACD Performance:** MACD alone showed a ~61% win rate and ~34% cumulative PnL over the H2 2025 period.
+
+- **RSI Tweak:** RSI scoring was moved from neutral (45-65) to oversold (<50) to better capture "buying the dip" in established trends.
+
+
 
 ## Developer Notes
-- Adhere to the scoring constants defined in `src/bluehorseshoe/analysis/constants.py`.
-- New indicators should be modularized within `src/bluehorseshoe/analysis/indicators/`.
-- Always verify changes using `src/tests/test_technical_scenarios.py` to ensure strategy logic remains consistent.
-- **Workflow:** For a fresh report, typically run `src/main.py -u` followed by `src/main.py -p`.
+
+- **Granular Indicators:** All indicator groups now support sub-indicator filtering in their `get_score` methods.
+
+- **Reporting:** `ReportSingleton` now prints to console and writes to `src/logs/report.txt`.
+
+- **Validation:** When adding new technical scoring logic, ensure column presence checks use `Series.index` to avoid value-based subsetting errors.
+
+- **Next Task:** Compare `MACD + RSI` additive performance against the `MACD` baseline.

@@ -25,6 +25,7 @@ import numpy as np
 import pandas as pd
 import talib
 import mplfinance as mpf #pylint: disable=import-error
+from typing import Optional
 
 from bluehorseshoe.reporting.report_generator import GraphData, graph
 from bluehorseshoe.analysis.indicators.indicator import Indicator, IndicatorScore
@@ -222,29 +223,33 @@ class CandlestickIndicator(Indicator):
 
         return 1.0 if belt_hold[-1] >= 100 else -1.0 if belt_hold[-1] <= -100 else 0.0
 
-    def get_score(self) -> IndicatorScore:
+    def get_score(self, enabled_sub_indicators: Optional[list[str]] = None, aggregation: str = "sum") -> IndicatorScore:
         """
         Calculate the combined score based on various candlestick patterns.
-
-        This method detects several candlestick patterns and calculates a score for each pattern.
-        The final score is a weighted sum of the individual pattern scores.
-
-        Returns:
-            float: The combined score of detected candlestick patterns.
-
-        Patterns and their multipliers:
-            - Three White Soldiers
-            - Rising/Falling Three Methods
-            - Marubozu
-            - Belt Hold
         """
-        buy_score = 0.0
-        buy_score += self.detect_three_white_soldiers() * self.weights['THREE_WHITE_SOLDIERS_MULTIPLIER']
-        buy_score += self.find_rise_fall_3_methods() * self.weights['RISE_FALL_3_METHODS_MULTIPLIER']
-        buy_score += self.find_marubozu() * self.weights['MARUBOZU_MULTIPLIER']
-        buy_score += self.find_belt_hold() * self.weights['BELT_HOLD_MULTIPLIER']
-        sell_score = 0.0
+        buy_score = 1.0 if aggregation == "product" else 0.0
+        active_count = 0
 
+        sub_map = {
+            'soldiers': (self.detect_three_white_soldiers, 'THREE_WHITE_SOLDIERS_MULTIPLIER'),
+            'methods': (self.find_rise_fall_3_methods, 'RISE_FALL_3_METHODS_MULTIPLIER'),
+            'marubozu': (self.find_marubozu, 'MARUBOZU_MULTIPLIER'),
+            'belt_hold': (self.find_belt_hold, 'BELT_HOLD_MULTIPLIER')
+        }
+
+        for name, (func, weight_key) in sub_map.items():
+            if enabled_sub_indicators is None or name in enabled_sub_indicators:
+                score = func() * self.weights[weight_key]
+                if aggregation == "product":
+                    buy_score *= score
+                else:
+                    buy_score += score
+                active_count += 1
+
+        if active_count == 0 or (aggregation == "product" and buy_score == 0):
+            buy_score = 0.0
+
+        sell_score = 0.0
         return IndicatorScore(buy_score, sell_score)
 
     def graph(self) -> None:

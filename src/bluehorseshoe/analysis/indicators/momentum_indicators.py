@@ -24,6 +24,7 @@ Methods:
 
 import numpy as np
 import pandas as pd
+from typing import Optional
 
 from bluehorseshoe.analysis.indicators.indicator import Indicator, IndicatorScore
 from bluehorseshoe.core.config import weights_config
@@ -76,8 +77,8 @@ class MomentumIndicator(Indicator):
 
         This method checks the 'rsi_14' value in the most recent row of data (yesterday).
         It returns:
-        • 2 if the RSI is between 45 and 65 (inclusive),
-        • 1 if the RSI is between 40 and 70 (inclusive),
+        • 2 if the RSI is below 50,
+        • 1 if the RSI is below 60,
         • 0 otherwise.
 
         If 'rsi_14' is not present in the latest row, the score defaults to 0.
@@ -91,8 +92,8 @@ class MomentumIndicator(Indicator):
         if 'rsi_14' in yesterday:
             return np.select(
                 [
-                    (yesterday['rsi_14'] >= 45) & (yesterday['rsi_14'] <= 65),
-                    (yesterday['rsi_14'] >= 40) & (yesterday['rsi_14'] <= 70)
+                    (yesterday['rsi_14'] <= 50),
+                    (yesterday['rsi_14'] <= 60)
                 ],
                 [2, 1],
                 0
@@ -138,7 +139,7 @@ class MomentumIndicator(Indicator):
             float: The MACD score for the most recent day.
         """
         yesterday = self.days.iloc[-1]
-        if {'macd_line', 'macd_signal'}.issubset(yesterday):
+        if {'macd_line', 'macd_signal'}.issubset(yesterday.index):
             macd_diff = yesterday['macd_line'] - yesterday['macd_signal']
             # If MACD diff and line are positive, score 1 or 2 depending on how large the diff is
             if (macd_diff > 0) and (yesterday['macd_line'] > 0):
@@ -182,15 +183,31 @@ class MomentumIndicator(Indicator):
             ).item()
         return 0
 
-    def get_score(self) -> IndicatorScore:
-        buy_score = 0.0
+    def get_score(self, enabled_sub_indicators: Optional[list[str]] = None, aggregation: str = "sum") -> IndicatorScore:
+        buy_score = 1.0 if aggregation == "product" else 0.0
+        active_count = 0
 
-        buy_score += self.calculate_macd() * self.weights['MACD_MULTIPLIER']
-        buy_score += self.calculate_roc() * self.weights['ROC_MULTIPLIER']
-        buy_score += self.calculate_rsi() * self.weights['RSI_MULTIPLIER']
-        buy_score += self.calculate_bb_position() * self.weights['BB_MULTIPLIER']
+        # Mapping of sub-indicator names to their calculation methods and weight keys
+        sub_map = {
+            'macd': (self.calculate_macd, 'MACD_MULTIPLIER'),
+            'roc': (self.calculate_roc, 'ROC_MULTIPLIER'),
+            'rsi': (self.calculate_rsi, 'RSI_MULTIPLIER'),
+            'bb_position': (self.calculate_bb_position, 'BB_MULTIPLIER')
+        }
+
+        for name, (func, weight_key) in sub_map.items():
+            if enabled_sub_indicators is None or name in enabled_sub_indicators:
+                score = func() * self.weights[weight_key]
+                if aggregation == "product":
+                    buy_score *= score
+                else:
+                    buy_score += score
+                active_count += 1
+
+        if active_count == 0 or (aggregation == "product" and buy_score == 0):
+            buy_score = 0.0
+
         sell_score = 0.0
-
         return IndicatorScore(buy_score, sell_score)
 
     def graph(self):

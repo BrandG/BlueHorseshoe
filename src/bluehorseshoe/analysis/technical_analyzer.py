@@ -8,7 +8,10 @@ from bluehorseshoe.analysis.constants import (
     TREND_PERIOD, STRONG_R2_THRESHOLD, MIN_VOLUME_THRESHOLD,
     OVERSOLD_RSI_THRESHOLD_EXTREME, OVERSOLD_RSI_REWARD_EXTREME,
     OVERSOLD_RSI_THRESHOLD_MODERATE, OVERSOLD_RSI_REWARD_MODERATE,
-    OVERSOLD_BB_REWARD, PENALTY_EMA_OVEREXTENSION,
+    OVERSOLD_BB_REWARD, OVERSOLD_BB_POSITION_THRESHOLD,
+    MR_OVERSOLD_RSI_REWARD_EXTREME, MR_OVERSOLD_RSI_REWARD_MODERATE,
+    MR_OVERSOLD_BB_REWARD, MR_BELLOW_LOW_BB_BONUS,
+    PENALTY_EMA_OVEREXTENSION,
     PENALTY_RSI_THRESHOLD_EXTREME, PENALTY_RSI_SCORE_EXTREME,
     PENALTY_RSI_THRESHOLD_MODERATE, PENALTY_RSI_SCORE_MODERATE,
     PENALTY_VOLUME_EXHAUSTION
@@ -74,68 +77,118 @@ class TechnicalAnalyzer:
         return TechnicalAnalyzer.calculate_baseline_score(days)
 
     @staticmethod
-    def calculate_baseline_score(days: pd.DataFrame) -> Dict[str, float]:
+    def calculate_baseline_score(days: pd.DataFrame, enabled_indicators: Optional[list[str]] = None, aggregation: str = "sum") -> Dict[str, float]:
         """
         Trend-following scoring: Rewards strength, momentum, and breakouts.
+        'aggregation' can be 'sum' or 'product'.
         """
         components = {}
         
         if len(days) == 0 or days.iloc[-1].get('avg_volume_20', 0) < MIN_VOLUME_THRESHOLD:
             return {"total": 0.0}
 
-        indicators = {
-            "trend": TrendIndicator(days),
-            "volume": VolumeIndicator(days),
-            "limit": LimitIndicator(days),
-            "candlestick": CandlestickIndicator(days),
-            "moving_average": MovingAverageIndicator(days),
-            "momentum": MomentumIndicator(days)
+        all_indicators_classes = {
+            "trend": TrendIndicator,
+            "volume": VolumeIndicator,
+            "limit": LimitIndicator,
+            "candlestick": CandlestickIndicator,
+            "moving_average": MovingAverageIndicator,
+            "momentum": MomentumIndicator
         }
-        
-        total_score = 0.0
-        for name, indicator in indicators.items():
-            score = indicator.get_score().buy
+
+        # Parse granular indicators if provided (e.g., "momentum:macd")
+        indicator_filters = {}
+        if enabled_indicators:
+            for item in enabled_indicators:
+                if ":" in item:
+                    group, sub = item.split(":", 1)
+                    if group not in indicator_filters:
+                        indicator_filters[group] = []
+                    indicator_filters[group].append(sub)
+                else:
+                    indicator_filters[item] = None
+
+        # Instantiate and score
+        total_score = 1.0 if aggregation == "product" else 0.0
+        active_indicator_count = 0
+
+        for name, cls in all_indicators_classes.items():
+            if enabled_indicators and name not in indicator_filters:
+                continue
+            
+            indicator_inst = cls(days)
+            sub_filters = indicator_filters.get(name)
+            
+            try:
+                score = indicator_inst.get_score(enabled_sub_indicators=sub_filters, aggregation=aggregation).buy
+            except TypeError:
+                # Fallback for indicators not yet updated to support sub-filters
+                score = indicator_inst.get_score().buy
+                
             components[name] = float(score)
-            total_score += score
+            
+            if aggregation == "product":
+                total_score *= score
+            else:
+                total_score += score
+            
+            active_indicator_count += 1
 
-        last_row = days.iloc[-1]
-        
-        # EMA Overextension Penalty (Trend logic: Don't buy the peak of a parabolic move)
-        ema9 = days['close'].ewm(span=9).mean().iloc[-1]
-        dist_ema9 = (last_row['close'] / ema9) - 1
-        if dist_ema9 > 0.10:
-            components["penalty_ema_overextension"] = PENALTY_EMA_OVEREXTENSION
-            total_score += PENALTY_EMA_OVEREXTENSION
+        # If product resulted in 0 or no indicators were active
+        if active_indicator_count == 0:
+            total_score = 0.0
 
-        # RSI Overbought Penalty
-        rsi = last_row.get('rsi_14', 50)
-        if rsi > PENALTY_RSI_THRESHOLD_EXTREME:
-            components["penalty_rsi"] = PENALTY_RSI_SCORE_EXTREME
-            total_score += PENALTY_RSI_SCORE_EXTREME
-        elif rsi > PENALTY_RSI_THRESHOLD_MODERATE:
-            components["penalty_rsi"] = PENALTY_RSI_SCORE_MODERATE
-            total_score += PENALTY_RSI_SCORE_MODERATE
+        # Only apply penalties and bonuses if we are running the full baseline
+        if not enabled_indicators:
+            last_row = days.iloc[-1]
+            
+            # EMA Overextension Penalty (Trend logic: Don't buy the peak of a parabolic move)
+            ema9 = days['close'].ewm(span=9).mean().iloc[-1]
+            dist_ema9 = (last_row['close'] / ema9) - 1
+            if dist_ema9 > 0.10:
+                components["penalty_ema_overextension"] = PENALTY_EMA_OVEREXTENSION
+                total_score += PENALTY_EMA_OVEREXTENSION
 
-        # RSI Oversold Signal (In baseline/trend-following, this is a penalty/caution)
-        if rsi < OVERSOLD_RSI_THRESHOLD_EXTREME:
-            components["bonus_oversold_rsi"] = OVERSOLD_RSI_REWARD_EXTREME
-            total_score += OVERSOLD_RSI_REWARD_EXTREME
-        elif rsi < OVERSOLD_RSI_THRESHOLD_MODERATE:
-            components["bonus_oversold_rsi"] = OVERSOLD_RSI_REWARD_MODERATE
-            total_score += OVERSOLD_RSI_REWARD_MODERATE
+            # RSI Overbought Penalty
+            rsi = last_row.get('rsi_14', 50)
+            if rsi > PENALTY_RSI_THRESHOLD_EXTREME:
+                components["penalty_rsi"] = PENALTY_RSI_SCORE_EXTREME
+                total_score += PENALTY_RSI_SCORE_EXTREME
+            elif rsi > PENALTY_RSI_THRESHOLD_MODERATE:
+                components["penalty_rsi"] = PENALTY_RSI_SCORE_MODERATE
+                total_score += PENALTY_RSI_SCORE_MODERATE
 
-        # Bollinger Band Oversold Signal
-        bb_lower = last_row.get('bb_lower')
-        if bb_lower is not None and last_row['close'] < bb_lower:
-            components["bonus_oversold_bb"] = OVERSOLD_BB_REWARD
-            total_score += OVERSOLD_BB_REWARD
+            # RSI Oversold Signal (Refined: Reward if in Uptrend, otherwise Penalty)
+            trend = TechnicalAnalyzer.calculate_trend(days)
+            is_uptrend = "Uptrend" in trend
+            
+            if rsi < OVERSOLD_RSI_THRESHOLD_EXTREME:
+                reward = abs(OVERSOLD_RSI_REWARD_EXTREME) if is_uptrend else OVERSOLD_RSI_REWARD_EXTREME
+                components["bonus_oversold_rsi"] = reward
+                total_score += reward
+            elif rsi < OVERSOLD_RSI_THRESHOLD_MODERATE:
+                reward = abs(OVERSOLD_RSI_REWARD_MODERATE) if is_uptrend else OVERSOLD_RSI_REWARD_MODERATE
+                components["bonus_oversold_rsi"] = reward
+                total_score += reward
 
-        # Volume Exhaustion Penalty
-        avg_vol = last_row.get('avg_volume_20', 1)
-        vol_ratio = last_row['volume'] / avg_vol
-        if vol_ratio > 3.0:
-            components["penalty_volume_exhaustion"] = PENALTY_VOLUME_EXHAUSTION
-            total_score += PENALTY_VOLUME_EXHAUSTION
+            # Bollinger Band Oversold Signal
+            bb_lower = last_row.get('bb_lower')
+            if bb_lower is not None and last_row['close'] < bb_lower:
+                reward = abs(OVERSOLD_BB_REWARD) if is_uptrend else OVERSOLD_BB_REWARD
+                total_score += reward
+
+            # Volume Exhaustion / Selling Climax
+            avg_vol = last_row.get('avg_volume_20', 1)
+            vol_ratio = last_row['volume'] / avg_vol
+            
+            if rsi < OVERSOLD_RSI_THRESHOLD_EXTREME and vol_ratio > 2.0:
+                # Selling climax: Extreme oversold + high volume = strong reversal potential
+                components["bonus_selling_climax"] = 3.0
+                total_score += 3.0
+            elif vol_ratio > 3.0:
+                # Simple exhaustion penalty (could be buying climax at the top)
+                components["penalty_volume_exhaustion"] = PENALTY_VOLUME_EXHAUSTION
+                total_score += PENALTY_VOLUME_EXHAUSTION
 
         components["total"] = float(total_score)
         return components
@@ -156,27 +209,35 @@ class TechnicalAnalyzer:
         # 1. RSI Oversold (The primary driver)
         rsi = last_row.get('rsi_14', 50)
         if rsi < OVERSOLD_RSI_THRESHOLD_EXTREME:
-            components["bonus_oversold_rsi"] = abs(OVERSOLD_RSI_REWARD_EXTREME)
-            total_score += abs(OVERSOLD_RSI_REWARD_EXTREME)
+            components["bonus_oversold_rsi"] = MR_OVERSOLD_RSI_REWARD_EXTREME
+            total_score += MR_OVERSOLD_RSI_REWARD_EXTREME
         elif rsi < OVERSOLD_RSI_THRESHOLD_MODERATE:
-            components["bonus_oversold_rsi"] = abs(OVERSOLD_RSI_REWARD_MODERATE)
-            total_score += abs(OVERSOLD_RSI_REWARD_MODERATE)
+            components["bonus_oversold_rsi"] = MR_OVERSOLD_RSI_REWARD_MODERATE
+            total_score += MR_OVERSOLD_RSI_REWARD_MODERATE
 
-        # 2. Bollinger Band Oversold
+        # 2. Bollinger Band Position (Granular)
         bb_lower = last_row.get('bb_lower')
         bb_upper = last_row.get('bb_upper')
         if bb_lower is not None and bb_upper is not None and bb_upper > bb_lower:
-            if last_row['close'] < bb_lower:
-                components["bonus_oversold_bb"] = abs(OVERSOLD_BB_REWARD)
-                total_score += abs(OVERSOLD_BB_REWARD)
+            # Calculate %B (Bollinger Band Position)
+            bb_pos = (last_row['close'] - bb_lower) / (bb_upper - bb_lower)
+            if bb_pos < OVERSOLD_BB_POSITION_THRESHOLD:
+                bonus = MR_OVERSOLD_BB_REWARD
+                # Extra bonus if price is actually below the lower band
+                if last_row['close'] < bb_lower:
+                    bonus += MR_BELLOW_LOW_BB_BONUS
+                components["bonus_oversold_bb"] = bonus
+                total_score += bonus
 
         # 3. Distance from Moving Average (Inverse of trend logic)
-        ma20 = days['close'].rolling(window=20).mean().iloc[-1]
-        dist_ma20 = (last_row['close'] / ma20) - 1
-        if dist_ma20 < -0.05:
-            bonus = 2.0 if dist_ma20 < -0.10 else 1.0
-            components["bonus_ma_dist"] = bonus
-            total_score += bonus
+        ema20 = last_row.get('ema_20')
+        if ema20 is not None:
+            dist_ema20 = (last_row['close'] / ema20) - 1
+            if dist_ema20 < -0.05:
+                # Scale bonus based on distance
+                bonus = 3.0 if dist_ema20 < -0.10 else 1.5
+                components["bonus_ma_dist"] = bonus
+                total_score += bonus
 
         # 4. Candlestick Reversals (Hammers, etc.)
         cs = CandlestickIndicator(days)

@@ -100,9 +100,10 @@ class Backtester:
             'days_held': len(future_data[future_data['date'] <= pd.to_datetime(exit_date)]) if exit_date else self.hold_days
         }
 
-    def run_backtest(self, target_date: str, strategy: str = "baseline", top_n: int = 10):
+    def run_backtest(self, target_date: str, strategy: str = "baseline", top_n: int = 10, enabled_indicators: Optional[list[str]] = None, aggregation: str = "sum"):
         """Runs a backtest for a specific historical date and returns results."""
-        ReportSingleton().write(f"\n--- {strategy.title()} Backtest Report for {target_date} (Hold: {self.hold_days} days) ---")
+        indicator_str = f" | Indicators: {', '.join(enabled_indicators)}" if enabled_indicators else ""
+        ReportSingleton().write(f"\n--- {strategy.title()} Backtest Report for {target_date} (Hold: {self.hold_days} days){indicator_str} | Agg: {aggregation} ---")
         
         symbols = get_symbol_name_list()
         max_workers = min(8, os.cpu_count() or 4)
@@ -111,7 +112,7 @@ class Backtester:
         predictions = []
         
         with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
-            process_func = partial(self.trader.process_symbol, target_date=target_date)
+            process_func = partial(self.trader.process_symbol, target_date=target_date, enabled_indicators=enabled_indicators, aggregation=aggregation)
             future_to_symbol = {executor.submit(process_func, sym): sym for sym in symbols}
             
             for future in concurrent.futures.as_completed(future_to_symbol):
@@ -124,13 +125,15 @@ class Backtester:
         # Use strategy-specific score key
         score_key = "baseline_score" if strategy == "baseline" else "mr_score"
         
+        # Filter out scores <= 0 to avoid noise
         valid_predictions = sorted(
-            (p for p in predictions if p is not None),
+            (p for p in predictions if p is not None and p.get(score_key, 0.0) > 0),
             key=lambda x: x.get(score_key, 0.0),
             reverse=True
         )
 
         if not valid_predictions:
+            ReportSingleton().write("No valid signals found for this date.")
             return []
 
         top_predictions = valid_predictions[:top_n]
@@ -158,7 +161,7 @@ class Backtester:
         
         return results
 
-    def run_range_backtest(self, start_date: str, end_date: str, interval_days: int = 7, top_n: int = 10, strategy: str = "baseline"):
+    def run_range_backtest(self, start_date: str, end_date: str, interval_days: int = 7, top_n: int = 10, strategy: str = "baseline", enabled_indicators: Optional[list[str]] = None, aggregation: str = "sum"):
         """Runs backtests over a range of dates at set intervals."""
         start_ts = pd.to_datetime(start_date)
         end_ts = pd.to_datetime(end_date)
@@ -166,15 +169,18 @@ class Backtester:
         current_ts = start_ts
         all_results = []
         
+        indicator_str = f" | Indicators: {', '.join(enabled_indicators)}" if enabled_indicators else "ALL"
         ReportSingleton().write(f"\n==========================================")
         ReportSingleton().write(f"STRESS TEST: {start_date} to {end_date} | Strategy: {strategy}")
         ReportSingleton().write(f"Interval: {interval_days} days | Hold: {self.hold_days} days")
+        ReportSingleton().write(f"Indicators: {indicator_str}")
+        ReportSingleton().write(f"Aggregation: {aggregation}")
         ReportSingleton().write(f"Target: {self.target_profit_factor} | Stop: {self.stop_loss_factor}")
         ReportSingleton().write(f"==========================================\n")
 
         while current_ts <= end_ts:
             date_str = current_ts.strftime('%Y-%m-%d')
-            day_results = self.run_backtest(date_str, strategy=strategy, top_n=top_n)
+            day_results = self.run_backtest(date_str, strategy=strategy, top_n=top_n, enabled_indicators=enabled_indicators, aggregation=aggregation)
             all_results.extend(day_results)
             current_ts += pd.Timedelta(days=interval_days)
 

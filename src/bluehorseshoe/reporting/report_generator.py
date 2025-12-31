@@ -137,7 +137,7 @@ class ReportSingleton:
 
     def write(self, content: Union[str, dict, list]) -> None:
         """
-        Thread-safe method to write content to the report file.
+        Thread-safe method to write content to the report file and stdout.
         """
         if self._file is None:
             raise RuntimeError("Attempted to write to a closed report file")
@@ -149,9 +149,13 @@ class ReportSingleton:
                 else:
                     formatted_content = str(content)
 
+                # Write to file
                 self._file.write(formatted_content + '\n')
                 self._file.flush()
                 os.fsync(self._file.fileno())  # Ensure write to disk
+                
+                # Also print to console
+                print(formatted_content)
 
         except (IOError, OSError) as e:
             logging.error("Failed to write to report file: %s", str(e))

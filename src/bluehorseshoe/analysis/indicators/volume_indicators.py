@@ -28,6 +28,7 @@ Methods:
 """
 import numpy as np
 import pandas as pd
+from typing import Optional
 from ta.volume import OnBalanceVolumeIndicator, ChaikinMoneyFlowIndicator #pylint: disable=import-error
 from ta.volatility import AverageTrueRange # pylint: disable=import-error
 
@@ -161,19 +162,35 @@ class VolumeIndicator(Indicator):
 
         return float(np.select([obv_diff > 0, obv_diff < 0], [1, -1], default=0)) * self.weights['OBV_MULTIPLIER']
 
-    def get_score(self) -> IndicatorScore:
+    def get_score(self, enabled_sub_indicators: Optional[list[str]] = None, aggregation: str = "sum") -> IndicatorScore:
         """
         Returns a score based on the volume indicators.
         """
-        buy_score = 0.0
+        buy_score = 1.0 if aggregation == "product" else 0.0
+        active_count = 0
 
-        buy_score += self.score_obv_trend() * self.weights['OBV_MULTIPLIER']
-        buy_score += self.calculate_cmf_with_ta() * self.weights['CMF_MULTIPLIER']
-        buy_score += self.score_atr_band() * self.weights['ATR_BAND_MULTIPLIER']
-        buy_score += self.score_atr_spike() * self.weights['ATR_SPIKE_MULTIPLIER']
-        buy_score += self.calculate_avg_volume() # No multiplier
+        sub_map = {
+            'obv': (self.score_obv_trend, 'OBV_MULTIPLIER'),
+            'cmf': (self.calculate_cmf_with_ta, 'CMF_MULTIPLIER'),
+            'atr_band': (self.score_atr_band, 'ATR_BAND_MULTIPLIER'),
+            'atr_spike': (self.score_atr_spike, 'ATR_SPIKE_MULTIPLIER'),
+            'avg_volume': (self.calculate_avg_volume, None)
+        }
+
+        for name, (func, weight_key) in sub_map.items():
+            if enabled_sub_indicators is None or name in enabled_sub_indicators:
+                multiplier = self.weights[weight_key] if weight_key else 1.0
+                score = func() * multiplier
+                if aggregation == "product":
+                    buy_score *= score
+                else:
+                    buy_score += score
+                active_count += 1
+
+        if active_count == 0 or (aggregation == "product" and buy_score == 0):
+            buy_score = 0.0
+
         sell_score = 0.0
-
         return IndicatorScore(buy_score, sell_score)
 
     def graph(self) -> None:
