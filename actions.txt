@@ -4,3 +4,7 @@
 2026-01-02: Generated predictions for Friday, Jan 2, 2026 (based on 2025-12-31 data). Report saved to src/logs/report.txt.
 2026-01-02: Upgraded SwingTrader price logic to use structural price action (EMA pullbacks, swing lows, and prior highs) instead of fixed ATR/percentage discounts.
 2026-01-02: Implemented Reward-to-Risk (R:R) filtering. Candidates must now have a structural potential profit of at least 2x the potential risk to qualify.
+2026-01-02: Added Volume Confirmation to entry logic. Bullish reversals must now have at least average volume (Relative Volume >= 1.0) to qualify for an 'at-close' entry; otherwise, they default to a limit order at the EMA 9.
+2026-01-02: Implemented Multi-Timeframe Alignment. Candidates must now be in a primary Weekly uptrend (10-week EMA > 30-week EMA) to qualify for a long signal.
+2026-01-02: Implemented Market Context Filter. The system now analyzes SPY and QQQ health before generating individual signals, acting as a 'circuit breaker' during bearish market regimes.
+2026-01-02: Implemented Relative Strength (RS) Indexing. Baseline candidates are now rewarded or penalized based on their 3-month performance relative to the S&P 500 (SPY).

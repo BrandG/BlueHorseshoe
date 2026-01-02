@@ -1,6 +1,6 @@
 import pandas as pd
 import logging
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from bluehorseshoe.data.historical_data import load_historical_data
 from bluehorseshoe.analysis.technical_analyzer import TechnicalAnalyzer
 
@@ -11,7 +11,7 @@ class MarketRegime:
     """
     
     @staticmethod
-    def get_market_health() -> Dict[str, Any]:
+    def get_market_health(target_date: Optional[str] = None) -> Dict[str, Any]:
         """
         Determines the current market regime.
         Returns:
@@ -33,6 +33,13 @@ class MarketRegime:
                 continue
                 
             df = pd.DataFrame(data['days'])
+            if target_date:
+                df['date'] = pd.to_datetime(df['date'])
+                df = df[df['date'] <= pd.to_datetime(target_date)]
+                if df.empty:
+                    health_data[symbol] = 'Unknown'
+                    continue
+
             last_row = df.iloc[-1]
             
             # Simple health check: Price > EMA 20 and Trend is not Downtrend

@@ -35,15 +35,42 @@ from bluehorseshoe.core.scores import score_manager
 from bluehorseshoe.analysis.constants import (
     MIN_VOLUME_THRESHOLD, MIN_STOCK_PRICE, MAX_STOCK_PRICE,
     STOP_LOSS_FACTOR, TAKE_PROFIT_FACTOR, ATR_WINDOW, ATR_MULTIPLIER_UPTREND, ATR_MULTIPLIER_DOWNTREND,
-    MIN_RR_RATIO
+    MIN_RR_RATIO, MIN_REL_VOLUME, REQUIRE_WEEKLY_UPTREND
 )
 from bluehorseshoe.analysis.technical_analyzer import TechnicalAnalyzer
+from bluehorseshoe.analysis.market_regime import MarketRegime
 
 class SwingTrader:
     """Main class for swing trading analysis."""
 
     def __init__(self):
         self.technical_analyzer = TechnicalAnalyzer()
+
+    def is_weekly_uptrend(self, df: pd.DataFrame) -> bool:
+        """
+        Resamples daily data to weekly and checks for a primary uptrend using 
+        Stage Analysis (10-week EMA > 30-week EMA).
+        """
+        # Create a copy to avoid modifying the original during resampling
+        w_df = df.copy()
+        if not pd.api.types.is_datetime64_any_dtype(w_df['date']):
+            w_df['date'] = pd.to_datetime(w_df['date'])
+        
+        # Resample to weekly (Sunday as the end of week)
+        weekly = w_df.resample('W', on='date').agg({
+            'close': 'last'
+        })
+        
+        if len(weekly) < 12:
+            return True # Insufficient history (need at least 3 months), don't penalize
+            
+        ema10 = weekly['close'].ewm(span=10).mean()
+        ema30 = weekly['close'].ewm(span=30).mean()
+        
+        last_ema10 = ema10.iloc[-1]
+        last_ema30 = ema30.iloc[-1]
+        
+        return last_ema10 > last_ema30
 
     def calculate_structural_setup(self, df: pd.DataFrame) -> Dict[str, float]:
         """
@@ -61,16 +88,21 @@ class SwingTrader:
         # 2. Bullish Confirmation (Last candle closed green)
         is_bullish = last_close > last_row['open']
         
-        # 3. Structural levels
+        # 3. Volume Confirmation (Above average volume)
+        avg_volume = last_row.get('avg_volume_20', 1)
+        vol_ratio = last_row['volume'] / avg_volume if avg_volume > 0 else 0
+        has_volume_support = vol_ratio >= MIN_REL_VOLUME
+        
+        # 4. Structural levels
         # Recent swing low (5-day)
         swing_low_5 = df['low'].rolling(window=5).min().iloc[-1]
         # Recent swing high (20-day) for target
         swing_high_20 = df['high'].rolling(window=20).max().iloc[-1]
         
         # Entry Logic:
-        # If already bullish and near EMA 9 (within 1.5%), buy at current close.
+        # If already bullish, has volume support, and near EMA 9 (within 1.5%), buy at current close.
         # This ensures we don't set "unrealistically" low entries for strong runners.
-        if is_bullish and (last_close < ema9 * 1.015):
+        if is_bullish and has_volume_support and (last_close < ema9 * 1.015):
             entry_price = last_close
         else:
             # Otherwise, wait for a pullback to EMA 9 (support)
@@ -83,7 +115,7 @@ class SwingTrader:
         # Take Profit: Prior 20-day high, or at least a 5% gain (Measured Move)
         take_profit = max(swing_high_20, entry_price * 1.05)
         
-        # 4. Calculate Reward-to-Risk (R:R)
+        # 5. Calculate Reward-to-Risk (R:R)
         reward = take_profit - entry_price
         risk = entry_price - stop_loss
         rr_ratio = reward / risk if risk > 0 else 0
@@ -92,10 +124,25 @@ class SwingTrader:
             'entry_price': float(entry_price),
             'stop_loss': float(stop_loss),
             'take_profit': float(take_profit),
-            'rr_ratio': float(rr_ratio)
+            'rr_ratio': float(rr_ratio),
+            'vol_ratio': float(vol_ratio)
         }
 
-    def process_symbol(self, symbol: str, target_date: Optional[str] = None, enabled_indicators: Optional[list[str]] = None, aggregation: str = "sum") -> Optional[Dict]:
+    def calculate_relative_strength(self, df: pd.DataFrame, benchmark_df: pd.DataFrame, lookback: int = 63) -> float:
+        """
+        Calculates Relative Strength (RS) ratio of the stock vs the benchmark.
+        A value > 1.0 means the stock is outperforming the benchmark over the lookback period.
+        Default lookback is 63 trading days (~3 months).
+        """
+        if len(df) < lookback or len(benchmark_df) < lookback:
+            return 1.0
+            
+        stock_perf = df['close'].iloc[-1] / df['close'].iloc[-lookback]
+        bench_perf = benchmark_df['close'].iloc[-1] / benchmark_df['close'].iloc[-lookback]
+        
+        return stock_perf / bench_perf if bench_perf > 0 else 1.0
+
+    def process_symbol(self, symbol: str, target_date: Optional[str] = None, enabled_indicators: Optional[list[str]] = None, aggregation: str = "sum", benchmark_df: Optional[pd.DataFrame] = None) -> Optional[Dict]:
         """Process a single symbol and return its trading data."""
         price_data = load_historical_data(symbol)
         if price_data is None or not price_data['days']:
@@ -114,16 +161,19 @@ class SwingTrader:
             if df.empty:
                 return None
             
-            # Staleness check: If the last available data is more than 7 days older than the target_date,
-            # it means the symbol was likely delisted or has a massive data gap.
+            # Staleness check
             last_date = pd.to_datetime(df.iloc[-1]['date'])
             if (target_ts - last_date).days > 7:
-                logging.info("Symbol %s data is too stale for target date %s (Last date: %s). Skipping.", 
-                             symbol, target_date, last_date.strftime('%Y-%m-%d'))
+                logging.info("Symbol %s data is too stale for target date %s. Skipping.", symbol, target_date)
                 return None
             
         if len(df) < 30:
             logging.info("Symbol %s has insufficient data (%d days) for target date. Skipping.", symbol, len(df))
+            return None
+
+        # Multi-Timeframe Alignment Filter
+        if REQUIRE_WEEKLY_UPTREND and not self.is_weekly_uptrend(df):
+            logging.info("Symbol %s skipped: Not in a primary Weekly uptrend.", symbol)
             return None
 
         yesterday = dict(df.iloc[-1])
@@ -151,7 +201,24 @@ class SwingTrader:
         if not MIN_STOCK_PRICE < entry_price < MAX_STOCK_PRICE:
             return None
 
+        # Calculate Scores
         score_components_baseline = self.technical_analyzer.calculate_baseline_score(df, enabled_indicators=enabled_indicators, aggregation=aggregation)
+        
+        # Apply Relative Strength (RS) Bonus to Baseline
+        rs_ratio = 1.0
+        if benchmark_df is not None:
+            rs_ratio = self.calculate_relative_strength(df, benchmark_df)
+            # If outperforming by > 10%, give a significant bonus
+            if rs_ratio > 1.10:
+                rs_bonus = 5.0
+            elif rs_ratio > 1.0:
+                rs_bonus = 2.0
+            else:
+                rs_bonus = -2.0
+            
+            score_components_baseline["rs_index"] = rs_bonus
+            score_components_baseline["total"] += rs_bonus
+
         total_score_baseline = score_components_baseline.pop("total", 0.0)
 
         score_components_mr = self.technical_analyzer.calculate_technical_score(df, strategy="mean_reversion", enabled_indicators=enabled_indicators, aggregation=aggregation)
@@ -167,13 +234,32 @@ class SwingTrader:
             'baseline_score': total_score_baseline,
             'baseline_components': score_components_baseline,
             'mr_score': total_score_mr,
-            'mr_components': score_components_mr
+            'mr_components': score_components_mr,
+            'rs_ratio': rs_ratio
         }
         logging.info("Processed %s with result: %s", symbol, ret_val)
         return ret_val
 
     def swing_predict(self, target_date: Optional[str] = None, enabled_indicators: Optional[list[str]] = None, aggregation: str = "sum") -> None:
         """Main prediction function with parallel processing capability."""
+        
+        # 1. Market Context Filter (The "Big Picture")
+        market_health = MarketRegime.get_market_health(target_date=target_date)
+        ReportSingleton().write(f"Market Status: {market_health['status']} ({market_health['multiplier']}x risk)")
+        
+        if market_health['status'] == 'Bearish':
+            ReportSingleton().write("BROAD MARKET IS BEARISH. Skipping all long signals to protect capital.")
+            return
+
+        # Load Benchmark for Relative Strength
+        benchmark_data = load_historical_data("SPY")
+        benchmark_df = None
+        if benchmark_data and benchmark_data.get('days'):
+            benchmark_df = pd.DataFrame(benchmark_data['days'])
+            if target_date:
+                benchmark_df['date'] = pd.to_datetime(benchmark_df['date'])
+                benchmark_df = benchmark_df[benchmark_df['date'] <= pd.to_datetime(target_date)]
+
         symbols = get_symbol_name_list()
         # Reduce max_workers to avoid pegging CPU, and use as_completed for progress logging
         max_workers = min(8, os.cpu_count() or 4)
@@ -186,7 +272,7 @@ class SwingTrader:
         logging.info("Processing %d symbols with %d workers...", len(symbols), max_workers)
         
         with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
-            process_func = partial(self.process_symbol, target_date=target_date, enabled_indicators=enabled_indicators, aggregation=aggregation)
+            process_func = partial(self.process_symbol, target_date=target_date, enabled_indicators=enabled_indicators, aggregation=aggregation, benchmark_df=benchmark_df)
             future_to_symbol = {executor.submit(process_func, sym): sym for sym in symbols}
             
             processed_count = 0
