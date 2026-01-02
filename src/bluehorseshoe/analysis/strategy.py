@@ -76,8 +76,8 @@ class SwingTrader:
         """
         Calculate structural prices based on the requested strategy:
         Entry = Pullback to EMA + Bullish candle close
-        Stop = Below recent swing low
-        Target = Prior high or measured move
+        Stop = Below recent swing low or 2.0 * ATR
+        Target = Prior high or 3.0 * ATR
         """
         last_row = df.iloc[-1]
         last_close = last_row['close']
@@ -93,7 +93,19 @@ class SwingTrader:
         vol_ratio = last_row['volume'] / avg_volume if avg_volume > 0 else 0
         has_volume_support = vol_ratio >= MIN_REL_VOLUME
         
-        # 4. Structural levels
+        # 4. Volatility (ATR)
+        if 'ATR' not in df.columns:
+            df['ATR'] = AverageTrueRange(
+                high=df['high'], 
+                low=df['low'], 
+                close=df['close'], 
+                window=ATR_WINDOW
+            ).average_true_range()
+        atr = df.iloc[-1]['ATR']
+        if pd.isna(atr):
+            atr = last_close * 0.02 # Fallback to 2%
+            
+        # 5. Structural levels
         # Recent swing low (5-day)
         swing_low_5 = df['low'].rolling(window=5).min().iloc[-1]
         # Recent swing high (20-day) for target
@@ -101,31 +113,37 @@ class SwingTrader:
         
         # Entry Logic:
         # If already bullish, has volume support, and near EMA 9 (within 1.5%), buy at current close.
-        # This ensures we don't set "unrealistically" low entries for strong runners.
         if is_bullish and has_volume_support and (last_close < ema9 * 1.015):
             entry_price = last_close
         else:
             # Otherwise, wait for a pullback to EMA 9 (support)
             entry_price = ema9
             
-        # Stop Loss: Below the 5-day low, but capped at 3% from entry for tighter risk control
-        # if the swing low is too far away, or below entry if swing low is above us.
-        stop_loss = min(swing_low_5 * 0.99, entry_price * 0.97)
+        # Stop Loss: Use the lower of (Swing Low) or (2.0 * ATR)
+        # This provides "breathing room" based on the stock's actual volatility.
+        stop_loss = min(swing_low_5 * 0.985, entry_price - (2.0 * atr))
         
-        # Take Profit: Prior 20-day high, or at least a 5% gain (Measured Move)
-        take_profit = max(swing_high_20, entry_price * 1.05)
+        # Take Profit: Prior 20-day high, or at least a 3.0 * ATR move
+        take_profit = max(swing_high_20, entry_price + (3.0 * atr))
         
-        # 5. Calculate Reward-to-Risk (R:R)
+        # 6. Calculate Reward-to-Risk (R:R)
         reward = take_profit - entry_price
         risk = entry_price - stop_loss
         rr_ratio = reward / risk if risk > 0 else 0
+        
+        # 7. Quality Check: Is the entry price realistic?
+        # If the targeted entry (EMA) is more than 15% away from the close, 
+        # the price structure is likely broken or parabolic.
+        dist_to_close = abs((last_close / entry_price) - 1)
+        is_realistic = dist_to_close <= 0.15
         
         return {
             'entry_price': float(entry_price),
             'stop_loss': float(stop_loss),
             'take_profit': float(take_profit),
             'rr_ratio': float(rr_ratio),
-            'vol_ratio': float(vol_ratio)
+            'vol_ratio': float(vol_ratio),
+            'is_realistic': is_realistic
         }
 
     def calculate_relative_strength(self, df: pd.DataFrame, benchmark_df: pd.DataFrame, lookback: int = 63) -> float:
@@ -191,7 +209,12 @@ class SwingTrader:
         # Calculate Structural Prices (Entry, Stop, Target)
         setup = self.calculate_structural_setup(df)
         
-        # Reward-to-Risk Filter
+        # Reward-to-Risk and Realism Filter
+        if not setup['is_realistic']:
+            logging.info("Symbol %s skipped: Entry target (%.2f) is too far from close (%.2f).", 
+                         symbol, setup['entry_price'], yesterday['close'])
+            return None
+
         if setup['rr_ratio'] < MIN_RR_RATIO:
             logging.info("Symbol %s skipped due to poor R:R ratio: %.2f", symbol, setup['rr_ratio'])
             return None

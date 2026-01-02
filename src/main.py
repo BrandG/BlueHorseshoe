@@ -30,12 +30,19 @@ from sklearn.exceptions import ConvergenceWarning
 
 from bluehorseshoe.reporting.report_generator import ReportSingleton
 from bluehorseshoe.core.globals import get_mongo_client
+from bluehorseshoe.core.database import db
 from bluehorseshoe.data.historical_data import build_all_symbols_history
 from bluehorseshoe.analysis.strategy import SwingTrader
 from bluehorseshoe.analysis.optimizer import WeightOptimizer
 
 DEBUG_SYMBOL = 'ABVC'
 DEBUG = False
+
+def get_latest_market_date():
+    """Find the most recent date available in historical_data."""
+    database = db.get_db()
+    latest = database.historical_data.find_one({}, {'days.date': 1}, sort=[('days.date', -1)])
+    return latest['days'][-1]['date'] if latest else None
 
 
 def debug_test():
@@ -93,6 +100,10 @@ if __name__ == "__main__":
                 target_date = sys.argv[p_idx + 1]
         except (ValueError, IndexError):
             pass
+
+        if not target_date:
+            target_date = get_latest_market_date()
+            logging.info("No date provided for -p, defaulting to latest: %s", target_date)
 
         enabled_indicators = None
         if "--indicators" in sys.argv:

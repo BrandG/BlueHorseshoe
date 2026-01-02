@@ -8,3 +8,6 @@
 2026-01-02: Implemented Multi-Timeframe Alignment. Candidates must now be in a primary Weekly uptrend (10-week EMA > 30-week EMA) to qualify for a long signal.
 2026-01-02: Implemented Market Context Filter. The system now analyzes SPY and QQQ health before generating individual signals, acting as a 'circuit breaker' during bearish market regimes.
 2026-01-02: Implemented Relative Strength (RS) Indexing. Baseline candidates are now rewarded or penalized based on their 3-month performance relative to the S&P 500 (SPY).
+2026-01-02: Completed 6-month stress test for v1.5 strategies. Baseline: 54% WR, 1.7% Avg PnL (98% Cum). Mean Reversion: 29% WR, 0.4% Avg PnL (34% Cum). Baseline remains the primary strategy.
+2026-01-02: Added auto-selection of the latest market date for the -p flag. If no date is provided, the system now automatically finds and analyzes the most recent historical data point.
+2026-01-02: Implemented a 'Realism Filter' to discard signals where the targeted entry is more than 15% away from the close. This successfully pruned outlier candidates (RPT, SMX) caused by reverse splits or extreme parabolic moves.

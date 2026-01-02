@@ -28,13 +28,12 @@ class Backtester:
     def evaluate_prediction(self, prediction: Dict, target_date: str) -> Dict:
         """
         Evaluates a single prediction against the price action of the following trading days.
-        
-        Logic:
-        1. Assume entry at 'Open' of the first trading day AFTER target_date.
-        2. Track the trade for up to self.hold_days.
-        3. Check if take_profit or stop_loss is hit.
+        Uses structural entry, stop, and target from the prediction metadata.
         """
         symbol = prediction['symbol']
+        target_entry = prediction['entry_price']
+        target_stop = prediction['stop_loss']
+        target_exit = prediction['take_profit']
         
         price_data = load_historical_data(symbol)
         if not price_data or 'days' not in price_data:
@@ -49,33 +48,65 @@ class Backtester:
         if future_data.empty:
             return {'symbol': symbol, 'status': 'no_future_data'}
 
-        # Entry logic: Buy at Open of the first available day
-        entry_day = future_data.iloc[0]
-        actual_entry = entry_day['open']
+        # 1. Entry check: Did we ever hit the entry price?
+        # Simulation: If Open is below target_entry, we buy at Open.
+        # If Open is above target_entry, but Low is below target_entry, we buy at target_entry.
+        entry_found = False
+        actual_entry = None
+        entry_date = None
+        remaining_data = None
         
-        # Targets based on actual entry
-        actual_take_profit = actual_entry * self.target_profit_factor
-        actual_stop_loss = actual_entry * self.stop_loss_factor
+        for i, day in future_data.iterrows():
+            if day['open'] <= target_entry:
+                actual_entry = day['open']
+                entry_found = True
+            elif day['low'] <= target_entry:
+                actual_entry = target_entry
+                entry_found = True
+            
+            if entry_found:
+                entry_date = day['date']
+                # Trade continues from this day onwards
+                remaining_data = future_data.loc[i:]
+                break
+                
+        if not entry_found:
+            return {'symbol': symbol, 'status': 'no_entry'}
 
         status = 'hold'
         exit_date = None
         exit_price = None
 
-        for _, day in future_data.iterrows():
+        for _, day in remaining_data.iterrows():
             high = day['high']
             low = day['low']
+            open_price = day['open']
             
-            # Check for success first (priority to profit in same-day volatility)
-            if high >= actual_take_profit:
+            # Check for Gap Up Success
+            if open_price >= target_exit:
                 status = 'success'
-                exit_price = actual_take_profit
+                exit_price = open_price # Sold at open for even more profit
+                exit_date = day['date'].strftime('%Y-%m-%d')
+                break
+                
+            # Check for Gap Down Failure
+            if open_price <= target_stop:
+                status = 'failure'
+                exit_price = open_price # Sold at open for a larger loss
+                exit_date = day['date'].strftime('%Y-%m-%d')
+                break
+
+            # Check for success during the day
+            if high >= target_exit:
+                status = 'success'
+                exit_price = target_exit
                 exit_date = day['date'].strftime('%Y-%m-%d')
                 break
             
-            # Check for failure
-            if low <= actual_stop_loss:
+            # Check for failure during the day
+            if low <= target_stop:
                 status = 'failure'
-                exit_price = actual_stop_loss
+                exit_price = target_stop
                 exit_date = day['date'].strftime('%Y-%m-%d')
                 break
 
@@ -93,11 +124,11 @@ class Backtester:
             'symbol': symbol,
             'status': status,
             'entry': actual_entry,
-            'target': actual_take_profit,
-            'stop': actual_stop_loss,
+            'target': target_exit,
+            'stop': target_stop,
             'exit_price': exit_price,
             'exit_date': exit_date,
-            'days_held': len(future_data[future_data['date'] <= pd.to_datetime(exit_date)]) if exit_date else self.hold_days
+            'days_held': len(future_data[(future_data['date'] >= entry_date) & (future_data['date'] <= pd.to_datetime(exit_date))]) if exit_date else self.hold_days
         }
 
     def run_backtest(self, target_date: str, strategy: str = "baseline", top_n: int = 10, enabled_indicators: Optional[list[str]] = None, aggregation: str = "sum", symbols: Optional[List[str]] = None):
