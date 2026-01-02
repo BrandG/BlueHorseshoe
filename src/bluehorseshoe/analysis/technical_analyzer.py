@@ -67,14 +67,14 @@ class TechnicalAnalyzer:
         return trend_map.get((slope > 0, r2_value > STRONG_R2_THRESHOLD), "No Clear Trend")
 
     @staticmethod
-    def calculate_technical_score(days: pd.DataFrame, strategy: str = "baseline") -> Dict[str, float]:
+    def calculate_technical_score(days: pd.DataFrame, strategy: str = "baseline", enabled_indicators: Optional[list[str]] = None, aggregation: str = "sum") -> Dict[str, float]:
         """
         Calculate a technical score based on the specified strategy.
         Returns a dictionary of component scores for granular analysis.
         """
         if strategy == "mean_reversion":
-            return TechnicalAnalyzer.calculate_mean_reversion_score(days)
-        return TechnicalAnalyzer.calculate_baseline_score(days)
+            return TechnicalAnalyzer.calculate_mean_reversion_score(days, enabled_indicators=enabled_indicators, aggregation=aggregation)
+        return TechnicalAnalyzer.calculate_baseline_score(days, enabled_indicators=enabled_indicators, aggregation=aggregation)
 
     @staticmethod
     def calculate_baseline_score(days: pd.DataFrame, enabled_indicators: Optional[list[str]] = None, aggregation: str = "sum") -> Dict[str, float]:
@@ -194,7 +194,7 @@ class TechnicalAnalyzer:
         return components
 
     @staticmethod
-    def calculate_mean_reversion_score(days: pd.DataFrame) -> Dict[str, float]:
+    def calculate_mean_reversion_score(days: pd.DataFrame, enabled_indicators: Optional[list[str]] = None, aggregation: str = "sum") -> Dict[str, float]:
         """
         Mean-reversion scoring: Rewards oversold conditions and "buying the dip".
         """
@@ -203,48 +203,80 @@ class TechnicalAnalyzer:
         if len(days) == 0 or days.iloc[-1].get('avg_volume_20', 0) < MIN_VOLUME_THRESHOLD:
             return {"total": 0.0}
 
+        from bluehorseshoe.core.config import weights_config
+        weights = weights_config.get_weights('mean_reversion')
+
         last_row = days.iloc[-1]
-        total_score = 0.0
+        total_score = 1.0 if aggregation == "product" else 0.0
+        active_count = 0
+
+        # Define components
+        def add_to_score(name, score):
+            nonlocal total_score, active_count
+            components[name] = float(score)
+            if aggregation == "product":
+                total_score *= score
+            else:
+                total_score += score
+            active_count += 1
 
         # 1. RSI Oversold (The primary driver)
-        rsi = last_row.get('rsi_14', 50)
-        if rsi < OVERSOLD_RSI_THRESHOLD_EXTREME:
-            components["bonus_oversold_rsi"] = MR_OVERSOLD_RSI_REWARD_EXTREME
-            total_score += MR_OVERSOLD_RSI_REWARD_EXTREME
-        elif rsi < OVERSOLD_RSI_THRESHOLD_MODERATE:
-            components["bonus_oversold_rsi"] = MR_OVERSOLD_RSI_REWARD_MODERATE
-            total_score += MR_OVERSOLD_RSI_REWARD_MODERATE
+        if (not enabled_indicators or "rsi" in enabled_indicators) and weights.get('RSI_MULTIPLIER', 1.0) > 0:
+            rsi = last_row.get('rsi_14', 50)
+            rsi_score = 0.0
+            if rsi < OVERSOLD_RSI_THRESHOLD_EXTREME:
+                rsi_score = MR_OVERSOLD_RSI_REWARD_EXTREME
+            elif rsi < OVERSOLD_RSI_THRESHOLD_MODERATE:
+                rsi_score = MR_OVERSOLD_RSI_REWARD_MODERATE
+            
+            rsi_score *= weights.get('RSI_MULTIPLIER', 1.0)
+            if rsi_score > 0 or enabled_indicators:
+                add_to_score("bonus_oversold_rsi", rsi_score)
 
         # 2. Bollinger Band Position (Granular)
-        bb_lower = last_row.get('bb_lower')
-        bb_upper = last_row.get('bb_upper')
-        if bb_lower is not None and bb_upper is not None and bb_upper > bb_lower:
-            # Calculate %B (Bollinger Band Position)
-            bb_pos = (last_row['close'] - bb_lower) / (bb_upper - bb_lower)
-            if bb_pos < OVERSOLD_BB_POSITION_THRESHOLD:
-                bonus = MR_OVERSOLD_BB_REWARD
-                # Extra bonus if price is actually below the lower band
-                if last_row['close'] < bb_lower:
-                    bonus += MR_BELLOW_LOW_BB_BONUS
-                components["bonus_oversold_bb"] = bonus
-                total_score += bonus
+        if (not enabled_indicators or "bb" in enabled_indicators) and weights.get('BB_MULTIPLIER', 1.0) > 0:
+            bb_lower = last_row.get('bb_lower')
+            bb_upper = last_row.get('bb_upper')
+            bb_bonus = 0.0
+            if bb_lower is not None and bb_upper is not None and bb_upper > bb_lower:
+                # Calculate %B (Bollinger Band Position)
+                bb_pos = (last_row['close'] - bb_lower) / (bb_upper - bb_lower)
+                if bb_pos < OVERSOLD_BB_POSITION_THRESHOLD:
+                    bb_bonus = MR_OVERSOLD_BB_REWARD
+                    # Extra bonus if price is actually below the lower band
+                    if last_row['close'] < bb_lower:
+                        bb_bonus += MR_BELLOW_LOW_BB_BONUS
+            
+            bb_bonus *= weights.get('BB_MULTIPLIER', 1.0)
+            if bb_bonus > 0 or enabled_indicators:
+                add_to_score("bonus_oversold_bb", bb_bonus)
 
         # 3. Distance from Moving Average (Inverse of trend logic)
-        ema20 = last_row.get('ema_20')
-        if ema20 is not None:
-            dist_ema20 = (last_row['close'] / ema20) - 1
-            if dist_ema20 < -0.05:
-                # Scale bonus based on distance
-                bonus = 3.0 if dist_ema20 < -0.10 else 1.5
-                components["bonus_ma_dist"] = bonus
-                total_score += bonus
+        if (not enabled_indicators or "ma_dist" in enabled_indicators) and weights.get('MA_DIST_MULTIPLIER', 1.0) > 0:
+            ema20 = last_row.get('ema_20')
+            ma_bonus = 0.0
+            if ema20 is not None:
+                dist_ema20 = (last_row['close'] / ema20) - 1
+                if dist_ema20 < -0.05:
+                    # Scale bonus based on distance
+                    ma_bonus = 3.0 if dist_ema20 < -0.10 else 1.5
+            
+            ma_bonus *= weights.get('MA_DIST_MULTIPLIER', 1.0)
+            if ma_bonus > 0 or enabled_indicators:
+                add_to_score("bonus_ma_dist", ma_bonus)
 
         # 4. Candlestick Reversals (Hammers, etc.)
-        cs = CandlestickIndicator(days)
-        # We only care about bullish patterns appearing at the bottom
-        if cs.get_score().buy > 0:
-            components["candlestick"] = 2.0
-            total_score += 2.0
+        if (not enabled_indicators or "candlestick" in enabled_indicators) and weights.get('CANDLESTICK_MULTIPLIER', 1.0) > 0:
+            cs = CandlestickIndicator(days)
+            # We only care about bullish patterns appearing at the bottom
+            cs_score = 2.0 if cs.get_score().buy > 0 else 0.0
+            
+            cs_score *= weights.get('CANDLESTICK_MULTIPLIER', 1.0)
+            if cs_score > 0 or enabled_indicators:
+                add_to_score("candlestick", cs_score)
+
+        if active_count == 0 or (aggregation == "product" and total_score == 0):
+            total_score = 0.0
 
         components["total"] = float(total_score)
         return components

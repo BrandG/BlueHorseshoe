@@ -113,14 +113,23 @@ if __name__ == "__main__":
             if "--strategy" in sys.argv:
                 strategy = sys.argv[sys.argv.index("--strategy") + 1]
 
+            enabled_indicators = None
+            if "--indicators" in sys.argv:
+                enabled_indicators = [i.strip() for i in sys.argv[sys.argv.index("--indicators") + 1].split(",")]
+            
+            aggregation = "sum"
+            if "--aggregation" in sys.argv:
+                aggregation = sys.argv[sys.argv.index("--aggregation") + 1]
+
             if "--end" in sys.argv:
                 end_date = sys.argv[sys.argv.index("--end") + 1]
                 interval = int(sys.argv[sys.argv.index("--interval") + 1]) if "--interval" in sys.argv else 7
                 logging.info("Running range backtest from %s to %s | Strategy: %s...", target_date, end_date, strategy)
-                tester.run_range_backtest(target_date, end_date, interval_days=interval, strategy=strategy)
+                tester.run_range_backtest(target_date, end_date, interval_days=interval, strategy=strategy, 
+                                         enabled_indicators=enabled_indicators, aggregation=aggregation)
             else:
                 logging.info("Running backtest for %s | Strategy: %s...", target_date, strategy)
-                tester.run_backtest(target_date, strategy=strategy)
+                tester.run_backtest(target_date, strategy=strategy, enabled_indicators=enabled_indicators, aggregation=aggregation)
         except (IndexError, ValueError) as e:
             logging.error("Invalid arguments for backtesting: %s", e)
             print("Usage: python main.py -t START_DATE [--end END_DATE] [--interval 7] [--target 1.01] [--stop 0.98] [--hold 3]")

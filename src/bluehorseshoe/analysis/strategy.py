@@ -126,7 +126,7 @@ class SwingTrader:
         score_components_baseline = self.technical_analyzer.calculate_baseline_score(df, enabled_indicators=enabled_indicators, aggregation=aggregation)
         total_score_baseline = score_components_baseline.pop("total", 0.0)
 
-        score_components_mr = self.technical_analyzer.calculate_technical_score(df, strategy="mean_reversion")
+        score_components_mr = self.technical_analyzer.calculate_technical_score(df, strategy="mean_reversion", enabled_indicators=enabled_indicators, aggregation=aggregation)
         total_score_mr = score_components_mr.pop("total", 0.0)
 
         ret_val = {
@@ -209,7 +209,7 @@ class SwingTrader:
                     "date": r["date"][:10],
                     "score": r["baseline_score"],
                     "strategy": "baseline",
-                    "version": "1.4",
+                    "version": "1.5",
                     "metadata": {
                         "entry_price": r["entry_price"],
                         "stop_loss": r["stop_loss"],
@@ -223,7 +223,7 @@ class SwingTrader:
                     "date": r["date"][:10],
                     "score": r["mr_score"],
                     "strategy": "mean_reversion",
-                    "version": "1.4",
+                    "version": "1.5",
                     "metadata": {
                         "entry_price": r["entry_price"],
                         "stop_loss": r["stop_loss"],

@@ -30,6 +30,12 @@ DEFAULT_WEIGHTS = {
         'THREE_WHITE_SOLDIERS_MULTIPLIER': 1.0,
         'MARUBOZU_MULTIPLIER': 1.0,
         'BELT_HOLD_MULTIPLIER': 1.0
+    },
+    'mean_reversion': {
+        'RSI_MULTIPLIER': 0.0,
+        'BB_MULTIPLIER': 1.0,
+        'MA_DIST_MULTIPLIER': 1.0,
+        'CANDLESTICK_MULTIPLIER': 1.0
     }
 }
 
