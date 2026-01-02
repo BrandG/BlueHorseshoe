@@ -86,7 +86,23 @@ if __name__ == "__main__":
         logging.info("Full historical data updated.")
     elif "-p" in sys.argv:
         logging.info('Predicting next midpoints...')
-        SwingTrader().swing_predict()
+        target_date = None
+        try:
+            p_idx = sys.argv.index("-p")
+            if len(sys.argv) > p_idx + 1 and not sys.argv[p_idx+1].startswith("-"):
+                target_date = sys.argv[p_idx + 1]
+        except (ValueError, IndexError):
+            pass
+
+        enabled_indicators = None
+        if "--indicators" in sys.argv:
+            enabled_indicators = [i.strip() for i in sys.argv[sys.argv.index("--indicators") + 1].split(",")]
+        
+        aggregation = "sum"
+        if "--aggregation" in sys.argv:
+            aggregation = sys.argv[sys.argv.index("--aggregation") + 1]
+
+        SwingTrader().swing_predict(target_date=target_date, enabled_indicators=enabled_indicators, aggregation=aggregation)
     elif "-t" in sys.argv:
         try:
             test_idx = sys.argv.index("-t")

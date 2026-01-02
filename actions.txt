@@ -1,3 +1,6 @@
 2026-01-01: Implemented symbol blacklist to exclude invalid symbols (BCPB, etc.). Refined weights.json to favor ADX (2.0) and MACD (1.5) based on backtest performance. RSI disabled in baseline strategy.
 2026-01-01: Verified and pruned invalid_symbols.txt. Found 97% of previously blacklisted symbols were actually valid. Reduced list to 5 confirmed invalid tickers. Updated SwingTrader to score version 1.4.
 2026-01-02: Optimized Mean Reversion strategy by modularizing its scoring and disabling RSI (poison pill). Increased WR to 80% and Avg PnL to 0.40%. Updated weights.json and bumped score version to 1.5.
+2026-01-02: Generated predictions for Friday, Jan 2, 2026 (based on 2025-12-31 data). Report saved to src/logs/report.txt.
+2026-01-02: Upgraded SwingTrader price logic to use structural price action (EMA pullbacks, swing lows, and prior highs) instead of fixed ATR/percentage discounts.
+2026-01-02: Implemented Reward-to-Risk (R:R) filtering. Candidates must now have a structural potential profit of at least 2x the potential risk to qualify.

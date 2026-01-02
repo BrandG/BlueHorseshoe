@@ -34,7 +34,8 @@ from ta.volatility import AverageTrueRange
 from bluehorseshoe.core.scores import score_manager
 from bluehorseshoe.analysis.constants import (
     MIN_VOLUME_THRESHOLD, MIN_STOCK_PRICE, MAX_STOCK_PRICE,
-    STOP_LOSS_FACTOR, TAKE_PROFIT_FACTOR, ATR_WINDOW, ATR_MULTIPLIER_UPTREND, ATR_MULTIPLIER_DOWNTREND
+    STOP_LOSS_FACTOR, TAKE_PROFIT_FACTOR, ATR_WINDOW, ATR_MULTIPLIER_UPTREND, ATR_MULTIPLIER_DOWNTREND,
+    MIN_RR_RATIO
 )
 from bluehorseshoe.analysis.technical_analyzer import TechnicalAnalyzer
 
@@ -44,37 +45,55 @@ class SwingTrader:
     def __init__(self):
         self.technical_analyzer = TechnicalAnalyzer()
 
-    def calculate_entry_price(self, df: pd.DataFrame) -> float:
+    def calculate_structural_setup(self, df: pd.DataFrame) -> Dict[str, float]:
         """
-        Calculate entry price using Average True Range (ATR) for volatility-adjusted 
-        entry discounts. This replaces fixed percentage adjustments.
+        Calculate structural prices based on the requested strategy:
+        Entry = Pullback to EMA + Bullish candle close
+        Stop = Below recent swing low
+        Target = Prior high or measured move
         """
-        last_close = df.iloc[-1]['close']
-        trend = self.technical_analyzer.calculate_trend(df)
+        last_row = df.iloc[-1]
+        last_close = last_row['close']
         
-        # Ensure ATR is available
-        if 'ATR' not in df.columns:
-            df['ATR'] = AverageTrueRange(
-                high=df['high'], 
-                low=df['low'], 
-                close=df['close'], 
-                window=ATR_WINDOW
-            ).average_true_range()
+        # 1. EMAs for support
+        ema9 = df['close'].ewm(span=9).mean().iloc[-1]
+        
+        # 2. Bullish Confirmation (Last candle closed green)
+        is_bullish = last_close > last_row['open']
+        
+        # 3. Structural levels
+        # Recent swing low (5-day)
+        swing_low_5 = df['low'].rolling(window=5).min().iloc[-1]
+        # Recent swing high (20-day) for target
+        swing_high_20 = df['high'].rolling(window=20).max().iloc[-1]
+        
+        # Entry Logic:
+        # If already bullish and near EMA 9 (within 1.5%), buy at current close.
+        # This ensures we don't set "unrealistically" low entries for strong runners.
+        if is_bullish and (last_close < ema9 * 1.015):
+            entry_price = last_close
+        else:
+            # Otherwise, wait for a pullback to EMA 9 (support)
+            entry_price = ema9
             
-        atr = df.iloc[-1]['ATR']
-        if pd.isna(atr):
-            atr = 0
-
-        # Optimization: In uptrends, we want to buy 'dips' relative to volatility.
-        # In downtrends, we want a larger margin of safety.
-        if 'Uptrend' in trend:
-            # Entry = Close - (0.5 * ATR)
-            return last_close - (ATR_MULTIPLIER_UPTREND * atr)
-        elif 'Downtrend' in trend:
-            # Entry = Close - (1.0 * ATR)
-            return last_close - (ATR_MULTIPLIER_DOWNTREND * atr)
-            
-        return last_close
+        # Stop Loss: Below the 5-day low, but capped at 3% from entry for tighter risk control
+        # if the swing low is too far away, or below entry if swing low is above us.
+        stop_loss = min(swing_low_5 * 0.99, entry_price * 0.97)
+        
+        # Take Profit: Prior 20-day high, or at least a 5% gain (Measured Move)
+        take_profit = max(swing_high_20, entry_price * 1.05)
+        
+        # 4. Calculate Reward-to-Risk (R:R)
+        reward = take_profit - entry_price
+        risk = entry_price - stop_loss
+        rr_ratio = reward / risk if risk > 0 else 0
+        
+        return {
+            'entry_price': float(entry_price),
+            'stop_loss': float(stop_loss),
+            'take_profit': float(take_profit),
+            'rr_ratio': float(rr_ratio)
+        }
 
     def process_symbol(self, symbol: str, target_date: Optional[str] = None, enabled_indicators: Optional[list[str]] = None, aggregation: str = "sum") -> Optional[Dict]:
         """Process a single symbol and return its trading data."""
@@ -119,7 +138,16 @@ class SwingTrader:
                         f.write(f"{symbol}\n")
                     return None
 
-        entry_price = self.calculate_entry_price(df)
+        # Calculate Structural Prices (Entry, Stop, Target)
+        setup = self.calculate_structural_setup(df)
+        
+        # Reward-to-Risk Filter
+        if setup['rr_ratio'] < MIN_RR_RATIO:
+            logging.info("Symbol %s skipped due to poor R:R ratio: %.2f", symbol, setup['rr_ratio'])
+            return None
+
+        entry_price = setup['entry_price']
+        
         if not MIN_STOCK_PRICE < entry_price < MAX_STOCK_PRICE:
             return None
 
@@ -134,8 +162,8 @@ class SwingTrader:
             'name': price_data.get('full_name', symbol),
             'date': str(yesterday['date']),
             'entry_price': entry_price,
-            'stop_loss': entry_price * STOP_LOSS_FACTOR,
-            'take_profit': entry_price * TAKE_PROFIT_FACTOR,
+            'stop_loss': setup['stop_loss'],
+            'take_profit': setup['take_profit'],
             'baseline_score': total_score_baseline,
             'baseline_components': score_components_baseline,
             'mr_score': total_score_mr,
@@ -185,7 +213,8 @@ class SwingTrader:
         for i in range(min(5, len(baseline_sorted))):
             res = baseline_sorted[i]
             ReportSingleton().write(
-                f"{res['symbol']} - Entry: {res['entry_price']:.2f} - "
+                f"{res['symbol']} - Entry: {res['entry_price']:.2f} | "
+                f"Stop: {res['stop_loss']:.2f} | Exit: {res['take_profit']:.2f} | "
                 f"Score: {res['baseline_score']:.2f} - Name: {res['name']}"
             )
 
@@ -195,7 +224,8 @@ class SwingTrader:
         for i in range(min(5, len(mr_sorted))):
             res = mr_sorted[i]
             ReportSingleton().write(
-                f"{res['symbol']} - Entry: {res['entry_price']:.2f} - "
+                f"{res['symbol']} - Entry: {res['entry_price']:.2f} | "
+                f"Stop: {res['stop_loss']:.2f} | Exit: {res['take_profit']:.2f} | "
                 f"Score: {res['mr_score']:.2f} - Name: {res['name']}"
             )
 
