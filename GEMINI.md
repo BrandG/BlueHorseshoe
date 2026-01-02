@@ -71,4 +71,4 @@ The system implements two primary scoring strategies in `TechnicalAnalyzer`:
 
 - **Logging:** When decisions are made, like a new indicator, strategy, or revision, always append an entry to the file `actions.txt` that is a line or two, so that it will be easy when we start a new session, to pick up where the previous session left off. When a session begins, tail the last ten lines from `actions.txt` so that we can begin with a known history of actions taken.
 
-- **Next Task:** Compare `MACD + RSI` additive performance against the `MACD` baseline.
+- **Next Task:** Run optimization for the `mean_reversion` strategy to see if RSI and other oscillators improve performance there.
