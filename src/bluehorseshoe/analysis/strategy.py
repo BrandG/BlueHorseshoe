@@ -209,7 +209,7 @@ class SwingTrader:
                     "date": r["date"][:10],
                     "score": r["baseline_score"],
                     "strategy": "baseline",
-                    "version": "1.3",
+                    "version": "1.4",
                     "metadata": {
                         "entry_price": r["entry_price"],
                         "stop_loss": r["stop_loss"],
@@ -223,7 +223,7 @@ class SwingTrader:
                     "date": r["date"][:10],
                     "score": r["mr_score"],
                     "strategy": "mean_reversion",
-                    "version": "1.3",
+                    "version": "1.4",
                     "metadata": {
                         "entry_price": r["entry_price"],
                         "stop_loss": r["stop_loss"],

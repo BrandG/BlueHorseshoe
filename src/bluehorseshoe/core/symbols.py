@@ -53,6 +53,19 @@ OVERVIEW_URL = (
 
 RECENT_TRADING_DAYS = int(os.environ.get("RECENT_TRADING_DAYS", "240"))
 
+INVALID_SYMBOLS_FILE = "/workspaces/BlueHorseshoe/src/historical_data/invalid_symbols.txt"
+
+def get_invalid_symbols() -> set[str]:
+    """Load the list of invalid symbols from the blacklist file."""
+    if not os.path.exists(INVALID_SYMBOLS_FILE):
+        return set()
+    try:
+        with open(INVALID_SYMBOLS_FILE, "r", encoding="utf-8") as f:
+            return {line.strip().upper() for line in f if line.strip()}
+    except Exception as e:
+        logging.error("Error reading invalid symbols file: %s", e)
+        return set()
+
 # ---------------------------------------------------------------------
 # Goal 1: Fetch symbol list from net -> upsert to Mongo
 # ---------------------------------------------------------------------
@@ -74,6 +87,7 @@ def fetch_symbol_list_from_net() -> List[Dict[str, Any]]:
     reader = csv.DictReader(csv_file)
     rows = list(reader)
 
+    invalid_symbols = get_invalid_symbols()
     symbols: List[Dict[str, str]] = []
     for row in rows:
         sym = (row.get("symbol") or "").replace("/", "")
@@ -84,6 +98,7 @@ def fetch_symbol_list_from_net() -> List[Dict[str, Any]]:
             and row.get("assetType") == "Stock"
             and sym
             and "-" not in sym
+            and sym.upper() not in invalid_symbols
         ):
             symbols.append({"symbol": sym, "name": row.get("name", "")})
 
@@ -150,15 +165,18 @@ def get_symbol_list(prefer_net: bool = False) -> List[Dict[str, Any]]:
       - prefer_net=True: try net, fall back to mongo on error/empty.
       - prefer_net=False: mongo only.
     """
+    invalid_symbols = get_invalid_symbols()
+    symbols = []
     if prefer_net:
         try:
             symbols = fetch_symbol_list_from_net()
-            if symbols:
-                return symbols
         except Exception as e:
             logging.warning("Net symbol fetch failed; falling back to Mongo: %s", e)
 
-    return get_symbols_from_mongo()
+    if not symbols:
+        symbols = get_symbols_from_mongo()
+
+    return [s for s in symbols if s["symbol"].upper() not in invalid_symbols]
 
 
 def get_symbol_name_list() -> List[str]:

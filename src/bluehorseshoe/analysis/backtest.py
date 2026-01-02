@@ -100,12 +100,16 @@ class Backtester:
             'days_held': len(future_data[future_data['date'] <= pd.to_datetime(exit_date)]) if exit_date else self.hold_days
         }
 
-    def run_backtest(self, target_date: str, strategy: str = "baseline", top_n: int = 10, enabled_indicators: Optional[list[str]] = None, aggregation: str = "sum"):
+    def run_backtest(self, target_date: str, strategy: str = "baseline", top_n: int = 10, enabled_indicators: Optional[list[str]] = None, aggregation: str = "sum", symbols: Optional[List[str]] = None):
         """Runs a backtest for a specific historical date and returns results."""
         indicator_str = f" | Indicators: {', '.join(enabled_indicators)}" if enabled_indicators else ""
         ReportSingleton().write(f"\n--- {strategy.title()} Backtest Report for {target_date} (Hold: {self.hold_days} days){indicator_str} | Agg: {aggregation} ---")
         
-        symbols = get_symbol_name_list()
+        if not symbols:
+            print("  > Loading symbols from database...", end="", flush=True)
+            symbols = get_symbol_name_list()
+            print(f" Done ({len(symbols)} symbols).", flush=True)
+
         max_workers = min(8, os.cpu_count() or 4)
         
         logging.info("Generating %s predictions for %s...", strategy, target_date)
@@ -115,12 +119,18 @@ class Backtester:
             process_func = partial(self.trader.process_symbol, target_date=target_date, enabled_indicators=enabled_indicators, aggregation=aggregation)
             future_to_symbol = {executor.submit(process_func, sym): sym for sym in symbols}
             
+            processed_count = 0
+            total_symbols = len(symbols)
             for future in concurrent.futures.as_completed(future_to_symbol):
+                processed_count += 1
                 try:
                     result = future.result()
                     predictions.append(result)
                 except Exception as e:
                     logging.error("Exception during prediction: %s", e)
+                
+                if processed_count % 500 == 0 or processed_count == total_symbols:
+                    print(f"  > Progress: {processed_count}/{total_symbols} symbols analyzed ({ (processed_count/total_symbols)*100:.1f}%)", flush=True)
 
         # Use strategy-specific score key
         score_key = "baseline_score" if strategy == "baseline" else "mr_score"
@@ -169,6 +179,11 @@ class Backtester:
         current_ts = start_ts
         all_results = []
         
+        # Calculate total steps for progress tracking
+        total_days = (end_ts - start_ts).days
+        total_steps = (total_days // interval_days) + 1
+        current_step = 1
+
         indicator_str = f" | Indicators: {', '.join(enabled_indicators)}" if enabled_indicators else "ALL"
         ReportSingleton().write(f"\n==========================================")
         ReportSingleton().write(f"STRESS TEST: {start_date} to {end_date} | Strategy: {strategy}")
@@ -178,11 +193,17 @@ class Backtester:
         ReportSingleton().write(f"Target: {self.target_profit_factor} | Stop: {self.stop_loss_factor}")
         ReportSingleton().write(f"==========================================\n")
 
+        print(f"  > Fetching symbols...", end="", flush=True)
+        symbols = get_symbol_name_list()
+        print(f" Done ({len(symbols)} symbols).", flush=True)
+
         while current_ts <= end_ts:
             date_str = current_ts.strftime('%Y-%m-%d')
-            day_results = self.run_backtest(date_str, strategy=strategy, top_n=top_n, enabled_indicators=enabled_indicators, aggregation=aggregation)
+            print(f"\n--- Processing Step {current_step}/{total_steps}: {date_str} ---", flush=True)
+            day_results = self.run_backtest(date_str, strategy=strategy, top_n=top_n, enabled_indicators=enabled_indicators, aggregation=aggregation, symbols=symbols)
             all_results.extend(day_results)
             current_ts += pd.Timedelta(days=interval_days)
+            current_step += 1
 
         # Aggregate Summary
         valid_all = [r for r in all_results if 'entry' in r and 'exit_price' in r]

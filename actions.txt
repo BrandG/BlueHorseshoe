@@ -1,0 +1,2 @@
+2026-01-01: Implemented symbol blacklist to exclude invalid symbols (BCPB, etc.). Refined weights.json to favor ADX (2.0) and MACD (1.5) based on backtest performance. RSI disabled in baseline strategy.
+2026-01-01: Verified and pruned invalid_symbols.txt. Found 97% of previously blacklisted symbols were actually valid. Reduced list to 5 confirmed invalid tickers. Updated SwingTrader to score version 1.4.
