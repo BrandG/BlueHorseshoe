@@ -1,0 +1,35 @@
+# ToDo: Indicator Analysis & Strategy Optimization
+
+## Current State (v1.6)
+- **2026-01-02:** Divorced Mean Reversion from Baseline strategy. Each now has its own structural entry/exit logic.
+- **Mean Reversion Overhaul:** Relaxed Weekly Trend requirement and re-enabled RSI. Win Rate improved from 29% to 58.5%.
+- **Automation:** Fixed `blueHorseshoe.sh` and other scripts by removing `-it` flag for cron compatibility.
+
+## Performance Baseline (H2 2025 Stress Test)
+- **Baseline (Trend):** 54.39% Win Rate | 1.73% Avg PnL | 98.45% Cumulative PnL.
+- **Mean Reversion (Dip):** 58.54% Win Rate | 1.60% Avg PnL | 65.41% Cumulative PnL (v1.6).
+
+## Advanced Trading Architecture Improvements
+- [x] **Strategy Divorce:** Separate logic for Trend-Following and Mean-Reversion.
+- [x] **Cron Compatibility:** Removed interactive flags from shell scripts.
+- [x] **Market Context Filter:** Integrated broad market regime check (SPY/QQQ).
+- [x] **Relative Strength (RS) Indexing:** Outperformance check against SPY.
+- [x] **Volume Confirmation for Entries:** Above-average volume requirement for bullish reversals.
+- [x] **Reward-to-Risk (R:R) Threshold:** Strict 2.0x mathematical minimum for setups.
+- [x] **Multi-Timeframe Alignment:** Weekly 10/30 EMA alignment for daily entries.
+- [x] **Volatility-Adjusted Stops:** Switched from 3% cap to 2.0 * ATR structural stops.
+- [x] **Realism Filter:** Pruned entries > 15% away from current close to handle split data.
+
+## Future Ideas / Next Phase
+- [ ] **Trailing Stops:** Implement a 2.0 * ATR trailing stop for the `Backtester` to see if it improves profit retention vs fixed targets.
+- [ ] **Sector RS Indexing:** Instead of just SPY, compare stocks to their specific Sector ETF (e.g., XLK, XBI).
+- [ ] **Machine Learning Overlay:** Use the `trade_scores` database to train a classifier on which "v1.6" signals have the highest probability of success.
+- [ ] **Intraday Data Integration:** Pull 15-minute data for top candidates to optimize the entry window within the trading day.
+- [ ] **Automatic Wallet Allocation:** Link `allocate_wallet.py` directly to the `-p` report output.
+- [ ] **Strategy-Specific Weight Optimization:** Run the optimizer independently for Baseline and MR strategies.
+
+## Completed Tasks
+- [x] Identify "Best in Class" indicators (ADX, MACD, MA Score, Belt Hold).
+- [x] Refine Weights and Database Persistence (v1.4 -> v1.5).
+- [x] Auto-selection of latest market date for predictions.
+- [x] Pruned and verified symbol blacklist.

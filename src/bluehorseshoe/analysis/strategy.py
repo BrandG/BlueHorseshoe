@@ -72,9 +72,9 @@ class SwingTrader:
         
         return last_ema10 > last_ema30
 
-    def calculate_structural_setup(self, df: pd.DataFrame) -> Dict[str, float]:
+    def calculate_baseline_setup(self, df: pd.DataFrame) -> Dict[str, float]:
         """
-        Calculate structural prices based on the requested strategy:
+        Calculate structural prices for Baseline (Trend) strategy:
         Entry = Pullback to EMA + Bullish candle close
         Stop = Below recent swing low or 2.0 * ATR
         Target = Prior high or 3.0 * ATR
@@ -146,6 +146,54 @@ class SwingTrader:
             'is_realistic': is_realistic
         }
 
+    def calculate_mean_reversion_setup(self, df: pd.DataFrame) -> Dict[str, float]:
+        """
+        Calculate structural prices for Mean Reversion (Dip) strategy:
+        Entry = Current Close (Buying extreme weakness)
+        Stop = 1.5 * ATR (Tighter stop for fast reversals)
+        Target = Reversion to 20-day EMA
+        """
+        last_row = df.iloc[-1]
+        last_close = last_row['close']
+        
+        # 1. EMA 20 for Target (The "Mean")
+        ema20 = df['close'].ewm(span=20).mean().iloc[-1]
+        
+        # 2. Volatility (ATR)
+        if 'ATR' not in df.columns:
+            df['ATR'] = AverageTrueRange(
+                high=df['high'], 
+                low=df['low'], 
+                close=df['close'], 
+                window=ATR_WINDOW
+            ).average_true_range()
+        atr = df.iloc[-1]['ATR']
+        if pd.isna(atr):
+            atr = last_close * 0.02
+            
+        # 3. Entry is current close
+        entry_price = last_close
+        
+        # 4. Stop Loss: 1.5 * ATR below entry
+        stop_loss = entry_price - (1.5 * atr)
+        
+        # 5. Take Profit: EMA 20
+        take_profit = max(ema20, entry_price + (2.0 * atr))
+        
+        # 6. Reward-to-Risk
+        reward = take_profit - entry_price
+        risk = entry_price - stop_loss
+        rr_ratio = reward / risk if risk > 0 else 0
+        
+        return {
+            'entry_price': float(entry_price),
+            'stop_loss': float(stop_loss),
+            'take_profit': float(take_profit),
+            'rr_ratio': float(rr_ratio),
+            'vol_ratio': last_row['volume'] / last_row.get('avg_volume_20', 1) if last_row.get('avg_volume_20', 0) > 0 else 0,
+            'is_realistic': True
+        }
+
     def calculate_relative_strength(self, df: pd.DataFrame, benchmark_df: pd.DataFrame, lookback: int = 63) -> float:
         """
         Calculates Relative Strength (RS) ratio of the stock vs the benchmark.
@@ -189,11 +237,6 @@ class SwingTrader:
             logging.info("Symbol %s has insufficient data (%d days) for target date. Skipping.", symbol, len(df))
             return None
 
-        # Multi-Timeframe Alignment Filter
-        if REQUIRE_WEEKLY_UPTREND and not self.is_weekly_uptrend(df):
-            logging.info("Symbol %s skipped: Not in a primary Weekly uptrend.", symbol)
-            return None
-
         yesterday = dict(df.iloc[-1])
 
         if not target_date:
@@ -206,61 +249,67 @@ class SwingTrader:
                         f.write(f"{symbol}\n")
                     return None
 
-        # Calculate Structural Prices (Entry, Stop, Target)
-        setup = self.calculate_structural_setup(df)
+        # --- Baseline Strategy Processing ---
+        baseline_data = None
+        is_uptrend = self.is_weekly_uptrend(df)
         
-        # Reward-to-Risk and Realism Filter
-        if not setup['is_realistic']:
-            logging.info("Symbol %s skipped: Entry target (%.2f) is too far from close (%.2f).", 
-                         symbol, setup['entry_price'], yesterday['close'])
+        # Baseline strictly requires Weekly Uptrend if enabled
+        if not REQUIRE_WEEKLY_UPTREND or is_uptrend:
+            baseline_setup = self.calculate_baseline_setup(df)
+            if baseline_setup['is_realistic'] and baseline_setup['rr_ratio'] >= MIN_RR_RATIO:
+                entry_price = baseline_setup['entry_price']
+                if MIN_STOCK_PRICE < entry_price < MAX_STOCK_PRICE:
+                    score_components = self.technical_analyzer.calculate_baseline_score(df, enabled_indicators=enabled_indicators, aggregation=aggregation)
+                    
+                    # Apply Relative Strength (RS) Bonus
+                    rs_ratio = 1.0
+                    if benchmark_df is not None:
+                        rs_ratio = self.calculate_relative_strength(df, benchmark_df)
+                        if rs_ratio > 1.10: rs_bonus = 5.0
+                        elif rs_ratio > 1.0: rs_bonus = 2.0
+                        else: rs_bonus = -2.0
+                        score_components["rs_index"] = rs_bonus
+                        score_components["total"] += rs_bonus
+                    
+                    baseline_data = {
+                        "score": score_components.pop("total", 0.0),
+                        "components": score_components,
+                        "setup": baseline_setup
+                    }
+
+        # --- Mean Reversion Strategy Processing ---
+        mr_data = None
+        # MR relaxes the Weekly Uptrend requirement (can buy dips in Stage 1/4)
+        mr_setup = self.calculate_mean_reversion_setup(df)
+        if mr_setup['rr_ratio'] >= MIN_RR_RATIO:
+            entry_price = mr_setup['entry_price']
+            if MIN_STOCK_PRICE < entry_price < MAX_STOCK_PRICE:
+                score_components_mr = self.technical_analyzer.calculate_technical_score(df, strategy="mean_reversion", enabled_indicators=enabled_indicators, aggregation=aggregation)
+                mr_data = {
+                    "score": score_components_mr.pop("total", 0.0),
+                    "components": score_components_mr,
+                    "setup": mr_setup
+                }
+
+        if not baseline_data and not mr_data:
             return None
 
-        if setup['rr_ratio'] < MIN_RR_RATIO:
-            logging.info("Symbol %s skipped due to poor R:R ratio: %.2f", symbol, setup['rr_ratio'])
-            return None
-
-        entry_price = setup['entry_price']
-        
-        if not MIN_STOCK_PRICE < entry_price < MAX_STOCK_PRICE:
-            return None
-
-        # Calculate Scores
-        score_components_baseline = self.technical_analyzer.calculate_baseline_score(df, enabled_indicators=enabled_indicators, aggregation=aggregation)
-        
-        # Apply Relative Strength (RS) Bonus to Baseline
-        rs_ratio = 1.0
-        if benchmark_df is not None:
-            rs_ratio = self.calculate_relative_strength(df, benchmark_df)
-            # If outperforming by > 10%, give a significant bonus
-            if rs_ratio > 1.10:
-                rs_bonus = 5.0
-            elif rs_ratio > 1.0:
-                rs_bonus = 2.0
-            else:
-                rs_bonus = -2.0
-            
-            score_components_baseline["rs_index"] = rs_bonus
-            score_components_baseline["total"] += rs_bonus
-
-        total_score_baseline = score_components_baseline.pop("total", 0.0)
-
-        score_components_mr = self.technical_analyzer.calculate_technical_score(df, strategy="mean_reversion", enabled_indicators=enabled_indicators, aggregation=aggregation)
-        total_score_mr = score_components_mr.pop("total", 0.0)
+        # Calculate RS ratio once if not already done
+        rs_ratio = self.calculate_relative_strength(df, benchmark_df) if benchmark_df is not None else 1.0
 
         ret_val = {
             'symbol': symbol,
             'name': price_data.get('full_name', symbol),
             'date': str(yesterday['date']),
-            'entry_price': entry_price,
-            'stop_loss': setup['stop_loss'],
-            'take_profit': setup['take_profit'],
-            'baseline_score': total_score_baseline,
-            'baseline_components': score_components_baseline,
-            'mr_score': total_score_mr,
-            'mr_components': score_components_mr,
-            'rs_ratio': rs_ratio
+            'rs_ratio': rs_ratio,
+            'baseline_score': baseline_data['score'] if baseline_data else 0.0,
+            'baseline_components': baseline_data['components'] if baseline_data else {},
+            'baseline_setup': baseline_data['setup'] if baseline_data else {},
+            'mr_score': mr_data['score'] if mr_data else 0.0,
+            'mr_components': mr_data['components'] if mr_data else {},
+            'mr_setup': mr_data['setup'] if mr_data else {}
         }
-        logging.info("Processed %s with result: %s", symbol, ret_val)
+        logging.info("Processed %s with results Baseline: %.2f, MR: %.2f", symbol, ret_val['baseline_score'], ret_val['mr_score'])
         return ret_val
 
     def swing_predict(self, target_date: Optional[str] = None, enabled_indicators: Optional[list[str]] = None, aggregation: str = "sum") -> None:
@@ -317,24 +366,26 @@ class SwingTrader:
         valid_results = [r for r in results if r is not None]
         
         # 1. Handle Baseline (Trend) Results
-        baseline_sorted = sorted(valid_results, key=lambda x: x['baseline_score'], reverse=True)
+        baseline_sorted = sorted([r for r in valid_results if r['baseline_score'] > 0], key=lambda x: x['baseline_score'], reverse=True)
         ReportSingleton().write('\n--- Top 5 Baseline (Trend) Candidates ---')
         for i in range(min(5, len(baseline_sorted))):
             res = baseline_sorted[i]
+            setup = res['baseline_setup']
             ReportSingleton().write(
-                f"{res['symbol']} - Entry: {res['entry_price']:.2f} | "
-                f"Stop: {res['stop_loss']:.2f} | Exit: {res['take_profit']:.2f} | "
+                f"{res['symbol']} - Entry: {setup['entry_price']:.2f} | "
+                f"Stop: {setup['stop_loss']:.2f} | Exit: {setup['take_profit']:.2f} | "
                 f"Score: {res['baseline_score']:.2f} - Name: {res['name']}"
             )
 
         # 2. Handle Mean Reversion (Dip) Results
-        mr_sorted = sorted(valid_results, key=lambda x: x['mr_score'], reverse=True)
+        mr_sorted = sorted([r for r in valid_results if r['mr_score'] > 0], key=lambda x: x['mr_score'], reverse=True)
         ReportSingleton().write('\n--- Top 5 Mean Reversion (Dip) Candidates ---')
         for i in range(min(5, len(mr_sorted))):
             res = mr_sorted[i]
+            setup = res['mr_setup']
             ReportSingleton().write(
-                f"{res['symbol']} - Entry: {res['entry_price']:.2f} | "
-                f"Stop: {res['stop_loss']:.2f} | Exit: {res['take_profit']:.2f} | "
+                f"{res['symbol']} - Entry: {setup['entry_price']:.2f} | "
+                f"Stop: {setup['stop_loss']:.2f} | Exit: {setup['take_profit']:.2f} | "
                 f"Score: {res['mr_score']:.2f} - Name: {res['name']}"
             )
 
@@ -343,33 +394,37 @@ class SwingTrader:
             score_data = []
             for r in valid_results:
                 # Add Baseline score
-                score_data.append({
-                    "symbol": r["symbol"],
-                    "date": r["date"][:10],
-                    "score": r["baseline_score"],
-                    "strategy": "baseline",
-                    "version": "1.5",
-                    "metadata": {
-                        "entry_price": r["entry_price"],
-                        "stop_loss": r["stop_loss"],
-                        "take_profit": r["take_profit"],
-                        "components": r["baseline_components"]
-                    }
-                })
+                if r['baseline_score'] > 0:
+                    setup = r['baseline_setup']
+                    score_data.append({
+                        "symbol": r["symbol"],
+                        "date": r["date"][:10],
+                        "score": r["baseline_score"],
+                        "strategy": "baseline",
+                        "version": "1.6", # Incremented version
+                        "metadata": {
+                            "entry_price": setup["entry_price"],
+                            "stop_loss": setup["stop_loss"],
+                            "take_profit": setup["take_profit"],
+                            "components": r["baseline_components"]
+                        }
+                    })
                 # Add Mean Reversion score
-                score_data.append({
-                    "symbol": r["symbol"],
-                    "date": r["date"][:10],
-                    "score": r["mr_score"],
-                    "strategy": "mean_reversion",
-                    "version": "1.5",
-                    "metadata": {
-                        "entry_price": r["entry_price"],
-                        "stop_loss": r["stop_loss"],
-                        "take_profit": r["take_profit"],
-                        "components": r["mr_components"]
-                    }
-                })
+                if r['mr_score'] > 0:
+                    setup = r['mr_setup']
+                    score_data.append({
+                        "symbol": r["symbol"],
+                        "date": r["date"][:10],
+                        "score": r["mr_score"],
+                        "strategy": "mean_reversion",
+                        "version": "1.6",
+                        "metadata": {
+                            "entry_price": setup["entry_price"],
+                            "stop_loss": setup["stop_loss"],
+                            "take_profit": setup["take_profit"],
+                            "components": r["mr_components"]
+                        }
+                    })
             
             score_manager.save_scores(score_data)
             logging.info("Saved %d scores (Baseline & Mean Reversion) to trade_scores", len(score_data))

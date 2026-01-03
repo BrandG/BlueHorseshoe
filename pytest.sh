@@ -1,1 +1,1 @@
-docker exec -it bluehorseshoe pytest
+docker exec bluehorseshoe pytest

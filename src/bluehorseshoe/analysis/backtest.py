@@ -180,6 +180,13 @@ class Backtester:
         top_predictions = valid_predictions[:top_n]
         results = []
         for pred in top_predictions:
+            # Flatten strategy-specific setup for evaluate_prediction
+            setup_key = "baseline_setup" if strategy == "baseline" else "mr_setup"
+            setup = pred.get(setup_key, {})
+            pred['entry_price'] = setup.get('entry_price')
+            pred['stop_loss'] = setup.get('stop_loss')
+            pred['take_profit'] = setup.get('take_profit')
+            
             eval_result = self.evaluate_prediction(pred, target_date)
             results.append(eval_result)
             

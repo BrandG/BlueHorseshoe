@@ -11,3 +11,7 @@
 2026-01-02: Completed 6-month stress test for v1.5 strategies. Baseline: 54% WR, 1.7% Avg PnL (98% Cum). Mean Reversion: 29% WR, 0.4% Avg PnL (34% Cum). Baseline remains the primary strategy.
 2026-01-02: Added auto-selection of the latest market date for the -p flag. If no date is provided, the system now automatically finds and analyzes the most recent historical data point.
 2026-01-02: Implemented a 'Realism Filter' to discard signals where the targeted entry is more than 15% away from the close. This successfully pruned outlier candidates (RPT, SMX) caused by reverse splits or extreme parabolic moves.
+2026-01-02: Divorced Mean Reversion from Baseline strategy. Implemented separate structural setups (Entry/Stop/Target) and relaxed Weekly Uptrend requirement for Mean Reversion.
+2026-01-02: Re-enabled RSI for Mean Reversion strategy. Verified that the strategy 'divorce' alone doubled the MR win rate to 58% in December 2025 stress tests.
+2026-01-03: Removed -it flag from all shell scripts (blueHorseshoe.sh, coverage.sh, pytest.sh) to ensure compatibility with cron jobs and other non-interactive environments. Added support for multiple arguments to blueHorseshoe.sh.
+2026-01-03: Session summary: Divorced Mean Reversion from Baseline strategy, re-enabled RSI for MR (yielding 58% WR in backtests), fixed shell script cron compatibility, and manually verified Jan 2, 2026 data update.
