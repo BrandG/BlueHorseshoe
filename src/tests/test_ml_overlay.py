@@ -29,3 +29,18 @@ def test_predict_probability_real():
     }
     prob = inference.predict_probability("AAPL", components)
     assert 0.0 <= prob <= 1.0
+
+def test_predict_probability_with_date():
+    """Test prediction with a specific date (triggers sentiment lookup)."""
+    inference = MLInference(model_path="src/models/ml_overlay_v1.joblib")
+    components = {
+        "trend": 1.0,
+        "volume": 1.0,
+        "limit": 1.0,
+        "candlestick": 1.0,
+        "moving_average": 1.0,
+        "momentum": 1.0
+    }
+    # Using a date from the past to ensure get_sentiment_score is called
+    prob = inference.predict_probability("AAPL", components, target_date="2026-01-01")
+    assert 0.0 <= prob <= 1.0

@@ -8,10 +8,11 @@ from sklearn.metrics import classification_report, confusion_matrix
 import joblib
 import os
 from typing import List, Dict, Any
+from datetime import datetime
 
 from bluehorseshoe.analysis.grading_engine import GradingEngine
 from bluehorseshoe.core.database import db
-from bluehorseshoe.core.symbols import get_overview_from_mongo
+from bluehorseshoe.core.symbols import get_overview_from_mongo, get_sentiment_score
 
 class MLOverlayTrainer:
     """
@@ -74,6 +75,9 @@ class MLOverlayTrainer:
                 feat['MarketCap'] = 0.0
                 feat['Beta'] = 0.0
                 feat['PERatio'] = 0.0
+                
+            # 2.5 News Sentiment Feature
+            feat['SentimentScore'] = get_sentiment_score(symbol, row['date'])
                 
             # 3. Label (Target)
             feat['TARGET'] = 1 if row['status'] == 'success' else 0
@@ -157,12 +161,15 @@ class MLInference:
         else:
             logging.warning(f"ML Overlay model not found at {self.model_path}")
 
-    def predict_probability(self, symbol: str, components: Dict[str, float]) -> float:
+    def predict_probability(self, symbol: str, components: Dict[str, float], target_date: str = None) -> float:
         """
         Predicts the win probability for a given symbol and technical components.
         """
         if self.model is None:
             return 0.0
+
+        if target_date is None:
+            target_date = datetime.now().strftime("%Y-%m-%d")
 
         # Build feature vector
         feat = components.copy()
@@ -188,6 +195,9 @@ class MLInference:
             feat['MarketCap'] = 0.0
             feat['Beta'] = 0.0
             feat['PERatio'] = 0.0
+
+        # Sentiment Feature
+        feat['SentimentScore'] = get_sentiment_score(symbol, target_date)
 
         # Encode categorical
         for col in ['Sector', 'Industry']:

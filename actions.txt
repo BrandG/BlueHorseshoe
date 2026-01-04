@@ -15,3 +15,10 @@
 2026-01-02: Re-enabled RSI for Mean Reversion strategy. Verified that the strategy 'divorce' alone doubled the MR win rate to 58% in December 2025 stress tests.
 2026-01-03: Removed -it flag from all shell scripts (blueHorseshoe.sh, coverage.sh, pytest.sh) to ensure compatibility with cron jobs and other non-interactive environments. Added support for multiple arguments to blueHorseshoe.sh.
 2026-01-03: Session summary: Divorced Mean Reversion from Baseline strategy, re-enabled RSI for MR (yielding 58% WR in backtests), fixed shell script cron compatibility, and manually verified Jan 2, 2026 data update.
+2026-01-03: Integrated AlphaVantage Fundamental (OVERVIEW) and News Sentiment endpoints to provide deeper context for ML models.
+2026-01-04: Implemented MLOverlayTrainer and retrained the model with 70% accuracy (up from 62%) using the full symbol universe.
+2026-01-04: Integrated ML Win Probability into the -p prediction report, allowing for probabilistic filtering of technical signals.
+2026-01-04: Session summary: Successfully implemented and deployed ML Overlay v1.0, doubling the feature set and improving win prediction accuracy to 70%.
+2026-01-04: Incorporated NEWS_SENTIMENT scores into MLOverlayTrainer. Retrained model with 71% accuracy. SentimentScore emerged as the 5th most important feature.
+2026-01-04: Updated MLInference to support optional target_date, enabling accurate sentiment lookups during backtests and live scans.
+2026-01-04: Stabilized test suite. Fixed VolumeIndicator double-multiplication bug, updated SwingTrader tests for new strategy architecture, and aligned date/RR mocks. Entire suite (59 tests) now passing.

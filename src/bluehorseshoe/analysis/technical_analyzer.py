@@ -175,6 +175,7 @@ class TechnicalAnalyzer:
             bb_lower = last_row.get('bb_lower')
             if bb_lower is not None and last_row['close'] < bb_lower:
                 reward = abs(OVERSOLD_BB_REWARD) if is_uptrend else OVERSOLD_BB_REWARD
+                components["bonus_oversold_bb"] = reward
                 total_score += reward
 
             # Volume Exhaustion / Selling Climax

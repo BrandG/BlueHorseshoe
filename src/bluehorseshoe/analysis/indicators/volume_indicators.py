@@ -145,7 +145,7 @@ class VolumeIndicator(Indicator):
         return float(np.select(
             [ pd.isna(cmf_value), cmf_value > threshold, cmf_value > 0, cmf_value < -threshold ],
             [0.0, 2.0, 1.0, -2.0],
-            default=-1.0)) * self.weights['CMF_MULTIPLIER']
+            default=-1.0))
 
     def score_obv_trend(self, window: int = 5) -> float:
         """
@@ -160,7 +160,7 @@ class VolumeIndicator(Indicator):
         # OBV difference over 'window' days
         obv_diff = self.days.iloc[-1]['OBV'] - self.days.iloc[-(window+1)]['OBV']
 
-        return float(np.select([obv_diff > 0, obv_diff < 0], [1, -1], default=0)) * self.weights['OBV_MULTIPLIER']
+        return float(np.select([obv_diff > 0, obv_diff < 0], [1, -1], default=0))
 
     def get_score(self, enabled_sub_indicators: Optional[list[str]] = None, aggregation: str = "sum") -> IndicatorScore:
         """
