@@ -22,3 +22,6 @@
 2026-01-04: Incorporated NEWS_SENTIMENT scores into MLOverlayTrainer. Retrained model with 71% accuracy. SentimentScore emerged as the 5th most important feature.
 2026-01-04: Updated MLInference to support optional target_date, enabling accurate sentiment lookups during backtests and live scans.
 2026-01-04: Stabilized test suite. Fixed VolumeIndicator double-multiplication bug, updated SwingTrader tests for new strategy architecture, and aligned date/RR mocks. Entire suite (59 tests) now passing.
+2026-01-04: Evaluated fundamental impact on strategy-specific success. Mean Reversion accuracy hit 78% using specialized models. Beta and Sentiment emerged as top drivers for MR.
+2026-01-04: Implemented strategy-specific ML model loading in MLInference. The system now uses ml_overlay_baseline.joblib and ml_overlay_mean_reversion.joblib for more precise win probability filtering.
+2026-01-04: Session summary: Successfully integrated News Sentiment and Fundamentals into the ML Overlay, achieving 71% general accuracy and 78% for Mean Reversion. Stabilized the test suite and deployed strategy-specific models.

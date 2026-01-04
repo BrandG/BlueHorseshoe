@@ -71,4 +71,6 @@ The system implements two primary scoring strategies in `TechnicalAnalyzer`:
 
 - **Logging:** When decisions are made, like a new indicator, strategy, or revision, always append an entry to the file `actions.txt` that is a line or two, so that it will be easy when we start a new session, to pick up where the previous session left off. When a session begins, tail the last ten lines from `actions.txt` so that we can begin with a known history of actions taken.
 
-- **Next Task:** Evaluate the impact of fundamental data (PE Ratio, Market Cap) on Mean Reversion specific success rates, as they are currently weighted equally with Baseline.
+- **ML Win Prediction:** Strategy-specific models (Baseline vs. Mean Reversion) improved accuracy significantly. MR accuracy reached 78% with Beta and Sentiment as key features.
+
+- **Next Task:** Implement a weekly automated retraining job for ML models using newly graded trades to ensure the system adapts to changing market regimes.

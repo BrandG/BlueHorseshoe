@@ -7,7 +7,7 @@ from bluehorseshoe.analysis.ml_overlay import MLInference
 def test_ml_inference_loading():
     """Verify that MLInference can load the model or handle missing model."""
     inference = MLInference(model_path="src/models/ml_overlay_v1.joblib")
-    assert hasattr(inference, "model")
+    assert "general" in inference.models
 
 def test_predict_probability_fallback():
     """Test prediction fallback when no model is present."""

@@ -274,7 +274,7 @@ class SwingTrader:
                         score_components["total"] += rs_bonus
                     
                     # Calculate ML Win Probability
-                    ml_prob = self.ml_inference.predict_probability(symbol, score_components, target_date=str(yesterday['date'])[:10])
+                    ml_prob = self.ml_inference.predict_probability(symbol, score_components, target_date=str(yesterday['date'])[:10], strategy="baseline")
                     
                     baseline_data = {
                         "score": score_components.pop("total", 0.0),
@@ -293,7 +293,7 @@ class SwingTrader:
                 score_components_mr = self.technical_analyzer.calculate_technical_score(df, strategy="mean_reversion", enabled_indicators=enabled_indicators, aggregation=aggregation)
                 
                 # Calculate ML Win Probability
-                ml_prob_mr = self.ml_inference.predict_probability(symbol, score_components_mr, target_date=str(yesterday['date'])[:10])
+                ml_prob_mr = self.ml_inference.predict_probability(symbol, score_components_mr, target_date=str(yesterday['date'])[:10], strategy="mean_reversion")
                 
                 mr_data = {
                     "score": score_components_mr.pop("total", 0.0),

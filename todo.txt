@@ -15,11 +15,11 @@
 - [x] **News Sentiment Integration:** Added AlphaVantage news feed support.
 
 ## Future Ideas / Next Phase
-- [ ] **Sentiment-Weighted ML:** Update the `prepare_training_data` to incorporate the News Sentiment score as a feature.
+- [x] **Sentiment-Weighted ML:** Updated the `prepare_training_data` to incorporate the News Sentiment score as a feature.
+- [ ] **Implement a weekly automated retraining job:** For ML models using newly graded trades to ensure the system adapts to changing market regimes.
 - [ ] **ML-Driven Stop Loss:** Train a regressor to predict the optimal stop-loss distance (ATR multiplier) for each symbol.
 - [ ] **Trailing Stops:** Implement a 2.0 * ATR trailing stop for the `Backtester`.
-- [ ] **Machine Learning Refinement:** Investigate why GLSI probability dropped with fundamental data (Overfitting vs. Regime shift).
-- [ ] **Automated Retraining:** Script a weekly job to retrain the ML model on newly graded trades.
+- [ ] **Intraday Data Integration:** Pull 15-minute data for top candidates to optimize the entry window.
 
 ## Completed Tasks
 - [x] Implement Machine Learning Overlay.

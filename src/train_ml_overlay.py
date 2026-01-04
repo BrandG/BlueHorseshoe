@@ -31,5 +31,16 @@ if __name__ == "__main__":
             
     logging.info(f"Starting ML Overlay training with limit={limit}...")
     trainer = MLOverlayTrainer()
-    trainer.train(limit=limit)
+    
+    # 1. Train General Model
+    logging.info("Training GENERAL model...")
+    trainer.train(limit=limit, output_path="src/models/ml_overlay_v1.joblib")
+    
+    # 2. Train Strategy-Specific Models
+    logging.info("Training BASELINE model...")
+    trainer.train(limit=limit, strategy="baseline", output_path="src/models/ml_overlay_baseline.joblib")
+    
+    logging.info("Training MEAN REVERSION model...")
+    trainer.train(limit=limit, strategy="mean_reversion", output_path="src/models/ml_overlay_mean_reversion.joblib")
+    
     logging.info("Training process complete.")

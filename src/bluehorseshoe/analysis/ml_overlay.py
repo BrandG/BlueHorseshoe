@@ -27,13 +27,17 @@ class MLOverlayTrainer:
         # Ensure models directory exists
         os.makedirs(os.path.dirname(self.model_path), exist_ok=True)
 
-    def prepare_training_data(self, limit: int = 10000) -> pd.DataFrame:
+    def prepare_training_data(self, limit: int = 10000, strategy: str = None) -> pd.DataFrame:
         """
         Extracts features and labels from graded trades and fundamental data.
         """
-        logging.info("Gathering graded trades...")
+        logging.info(f"Gathering graded trades for strategy={strategy}...")
         # Get graded results (Success/Failure)
-        results = self.grading_engine.run_grading(limit=limit)
+        query = {"metadata.entry_price": {"$exists": True}}
+        if strategy:
+            query["strategy"] = strategy
+            
+        results = self.grading_engine.run_grading(query=query, limit=limit)
         df_graded = pd.DataFrame(results)
         
         if df_graded.empty:
@@ -83,16 +87,20 @@ class MLOverlayTrainer:
             feat['TARGET'] = 1 if row['status'] == 'success' else 0
             feat['symbol'] = symbol
             feat['date'] = row['date']
+            feat['strategy'] = row.get('strategy', 'unknown')
             
             features.append(feat)
             
         return pd.DataFrame(features)
 
-    def train(self, limit: int = 10000):
+    def train(self, limit: int = 10000, strategy: str = None, output_path: str = None):
         """
         Trains the Random Forest model.
         """
-        df = self.prepare_training_data(limit=limit)
+        if output_path is None:
+            output_path = self.model_path
+            
+        df = self.prepare_training_data(limit=limit, strategy=strategy)
         if df.empty:
             return
 
@@ -104,7 +112,7 @@ class MLOverlayTrainer:
             self.label_encoders[col] = le
 
         # Drop non-feature columns
-        X = df.drop(columns=['TARGET', 'symbol', 'date'])
+        X = df.drop(columns=['TARGET', 'symbol', 'date', 'strategy'])
         y = df['TARGET']
         
         # Fill NaNs
@@ -137,8 +145,8 @@ class MLOverlayTrainer:
             'encoders': self.label_encoders,
             'features': X.columns.tolist()
         }
-        joblib.dump(output, self.model_path)
-        logging.info(f"Model saved to {self.model_path}")
+        joblib.dump(output, output_path)
+        logging.info(f"Model saved to {output_path}")
 
 class MLInference:
     """
@@ -146,26 +154,36 @@ class MLInference:
     """
     def __init__(self, model_path: str = "src/models/ml_overlay_v1.joblib"):
         self.model_path = model_path
-        self.model = None
+        self.models = {} # Cache for strategy-specific models
         self.encoders = {}
-        self.features = []
-        self._load_model()
+        self.features = {} # Cache for features per model
+        self._load_model(model_path, "general")
 
-    def _load_model(self):
-        if os.path.exists(self.model_path):
-            data = joblib.load(self.model_path)
-            self.model = data['model']
-            self.encoders = data['encoders']
-            self.features = data['features']
-            logging.info(f"ML Overlay model loaded from {self.model_path}")
+    def _load_model(self, path: str, key: str):
+        if os.path.exists(path):
+            data = joblib.load(path)
+            self.models[key] = data['model']
+            self.encoders[key] = data['encoders']
+            self.features[key] = data['features']
+            logging.info(f"ML Overlay model ({key}) loaded from {path}")
         else:
-            logging.warning(f"ML Overlay model not found at {self.model_path}")
+            if key == "general":
+                logging.warning(f"ML Overlay model not found at {path}")
 
-    def predict_probability(self, symbol: str, components: Dict[str, float], target_date: str = None) -> float:
+    def predict_probability(self, symbol: str, components: Dict[str, float], target_date: str = None, strategy: str = "general") -> float:
         """
         Predicts the win probability for a given symbol and technical components.
         """
-        if self.model is None:
+        # Try to load strategy-specific model if not already loaded
+        if strategy != "general" and strategy not in self.models:
+            strat_path = f"src/models/ml_overlay_{strategy}.joblib"
+            self._load_model(strat_path, strategy)
+            
+        # Fallback to general model
+        model_key = strategy if strategy in self.models else "general"
+        model = self.models.get(model_key)
+        
+        if model is None:
             return 0.0
 
         if target_date is None:
@@ -200,32 +218,33 @@ class MLInference:
         feat['SentimentScore'] = get_sentiment_score(symbol, target_date)
 
         # Encode categorical
+        encoders = self.encoders.get(model_key, {})
         for col in ['Sector', 'Industry']:
-            le = self.encoders.get(col)
+            le = encoders.get(col)
             val = str(feat.get(col, 'Unknown'))
             if le:
-                # Handle unseen labels by mapping them to the first label or a default if possible
                 try:
                     feat[col] = le.transform([val])[0]
                 except ValueError:
-                    feat[col] = 0 # Default to first class if unseen
+                    feat[col] = 0
             else:
                 feat[col] = 0
 
         # Create DataFrame aligned with training features
         df = pd.DataFrame([feat])
         
-        # Ensure all training features are present, fill missing with 0
-        for f in self.features:
+        # Ensure all training features are present
+        model_features = self.features.get(model_key, [])
+        for f in model_features:
             if f not in df.columns:
                 df[f] = 0.0
         
         # Reorder columns to match training
-        df = df[self.features]
+        df = df[model_features]
         df = df.fillna(0)
 
         # Predict probability of class 1 (Success)
-        probs = self.model.predict_proba(df)[0]
+        probs = model.predict_proba(df)[0]
         return float(probs[1])
 
 if __name__ == "__main__":
