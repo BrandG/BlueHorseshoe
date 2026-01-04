@@ -51,6 +51,13 @@ OVERVIEW_URL = (
     "&apikey={key}"
 )
 
+NEWS_SENTIMENT_URL = (
+    "https://www.alphavantage.co/query"
+    "?function=NEWS_SENTIMENT"
+    "&tickers={tickers}"
+    "&apikey={key}"
+)
+
 RECENT_TRADING_DAYS = int(os.environ.get("RECENT_TRADING_DAYS", "240"))
 
 INVALID_SYMBOLS_FILE = "/workspaces/BlueHorseshoe/src/historical_data/invalid_symbols.txt"
@@ -328,6 +335,48 @@ def get_overview_from_mongo(symbol: str) -> Dict[str, Any]:
     _db = db.get_db()
     doc = _db["symbol_overviews"].find_one({"symbol": sym}, {"_id": 0})
     return doc or {}
+
+
+@sleep_and_retry
+@limits(calls=1, period=1.0/CPS)
+def fetch_news_sentiment_from_net(tickers: str) -> Dict[str, Any]:
+    """
+    Fetch news sentiment for one or more tickers.
+    """
+    if not ALPHAVANTAGE_KEY:
+        raise RuntimeError("ALPHAVANTAGE_KEY not set in environment")
+
+    url = NEWS_SENTIMENT_URL.format(tickers=tickers, key=ALPHAVANTAGE_KEY)
+    response = requests.get(url, timeout=15)
+    response.raise_for_status()
+    return response.json()
+
+
+def upsert_news_sentiment_to_mongo(symbol: str, news_data: Dict[str, Any]) -> None:
+    """
+    Store news sentiment feed in the symbol_news collection.
+    """
+    sym = symbol.upper().strip()
+    _db = db.get_db()
+    _news = _db["symbol_news"]
+
+    # We store the feed as a single document for the ticker
+    doc = {
+        "symbol": sym,
+        "feed": news_data.get("feed", []),
+        "last_updated": datetime.utcnow().isoformat()
+    }
+    _news.update_one({"symbol": sym}, {"$set": doc}, upsert=True)
+
+
+def get_news_sentiment_from_mongo(symbol: str) -> List[Dict[str, Any]]:
+    """
+    Load news sentiment feed for a symbol from MongoDB.
+    """
+    sym = symbol.upper().strip()
+    _db = db.get_db()
+    doc = _db["symbol_news"].find_one({"symbol": sym}, {"_id": 0})
+    return (doc or {}).get("feed", [])
 
 
 def get_historical_from_mongo(symbol: str, recent: bool = False) -> List[Dict[str, Any]]:

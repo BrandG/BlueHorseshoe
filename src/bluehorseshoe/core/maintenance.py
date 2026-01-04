@@ -87,13 +87,73 @@ def update_history_batch(limit: int = 0, recent_only: bool = True):
     print(f"Success: {success_count}")
     print(f"Errors:  {error_count}")
 
+def update_overviews_batch(limit: int = 0):
+    """
+    Step 3: Update company overview data for symbols in DB.
+    """
+    print(f"\n--- STEP 3: Updating Company Overviews ---")
+    all_symbols = symbols.get_symbols_from_mongo()
+    if limit > 0:
+        all_symbols = all_symbols[:limit]
+    
+    print(f"Found {len(all_symbols)} symbols. Starting overview update...")
+    success_count = 0
+    error_count = 0
+    pbar = tqdm(all_symbols, unit="ticker")
+    
+    for sym_doc in pbar:
+        ticker = sym_doc.get("symbol")
+        pbar.set_description(f"Processing {ticker}")
+        try:
+            overview = symbols.fetch_overview_from_net(ticker)
+            if overview:
+                symbols.upsert_overview_to_mongo(ticker, overview)
+                success_count += 1
+        except Exception as e:
+            error_count += 1
+            logging.error(f"Failed to update overview for {ticker}: {str(e)}")
+            continue
+            
+    print(f"\n✅ Overviews Complete. Success: {success_count}, Errors: {error_count}")
+
+def update_news_batch(limit: int = 0):
+    """
+    Step 4: Update news sentiment data for symbols in DB.
+    """
+    print(f"\n--- STEP 4: Updating News Sentiment ---")
+    all_symbols = symbols.get_symbols_from_mongo()
+    if limit > 0:
+        all_symbols = all_symbols[:limit]
+    
+    print(f"Found {len(all_symbols)} symbols. Starting news update...")
+    success_count = 0
+    error_count = 0
+    pbar = tqdm(all_symbols, unit="ticker")
+    
+    for sym_doc in pbar:
+        ticker = sym_doc.get("symbol")
+        pbar.set_description(f"Processing {ticker}")
+        try:
+            news = symbols.fetch_news_sentiment_from_net(ticker)
+            if news:
+                symbols.upsert_news_sentiment_to_mongo(ticker, news)
+                success_count += 1
+        except Exception as e:
+            error_count += 1
+            logging.error(f"Failed to update news for {ticker}: {str(e)}")
+            continue
+            
+    print(f"\n✅ News Complete. Success: {success_count}, Errors: {error_count}")
+
 def main():
     parser = argparse.ArgumentParser(description="BlueHorseshoe Data Maintenance")
     
     parser.add_argument("--symbols", action="store_true", help="Update the list of active symbols from AlphaVantage")
     parser.add_argument("--history", action="store_true", help="Update OHLC price history for symbols in DB")
-    parser.add_argument("--full", action="store_true", help="Run both symbols and history updates")
-    parser.add_argument("--limit", type=int, default=0, help="Limit history update to N symbols (for testing)")
+    parser.add_argument("--overviews", action="store_true", help="Update company overview data (Sector, Industry, etc.)")
+    parser.add_argument("--news", action="store_true", help="Update news sentiment data")
+    parser.add_argument("--full", action="store_true", help="Run symbols, history, overviews, and news updates")
+    parser.add_argument("--limit", type=int, default=0, help="Limit update to N symbols (for testing)")
     parser.add_argument("--deep", action="store_true", help="Fetch FULL history instead of compact (recent)")
 
     args = parser.parse_args()
@@ -109,7 +169,13 @@ def main():
         recent_mode = not args.deep
         update_history_batch(limit=args.limit, recent_only=recent_mode)
 
-    if not (args.symbols or args.history or args.full):
+    if args.overviews or args.full:
+        update_overviews_batch(limit=args.limit)
+        
+    if args.news or args.full:
+        update_news_batch(limit=args.limit)
+
+    if not (args.symbols or args.history or args.overviews or args.news or args.full):
         parser.print_help()
 
 if __name__ == "__main__":

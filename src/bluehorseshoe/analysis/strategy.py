@@ -39,12 +39,14 @@ from bluehorseshoe.analysis.constants import (
 )
 from bluehorseshoe.analysis.technical_analyzer import TechnicalAnalyzer
 from bluehorseshoe.analysis.market_regime import MarketRegime
+from bluehorseshoe.analysis.ml_overlay import MLInference
 
 class SwingTrader:
     """Main class for swing trading analysis."""
 
     def __init__(self):
         self.technical_analyzer = TechnicalAnalyzer()
+        self.ml_inference = MLInference()
 
     def is_weekly_uptrend(self, df: pd.DataFrame) -> bool:
         """
@@ -271,10 +273,14 @@ class SwingTrader:
                         score_components["rs_index"] = rs_bonus
                         score_components["total"] += rs_bonus
                     
+                    # Calculate ML Win Probability
+                    ml_prob = self.ml_inference.predict_probability(symbol, score_components)
+                    
                     baseline_data = {
                         "score": score_components.pop("total", 0.0),
                         "components": score_components,
-                        "setup": baseline_setup
+                        "setup": baseline_setup,
+                        "ml_prob": ml_prob
                     }
 
         # --- Mean Reversion Strategy Processing ---
@@ -285,10 +291,15 @@ class SwingTrader:
             entry_price = mr_setup['entry_price']
             if MIN_STOCK_PRICE < entry_price < MAX_STOCK_PRICE:
                 score_components_mr = self.technical_analyzer.calculate_technical_score(df, strategy="mean_reversion", enabled_indicators=enabled_indicators, aggregation=aggregation)
+                
+                # Calculate ML Win Probability
+                ml_prob_mr = self.ml_inference.predict_probability(symbol, score_components_mr)
+                
                 mr_data = {
                     "score": score_components_mr.pop("total", 0.0),
                     "components": score_components_mr,
-                    "setup": mr_setup
+                    "setup": mr_setup,
+                    "ml_prob": ml_prob_mr
                 }
 
         if not baseline_data and not mr_data:
@@ -305,9 +316,11 @@ class SwingTrader:
             'baseline_score': baseline_data['score'] if baseline_data else 0.0,
             'baseline_components': baseline_data['components'] if baseline_data else {},
             'baseline_setup': baseline_data['setup'] if baseline_data else {},
+            'baseline_ml_prob': baseline_data['ml_prob'] if baseline_data else 0.0,
             'mr_score': mr_data['score'] if mr_data else 0.0,
             'mr_components': mr_data['components'] if mr_data else {},
-            'mr_setup': mr_data['setup'] if mr_data else {}
+            'mr_setup': mr_data['setup'] if mr_data else {},
+            'mr_ml_prob': mr_data['ml_prob'] if mr_data else 0.0
         }
         logging.info("Processed %s with results Baseline: %.2f, MR: %.2f", symbol, ret_val['baseline_score'], ret_val['mr_score'])
         return ret_val
@@ -374,7 +387,7 @@ class SwingTrader:
             ReportSingleton().write(
                 f"{res['symbol']} - Entry: {setup['entry_price']:.2f} | "
                 f"Stop: {setup['stop_loss']:.2f} | Exit: {setup['take_profit']:.2f} | "
-                f"Score: {res['baseline_score']:.2f} - Name: {res['name']}"
+                f"Score: {res['baseline_score']:.2f} | ML Win%: {res['baseline_ml_prob']*100:.1f}% - Name: {res['name']}"
             )
 
         # 2. Handle Mean Reversion (Dip) Results
@@ -386,7 +399,7 @@ class SwingTrader:
             ReportSingleton().write(
                 f"{res['symbol']} - Entry: {setup['entry_price']:.2f} | "
                 f"Stop: {setup['stop_loss']:.2f} | Exit: {setup['take_profit']:.2f} | "
-                f"Score: {res['mr_score']:.2f} - Name: {res['name']}"
+                f"Score: {res['mr_score']:.2f} | ML Win%: {res['mr_ml_prob']*100:.1f}% - Name: {res['name']}"
             )
 
         # Save results to the trade_scores collection
@@ -406,6 +419,7 @@ class SwingTrader:
                             "entry_price": setup["entry_price"],
                             "stop_loss": setup["stop_loss"],
                             "take_profit": setup["take_profit"],
+                            "ml_win_prob": r["baseline_ml_prob"],
                             "components": r["baseline_components"]
                         }
                     })
@@ -422,6 +436,7 @@ class SwingTrader:
                             "entry_price": setup["entry_price"],
                             "stop_loss": setup["stop_loss"],
                             "take_profit": setup["take_profit"],
+                            "ml_win_prob": r["mr_ml_prob"],
                             "components": r["mr_components"]
                         }
                     })
