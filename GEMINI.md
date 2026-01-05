@@ -77,4 +77,4 @@ The system implements two primary scoring strategies in `TechnicalAnalyzer`:
 
 - **Score Rebuild:** Initiated a full rebuild of technical scores for January 2025 across 2000+ symbols to create a robust dataset for ML retraining.
 
-- **Next Task:** Execute `src/run_grading.py --save` followed by `src/train_ml_overlay.py` and `src/train_stop_loss.py` to refresh models with the January 2025 rebuilt dataset.
+- **Next Task: Monitor src/logs/rebuild_sequence.log for completion of the rebuild-grade-train pipeline, then validate the new models.

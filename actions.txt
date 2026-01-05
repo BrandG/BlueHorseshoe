@@ -29,3 +29,5 @@
 2026-01-04: Implemented ML-Driven Stop Loss regressor. Updated GradingEngine to calculate MAE in ATR units. Integrated StopLossInference into SwingTrader to provide dynamic, volatility-adjusted stop losses for each symbol.
 2026-01-04: Implemented Trailing Stop logic in Backtester. Added --trailing and --trailing-mult flags to main.py to allow testing volatility-adjusted trailing stops in historical simulations.
 2026-01-05: Session summary: Backfilled 2000 symbols into MongoDB, resolved collection name mismatches in historical_data.py, and initiated a full score rebuild for January 2025 to generate a high-quality training dataset for ML model refreshment.
+2026-01-05: Resumed session. Discovered missing scores for Jan 2025. Created and launched 'src/rebuild_and_train.sh' to rebuild scores, grade them, and retrain ML models in background.
+2026-01-05: Verified system stability (59 tests passed). Initiated full score rebuild and model retraining sequence (src/rebuild_and_train.sh).

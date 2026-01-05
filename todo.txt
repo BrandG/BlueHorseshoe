@@ -31,4 +31,4 @@
 - [x] Integrated News Sentiment and Fundamentals.
 - [x] Implement a weekly automated retraining job.
 - [x] Implement ML-Driven Stop Loss.
-- [x] Implement Trailing Stops.
+- [x] Implement Trailing Stops.- [ ] **Monitor Rebuild & Retraining:** Verify logs in src/logs/ for completion of jan2025 rebuild and subsequent training.
