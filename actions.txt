@@ -31,3 +31,4 @@
 2026-01-05: Session summary: Backfilled 2000 symbols into MongoDB, resolved collection name mismatches in historical_data.py, and initiated a full score rebuild for January 2025 to generate a high-quality training dataset for ML model refreshment.
 2026-01-05: Resumed session. Discovered missing scores for Jan 2025. Created and launched 'src/rebuild_and_train.sh' to rebuild scores, grade them, and retrain ML models in background.
 2026-01-05: Verified system stability (59 tests passed). Initiated full score rebuild and model retraining sequence (src/rebuild_and_train.sh).
+2026-01-05: Added '-i' flag to main.py for intraday verification using yfinance. Updated Baseline strategy entry logic (relaxed EMA distance to 5%, volume to 0.9x) to better capture momentum. Validated prediction logic against Jan 5 live data (gap up resulted in no fills).

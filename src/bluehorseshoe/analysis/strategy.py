@@ -116,8 +116,14 @@ class SwingTrader:
         swing_high_20 = df['high'].rolling(window=20).max().iloc[-1]
         
         # Entry Logic:
-        # If already bullish, has volume support, and near EMA 9 (within 1.5%), buy at current close.
-        if is_bullish and has_volume_support and (last_close < ema9 * 1.015):
+        # If already bullish, has reasonable volume support, and near EMA 9, buy at current close.
+        # We relaxed the threshold from 1.5% to 5.0% to catch strong momentum.
+        # Also relaxed volume requirement to 0.9x avg for this specific immediate entry type.
+        dist_to_ema = (last_close - ema9) / ema9
+        is_near_ema = (dist_to_ema < 0.05) or (abs(last_close - ema9) < 0.5 * atr)
+        has_decent_volume = vol_ratio >= 0.9
+        
+        if is_bullish and has_decent_volume and is_near_ema:
             entry_price = last_close
         else:
             # Otherwise, wait for a pullback to EMA 9 (support)
@@ -395,9 +401,10 @@ class SwingTrader:
                     symbol = future_to_symbol[future]
                     logging.error("%s generated an exception: %s", symbol, e)
                 
-                if processed_count % 100 == 0 or processed_count == total_symbols:
-                    logging.info("Progress: %d/%d symbols processed (%.1f%%)", 
-                                 processed_count, total_symbols, (processed_count/total_symbols)*100)
+                if processed_count % 50 == 0 or processed_count == total_symbols:
+                    msg = f"Progress: {processed_count}/{total_symbols} symbols processed ({(processed_count/total_symbols)*100:.1f}%)"
+                    logging.info(msg)
+                    print(msg, flush=True)
 
         # Filter None results
         valid_results = [r for r in results if r is not None]

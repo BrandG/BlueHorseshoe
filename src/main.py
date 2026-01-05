@@ -174,6 +174,33 @@ if __name__ == "__main__":
     elif "-o" in sys.argv:
         logging.info("Optimizing indicator weights...")
         WeightOptimizer().run_optimization()
+    elif "-i" in sys.argv or "--intraday" in sys.argv:
+        # Intraday check mode
+        # Expects: -i SYMBOL ENTRY STOP TARGET
+        try:
+            # Find the index of the flag
+            if "-i" in sys.argv:
+                idx = sys.argv.index("-i")
+            else:
+                idx = sys.argv.index("--intraday")
+            
+            if len(sys.argv) < idx + 5:
+                print("Usage: python src/main.py -i SYMBOL ENTRY STOP TARGET")
+                sys.exit(1)
+                
+            symbol = sys.argv[idx + 1]
+            entry = float(sys.argv[idx + 2])
+            stop = float(sys.argv[idx + 3])
+            target = float(sys.argv[idx + 4])
+            
+            # Import dynamically to avoid breaking if yfinance isn't installed for other modes
+            sys.path.append(os.path.join(os.getcwd(), 'src'))
+            from check_intraday_status import check_intraday
+            check_intraday(symbol, entry, stop, target)
+            
+        except ValueError as e:
+            print(f"Error parsing arguments: {e}")
+            sys.exit(1)
     elif "-d" in sys.argv:
         logging.info("Debugging...")
         debug_test()

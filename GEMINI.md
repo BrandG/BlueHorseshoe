@@ -24,6 +24,7 @@ BlueHorseshoe is a quantitative trading and analysis system built in Python. It 
 | `-p` | Predict potential entry/exit points for the next trading day. |
 | `-t` | Run backtest (requires date: `-t 2025-12-01`). |
 | `-o` | Optimize indicator weights based on historical performance. |
+| `-i` | Check intraday status of a trade (requires yfinance): `-i SYMBOL ENTRY STOP TARGET`. |
 | `-d` | Run internal debug routines (`debug_test` function). |
 
 ## Analysis Philosophies
@@ -59,7 +60,7 @@ The system implements two primary scoring strategies in `TechnicalAnalyzer`:
 
 - **RSI Tweak:** RSI scoring was moved from neutral (45-65) to oversold (<50) to better capture "buying the dip" in established trends.
 
-
+- **Momentum Entry Logic:** Relaxed Baseline entry criteria (EMA distance 1.5% -> 5.0%, Volume Ratio 1.0 -> 0.9) to allow "Buy at Close" entries for strong momentum stocks that don't pull back to the EMA.
 
 ## Developer Notes
 
@@ -77,4 +78,4 @@ The system implements two primary scoring strategies in `TechnicalAnalyzer`:
 
 - **Score Rebuild:** Initiated a full rebuild of technical scores for January 2025 across 2000+ symbols to create a robust dataset for ML retraining.
 
-- **Next Task: Monitor src/logs/rebuild_sequence.log for completion of the rebuild-grade-train pipeline, then validate the new models.
+- **Next Task:** Monitor the forward performance of the new Momentum Entry Logic (Gap & Go vs Pullback) using the intraday checker.

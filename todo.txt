@@ -24,11 +24,13 @@
 ## Future Ideas / Next Phase
 - [ ] **Grading & Retraining:** Run `run_grading.py` and retrain ML models with Jan 2025 data.
 - [ ] **H2 2025 Stress Test:** Perform 6-month simulation for both strategies with refreshed models.
-- [ ] **Intraday Data Integration:** Pull 15-minute data for top candidates to optimize the entry window.
+- [x] **Intraday Verification:** Implemented `-i` flag in CLI to check live status of predictions using yfinance.
+- [x] **Strategy Optimization:** Relaxed Baseline entry logic to capture strong momentum (gap-up) plays.
 
 ## Completed Tasks
 - [x] Implement Machine Learning Overlay.
 - [x] Integrated News Sentiment and Fundamentals.
 - [x] Implement a weekly automated retraining job.
 - [x] Implement ML-Driven Stop Loss.
-- [x] Implement Trailing Stops.- [ ] **Monitor Rebuild & Retraining:** Verify logs in src/logs/ for completion of jan2025 rebuild and subsequent training.
+- [x] Implement Trailing Stops.
+- [x] Implement Intraday Verification Mechanism.
