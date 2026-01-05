@@ -23,24 +23,20 @@ if __name__ == "__main__":
     logger.addHandler(fh)
     
     limit = 5000
+    before_date = None
+    
     if len(sys.argv) > 1:
         try:
             limit = int(sys.argv[1])
         except ValueError:
             pass
             
-    logging.info(f"Starting ML Overlay training with limit={limit}...")
+    if len(sys.argv) > 2:
+        before_date = sys.argv[2]
+            
+    logging.info(f"Starting ML Overlay training with limit={limit}, before={before_date}...")
     trainer = MLOverlayTrainer()
     
-    # 1. Train General Model
-    logging.info("Training GENERAL model...")
-    trainer.train(limit=limit, output_path="src/models/ml_overlay_v1.joblib")
-    
-    # 2. Train Strategy-Specific Models
-    logging.info("Training BASELINE model...")
-    trainer.train(limit=limit, strategy="baseline", output_path="src/models/ml_overlay_baseline.joblib")
-    
-    logging.info("Training MEAN REVERSION model...")
-    trainer.train(limit=limit, strategy="mean_reversion", output_path="src/models/ml_overlay_mean_reversion.joblib")
+    trainer.retrain_all(limit=limit, before_date=before_date)
     
     logging.info("Training process complete.")

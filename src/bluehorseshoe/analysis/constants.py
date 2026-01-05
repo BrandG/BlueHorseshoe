@@ -41,10 +41,10 @@ ATR_MULTIPLIER_UPTREND = 0.5
 ATR_MULTIPLIER_DOWNTREND = 1.0
 
 # Reward-to-Risk Filtering
-MIN_RR_RATIO = 2.0
+MIN_RR_RATIO = 1.0
 
 # Volume Confirmation
 MIN_REL_VOLUME = 1.0  # Must be at least average volume
 
 # Multi-Timeframe Alignment
-REQUIRE_WEEKLY_UPTREND = True
+REQUIRE_WEEKLY_UPTREND = False

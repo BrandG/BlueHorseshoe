@@ -40,6 +40,7 @@ from bluehorseshoe.analysis.constants import (
 from bluehorseshoe.analysis.technical_analyzer import TechnicalAnalyzer
 from bluehorseshoe.analysis.market_regime import MarketRegime
 from bluehorseshoe.analysis.ml_overlay import MLInference
+from bluehorseshoe.analysis.ml_stop_loss import StopLossInference
 
 class SwingTrader:
     """Main class for swing trading analysis."""
@@ -47,6 +48,7 @@ class SwingTrader:
     def __init__(self):
         self.technical_analyzer = TechnicalAnalyzer()
         self.ml_inference = MLInference()
+        self.stop_loss_inference = StopLossInference()
 
     def is_weekly_uptrend(self, df: pd.DataFrame) -> bool:
         """
@@ -74,11 +76,11 @@ class SwingTrader:
         
         return last_ema10 > last_ema30
 
-    def calculate_baseline_setup(self, df: pd.DataFrame) -> Dict[str, float]:
+    def calculate_baseline_setup(self, df: pd.DataFrame, ml_stop_multiplier: float = 2.0) -> Dict[str, float]:
         """
         Calculate structural prices for Baseline (Trend) strategy:
         Entry = Pullback to EMA + Bullish candle close
-        Stop = Below recent swing low or 2.0 * ATR
+        Stop = Below recent swing low or ml_stop_multiplier * ATR
         Target = Prior high or 3.0 * ATR
         """
         last_row = df.iloc[-1]
@@ -121,9 +123,9 @@ class SwingTrader:
             # Otherwise, wait for a pullback to EMA 9 (support)
             entry_price = ema9
             
-        # Stop Loss: Use the lower of (Swing Low) or (2.0 * ATR)
+        # Stop Loss: Use the lower of (Swing Low) or (ml_stop_multiplier * ATR)
         # This provides "breathing room" based on the stock's actual volatility.
-        stop_loss = min(swing_low_5 * 0.985, entry_price - (2.0 * atr))
+        stop_loss = min(swing_low_5 * 0.985, entry_price - (ml_stop_multiplier * atr))
         
         # Take Profit: Prior 20-day high, or at least a 3.0 * ATR move
         take_profit = max(swing_high_20, entry_price + (3.0 * atr))
@@ -132,6 +134,9 @@ class SwingTrader:
         reward = take_profit - entry_price
         risk = entry_price - stop_loss
         rr_ratio = reward / risk if risk > 0 else 0
+        
+        if rr_ratio < 0.5:
+            print(f"DEBUG: {last_row.get('symbol', 'UNK')} RR Debug: entry={entry_price:.2f}, stop={stop_loss:.2f}, exit={take_profit:.2f}, atr={atr:.2f}, mult={ml_stop_multiplier:.2f}, risk={risk:.2f}, reward={reward:.2f}")
         
         # 7. Quality Check: Is the entry price realistic?
         # If the targeted entry (EMA) is more than 15% away from the close, 
@@ -148,11 +153,11 @@ class SwingTrader:
             'is_realistic': is_realistic
         }
 
-    def calculate_mean_reversion_setup(self, df: pd.DataFrame) -> Dict[str, float]:
+    def calculate_mean_reversion_setup(self, df: pd.DataFrame, ml_stop_multiplier: float = 1.5) -> Dict[str, float]:
         """
         Calculate structural prices for Mean Reversion (Dip) strategy:
         Entry = Current Close (Buying extreme weakness)
-        Stop = 1.5 * ATR (Tighter stop for fast reversals)
+        Stop = ml_stop_multiplier * ATR (Tighter stop for fast reversals)
         Target = Reversion to 20-day EMA
         """
         last_row = df.iloc[-1]
@@ -176,8 +181,8 @@ class SwingTrader:
         # 3. Entry is current close
         entry_price = last_close
         
-        # 4. Stop Loss: 1.5 * ATR below entry
-        stop_loss = entry_price - (1.5 * atr)
+        # 4. Stop Loss: ml_stop_multiplier * ATR below entry
+        stop_loss = entry_price - (ml_stop_multiplier * atr)
         
         # 5. Take Profit: EMA 20
         take_profit = max(ema20, entry_price + (2.0 * atr))
@@ -227,15 +232,18 @@ class SwingTrader:
             target_ts = pd.to_datetime(target_date)
             df = df[df['date'] <= target_ts]
             if df.empty:
+                print(f"DEBUG: {symbol} - DF empty after target_date filter")
                 return None
             
             # Staleness check
             last_date = pd.to_datetime(df.iloc[-1]['date'])
             if (target_ts - last_date).days > 7:
+                print(f"DEBUG: {symbol} - Data too stale: {last_date}")
                 logging.info("Symbol %s data is too stale for target date %s. Skipping.", symbol, target_date)
                 return None
             
         if len(df) < 30:
+            print(f"DEBUG: {symbol} - Insufficient data: {len(df)}")
             logging.info("Symbol %s has insufficient data (%d days) for target date. Skipping.", symbol, len(df))
             return None
 
@@ -257,12 +265,16 @@ class SwingTrader:
         
         # Baseline strictly requires Weekly Uptrend if enabled
         if not REQUIRE_WEEKLY_UPTREND or is_uptrend:
-            baseline_setup = self.calculate_baseline_setup(df)
+            score_components = self.technical_analyzer.calculate_baseline_score(df, enabled_indicators=enabled_indicators, aggregation=aggregation)
+            
+            # Predict ML Stop Loss Multiplier
+            # ml_stop_multiplier = self.stop_loss_inference.predict_stop_loss_multiplier(symbol, score_components, target_date=str(yesterday['date'])[:10])
+            ml_stop_multiplier = 2.0
+            
+            baseline_setup = self.calculate_baseline_setup(df, ml_stop_multiplier=ml_stop_multiplier)
             if baseline_setup['is_realistic'] and baseline_setup['rr_ratio'] >= MIN_RR_RATIO:
                 entry_price = baseline_setup['entry_price']
                 if MIN_STOCK_PRICE < entry_price < MAX_STOCK_PRICE:
-                    score_components = self.technical_analyzer.calculate_baseline_score(df, enabled_indicators=enabled_indicators, aggregation=aggregation)
-                    
                     # Apply Relative Strength (RS) Bonus
                     rs_ratio = 1.0
                     if benchmark_df is not None:
@@ -280,18 +292,28 @@ class SwingTrader:
                         "score": score_components.pop("total", 0.0),
                         "components": score_components,
                         "setup": baseline_setup,
-                        "ml_prob": ml_prob
+                        "ml_prob": ml_prob,
+                        "stop_multiplier": ml_stop_multiplier
                     }
+                else:
+                    print(f"DEBUG: {symbol} - Baseline price out of range: {entry_price}")
+            else:
+                print(f"DEBUG: {symbol} - Baseline failed setup checks: realistic={baseline_setup['is_realistic']}, rr={baseline_setup['rr_ratio']}")
+        else:
+            print(f"DEBUG: {symbol} - Baseline failed weekly uptrend")
 
         # --- Mean Reversion Strategy Processing ---
         mr_data = None
         # MR relaxes the Weekly Uptrend requirement (can buy dips in Stage 1/4)
-        mr_setup = self.calculate_mean_reversion_setup(df)
+        score_components_mr = self.technical_analyzer.calculate_technical_score(df, strategy="mean_reversion", enabled_indicators=enabled_indicators, aggregation=aggregation)
+        
+        # Predict ML Stop Loss Multiplier (specifically for MR)
+        ml_stop_multiplier_mr = self.stop_loss_inference.predict_stop_loss_multiplier(symbol, score_components_mr, target_date=str(yesterday['date'])[:10])
+
+        mr_setup = self.calculate_mean_reversion_setup(df, ml_stop_multiplier=ml_stop_multiplier_mr)
         if mr_setup['rr_ratio'] >= MIN_RR_RATIO:
             entry_price = mr_setup['entry_price']
             if MIN_STOCK_PRICE < entry_price < MAX_STOCK_PRICE:
-                score_components_mr = self.technical_analyzer.calculate_technical_score(df, strategy="mean_reversion", enabled_indicators=enabled_indicators, aggregation=aggregation)
-                
                 # Calculate ML Win Probability
                 ml_prob_mr = self.ml_inference.predict_probability(symbol, score_components_mr, target_date=str(yesterday['date'])[:10], strategy="mean_reversion")
                 
@@ -299,7 +321,8 @@ class SwingTrader:
                     "score": score_components_mr.pop("total", 0.0),
                     "components": score_components_mr,
                     "setup": mr_setup,
-                    "ml_prob": ml_prob_mr
+                    "ml_prob": ml_prob_mr,
+                    "stop_multiplier": ml_stop_multiplier_mr
                 }
 
         if not baseline_data and not mr_data:
@@ -325,16 +348,16 @@ class SwingTrader:
         logging.info("Processed %s with results Baseline: %.2f, MR: %.2f", symbol, ret_val['baseline_score'], ret_val['mr_score'])
         return ret_val
 
-    def swing_predict(self, target_date: Optional[str] = None, enabled_indicators: Optional[list[str]] = None, aggregation: str = "sum") -> None:
+    def swing_predict(self, target_date: Optional[str] = None, enabled_indicators: Optional[list[str]] = None, aggregation: str = "sum", symbols: Optional[list[str]] = None) -> None:
         """Main prediction function with parallel processing capability."""
         
         # 1. Market Context Filter (The "Big Picture")
         market_health = MarketRegime.get_market_health(target_date=target_date)
         ReportSingleton().write(f"Market Status: {market_health['status']} ({market_health['multiplier']}x risk)")
         
-        if market_health['status'] == 'Bearish':
-            ReportSingleton().write("BROAD MARKET IS BEARISH. Skipping all long signals to protect capital.")
-            return
+        # if market_health['status'] == 'Bearish':
+        #     ReportSingleton().write("BROAD MARKET IS BEARISH. Skipping all long signals to protect capital.")
+        #     return
 
         # Load Benchmark for Relative Strength
         benchmark_data = load_historical_data("SPY")
@@ -345,7 +368,8 @@ class SwingTrader:
                 benchmark_df['date'] = pd.to_datetime(benchmark_df['date'])
                 benchmark_df = benchmark_df[benchmark_df['date'] <= pd.to_datetime(target_date)]
 
-        symbols = get_symbol_name_list()
+        if symbols is None:
+            symbols = get_symbol_name_list()
         # Reduce max_workers to avoid pegging CPU, and use as_completed for progress logging
         max_workers = min(8, os.cpu_count() or 4)
         results = []
@@ -386,7 +410,7 @@ class SwingTrader:
             setup = res['baseline_setup']
             ReportSingleton().write(
                 f"{res['symbol']} - Entry: {setup['entry_price']:.2f} | "
-                f"Stop: {setup['stop_loss']:.2f} | Exit: {setup['take_profit']:.2f} | "
+                f"Stop: {setup['stop_loss']:.2f} (SL Mult: {res.get('stop_multiplier', 0):.1f}) | Exit: {setup['take_profit']:.2f} | "
                 f"Score: {res['baseline_score']:.2f} | ML Win%: {res['baseline_ml_prob']*100:.1f}% - Name: {res['name']}"
             )
 
@@ -398,7 +422,7 @@ class SwingTrader:
             setup = res['mr_setup']
             ReportSingleton().write(
                 f"{res['symbol']} - Entry: {setup['entry_price']:.2f} | "
-                f"Stop: {setup['stop_loss']:.2f} | Exit: {setup['take_profit']:.2f} | "
+                f"Stop: {setup['stop_loss']:.2f} (SL Mult: {res.get('stop_multiplier', 0):.1f}) | Exit: {setup['take_profit']:.2f} | "
                 f"Score: {res['mr_score']:.2f} | ML Win%: {res['mr_ml_prob']*100:.1f}% - Name: {res['name']}"
             )
 
@@ -420,6 +444,7 @@ class SwingTrader:
                             "stop_loss": setup["stop_loss"],
                             "take_profit": setup["take_profit"],
                             "ml_win_prob": r["baseline_ml_prob"],
+                            "stop_multiplier": r.get("stop_multiplier", 2.0),
                             "components": r["baseline_components"]
                         }
                     })
@@ -437,6 +462,7 @@ class SwingTrader:
                             "stop_loss": setup["stop_loss"],
                             "take_profit": setup["take_profit"],
                             "ml_win_prob": r["mr_ml_prob"],
+                            "stop_multiplier": r.get("stop_multiplier", 1.5),
                             "components": r["mr_components"]
                         }
                     })

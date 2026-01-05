@@ -58,6 +58,18 @@ class GradingEngine:
         exit_date = None
         exit_price = None
         max_gain = -999.0
+        
+        # Track min_low over the entire hold window for ML training
+        all_lows = future_data['low'].values
+        min_low = min(all_lows) if len(all_lows) > 0 else entry_price
+        if min_low > entry_price:
+            min_low = entry_price
+
+        # ATR at signal date (or closest before)
+        signal_row = df[df['date'] <= signal_date].iloc[-1] if not df[df['date'] <= signal_date].empty else None
+        atr = signal_row.get('atr_14', 1.0) if signal_row is not None else 1.0
+        if pd.isna(atr) or atr <= 0:
+            atr = 1.0
 
         for _, day in future_data.iterrows():
             high = day['high']
@@ -90,6 +102,8 @@ class GradingEngine:
             status = 'success' if exit_price > entry_price else 'failure'
 
         pnl = ((exit_price / entry_price) - 1) * 100
+        mae = entry_price - min_low
+        mae_atr = mae / atr if atr > 0 else 0
 
         return {
             'symbol': symbol,
@@ -103,6 +117,7 @@ class GradingEngine:
             'exit_date': exit_date,
             'pnl': pnl,
             'max_gain': max_gain,
+            'mae_atr': mae_atr,
             'days_held': len(future_data[future_data['date'] <= exit_date]) if exit_date else self.hold_days
         }
 
@@ -174,6 +189,18 @@ class GradingEngine:
         exit_date = None
         exit_price = None
         max_gain = -999.0
+        
+        # Track min_low over the entire hold window for ML training
+        all_lows = future_data['low'].values
+        min_low = min(all_lows) if len(all_lows) > 0 else entry_price
+        if min_low > entry_price:
+            min_low = entry_price
+
+        # ATR at signal date (or closest before)
+        signal_rows = df[df['date'] <= signal_date]
+        atr = signal_rows.iloc[-1].get('atr_14', 1.0) if not signal_rows.empty else 1.0
+        if pd.isna(atr) or atr <= 0:
+            atr = 1.0
 
         for _, day in future_data.iterrows():
             high = day['high']
@@ -202,6 +229,8 @@ class GradingEngine:
             status = 'success' if exit_price > entry_price else 'failure'
 
         pnl = ((exit_price / entry_price) - 1) * 100
+        mae = entry_price - min_low
+        mae_atr = mae / atr if atr > 0 else 0
 
         return {
             'symbol': symbol,
@@ -215,6 +244,7 @@ class GradingEngine:
             'exit_date': exit_date,
             'pnl': pnl,
             'max_gain': max_gain,
+            'mae_atr': mae_atr,
             'days_held': len(future_data[future_data['date'] <= exit_date]) if exit_date else self.hold_days
         }
 

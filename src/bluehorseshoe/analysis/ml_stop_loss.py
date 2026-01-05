@@ -2,9 +2,9 @@ import logging
 import pandas as pd
 import numpy as np
 from sklearn.model_selection import train_test_split
-from sklearn.ensemble import RandomForestClassifier
+from sklearn.ensemble import RandomForestRegressor
 from sklearn.preprocessing import LabelEncoder
-from sklearn.metrics import classification_report, confusion_matrix
+from sklearn.metrics import mean_squared_error, r2_score
 import joblib
 import os
 from typing import List, Dict, Any
@@ -14,12 +14,12 @@ from bluehorseshoe.analysis.grading_engine import GradingEngine
 from bluehorseshoe.core.database import db
 from bluehorseshoe.core.symbols import get_overview_from_mongo, get_sentiment_score
 
-class MLOverlayTrainer:
+class StopLossTrainer:
     """
-    Trains a Machine Learning model to act as a filter/overlay for technical signals.
+    Trains a regression model to predict the optimal ATR-based stop loss distance.
     """
 
-    def __init__(self, model_path: str = "src/models/ml_overlay_v1.joblib"):
+    def __init__(self, model_path: str = "src/models/ml_stop_loss_v1.joblib"):
         self.model_path = model_path
         self.grading_engine = GradingEngine(hold_days=10)
         self.label_encoders = {}
@@ -27,16 +27,12 @@ class MLOverlayTrainer:
         # Ensure models directory exists
         os.makedirs(os.path.dirname(self.model_path), exist_ok=True)
 
-    def prepare_training_data(self, limit: int = 10000, strategy: str = None, before_date: str = None) -> pd.DataFrame:
+    def prepare_training_data(self, limit: int = 10000, before_date: str = None) -> pd.DataFrame:
         """
-        Extracts features and labels from graded trades and fundamental data.
+        Extracts features and labels (mae_atr) from graded trades.
         """
-        logging.info(f"Gathering graded trades for strategy={strategy}, before={before_date}...")
-        # Get graded results (Success/Failure)
+        logging.info(f"Gathering graded trades for Stop Loss training, before={before_date}...")
         query = {"metadata.entry_price": {"$exists": True}}
-        if strategy:
-            query["strategy"] = strategy
-        
         if before_date:
             query["date"] = {"$lt": before_date}
             
@@ -47,7 +43,7 @@ class MLOverlayTrainer:
             logging.error("No graded trades found to train on.")
             return pd.DataFrame()
 
-        # Filter for successful/failed trades only
+        # We want to train on both successes and failures to see how deep they go
         df_graded = df_graded[df_graded['status'].isin(['success', 'failure'])]
         
         features = []
@@ -59,7 +55,7 @@ class MLOverlayTrainer:
             if not feat:
                 continue
                 
-            # 2. Fundamental Features (from overviews)
+            # 2. Fundamental Features
             overview = get_overview_from_mongo(symbol)
             
             def safe_float(val):
@@ -83,11 +79,13 @@ class MLOverlayTrainer:
                 feat['Beta'] = 0.0
                 feat['PERatio'] = 0.0
                 
-            # 2.5 News Sentiment Feature
+            # Sentiment
             feat['SentimentScore'] = get_sentiment_score(symbol, row['date'])
                 
-            # 3. Label (Target)
-            feat['TARGET'] = 1 if row['status'] == 'success' else 0
+            # 3. Label (Target): MAE in ATR units
+            feat['TARGET'] = float(row.get('mae_atr', 0.0))
+            
+            # Meta
             feat['symbol'] = symbol
             feat['date'] = row['date']
             feat['strategy'] = row.get('strategy', 'unknown')
@@ -96,14 +94,14 @@ class MLOverlayTrainer:
             
         return pd.DataFrame(features)
 
-    def train(self, limit: int = 10000, strategy: str = None, output_path: str = None, before_date: str = None):
+    def train(self, limit: int = 10000, output_path: str = None, before_date: str = None):
         """
-        Trains the Random Forest model.
+        Trains the Random Forest Regressor.
         """
         if output_path is None:
             output_path = self.model_path
             
-        df = self.prepare_training_data(limit=limit, strategy=strategy, before_date=before_date)
+        df = self.prepare_training_data(limit=limit, before_date=before_date)
         if df.empty:
             return
 
@@ -118,29 +116,30 @@ class MLOverlayTrainer:
         X = df.drop(columns=['TARGET', 'symbol', 'date', 'strategy'])
         y = df['TARGET']
         
-        # Fill NaNs
         X = X.fillna(0)
 
         # Split data
         X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
-        logging.info(f"Training on {len(X_train)} samples, testing on {len(X_test)} samples...")
+        logging.info(f"Training Regressor on {len(X_train)} samples, testing on {len(X_test)} samples...")
         
         # Train Model
-        model = RandomForestClassifier(n_estimators=100, max_depth=10, random_state=42)
+        model = RandomForestRegressor(n_estimators=100, max_depth=10, random_state=42)
         model.fit(X_train, y_train)
 
         # Evaluate
         y_pred = model.predict(X_test)
-        logging.info("\n" + classification_report(y_test, y_pred))
+        mse = mean_squared_error(y_test, y_pred)
+        r2 = r2_score(y_test, y_pred)
+        logging.info(f"Regression Performance - MSE: {mse:.4f}, R2: {r2:.4f}")
         
-        # Calculate Feature Importance
+        # Feature Importance
         importances = pd.DataFrame({
             'feature': X.columns,
             'importance': model.feature_importances_
         }).sort_values('importance', ascending=False)
         
-        logging.info("Top Features:\n" + importances.head(10).to_string())
+        logging.info("Top Features for Stop Loss:\n" + importances.head(10).to_string())
 
         # Save model and encoders
         output = {
@@ -149,66 +148,37 @@ class MLOverlayTrainer:
             'features': X.columns.tolist()
         }
         joblib.dump(output, output_path)
-        logging.info(f"Model saved to {output_path}")
+        logging.info(f"Stop Loss Model saved to {output_path}")
 
-    def retrain_all(self, limit: int = 10000, before_date: str = None):
-        """
-        Retrains all models (General, Baseline, Mean Reversion).
-        """
-        logging.info(f"Starting automated retraining of all models (limit={limit}, before={before_date})...")
-        
-        # 1. General Model
-        self.train(limit=limit, output_path="src/models/ml_overlay_v1.joblib", before_date=before_date)
-        
-        # 2. Strategy-Specific Models
-        self.train(limit=limit, strategy="baseline", output_path="src/models/ml_overlay_baseline.joblib", before_date=before_date)
-        
-        self.train(limit=limit, strategy="mean_reversion", output_path="src/models/ml_overlay_mean_reversion.joblib", before_date=before_date)
-        
-        logging.info("Automated retraining complete.")
-
-class MLInference:
+class StopLossInference:
     """
-    Handles loading the trained ML model and performing predictions.
+    Predicts optimal ATR multiplier for a stop loss.
     """
-    def __init__(self, model_path: str = "src/models/ml_overlay_v1.joblib"):
+    def __init__(self, model_path: str = "src/models/ml_stop_loss_v1.joblib"):
         self.model_path = model_path
-        self.models = {} # Cache for strategy-specific models
+        self.model = None
         self.encoders = {}
-        self.features = {} # Cache for features per model
-        self._load_model(model_path, "general")
+        self.features = []
+        self._load_model()
 
-    def _load_model(self, path: str, key: str):
-        if os.path.exists(path):
-            data = joblib.load(path)
-            self.models[key] = data['model']
-            self.encoders[key] = data['encoders']
-            self.features[key] = data['features']
-            logging.info(f"ML Overlay model ({key}) loaded from {path}")
-        else:
-            if key == "general":
-                logging.warning(f"ML Overlay model not found at {path}")
+    def _load_model(self):
+        if os.path.exists(self.model_path):
+            data = joblib.load(self.model_path)
+            self.model = data['model']
+            self.encoders = data['encoders']
+            self.features = data['features']
+            logging.info(f"Stop Loss Model loaded from {self.model_path}")
 
-    def predict_probability(self, symbol: str, components: Dict[str, float], target_date: str = None, strategy: str = "general") -> float:
+    def predict_stop_loss_multiplier(self, symbol: str, components: Dict[str, float], target_date: str = None) -> float:
         """
-        Predicts the win probability for a given symbol and technical components.
+        Predicts the recommended ATR multiplier for the stop loss.
         """
-        # Try to load strategy-specific model if not already loaded
-        if strategy != "general" and strategy not in self.models:
-            strat_path = f"src/models/ml_overlay_{strategy}.joblib"
-            self._load_model(strat_path, strategy)
-            
-        # Fallback to general model
-        model_key = strategy if strategy in self.models else "general"
-        model = self.models.get(model_key)
-        
-        if model is None:
-            return 0.0
+        if self.model is None:
+            return 2.0  # Default fallback
 
         if target_date is None:
             target_date = datetime.now().strftime("%Y-%m-%d")
 
-        # Build feature vector
         feat = components.copy()
         overview = get_overview_from_mongo(symbol)
         
@@ -233,13 +203,10 @@ class MLInference:
             feat['Beta'] = 0.0
             feat['PERatio'] = 0.0
 
-        # Sentiment Feature
         feat['SentimentScore'] = get_sentiment_score(symbol, target_date)
 
-        # Encode categorical
-        encoders = self.encoders.get(model_key, {})
         for col in ['Sector', 'Industry']:
-            le = encoders.get(col)
+            le = self.encoders.get(col)
             val = str(feat.get(col, 'Unknown'))
             if le:
                 try:
@@ -249,24 +216,17 @@ class MLInference:
             else:
                 feat[col] = 0
 
-        # Create DataFrame aligned with training features
         df = pd.DataFrame([feat])
-        
-        # Ensure all training features are present
-        model_features = self.features.get(model_key, [])
-        for f in model_features:
+        for f in self.features:
             if f not in df.columns:
                 df[f] = 0.0
         
-        # Reorder columns to match training
-        df = df[model_features]
+        df = df[self.features]
         df = df.fillna(0)
 
-        # Predict probability of class 1 (Success)
-        probs = model.predict_proba(df)[0]
-        return float(probs[1])
-
-if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
-    trainer = MLOverlayTrainer()
-    trainer.train(limit=5000)
+        predicted_mae = float(self.model.predict(df)[0])
+        
+        # We recommend a stop loss slightly beyond the predicted MAE
+        # e.g., predicted_mae + 0.5 ATR, with a minimum of 1.5 ATR
+        recommended_multiplier = max(1.5, predicted_mae + 0.5)
+        return recommended_multiplier

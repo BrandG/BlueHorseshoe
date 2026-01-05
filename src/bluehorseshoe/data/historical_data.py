@@ -82,7 +82,7 @@ def load_historical_data_from_mongo(symbol, db):
     """
     data = {}
     try:
-        collection = db['recent_historical_data']
+        collection = db['historical_prices']
         data = collection.find_one({"symbol": symbol})
         if data is None:
             data = {}
@@ -94,15 +94,20 @@ def load_historical_data_from_mongo(symbol, db):
 
 def save_historical_data_to_mongo(symbol, data, db):
     """
-    Saves historical stock price data to MongoDB for a given symbol, performing an upsert operation.
+    Saves historical stock price data for a given symbol, performing an upsert operation.
     """
-    collection = db['historical_data']
-    collection.update_one({"symbol": symbol}, {"$set": data}, upsert=True)
+    # Create a copy to avoid modifying the original dict's _id if it exists
+    save_data = data.copy()
+    if '_id' in save_data:
+        del save_data['_id']
+
+    collection = db['historical_prices']
+    collection.update_one({"symbol": symbol}, {"$set": save_data}, upsert=True)
 
     # Store just the last year of data in a separate collection
-    recent_data = data.copy()
-    recent_data['days'] = data['days'][-240:]
-    recent_collection = db['recent_historical_data']
+    recent_data = save_data.copy()
+    recent_data['days'] = save_data['days'][-240:]
+    recent_collection = db['historical_prices_recent']
     recent_collection.update_one(
         {"symbol": symbol}, {"$set": recent_data}, upsert=True)
 

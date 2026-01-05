@@ -73,4 +73,8 @@ The system implements two primary scoring strategies in `TechnicalAnalyzer`:
 
 - **ML Win Prediction:** Strategy-specific models (Baseline vs. Mean Reversion) improved accuracy significantly. MR accuracy reached 78% with Beta and Sentiment as key features.
 
-- **Next Task:** Implement a weekly automated retraining job for ML models using newly graded trades to ensure the system adapts to changing market regimes.
+- **Data Alignment:** Resolved collection name inconsistencies between `historical_prices` (maintenance) and `historical_prices_recent` (scanning). All historical data is now unified in `historical_prices`.
+
+- **Score Rebuild:** Initiated a full rebuild of technical scores for January 2025 across 2000+ symbols to create a robust dataset for ML retraining.
+
+- **Next Task:** Execute `src/run_grading.py --save` followed by `src/train_ml_overlay.py` and `src/train_stop_loss.py` to refresh models with the January 2025 rebuilt dataset.

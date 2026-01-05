@@ -145,6 +145,20 @@ def update_news_batch(limit: int = 0):
             
     print(f"\n✅ News Complete. Success: {success_count}, Errors: {error_count}")
 
+def retrain_ml_models(limit: int = 10000):
+    """
+    Step 5: Retrain ML Overlay models using newly graded trades.
+    """
+    print(f"\n--- STEP 5: Retraining ML Models ---")
+    try:
+        from bluehorseshoe.analysis.ml_overlay import MLOverlayTrainer
+        trainer = MLOverlayTrainer()
+        trainer.retrain_all(limit=limit)
+        print("✅ Retraining Complete.")
+    except Exception as e:
+        logging.error(f"Failed to retrain ML models: {e}")
+        print(f"❌ Error: {e}")
+
 def main():
     parser = argparse.ArgumentParser(description="BlueHorseshoe Data Maintenance")
     
@@ -152,7 +166,8 @@ def main():
     parser.add_argument("--history", action="store_true", help="Update OHLC price history for symbols in DB")
     parser.add_argument("--overviews", action="store_true", help="Update company overview data (Sector, Industry, etc.)")
     parser.add_argument("--news", action="store_true", help="Update news sentiment data")
-    parser.add_argument("--full", action="store_true", help="Run symbols, history, overviews, and news updates")
+    parser.add_argument("--retrain", action="store_true", help="Retrain ML models using graded trades")
+    parser.add_argument("--full", action="store_true", help="Run symbols, history, overviews, news updates, and retrain models")
     parser.add_argument("--limit", type=int, default=0, help="Limit update to N symbols (for testing)")
     parser.add_argument("--deep", action="store_true", help="Fetch FULL history instead of compact (recent)")
 
@@ -175,7 +190,13 @@ def main():
     if args.news or args.full:
         update_news_batch(limit=args.limit)
 
-    if not (args.symbols or args.history or args.overviews or args.news or args.full):
+    if args.retrain or args.full:
+        # For ML training, 0 limit usually means "use a reasonable default" in prepare_training_data
+        # We'll use 10000 as a default if limit is 0
+        train_limit = args.limit if args.limit > 0 else 10000
+        retrain_ml_models(limit=train_limit)
+
+    if not (args.symbols or args.history or args.overviews or args.news or args.retrain or args.full):
         parser.print_help()
 
 if __name__ == "__main__":

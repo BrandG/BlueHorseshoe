@@ -1,0 +1,889 @@
+
+Rebuilding scores for 2025-01-01...
+Market Status: Bearish (0.0x risk)
+BROAD MARKET IS BEARISH. Skipping all long signals to protect capital.
+
+Rebuilding scores for 2025-01-02...
+Market Status: Bearish (0.0x risk)
+BROAD MARKET IS BEARISH. Skipping all long signals to protect capital.
+
+Rebuilding scores for 2025-01-03...
+Market Status: Bearish (0.0x risk)
+BROAD MARKET IS BEARISH. Skipping all long signals to protect capital.
+
+Rebuilding scores for 2025-01-06...
+Market Status: Bearish (0.0x risk)
+BROAD MARKET IS BEARISH. Skipping all long signals to protect capital.
+
+Rebuilding scores for 2025-01-07...
+Market Status: Bearish (0.0x risk)
+BROAD MARKET IS BEARISH. Skipping all long signals to protect capital.
+
+Rebuilding scores for 2025-01-08...
+Market Status: Bearish (0.0x risk)
+BROAD MARKET IS BEARISH. Skipping all long signals to protect capital.
+
+Rebuilding scores for 2025-01-09...
+Market Status: Bearish (0.0x risk)
+BROAD MARKET IS BEARISH. Skipping all long signals to protect capital.
+
+Rebuilding scores for 2025-01-10...
+Market Status: Bearish (0.0x risk)
+BROAD MARKET IS BEARISH. Skipping all long signals to protect capital.
+
+Rebuilding scores for 2025-01-13...
+Market Status: Bearish (0.0x risk)
+BROAD MARKET IS BEARISH. Skipping all long signals to protect capital.
+
+Rebuilding scores for 2025-01-14...
+Market Status: Bearish (0.0x risk)
+BROAD MARKET IS BEARISH. Skipping all long signals to protect capital.
+
+Rebuilding scores for 2025-01-15...
+Market Status: Bearish (0.0x risk)
+BROAD MARKET IS BEARISH. Skipping all long signals to protect capital.
+
+Rebuilding scores for 2025-01-16...
+Market Status: Bearish (0.0x risk)
+BROAD MARKET IS BEARISH. Skipping all long signals to protect capital.
+
+Rebuilding scores for 2025-01-17...
+Market Status: Bearish (0.0x risk)
+BROAD MARKET IS BEARISH. Skipping all long signals to protect capital.
+
+Rebuilding scores for 2025-01-20...
+Market Status: Bearish (0.0x risk)
+BROAD MARKET IS BEARISH. Skipping all long signals to protect capital.
+
+Rebuilding scores for 2025-01-21...
+Market Status: Bearish (0.0x risk)
+BROAD MARKET IS BEARISH. Skipping all long signals to protect capital.
+
+Rebuilding scores for 2025-01-22...
+Market Status: Neutral (0.5x risk)
+Yesterday was not a holiday.
+Predicting for historical date: 2025-01-22
+DEBUG: A - DF empty after target_date filter
+DEBUG: AA - DF empty after target_date filter
+DEBUG: AACBR - DF empty after target_date filter
+DEBUG: AACBU - DF empty after target_date filter
+DEBUG: AAL - DF empty after target_date filter
+DEBUG: AACG - DF empty after target_date filter
+DEBUG: AAM - DF empty after target_date filter
+DEBUG: AAME - DF empty after target_date filter
+DEBUG: AAMI - DF empty after target_date filter
+DEBUG: AAOI - DF empty after target_date filter
+DEBUG: AAON - DF empty after target_date filter
+DEBUG: AAP - DF empty after target_date filter
+DEBUG: AAPG - DF empty after target_date filter
+DEBUG: AAPGV - DF empty after target_date filter
+DEBUG: AAPL - DF empty after target_date filter
+DEBUG: AARD - DF empty after target_date filter
+DEBUG: AAT - DF empty after target_date filter
+DEBUG: AAUC - DF empty after target_date filter
+DEBUG: ABAT - DF empty after target_date filter
+DEBUG: AB - DF empty after target_date filter
+DEBUG: ABBV - DF empty after target_date filter
+DEBUG: ABCB - DF empty after target_date filter
+DEBUG: ABEO - DF empty after target_date filter
+DEBUG: ABCL - DF empty after target_date filter
+DEBUG: ABEV - DF empty after target_date filter
+DEBUG: ABG - DF empty after target_date filter
+DEBUG: ABI - DF empty after target_date filter
+DEBUG: ABLLL - DF empty after target_date filter
+DEBUG: ABL - DF empty after target_date filter
+DEBUG: ABLLW - Data too stale: 2023-07-28 00:00:00
+DEBUG: ABLV - DF empty after target_date filter
+DEBUG: ABLVW - DF empty after target_date filter
+DEBUG: ABM - DF empty after target_date filter
+DEBUG: ABNB - DF empty after target_date filter
+DEBUG: ABNG - DF empty after target_date filter
+DEBUG: ABOS - DF empty after target_date filter
+DEBUG: ABPWW - DF empty after target_date filter
+DEBUG: ABSI - DF empty after target_date filter
+DEBUG: ABR - DF empty after target_date filter
+DEBUG: ABST - Data too stale: 2023-07-27 00:00:00
+DEBUG: ABT - DF empty after target_date filter
+DEBUG: ABUS - DF empty after target_date filter
+DEBUG: ABTS - DF empty after target_date filter
+DEBUG: ABVC - DF empty after target_date filter
+DEBUG: ABVE - DF empty after target_date filter
+DEBUG: ABVEW - DF empty after target_date filter
+DEBUG: ABVX - DF empty after target_date filter
+DEBUG: UNK RR Debug: entry=98.03, stop=49.81, exit=106.14, atr=2.70, mult=17.85, risk=48.22, reward=8.10
+DEBUG: ACA - Baseline failed setup checks: realistic=True, rr=0.16805937375241484
+DEBUG: ACB - DF empty after target_date filter
+DEBUG: ACCL - DF empty after target_date filter
+DEBUG: ACCO - DF empty after target_date filter
+DEBUG: UNK RR Debug: entry=8.61, stop=-73.15, exit=10.12, atr=0.50, mult=162.41, risk=81.76, reward=1.51
+DEBUG: ACDC - Baseline failed setup checks: realistic=True, rr=0.018471438491011703
+DEBUG: ACEL - DF empty after target_date filter
+DEBUG: ACEP - DF empty after target_date filter
+DEBUG: ACET - DF empty after target_date filter
+DEBUG: UNK RR Debug: entry=17.63, stop=-19.43, exit=19.79, atr=0.72, mult=51.46, risk=37.06, reward=2.16
+DEBUG: ACAD - Baseline failed setup checks: realistic=True, rr=0.05830037301373875
+DEBUG: UNK RR Debug: entry=18.36, stop=13.04, exit=19.55, atr=0.39, mult=13.53, risk=5.32, reward=1.18
+DEBUG: ACGLN - Baseline failed setup checks: realistic=True, rr=0.2217930110748774
+DEBUG: UNK RR Debug: entry=21.63, stop=16.75, exit=22.71, atr=0.36, mult=13.53, risk=4.88, reward=1.08
+DEBUG: ACGLO - Baseline failed setup checks: realistic=True, rr=0.22179301107487776
+DEBUG: UNK RR Debug: entry=93.56, stop=61.30, exit=99.17, atr=1.87, mult=17.26, risk=32.26, reward=5.61
+DEBUG: ACGL - Baseline failed setup checks: realistic=True, rr=0.17382231743161905
+DEBUG: UNK RR Debug: entry=1.15, stop=-12.10, exit=1.29, atr=0.05, mult=291.52, risk=13.25, reward=0.14
+DEBUG: ACHL - Baseline failed setup checks: realistic=True, rr=0.01029097100738529
+DEBUG: ACHR - DF empty after target_date filter
+DEBUG: ACHV - DF empty after target_date filter
+DEBUG: ACI - DF empty after target_date filter
+DEBUG: UNK RR Debug: entry=43.69, stop=-99.21, exit=48.86, atr=1.72, mult=82.89, risk=142.90, reward=5.17
+DEBUG: ACHC - Baseline failed setup checks: realistic=True, rr=0.03619052547229795
+DEBUG: ACIU - DF empty after target_date filter
+DEBUG: ACIW - DF empty after target_date filter
+DEBUG: ACLO - DF empty after target_date filter
+DEBUG: UNK RR Debug: entry=12.26, stop=-6.84, exit=13.78, atr=0.47, mult=40.92, risk=19.10, reward=1.52
+DEBUG: ACIC - Baseline failed setup checks: realistic=True, rr=0.0795830878311857
+DEBUG: ACLX - DF empty after target_date filter
+DEBUG: ACM - DF empty after target_date filter
+DEBUG: UNK RR Debug: entry=17.49, stop=-77.40, exit=20.15, atr=0.88, mult=107.27, risk=94.90, reward=2.65
+DEBUG: ACMR - Baseline failed setup checks: realistic=True, rr=0.027967708689534992
+DEBUG: ACN - DF empty after target_date filter
+DEBUG: ACNB - DF empty after target_date filter
+DEBUG: ACNT - DF empty after target_date filter
+DEBUG: ACOG - DF empty after target_date filter
+DEBUG: UNK RR Debug: entry=71.20, stop=35.08, exit=79.63, atr=2.81, mult=12.84, risk=36.12, reward=8.44
+DEBUG: ACLS - Baseline failed setup checks: realistic=True, rr=0.23358509379879544
+DEBUG: UNK RR Debug: entry=0.07, stop=-0.75, exit=0.39, atr=0.03, mult=28.59, risk=0.82, reward=0.31
+DEBUG: ACON - Baseline failed setup checks: realistic=False, rr=0.3818146514097161
+DEBUG: ACONW - DF empty after target_date filter
+DEBUG: UNK RR Debug: entry=17.53, stop=12.72, exit=18.82, atr=0.43, mult=11.15, risk=4.81, reward=1.29
+DEBUG: ACR - Baseline failed setup checks: realistic=True, rr=0.26913890171646676
+DEBUG: UNK RR Debug: entry=5.81, stop=-19.22, exit=6.45, atr=0.21, mult=119.37, risk=25.03, reward=0.64
+DEBUG: ACRE - Baseline failed setup checks: realistic=True, rr=0.02557088444704333
+DEBUG: ACRV - DF empty after target_date filter
+DEBUG: ACST - Data too stale: 2024-10-07 00:00:00
+DEBUG: ACT - DF empty after target_date filter
+DEBUG: UNK RR Debug: entry=2.56, stop=-23.75, exit=3.20, atr=0.21, mult=124.15, risk=26.31, reward=0.64
+DEBUG: ACRS - Baseline failed setup checks: realistic=True, rr=0.02416361065454985
+DEBUG: ACTG - DF empty after target_date filter
+DEBUG: ACTU - DF empty after target_date filter
+DEBUG: UNK RR Debug: entry=0.82, stop=-16.51, exit=1.25, atr=0.11, mult=161.54, risk=17.34, reward=0.43
+DEBUG: ACXP - Baseline failed setup checks: realistic=True, rr=0.024518991563655036
+DEBUG: UNK RR Debug: entry=21.42, stop=-118.88, exit=24.01, atr=0.86, mult=162.41, risk=140.30, reward=2.59
+DEBUG: ACVA - Baseline failed setup checks: realistic=True, rr=0.018471438491011696
+DEBUG: ADACU - DF empty after target_date filter
+DEBUG: UNK RR Debug: entry=1.80, stop=-0.03, exit=2.28, atr=0.16, mult=11.38, risk=1.83, reward=0.48
+DEBUG: ADAG - Baseline failed setup checks: realistic=True, rr=0.26369410441846397
+DEBUG: ADAL - Data too stale: 2023-05-02 00:00:00
+DEBUG: ADALU - Data too stale: 2023-05-02 00:00:00
+DEBUG: ADALW - Data too stale: 2023-05-02 00:00:00
+DEBUG: UNK RR Debug: entry=62.73, stop=-38.30, exit=67.71, atr=1.66, mult=60.84, risk=101.03, reward=4.98
+DEBUG: AD - Baseline failed setup checks: realistic=True, rr=0.04930590069541082
+DEBUG: UNK RR Debug: entry=5.94, stop=-22.39, exit=6.47, atr=0.18, mult=161.26, risk=28.33, reward=0.53
+DEBUG: ADAM - Baseline failed setup checks: realistic=True, rr=0.01860321445001159
+DEBUG: ADAMG - DF empty after target_date filter
+DEBUG: ADAMH - DF empty after target_date filter
+DEBUG: UNK RR Debug: entry=25.36, stop=19.15, exit=25.79, atr=0.14, mult=43.36, risk=6.22, reward=0.43
+DEBUG: ADAMI - Baseline failed setup checks: realistic=True, rr=0.0691937015919025
+DEBUG: UNK RR Debug: entry=22.14, stop=7.82, exit=23.13, atr=0.33, mult=43.36, risk=14.32, reward=0.99
+DEBUG: ADAML - Baseline failed setup checks: realistic=True, rr=0.06919370159190222
+DEBUG: UNK RR Debug: entry=25.00, stop=15.83, exit=25.64, atr=0.21, mult=43.36, risk=9.17, reward=0.63
+DEBUG: ADAMM - Baseline failed setup checks: realistic=True, rr=0.06919370159190222
+DEBUG: UNK RR Debug: entry=22.26, stop=6.26, exit=23.36, atr=0.37, mult=43.36, risk=15.99, reward=1.11
+DEBUG: ADAMN - Baseline failed setup checks: realistic=True, rr=0.06919370159190236
+DEBUG: UNK RR Debug: entry=19.45, stop=3.35, exit=21.31, atr=0.37, mult=43.36, risk=16.10, reward=1.86
+DEBUG: ADAMZ - Baseline failed setup checks: realistic=True, rr=0.1152334474535009
+DEBUG: UNK RR Debug: entry=428.72, stop=-948.71, exit=462.34, atr=11.21, mult=122.91, risk=1377.43, reward=33.62
+DEBUG: ADBE - Baseline failed setup checks: realistic=True, rr=0.024408671497854195
+DEBUG: UNK RR Debug: entry=71.40, stop=-102.59, exit=75.77, atr=1.46, mult=119.28, risk=173.98, reward=4.38
+DEBUG: ADC - Baseline failed setup checks: realistic=True, rr=0.02515027064789846
+DEBUG: UNK RR Debug: entry=13.18, stop=-14.99, exit=14.45, atr=0.42, mult=67.34, risk=28.17, reward=1.27
+DEBUG: ADEA - Baseline failed setup checks: realistic=True, rr=0.044972721800374246
+DEBUG: UNK RR Debug: entry=0.88, stop=-10.75, exit=1.97, atr=0.19, mult=60.59, risk=11.62, reward=1.10
+DEBUG: ADGM - Baseline failed setup checks: realistic=True, rr=0.09426881612496539
+DEBUG: UNK RR Debug: entry=218.60, stop=-800.28, exit=235.29, atr=5.56, mult=183.15, risk=1018.88, reward=16.69
+DEBUG: ADI - Baseline failed setup checks: realistic=True, rr=0.016380148557778796
+DEBUG: UNK RR Debug: entry=1.00, stop=-0.68, exit=1.19, atr=0.06, mult=27.33, risk=1.69, reward=0.19
+DEBUG: ADIL - Baseline failed setup checks: realistic=True, rr=0.10977566339141831
+DEBUG: UNK RR Debug: entry=1.80, stop=-0.55, exit=2.35, atr=0.18, mult=12.79, risk=2.34, reward=0.55
+DEBUG: ADCT - Baseline failed setup checks: realistic=True, rr=0.23464290328770718
+DEBUG: UNK RR Debug: entry=16.47, stop=-106.55, exit=19.25, atr=0.87, mult=142.03, risk=123.02, reward=2.78
+DEBUG: ADMA - Baseline failed setup checks: realistic=True, rr=0.02259775034941579
+DEBUG: UNK RR Debug: entry=50.91, stop=36.08, exit=54.21, atr=1.10, mult=13.44, risk=14.82, reward=3.31
+DEBUG: ADM - Baseline failed setup checks: realistic=True, rr=0.22322104258269707
+DEBUG: ADOCR - Data too stale: 2024-03-21 00:00:00
+DEBUG: UNK RR Debug: entry=17.17, stop=6.79, exit=19.36, atr=0.73, mult=14.20, risk=10.38, reward=2.19
+DEBUG: ADNT - Baseline failed setup checks: realistic=True, rr=0.2112108965090626
+DEBUG: ADPT - DF empty after target_date filter
+DEBUG: UNK RR Debug: entry=15.33, stop=-45.05, exit=17.54, atr=0.74, mult=82.07, risk=60.39, reward=2.21
+DEBUG: ADSE - Baseline failed setup checks: realistic=True, rr=0.036552203538396125
+DEBUG: ADSEW - DF empty after target_date filter
+DEBUG: UNK RR Debug: entry=294.52, stop=-254.18, exit=307.35, atr=4.28, mult=128.25, risk=548.70, reward=12.84
+DEBUG: ADP - Baseline failed setup checks: realistic=True, rr=0.023392378062718936
+DEBUG: ADT - DF empty after target_date filter
+DEBUG: ADTN - DF empty after target_date filter
+DEBUG: ADTX - DF empty after target_date filter
+DEBUG: ADUS - DF empty after target_date filter
+DEBUG: ADV - DF empty after target_date filter
+DEBUG: ADVB - DF empty after target_date filter
+DEBUG: UNK RR Debug: entry=7.77, stop=-12.48, exit=10.01, atr=0.74, mult=27.21, risk=20.26, reward=2.23
+DEBUG: ADXN - Baseline failed setup checks: realistic=True, rr=0.11026937960431271
+DEBUG: UNK RR Debug: entry=293.85, stop=-923.00, exit=313.22, atr=6.46, mult=188.40, risk=1216.85, reward=19.38
+DEBUG: ADSK - Baseline failed setup checks: realistic=True, rr=0.01592315201489088
+DEBUG: AEAQU - DF empty after target_date filter
+DEBUG: AEBI - DF empty after target_date filter
+DEBUG: AEBIV - DF empty after target_date filter
+DEBUG: AEC - Data too stale: 2015-08-14 00:00:00
+DEBUG: UNK RR Debug: entry=20.75, stop=6.55, exit=21.74, atr=0.33, mult=43.36, risk=14.20, reward=0.98
+DEBUG: AEFC - Baseline failed setup checks: realistic=True, rr=0.06919370159190236
+DEBUG: UNK RR Debug: entry=92.31, stop=-201.01, exit=97.72, atr=1.80, mult=162.70, risk=293.32, reward=5.41
+DEBUG: AEE - Baseline failed setup checks: realistic=True, rr=0.018438855460449443
+DEBUG: AEHA - Data too stale: 2023-02-14 00:00:00
+DEBUG: UNK RR Debug: entry=6.27, stop=-9.67, exit=6.59, atr=0.11, mult=145.99, risk=15.93, reward=0.33
+DEBUG: AEG - Baseline failed setup checks: realistic=True, rr=0.020549051676717344
+DEBUG: UNK RR Debug: entry=0.17, stop=-4.31, exit=0.29, atr=0.03, mult=135.58, risk=4.49, reward=0.11
+DEBUG: AEHL - Baseline failed setup checks: realistic=True, rr=0.02536811277304191
+DEBUG: AEI - DF empty after target_date filter
+DEBUG: AEIS - DF empty after target_date filter
+DEBUG: UNK RR Debug: entry=13.59, stop=-5.35, exit=18.76, atr=1.50, mult=12.65, risk=18.94, reward=5.17
+DEBUG: AEHR - Baseline failed setup checks: realistic=True, rr=0.27298301231231614
+DEBUG: AEMD - DF empty after target_date filter
+DEBUG: AENT - DF empty after target_date filter
+DEBUG: UNK RR Debug: entry=0.30, stop=-2.95, exit=0.75, atr=0.12, mult=27.81, risk=3.25, reward=0.45
+DEBUG: AENTW - Baseline failed setup checks: realistic=False, rr=0.13733209428989668
+DEBUG: UNK RR Debug: entry=85.34, stop=-346.33, exit=92.38, atr=2.34, mult=184.13, risk=431.67, reward=7.03
+DEBUG: AEM - Baseline failed setup checks: realistic=True, rr=0.016292941880589037
+DEBUG: AEP - DF empty after target_date filter
+DEBUG: AEPPZ - Data too stale: 2023-08-24 00:00:00
+DEBUG: AER - DF empty after target_date filter
+DEBUG: AERO - DF empty after target_date filter
+DEBUG: AERT - DF empty after target_date filter
+DEBUG: AERTW - DF empty after target_date filter
+DEBUG: UNK RR Debug: entry=16.52, stop=-69.35, exit=18.59, atr=0.69, mult=124.61, risk=85.86, reward=2.07
+DEBUG: AEO - Baseline failed setup checks: realistic=True, rr=0.02407532550848323
+DEBUG: AESI - DF empty after target_date filter
+DEBUG: AEVA - DF empty after target_date filter
+DEBUG: AEVAW - DF empty after target_date filter
+DEBUG: AEXA - DF empty after target_date filter
+DEBUG: AEYE - DF empty after target_date filter
+DEBUG: AFBI - DF empty after target_date filter
+DEBUG: AFCG - DF empty after target_date filter
+DEBUG: UNK RR Debug: entry=11.86, stop=5.23, exit=13.44, atr=0.46, mult=14.51, risk=6.63, reward=1.58
+DEBUG: AES - Baseline failed setup checks: realistic=True, rr=0.2377466697296585
+DEBUG: AFGB - DF empty after target_date filter
+DEBUG: UNK RR Debug: entry=20.17, stop=5.07, exit=21.21, atr=0.35, mult=43.36, risk=15.10, reward=1.04
+DEBUG: AFGC - Baseline failed setup checks: realistic=True, rr=0.0691937015919022
+DEBUG: UNK RR Debug: entry=21.98, stop=-28.48, exit=23.09, atr=0.37, mult=136.11, risk=50.46, reward=1.11
+DEBUG: AFGD - Baseline failed setup checks: realistic=True, rr=0.02204049540121711
+DEBUG: AFGE - DF empty after target_date filter
+DEBUG: UNK RR Debug: entry=10.74, stop=8.99, exit=10.92, atr=0.06, mult=30.21, risk=1.76, reward=0.17
+DEBUG: AFJK - Baseline failed setup checks: realistic=True, rr=0.09931781924296537
+DEBUG: UNK RR Debug: entry=0.17, stop=-0.02, exit=0.20, atr=0.00, mult=43.36, risk=0.19, reward=0.03
+DEBUG: AFJKR - Baseline failed setup checks: realistic=False, rr=0.14874942795903798
+DEBUG: UNK RR Debug: entry=134.68, stop=-184.91, exit=142.64, atr=2.65, mult=120.43, risk=319.59, reward=7.96
+DEBUG: AFG - Baseline failed setup checks: realistic=True, rr=0.02490987458388745
+DEBUG: UNK RR Debug: entry=1.15, stop=-18.17, exit=1.57, atr=0.14, mult=136.60, risk=19.32, reward=0.42
+DEBUG: AFMD - Baseline failed setup checks: realistic=True, rr=0.021961770162656487
+DEBUG: AFRI - DF empty after target_date filter
+DEBUG: AFRIW - DF empty after target_date filter
+DEBUG: AFRM - DF empty after target_date filter
+DEBUG: AFSC - DF empty after target_date filter
+DEBUG: UNK RR Debug: entry=104.63, stop=-116.59, exit=110.18, atr=1.85, mult=119.41, risk=221.22, reward=5.56
+DEBUG: AFL - Baseline failed setup checks: realistic=True, rr=0.025122745474671804
+DEBUG: UNK RR Debug: entry=15.54, stop=9.85, exit=16.82, atr=0.43, mult=13.29, risk=5.69, reward=1.28
+DEBUG: AFYA - Baseline failed setup checks: realistic=True, rr=0.2256861989399146
+DEBUG: UNK RR Debug: entry=0.92, stop=-0.90, exit=1.12, atr=0.07, mult=27.21, risk=1.83, reward=0.20
+DEBUG: AGAE - Baseline failed setup checks: realistic=True, rr=0.11026937960431267
+DEBUG: AGCC - DF empty after target_date filter
+DEBUG: UNK RR Debug: entry=5.71, stop=0.75, exit=6.65, atr=0.32, mult=15.73, risk=4.96, reward=0.95
+DEBUG: AG - Baseline failed setup checks: realistic=True, rr=0.19067952244041347
+DEBUG: AGEN - DF empty after target_date filter
+DEBUG: AGFS - Data too stale: 2023-03-31 00:00:00
+DEBUG: AGH - DF empty after target_date filter
+DEBUG: UNK RR Debug: entry=99.12, stop=-378.49, exit=107.67, atr=2.85, mult=167.64, risk=477.61, reward=8.55
+DEBUG: AGCO - Baseline failed setup checks: realistic=True, rr=0.017895296659782175
+DEBUG: AGIO - DF empty after target_date filter
+DEBUG: AGL - DF empty after target_date filter
+DEBUG: AGM - DF empty after target_date filter
+DEBUG: AGMH - DF empty after target_date filter
+DEBUG: UNK RR Debug: entry=19.57, stop=-85.46, exit=21.28, atr=0.57, mult=183.87, risk=105.03, reward=1.71
+DEBUG: AGI - Baseline failed setup checks: realistic=True, rr=0.016315938300810247
+DEBUG: AGNCL - DF empty after target_date filter
+DEBUG: AGNCM - DF empty after target_date filter
+DEBUG: AGNCN - DF empty after target_date filter
+DEBUG: AGNCO - DF empty after target_date filter
+DEBUG: UNK RR Debug: entry=9.51, stop=-12.21, exit=9.97, atr=0.15, mult=140.69, risk=21.72, reward=0.46
+DEBUG: AGNC - Baseline failed setup checks: realistic=True, rr=0.02132325293621449
+DEBUG: UNK RR Debug: entry=24.71, stop=22.77, exit=25.16, atr=0.15, mult=12.88, risk=1.94, reward=0.45
+DEBUG: AGNCP - Baseline failed setup checks: realistic=True, rr=0.23294204480529915
+DEBUG: UNK RR Debug: entry=1.30, stop=-30.15, exit=3.06, atr=0.31, mult=101.39, risk=31.45, reward=1.76
+DEBUG: AGPU - Baseline failed setup checks: realistic=True, rr=0.05593262287957935
+DEBUG: UNK RR Debug: entry=90.73, stop=-183.03, exit=95.63, atr=1.63, mult=167.44, risk=273.76, reward=4.90
+DEBUG: AGO - Baseline failed setup checks: realistic=True, rr=0.017916355895216556
+DEBUG: AGRZ - DF empty after target_date filter
+DEBUG: AGTC - Data too stale: 2022-12-01 00:00:00
+DEBUG: AGX - DF empty after target_date filter
+DEBUG: UNK RR Debug: entry=9.68, stop=5.50, exit=10.53, atr=0.28, mult=14.80, risk=4.18, reward=0.85
+DEBUG: AGRO - Baseline failed setup checks: realistic=True, rr=0.20276871792543996
+DEBUG: AHCO - DF empty after target_date filter
+DEBUG: AHG - DF empty after target_date filter
+DEBUG: UNK RR Debug: entry=9.80, stop=6.13, exit=10.57, atr=0.26, mult=14.34, risk=3.67, reward=0.77
+DEBUG: AHH - Baseline failed setup checks: realistic=True, rr=0.20915665354305904
+DEBUG: AHL - DF empty after target_date filter
+DEBUG: AHMA - DF empty after target_date filter
+DEBUG: AHR - DF empty after target_date filter
+DEBUG: AHRNU - Data too stale: 2023-06-16 00:00:00
+DEBUG: AHT - DF empty after target_date filter
+DEBUG: UNK RR Debug: entry=100.67, stop=-76.60, exit=139.65, atr=7.44, mult=23.81, risk=177.27, reward=38.98
+DEBUG: AGYS - Baseline failed setup checks: realistic=True, rr=0.21988722169054428
+DEBUG: AIFE - DF empty after target_date filter
+DEBUG: AIFER - DF empty after target_date filter
+DEBUG: UNK RR Debug: entry=32.96, stop=7.38, exit=39.86, atr=2.30, mult=11.12, risk=25.58, reward=6.90
+DEBUG: AI - Baseline failed setup checks: realistic=True, rr=0.2696726890476818
+DEBUG: AIFU - DF empty after target_date filter
+DEBUG: UNK RR Debug: entry=3.32, stop=-44.79, exit=5.80, atr=0.57, mult=84.86, risk=48.11, reward=2.48
+DEBUG: AIFF - Baseline failed setup checks: realistic=True, rr=0.051602488076843735
+DEBUG: AIHS - DF empty after target_date filter
+DEBUG: AII - DF empty after target_date filter
+DEBUG: AIIA - DF empty after target_date filter
+DEBUG: UNK RR Debug: entry=0.73, stop=-0.58, exit=1.08, atr=0.12, mult=11.24, risk=1.31, reward=0.35
+DEBUG: AIIO - Baseline failed setup checks: realistic=True, rr=0.266917482954498
+DEBUG: UNK RR Debug: entry=0.03, stop=-0.26, exit=0.05, atr=0.01, mult=43.36, risk=0.29, reward=0.02
+DEBUG: AIIOW - Baseline failed setup checks: realistic=True, rr=0.07279859612426222
+DEBUG: AILE - Data too stale: 2024-04-17 00:00:00
+DEBUG: UNK RR Debug: entry=73.80, stop=-100.95, exit=77.99, atr=1.40, mult=124.96, risk=174.74, reward=4.20
+DEBUG: AIG - Baseline failed setup checks: realistic=True, rr=0.024008242641384073
+DEBUG: UNK RR Debug: entry=0.15, stop=-0.67, exit=0.24, atr=0.03, mult=27.21, risk=0.82, reward=0.09
+DEBUG: AIMDW - Baseline failed setup checks: realistic=False, rr=0.11026937960431271
+DEBUG: UNK RR Debug: entry=0.65, stop=-9.86, exit=1.00, atr=0.11, mult=95.74, risk=10.50, reward=0.35
+DEBUG: AIMD - Baseline failed setup checks: realistic=True, rr=0.033534882842792976
+DEBUG: UNK RR Debug: entry=24.25, stop=-61.42, exit=26.14, atr=0.63, mult=136.11, risk=85.68, reward=1.89
+DEBUG: AIO - Baseline failed setup checks: realistic=True, rr=0.0220404954012171
+DEBUG: UNK RR Debug: entry=81.07, stop=-290.04, exit=87.71, atr=2.21, mult=167.70, risk=371.11, reward=6.64
+DEBUG: AIN - Baseline failed setup checks: realistic=True, rr=0.01788943218236079
+DEBUG: AIP - DF empty after target_date filter
+DEBUG: AIR - DF empty after target_date filter
+DEBUG: UNK RR Debug: entry=1.77, stop=-27.38, exit=4.49, atr=0.33, mult=87.12, risk=29.15, reward=2.72
+DEBUG: AIRE - Baseline failed setup checks: realistic=True, rr=0.09333060255354327
+DEBUG: UNK RR Debug: entry=7.38, stop=-5.42, exit=8.86, atr=0.49, mult=26.04, risk=12.81, reward=1.48
+DEBUG: AIRG - Baseline failed setup checks: realistic=True, rr=0.11521602133773955
+DEBUG: UNK RR Debug: entry=6.12, stop=-2.58, exit=7.33, atr=0.40, mult=21.67, risk=8.70, reward=1.21
+DEBUG: AIOT - Baseline failed setup checks: realistic=True, rr=0.13846714722198436
+DEBUG: UNK RR Debug: entry=1.23, stop=-5.00, exit=1.90, atr=0.22, mult=27.81, risk=6.23, reward=0.67
+DEBUG: AIRJW - Baseline failed setup checks: realistic=True, rr=0.10788338004943007
+DEBUG: UNK RR Debug: entry=8.57, stop=-33.01, exit=11.36, atr=0.93, mult=44.81, risk=41.58, reward=2.78
+DEBUG: AIRJ - Baseline failed setup checks: realistic=True, rr=0.06695115851296349
+DEBUG: AIRO - DF empty after target_date filter
+DEBUG: UNK RR Debug: entry=19.98, stop=-2.27, exit=22.40, atr=0.81, mult=27.55, risk=22.25, reward=2.42
+DEBUG: AIRT - Baseline failed setup checks: realistic=True, rr=0.10889969870190679
+DEBUG: UNK RR Debug: entry=5.26, stop=-0.99, exit=6.90, atr=0.55, mult=11.38, risk=6.24, reward=1.65
+DEBUG: AIRS - Baseline failed setup checks: realistic=True, rr=0.26362011591799395
+DEBUG: UNK RR Debug: entry=17.12, stop=13.98, exit=17.78, atr=0.22, mult=14.26, risk=3.15, reward=0.66
+DEBUG: AIRTP - Baseline failed setup checks: realistic=True, rr=0.2104038434873335
+DEBUG: UNK RR Debug: entry=5.26, stop=-55.68, exit=7.66, atr=0.76, mult=79.79, risk=60.94, reward=2.40
+DEBUG: AISP - Baseline failed setup checks: realistic=True, rr=0.03934677563951628
+DEBUG: UNK RR Debug: entry=1.79, stop=-25.62, exit=3.00, atr=0.39, mult=71.04, risk=27.41, reward=1.21
+DEBUG: AISPW - Baseline failed setup checks: realistic=True, rr=0.04427322093445628
+DEBUG: UNK RR Debug: entry=255.53, stop=-233.75, exit=273.24, atr=5.90, mult=82.86, risk=489.28, reward=17.71
+DEBUG: AIT - Baseline failed setup checks: realistic=True, rr=0.036204681370897614
+DEBUG: UNK RR Debug: entry=8.97, stop=-6.16, exit=9.71, atr=0.25, mult=60.58, risk=15.13, reward=0.75
+DEBUG: AIV - Baseline failed setup checks: realistic=True, rr=0.04952046462571881
+DEBUG: AIXI - DF empty after target_date filter
+DEBUG: AIZ - DF empty after target_date filter
+DEBUG: AIXC - DF empty after target_date filter
+DEBUG: UNK RR Debug: entry=20.28, stop=5.44, exit=21.82, atr=0.52, mult=28.79, risk=14.84, reward=1.55
+DEBUG: AIZN - Baseline failed setup checks: realistic=True, rr=0.10421906778402881
+DEBUG: AJXA - Data too stale: 2024-04-29 00:00:00
+DEBUG: UNK RR Debug: entry=17.69, stop=0.00, exit=22.50, atr=1.60, mult=11.03, risk=17.69, reward=4.81
+DEBUG: AKA - Baseline failed setup checks: realistic=True, rr=0.2718712454453541
+DEBUG: UNK RR Debug: entry=291.27, stop=-341.04, exit=307.18, atr=5.30, mult=119.26, risk=632.32, reward=15.91
+DEBUG: AJG - Baseline failed setup checks: realistic=True, rr=0.025155621243016096
+DEBUG: AKAN - DF empty after target_date filter
+DEBUG: AKBA - DF empty after target_date filter
+DEBUG: UNK RR Debug: entry=92.71, stop=-186.99, exit=99.53, atr=2.27, mult=123.14, risk=279.71, reward=6.81
+DEBUG: AKAM - Baseline failed setup checks: realistic=True, rr=0.0243626306866332
+DEBUG: AKTX - DF empty after target_date filter
+DEBUG: AKUS - Data too stale: 2023-01-03 00:00:00
+DEBUG: UNK RR Debug: entry=2.86, stop=-52.26, exit=3.61, atr=0.25, mult=220.57, risk=55.13, reward=0.75
+DEBUG: AKYA - Baseline failed setup checks: realistic=True, rr=0.013600905445343267
+DEBUG: AL - DF empty after target_date filter
+DEBUG: ALAB - DF empty after target_date filter
+DEBUG: UNK RR Debug: entry=22.68, stop=14.51, exit=24.47, atr=0.52, mult=15.81, risk=8.17, reward=1.79
+DEBUG: AKR - Baseline failed setup checks: realistic=True, rr=0.21923169812112914
+DEBUG: UNK RR Debug: entry=10.41, stop=2.32, exit=12.51, atr=0.70, mult=11.53, risk=8.09, reward=2.10
+DEBUG: ALAR - Baseline failed setup checks: realistic=True, rr=0.26027657631486145
+DEBUG: ALB - DF empty after target_date filter
+DEBUG: UNK RR Debug: entry=3.55, stop=-16.67, exit=4.95, atr=0.47, mult=43.36, risk=20.22, reward=1.40
+DEBUG: ALBT - Baseline failed setup checks: realistic=True, rr=0.06919370159190227
+DEBUG: UNK RR Debug: entry=85.61, stop=-86.44, exit=89.75, atr=1.38, mult=124.54, risk=172.04, reward=4.14
+DEBUG: ALC - Baseline failed setup checks: realistic=True, rr=0.02408955922192698
+DEBUG: ALCY - DF empty after target_date filter
+DEBUG: ALCYU - DF empty after target_date filter
+DEBUG: ALCYW - DF empty after target_date filter
+DEBUG: ALDF - Insufficient data: 25
+DEBUG: ALDFU - Baseline failed setup checks: realistic=True, rr=0.5212171737237383
+DEBUG: ALDFW - Insufficient data: 25
+DEBUG: UNK RR Debug: entry=30.73, stop=-52.24, exit=34.87, atr=1.38, mult=60.13, risk=82.97, reward=4.14
+DEBUG: ALCO - Baseline failed setup checks: realistic=True, rr=0.0498903818973574
+DEBUG: UNK RR Debug: entry=4.93, stop=-34.22, exit=5.77, atr=0.28, mult=140.11, risk=39.15, reward=0.84
+DEBUG: ALDX - Baseline failed setup checks: realistic=True, rr=0.021412471243953485
+DEBUG: UNK RR Debug: entry=17.52, stop=12.55, exit=18.55, atr=0.34, mult=14.45, risk=4.97, reward=1.03
+DEBUG: ALEX - Baseline failed setup checks: realistic=True, rr=0.20756608665266124
+DEBUG: UNK RR Debug: entry=10.13, stop=9.70, exit=10.18, atr=0.02, mult=27.51, risk=0.43, reward=0.05
+DEBUG: ALF - Baseline failed setup checks: realistic=True, rr=0.10906054619677585
+DEBUG: UNK RR Debug: entry=10.21, stop=9.26, exit=10.30, atr=0.02, mult=43.59, risk=0.95, reward=0.09
+DEBUG: ALFUU - Baseline failed setup checks: realistic=True, rr=0.09882635849935574
+DEBUG: UNK RR Debug: entry=0.12, stop=-0.30, exit=0.15, atr=0.01, mult=43.36, risk=0.42, reward=0.03
+DEBUG: ALFUW - Baseline failed setup checks: realistic=True, rr=0.06919370159190225
+DEBUG: UNK RR Debug: entry=181.69, stop=109.11, exit=195.62, atr=4.10, mult=17.69, risk=72.57, reward=13.94
+DEBUG: ALG - Baseline failed setup checks: realistic=True, rr=0.19207182842878648
+DEBUG: UNK RR Debug: entry=24.11, stop=-160.87, exit=27.06, atr=0.99, mult=187.66, risk=184.98, reward=2.96
+DEBUG: ALGM - Baseline failed setup checks: realistic=True, rr=0.015986603465366376
+DEBUG: UNK RR Debug: entry=1.76, stop=-20.26, exit=2.25, atr=0.16, mult=135.59, risk=22.02, reward=0.49
+DEBUG: ALEC - Baseline failed setup checks: realistic=True, rr=0.022125968796532027
+DEBUG: UNK RR Debug: entry=221.54, stop=-421.44, exit=244.83, atr=7.76, mult=82.81, risk=642.97, reward=23.29
+DEBUG: ALGN - Baseline failed setup checks: realistic=True, rr=0.03622655072145713
+DEBUG: UNK RR Debug: entry=34.18, stop=-172.22, exit=46.80, atr=4.10, mult=50.30, risk=206.41, reward=12.62
+DEBUG: ALGS - Baseline failed setup checks: realistic=True, rr=0.06112807131023593
+DEBUG: ALH - DF empty after target_date filter
+DEBUG: UNK RR Debug: entry=13.76, stop=-102.61, exit=15.72, atr=0.65, mult=178.68, risk=116.37, reward=1.95
+DEBUG: ALHC - Baseline failed setup checks: realistic=True, rr=0.016790226500477384
+DEBUG: ALIS - DF empty after target_date filter
+DEBUG: ALISR - DF empty after target_date filter
+DEBUG: ALISU - DF empty after target_date filter
+DEBUG: UNK RR Debug: entry=6.85, stop=-20.26, exit=7.43, atr=0.19, mult=139.48, risk=27.11, reward=0.58
+DEBUG: ALIT - Baseline failed setup checks: realistic=True, rr=0.021507920722442456
+DEBUG: UNK RR Debug: entry=101.59, stop=-642.98, exit=113.74, atr=4.05, mult=183.90, risk=744.57, reward=12.15
+DEBUG: ALGT - Baseline failed setup checks: realistic=True, rr=0.016313500360458342
+DEBUG: UNK RR Debug: entry=29.43, stop=-31.58, exit=31.64, atr=0.73, mult=83.12, risk=61.02, reward=2.20
+DEBUG: ALKS - Baseline failed setup checks: realistic=True, rr=0.03609164451369161
+DEBUG: UNK RR Debug: entry=67.04, stop=-60.66, exit=73.27, atr=2.08, mult=61.50, risk=127.71, reward=6.23
+DEBUG: ALK - Baseline failed setup checks: realistic=True, rr=0.048784397111106846
+DEBUG: ALKSV - Data too stale: 2023-11-15 00:00:00
+DEBUG: UNK RR Debug: entry=35.42, stop=16.33, exit=40.39, atr=1.47, mult=13.01, risk=19.09, reward=4.97
+DEBUG: ALKT - Baseline failed setup checks: realistic=True, rr=0.26032645367812407
+DEBUG: UNK RR Debug: entry=131.77, stop=-180.60, exit=139.29, atr=2.51, mult=124.66, risk=312.38, reward=7.52
+DEBUG: ALLE - Baseline failed setup checks: realistic=True, rr=0.024064712299846813
+DEBUG: ALLO - DF empty after target_date filter
+DEBUG: ALLR - DF empty after target_date filter
+DEBUG: ALLT - DF empty after target_date filter
+DEBUG: UNK RR Debug: entry=187.97, stop=115.55, exit=202.59, atr=4.88, mult=14.85, risk=72.41, reward=14.63
+DEBUG: ALL - Baseline failed setup checks: realistic=True, rr=0.20200390842038699
+DEBUG: UNK RR Debug: entry=7.52, stop=-13.16, exit=9.57, atr=0.68, mult=30.21, risk=20.67, reward=2.05
+DEBUG: ALMS - Baseline failed setup checks: realistic=True, rr=0.09931974689987591
+DEBUG: UNK RR Debug: entry=37.23, stop=-76.29, exit=41.49, atr=1.23, mult=92.31, risk=113.52, reward=4.26
+DEBUG: ALLY - Baseline failed setup checks: realistic=True, rr=0.03752096378187109
+DEBUG: ALNY - DF empty after target_date filter
+DEBUG: ALOR - Data too stale: 2023-11-14 00:00:00
+DEBUG: ALORU - Data too stale: 2023-11-14 00:00:00
+DEBUG: ALORW - Data too stale: 2023-11-14 00:00:00
+DEBUG: UNK RR Debug: entry=12.15, stop=6.43, exit=13.98, atr=0.61, mult=9.36, risk=5.72, reward=1.83
+DEBUG: ALOT - Baseline failed setup checks: realistic=True, rr=0.3203603909493214
+DEBUG: ALPS - Data too stale: 2023-07-20 00:00:00
+DEBUG: UNK RR Debug: entry=25.43, stop=-133.98, exit=28.40, atr=0.99, mult=160.86, risk=159.41, reward=2.97
+DEBUG: ALNT - Baseline failed setup checks: realistic=True, rr=0.018650039318790827
+DEBUG: UNK RR Debug: entry=61.25, stop=38.54, exit=65.53, atr=1.43, mult=15.90, risk=22.71, reward=4.29
+DEBUG: ALRM - Baseline failed setup checks: realistic=True, rr=0.18865972038062945
+DEBUG: ALRS - DF empty after target_date filter
+DEBUG: UNK RR Debug: entry=116.54, stop=-373.83, exit=124.55, atr=2.67, mult=183.87, risk=490.37, reward=8.00
+DEBUG: ALSN - Baseline failed setup checks: realistic=True, rr=0.016315938300810236
+DEBUG: ALTG - DF empty after target_date filter
+DEBUG: UNK RR Debug: entry=4.08, stop=1.17, exit=4.74, atr=0.22, mult=13.30, risk=2.91, reward=0.66
+DEBUG: ALTI - Baseline failed setup checks: realistic=True, rr=0.22548901390595522
+DEBUG: ALTIW - Data too stale: 2023-06-23 00:00:00
+DEBUG: UNK RR Debug: entry=6.89, stop=-7.43, exit=8.75, atr=0.50, mult=28.72, risk=14.31, reward=1.86
+DEBUG: ALT - Baseline failed setup checks: realistic=True, rr=0.13005346528341727
+DEBUG: UNK RR Debug: entry=1.74, stop=-5.14, exit=2.08, atr=0.11, mult=60.36, risk=6.87, reward=0.34
+DEBUG: ALTO - Baseline failed setup checks: realistic=True, rr=0.04969860100905335
+DEBUG: ALUR - DF empty after target_date filter
+DEBUG: ALV - DF empty after target_date filter
+DEBUG: ALVO - DF empty after target_date filter
+DEBUG: ALVOW - DF empty after target_date filter
+DEBUG: ALX - DF empty after target_date filter
+DEBUG: ALXO - DF empty after target_date filter
+DEBUG: ALYAF - DF empty after target_date filter
+DEBUG: ALZN - DF empty after target_date filter
+DEBUG: UNK RR Debug: entry=5.65, stop=-24.69, exit=7.71, atr=0.69, mult=44.19, risk=30.35, reward=2.06
+DEBUG: ALTS - Baseline failed setup checks: realistic=True, rr=0.06788206384812748
+DEBUG: AMAL - DF empty after target_date filter
+DEBUG: AMAO - Data too stale: 2023-11-03 00:00:00
+DEBUG: AMAOW - Data too stale: 2023-11-03 00:00:00
+DEBUG: UNK RR Debug: entry=16.19, stop=-36.91, exit=17.17, atr=0.33, mult=162.47, risk=53.10, reward=0.98
+DEBUG: AM - Baseline failed setup checks: realistic=True, rr=0.018465190385310446
+DEBUG: UNK RR Debug: entry=78.62, stop=-551.09, exit=88.98, atr=3.45, mult=182.37, risk=629.71, reward=10.36
+DEBUG: AMBA - Baseline failed setup checks: realistic=True, rr=0.016449780181846087
+DEBUG: AMBP - DF empty after target_date filter
+DEBUG: AMBQ - DF empty after target_date filter
+DEBUG: AMBR - Data too stale: 2019-07-29 00:00:00
+DEBUG: UNK RR Debug: entry=184.61, stop=-893.08, exit=201.84, atr=5.75, mult=187.57, risk=1077.68, reward=17.24
+DEBUG: AMAT - Baseline failed setup checks: realistic=True, rr=0.01599362914501823
+DEBUG: UNK RR Debug: entry=11.38, stop=11.20, exit=11.40, atr=0.01, mult=27.37, risk=0.18, reward=0.02
+DEBUG: AMCI - Baseline failed setup checks: realistic=True, rr=0.1096207063461039
+DEBUG: UNK RR Debug: entry=3.57, stop=0.54, exit=4.21, atr=0.21, mult=14.49, risk=3.03, reward=0.64
+DEBUG: AMC - Baseline failed setup checks: realistic=True, rr=0.21122490030587254
+DEBUG: UNK RR Debug: entry=9.64, stop=6.64, exit=10.14, atr=0.17, mult=17.98, risk=3.00, reward=0.50
+DEBUG: AMCR - Baseline failed setup checks: realistic=True, rr=0.1668574651239826
+DEBUG: UNK RR Debug: entry=9.14, stop=-74.18, exit=10.46, atr=0.44, mult=188.54, risk=83.31, reward=1.33
+DEBUG: AMCX - Baseline failed setup checks: realistic=True, rr=0.015911371693042367
+DEBUG: AME - DF empty after target_date filter
+DEBUG: AMEH - Data too stale: 2024-02-26 00:00:00
+DEBUG: AMG - DF empty after target_date filter
+DEBUG: AMGN - DF empty after target_date filter
+DEBUG: UNK RR Debug: entry=121.35, stop=-24.62, exit=134.41, atr=4.35, mult=33.54, risk=145.97, reward=13.06
+DEBUG: AMD - Baseline failed setup checks: realistic=True, rr=0.0894541308316616
+DEBUG: AMIX - DF empty after target_date filter
+DEBUG: AMKR - DF empty after target_date filter
+DEBUG: UNK RR Debug: entry=35.33, stop=-182.42, exit=37.56, atr=0.75, mult=292.09, risk=217.75, reward=2.24
+DEBUG: AMH - Baseline failed setup checks: realistic=True, rr=0.010270645006401588
+DEBUG: UNK RR Debug: entry=3.52, stop=-39.01, exit=4.42, atr=0.30, mult=141.46, risk=42.53, reward=0.90
+DEBUG: AMLX - Baseline failed setup checks: realistic=True, rr=0.021206677369225962
+DEBUG: AMOD - DF empty after target_date filter
+DEBUG: UNK RR Debug: entry=0.06, stop=-1.91, exit=0.23, atr=0.03, mult=62.18, risk=1.97, reward=0.17
+DEBUG: AMODW - Baseline failed setup checks: realistic=True, rr=0.0874863042412356
+DEBUG: AMP - DF empty after target_date filter
+DEBUG: UNK RR Debug: entry=26.32, stop=2.00, exit=30.56, atr=1.41, mult=17.21, risk=24.32, reward=4.24
+DEBUG: AMN - Baseline failed setup checks: realistic=True, rr=0.17433591830157533
+DEBUG: AMPGW - DF empty after target_date filter
+DEBUG: AMPH - DF empty after target_date filter
+DEBUG: AMPL - DF empty after target_date filter
+DEBUG: UNK RR Debug: entry=3.33, stop=-28.02, exit=4.86, atr=0.51, mult=61.58, risk=31.35, reward=1.53
+DEBUG: AMPX - Baseline failed setup checks: realistic=True, rr=0.048719089285735886
+DEBUG: UNK RR Debug: entry=2.38, stop=-111.88, exit=6.43, atr=0.66, mult=171.87, risk=114.26, reward=4.05
+DEBUG: AMPG - Baseline failed setup checks: realistic=False, rr=0.035464164933415504
+DEBUG: UNK RR Debug: entry=193.03, stop=84.98, exit=217.64, atr=8.20, mult=13.17, risk=108.05, reward=24.61
+DEBUG: AMR - Baseline failed setup checks: realistic=True, rr=0.22775254150580823
+DEBUG: UNK RR Debug: entry=24.16, stop=1.44, exit=28.94, atr=1.59, mult=14.28, risk=22.72, reward=4.78
+DEBUG: AMRC - Baseline failed setup checks: realistic=True, rr=0.2101441832256386
+DEBUG: UNK RR Debug: entry=0.55, stop=-3.78, exit=0.65, atr=0.03, mult=124.03, risk=4.33, reward=0.10
+DEBUG: AMRN - Baseline failed setup checks: realistic=True, rr=0.024187907439948392
+DEBUG: AMRS - Data too stale: 2023-08-18 00:00:00
+DEBUG: UNK RR Debug: entry=5.98, stop=-0.15, exit=6.62, atr=0.21, mult=28.98, risk=6.13, reward=0.64
+DEBUG: AMPY - Baseline failed setup checks: realistic=True, rr=0.10456348021849976
+DEBUG: AMRZ - DF empty after target_date filter
+DEBUG: UNK RR Debug: entry=8.23, stop=-35.58, exit=9.04, atr=0.27, mult=163.30, risk=43.82, reward=0.80
+DEBUG: AMRX - Baseline failed setup checks: realistic=True, rr=0.018370558420105484
+DEBUG: AMSF - DF empty after target_date filter
+DEBUG: AMST - DF empty after target_date filter
+DEBUG: AMT - DF empty after target_date filter
+DEBUG: UNK RR Debug: entry=21.99, stop=9.22, exit=24.14, atr=0.72, mult=17.78, risk=12.77, reward=2.15
+DEBUG: AMTB - Baseline failed setup checks: realistic=True, rr=0.1686918632896664
+DEBUG: UNK RR Debug: entry=27.86, stop=-247.07, exit=33.93, atr=2.02, mult=135.94, risk=274.93, reward=6.07
+DEBUG: AMSC - Baseline failed setup checks: realistic=True, rr=0.022067943146980875
+DEBUG: AMTD - DF empty after target_date filter
+DEBUG: AMTM - DF empty after target_date filter
+DEBUG: AMUU - DF empty after target_date filter
+DEBUG: UNK RR Debug: entry=2.65, stop=-0.52, exit=3.41, atr=0.25, mult=12.57, risk=3.17, reward=0.76
+DEBUG: AMTX - Baseline failed setup checks: realistic=False, rr=0.23864971731004278
+DEBUG: AMWL - DF empty after target_date filter
+DEBUG: UNK RR Debug: entry=80.23, stop=36.11, exit=87.62, atr=2.46, mult=17.92, risk=44.12, reward=7.38
+DEBUG: AMWD - Baseline failed setup checks: realistic=True, rr=0.16736904640304068
+DEBUG: AMYY - DF empty after target_date filter
+DEBUG: AMZN - DF empty after target_date filter
+DEBUG: AN - DF empty after target_date filter
+DEBUG: ANAB - DF empty after target_date filter
+DEBUG: UNK RR Debug: entry=13.97, stop=1.39, exit=15.08, atr=0.37, mult=33.95, risk=12.58, reward=1.11
+DEBUG: AMX - Baseline failed setup checks: realistic=True, rr=0.08836684435107384
+DEBUG: ANDG - DF empty after target_date filter
+DEBUG: ANEB - DF empty after target_date filter
+DEBUG: UNK RR Debug: entry=120.02, stop=-857.80, exit=141.09, atr=7.02, mult=139.26, risk=977.83, reward=21.07
+DEBUG: ANET - Baseline failed setup checks: realistic=True, rr=0.02154270688289109
+DEBUG: UNK RR Debug: entry=43.31, stop=21.38, exit=46.97, atr=1.22, mult=18.01, risk=21.93, reward=3.65
+DEBUG: ANDE - Baseline failed setup checks: realistic=True, rr=0.16660284547174462
+DEBUG: ANF - DF empty after target_date filter
+DEBUG: ANGH - DF empty after target_date filter
+DEBUG: ANGHW - DF empty after target_date filter
+DEBUG: ANGIV - DF empty after target_date filter
+DEBUG: UNK RR Debug: entry=1.77, stop=-9.83, exit=2.05, atr=0.09, mult=124.30, risk=11.60, reward=0.28
+DEBUG: ANGI - Baseline failed setup checks: realistic=True, rr=0.0241345727560185
+DEBUG: ANGX - Data too stale: 2024-03-22 00:00:00
+DEBUG: ANIK - DF empty after target_date filter
+DEBUG: ANIP - DF empty after target_date filter
+DEBUG: UNK RR Debug: entry=11.82, stop=-33.80, exit=13.88, atr=0.69, mult=66.16, risk=45.61, reward=2.07
+DEBUG: ANGO - Baseline failed setup checks: realistic=True, rr=0.04534149792144692
+DEBUG: UNK RR Debug: entry=2.06, stop=-7.21, exit=2.99, atr=0.21, mult=43.36, risk=9.27, reward=0.93
+DEBUG: ANL - Baseline failed setup checks: realistic=True, rr=0.10047432083763923
+DEBUG: ANNA - DF empty after target_date filter
+DEBUG: UNK RR Debug: entry=0.18, stop=-6.12, exit=0.36, atr=0.06, mult=107.72, risk=6.30, reward=0.18
+DEBUG: ANNAW - Baseline failed setup checks: realistic=False, rr=0.02784908103828613
+DEBUG: ANNX - DF empty after target_date filter
+DEBUG: ANPA - DF empty after target_date filter
+DEBUG: UNK RR Debug: entry=4.49, stop=-43.59, exit=5.47, atr=0.33, mult=145.85, risk=48.08, reward=0.99
+DEBUG: ANRO - Baseline failed setup checks: realistic=True, rr=0.020568988421911592
+DEBUG: UNK RR Debug: entry=10.49, stop=9.97, exit=10.55, atr=0.02, mult=30.21, risk=0.52, reward=0.05
+DEBUG: ANSC - Baseline failed setup checks: realistic=True, rr=0.09931781924296444
+DEBUG: UNK RR Debug: entry=10.60, stop=10.44, exit=10.61, atr=0.00, mult=43.59, risk=0.16, reward=0.01
+DEBUG: ANSCU - Baseline failed setup checks: realistic=True, rr=0.0531292256331255
+DEBUG: UNK RR Debug: entry=2.56, stop=-17.92, exit=3.23, atr=0.22, mult=91.13, risk=20.48, reward=0.67
+DEBUG: ANIX - Baseline failed setup checks: realistic=False, rr=0.03292035001487293
+DEBUG: UNK RR Debug: entry=346.82, stop=-1773.66, exit=364.68, atr=5.95, mult=356.25, risk=2120.48, reward=17.86
+DEBUG: ANSS - Baseline failed setup checks: realistic=True, rr=0.0084211292645059
+DEBUG: ANTA - DF empty after target_date filter
+DEBUG: UNK RR Debug: entry=0.45, stop=-5.88, exit=0.59, atr=0.05, mult=136.11, risk=6.33, reward=0.14
+DEBUG: ANTE - Baseline failed setup checks: realistic=True, rr=0.02204049540121709
+DEBUG: UNK RR Debug: entry=1.28, stop=-9.05, exit=1.48, atr=0.07, mult=156.75, risk=10.33, reward=0.20
+DEBUG: ANTX - Baseline failed setup checks: realistic=True, rr=0.019139359669095485
+DEBUG: UNK RR Debug: entry=5.07, stop=-3.94, exit=6.32, atr=0.42, mult=21.69, risk=9.01, reward=1.25
+DEBUG: ANVS - Baseline failed setup checks: realistic=True, rr=0.13829257709652307
+DEBUG: ANSCW - DF empty after target_date filter
+DEBUG: AOMD - DF empty after target_date filter
+DEBUG: UNK RR Debug: entry=25.17, stop=18.78, exit=25.65, atr=0.15, mult=43.36, risk=6.39, reward=0.48
+DEBUG: AOMN - Baseline failed setup checks: realistic=True, rr=0.07517519141411744
+DEBUG: UNK RR Debug: entry=9.86, stop=7.35, exit=10.54, atr=0.23, mult=11.15, risk=2.51, reward=0.68
+DEBUG: AOMR - Baseline failed setup checks: realistic=True, rr=0.2691389017164666
+DEBUG: UNK RR Debug: entry=1.03, stop=-1.89, exit=1.34, atr=0.10, mult=28.88, risk=2.93, reward=0.30
+DEBUG: ANY - Baseline failed setup checks: realistic=True, rr=0.1038758060753086
+DEBUG: UNK RR Debug: entry=362.94, stop=257.37, exit=380.43, atr=5.83, mult=18.11, risk=105.57, reward=17.49
+DEBUG: AON - Baseline failed setup checks: realistic=True, rr=0.16567262577838696
+DEBUG: UNK RR Debug: entry=30.38, stop=-169.58, exit=33.64, atr=1.09, mult=183.90, risk=199.96, reward=3.26
+DEBUG: AORT - Baseline failed setup checks: realistic=True, rr=0.016313500360458352
+DEBUG: AOSL - DF empty after target_date filter
+DEBUG: AOUT - DF empty after target_date filter
+DEBUG: UNK RR Debug: entry=2.45, stop=0.32, exit=3.02, atr=0.19, mult=11.38, risk=2.13, reward=0.56
+DEBUG: AP - Baseline failed setup checks: realistic=True, rr=0.2636941044184639
+DEBUG: UNK RR Debug: entry=70.76, stop=45.83, exit=75.19, atr=1.48, mult=16.86, risk=24.93, reward=4.44
+DEBUG: AOS - Baseline failed setup checks: realistic=True, rr=0.1779795365998357
+DEBUG: APAC - DF empty after target_date filter
+DEBUG: APACR - DF empty after target_date filter
+DEBUG: APACU - DF empty after target_date filter
+DEBUG: APAD - DF empty after target_date filter
+DEBUG: APADR - DF empty after target_date filter
+DEBUG: APADU - DF empty after target_date filter
+DEBUG: UNK RR Debug: entry=24.02, stop=13.84, exit=26.42, atr=0.80, mult=12.75, risk=10.19, reward=2.40
+DEBUG: APA - Baseline failed setup checks: realistic=True, rr=0.2352868537585381
+DEBUG: UNK RR Debug: entry=0.16, stop=-2.06, exit=0.40, atr=0.05, mult=43.36, risk=2.22, reward=0.24
+DEBUG: APCXW - Baseline failed setup checks: realistic=False, rr=0.10886526504147265
+DEBUG: UNK RR Debug: entry=42.77, stop=-129.45, exit=45.85, atr=1.03, mult=167.68, risk=172.22, reward=3.08
+DEBUG: APAM - Baseline failed setup checks: realistic=True, rr=0.017891699815717726
+DEBUG: UNK RR Debug: entry=21.29, stop=-148.29, exit=24.05, atr=0.92, mult=184.36, risk=169.58, reward=2.76
+DEBUG: APEI - Baseline failed setup checks: realistic=True, rr=0.01627244852800708
+DEBUG: UNK RR Debug: entry=308.96, stop=-674.78, exit=327.12, atr=6.05, mult=162.52, risk=983.75, reward=18.16
+DEBUG: APD - Baseline failed setup checks: realistic=True, rr=0.018458946505119138
+DEBUG: APG - DF empty after target_date filter
+DEBUG: APGB - Data too stale: 2023-11-27 00:00:00
+DEBUG: APGE - DF empty after target_date filter
+DEBUG: API - DF empty after target_date filter
+DEBUG: APH - DF empty after target_date filter
+DEBUG: UNK RR Debug: entry=15.07, stop=9.78, exit=15.95, atr=0.30, mult=17.85, risk=5.29, reward=0.89
+DEBUG: APLE - Baseline failed setup checks: realistic=True, rr=0.1680593737524149
+DEBUG: APLM - DF empty after target_date filter
+DEBUG: APLMW - DF empty after target_date filter
+DEBUG: UNK RR Debug: entry=8.97, stop=-189.82, exit=11.87, atr=0.97, mult=205.51, risk=198.79, reward=2.90
+DEBUG: APLD - Baseline failed setup checks: realistic=True, rr=0.014597770359964573
+DEBUG: UNK RR Debug: entry=0.69, stop=-4.86, exit=1.27, atr=0.19, mult=28.65, risk=5.54, reward=0.58
+DEBUG: APLT - Baseline failed setup checks: realistic=True, rr=0.10472187219975565
+DEBUG: UNK RR Debug: entry=30.22, stop=-82.87, exit=35.57, atr=1.61, mult=70.11, risk=113.10, reward=5.35
+DEBUG: APLS - Baseline failed setup checks: realistic=True, rr=0.047271146516858646
+DEBUG: APM - DF empty after target_date filter
+DEBUG: APMIU - Data too stale: 2023-08-14 00:00:00
+DEBUG: UNK RR Debug: entry=165.77, stop=30.59, exit=180.05, atr=4.76, mult=28.40, risk=135.19, reward=14.28
+DEBUG: APO - Baseline failed setup checks: realistic=True, rr=0.1056189024890335
+DEBUG: UNK RR Debug: entry=57.19, stop=16.79, exit=73.50, atr=2.82, mult=14.30, risk=40.41, reward=16.31
+DEBUG: APOG - Baseline failed setup checks: realistic=True, rr=0.4035455753367576
+DEBUG: UNK RR Debug: entry=339.35, stop=-3520.09, exit=402.12, atr=20.92, mult=184.47, risk=3859.44, reward=62.76
+DEBUG: APP - Baseline failed setup checks: realistic=True, rr=0.016262553333330914
+DEBUG: UNK RR Debug: entry=253.19, stop=-291.57, exit=273.31, atr=6.71, mult=81.24, risk=544.77, reward=20.12
+DEBUG: APPF - Baseline failed setup checks: realistic=True, rr=0.03692727498549025
+DEBUG: UNK RR Debug: entry=33.36, stop=-133.58, exit=37.57, atr=1.40, mult=118.94, risk=166.94, reward=4.21
+DEBUG: APPN - Baseline failed setup checks: realistic=True, rr=0.02522312299105613
+DEBUG: UNK RR Debug: entry=26.58, stop=14.57, exit=27.41, atr=0.28, mult=43.36, risk=12.01, reward=0.83
+DEBUG: APOS - Baseline failed setup checks: realistic=True, rr=0.06919370159190227
+DEBUG: UNK RR Debug: entry=3.83, stop=-7.05, exit=5.03, atr=0.40, mult=27.21, risk=10.88, reward=1.20
+DEBUG: APRE - Baseline failed setup checks: realistic=True, rr=0.11026937960431275
+DEBUG: APRN - Data too stale: 2023-11-13 00:00:00
+DEBUG: UNK RR Debug: entry=1.98, stop=-20.23, exit=2.52, atr=0.18, mult=122.85, risk=22.21, reward=0.54
+DEBUG: APPS - Baseline failed setup checks: realistic=True, rr=0.02442094404794835
+DEBUG: UNK RR Debug: entry=4.58, stop=-2.45, exit=6.46, atr=0.63, mult=11.24, risk=7.04, reward=1.88
+DEBUG: APVO - Baseline failed setup checks: realistic=True, rr=0.26691748295449813
+DEBUG: UNK RR Debug: entry=61.38, stop=-273.00, exit=66.67, atr=1.76, mult=189.76, risk=334.38, reward=5.29
+DEBUG: APTV - Baseline failed setup checks: realistic=True, rr=0.01580971499029863
+DEBUG: UNK RR Debug: entry=1.49, stop=-2.32, exit=1.75, atr=0.09, mult=43.26, risk=3.81, reward=0.26
+DEBUG: APWC - Baseline failed setup checks: realistic=True, rr=0.06934206961255165
+DEBUG: APXTU - DF empty after target_date filter
+DEBUG: APXTW - DF empty after target_date filter
+DEBUG: UNK RR Debug: entry=1.50, stop=-0.26, exit=1.97, atr=0.16, mult=11.24, risk=1.77, reward=0.47
+DEBUG: APYX - Baseline failed setup checks: realistic=True, rr=0.2669174829544981
+DEBUG: APXT - DF empty after target_date filter
+DEBUG: UNK RR Debug: entry=0.81, stop=-3.02, exit=1.16, atr=0.12, mult=32.51, risk=3.83, reward=0.35
+DEBUG: AQB - Baseline failed setup checks: realistic=True, rr=0.09229115582055145
+DEBUG: UNK RR Debug: entry=2.11, stop=-19.06, exit=3.25, atr=0.27, mult=77.67, risk=21.17, reward=1.14
+DEBUG: AQMS - Baseline failed setup checks: realistic=True, rr=0.05382918812941253
+DEBUG: AQNA - Data too stale: 2023-11-03 00:00:00
+DEBUG: UNK RR Debug: entry=25.29, stop=16.79, exit=25.88, atr=0.20, mult=43.36, risk=8.50, reward=0.59
+DEBUG: AQNB - Baseline failed setup checks: realistic=True, rr=0.0691937015919023
+DEBUG: UNK RR Debug: entry=3.18, stop=0.09, exit=3.83, atr=0.22, mult=14.29, risk=3.09, reward=0.65
+DEBUG: AQST - Baseline failed setup checks: realistic=True, rr=0.2099921747908631
+DEBUG: UNK RR Debug: entry=4.40, stop=-11.03, exit=4.78, atr=0.13, mult=121.30, risk=15.43, reward=0.38
+DEBUG: AQN - Baseline failed setup checks: realistic=True, rr=0.02473236218698588
+DEBUG: ARAI - DF empty after target_date filter
+DEBUG: UNK RR Debug: entry=39.26, stop=-185.50, exit=43.03, atr=1.26, mult=178.87, risk=224.77, reward=3.77
+DEBUG: AR - Baseline failed setup checks: realistic=True, rr=0.01677160907090085
+DEBUG: UNK RR Debug: entry=0.54, stop=-1.24, exit=0.75, atr=0.07, mult=25.96, risk=1.79, reward=0.21
+DEBUG: ARBB - Baseline failed setup checks: realistic=True, rr=0.11558080143683311
+DEBUG: UNK RR Debug: entry=2.98, stop=-31.59, exit=5.09, atr=0.49, mult=69.86, risk=34.57, reward=2.11
+DEBUG: ARBE - Baseline failed setup checks: realistic=True, rr=0.06091250235573028
+DEBUG: UNK RR Debug: entry=0.64, stop=-8.61, exit=1.26, atr=0.14, mult=66.17, risk=9.24, reward=0.62
+DEBUG: ARBEW - Baseline failed setup checks: realistic=True, rr=0.06750286755564175
+DEBUG: UNK RR Debug: entry=2.22, stop=-19.92, exit=2.63, atr=0.14, mult=161.70, risk=22.14, reward=0.41
+DEBUG: ARAY - Baseline failed setup checks: realistic=True, rr=0.01855294448508917
+DEBUG: ARBGU - Data too stale: 2023-08-03 00:00:00
+DEBUG: UNK RR Debug: entry=7.55, stop=-12.53, exit=8.94, atr=0.46, mult=43.36, risk=20.08, reward=1.39
+DEBUG: ARBKL - Baseline failed setup checks: realistic=True, rr=0.06936779503166744
+DEBUG: UNK RR Debug: entry=0.59, stop=-1.43, exit=0.80, atr=0.07, mult=28.88, risk=2.02, reward=0.21
+DEBUG: ARBK - Baseline failed setup checks: realistic=True, rr=0.1038758060753086
+DEBUG: UNK RR Debug: entry=22.84, stop=-25.83, exit=23.65, atr=0.27, mult=178.91, risk=48.67, reward=0.82
+DEBUG: ARCC - Baseline failed setup checks: realistic=True, rr=0.016768449713569993
+DEBUG: UNK RR Debug: entry=98.83, stop=39.67, exit=108.83, atr=3.33, mult=17.75, risk=59.15, reward=10.00
+DEBUG: ARCB - Baseline failed setup checks: realistic=True, rr=0.16904126592423727
+DEBUG: ARCK - Data too stale: 2023-02-02 00:00:00
+DEBUG: ARCKU - Data too stale: 2023-01-23 00:00:00
+DEBUG: ARCKW - Data too stale: 2023-01-23 00:00:00
+DEBUG: UNK RR Debug: entry=16.74, stop=-149.40, exit=21.26, atr=1.39, mult=119.25, risk=166.14, reward=4.52
+DEBUG: ARCT - Baseline failed setup checks: realistic=True, rr=0.02720608281128681
+DEBUG: UNK RR Debug: entry=7.33, stop=-21.16, exit=8.04, atr=0.24, mult=120.63, risk=28.49, reward=0.71
+DEBUG: ARCO - Baseline failed setup checks: realistic=True, rr=0.024868918645913885
+DEBUG: UNK RR Debug: entry=14.54, stop=-100.01, exit=17.34, atr=0.73, mult=157.51, risk=114.55, reward=2.80
+DEBUG: ARDT - Baseline failed setup checks: realistic=True, rr=0.024443649208695423
+DEBUG: UNK RR Debug: entry=5.05, stop=-0.46, exit=6.17, atr=0.37, mult=14.78, risk=5.51, reward=1.12
+DEBUG: ARDX - Baseline failed setup checks: realistic=True, rr=0.20300394989597845
+DEBUG: AREB - DF empty after target_date filter
+DEBUG: AREBW - DF empty after target_date filter
+DEBUG: UNK RR Debug: entry=0.75, stop=-0.29, exit=1.12, atr=0.08, mult=12.78, risk=1.04, reward=0.37
+DEBUG: AREC - Baseline failed setup checks: realistic=True, rr=0.3573010153687739
+DEBUG: UNK RR Debug: entry=99.90, stop=-187.58, exit=106.82, atr=2.31, mult=124.64, risk=287.48, reward=6.92
+DEBUG: ARE - Baseline failed setup checks: realistic=True, rr=0.024070017734242794
+DEBUG: ARES - DF empty after target_date filter
+DEBUG: ARGO - Data too stale: 2023-11-16 00:00:00
+DEBUG: ARGU - Data too stale: 2022-12-20 00:00:00
+DEBUG: ARGUU - Data too stale: 2022-12-20 00:00:00
+DEBUG: ARGUW - Data too stale: 2022-12-20 00:00:00
+DEBUG: UNK RR Debug: entry=11.17, stop=-86.28, exit=12.91, atr=0.58, mult=167.64, risk=97.45, reward=1.74
+DEBUG: ARHS - Baseline failed setup checks: realistic=True, rr=0.017895296659782192
+DEBUG: UNK RR Debug: entry=648.38, stop=-324.25, exit=694.48, atr=15.37, mult=63.30, risk=972.63, reward=46.10
+DEBUG: ARGX - Baseline failed setup checks: realistic=True, rr=0.04739287374021701
+DEBUG: UNK RR Debug: entry=6.53, stop=-1.15, exit=7.21, atr=0.23, mult=33.92, risk=7.68, reward=0.68
+DEBUG: ARKO - Baseline failed setup checks: realistic=True, rr=0.08844916012991122
+DEBUG: UNK RR Debug: entry=8.90, stop=-14.78, exit=9.50, atr=0.20, mult=118.99, risk=23.68, reward=0.60
+DEBUG: ARI - Baseline failed setup checks: realistic=True, rr=0.025212396498318225
+DEBUG: UNK RR Debug: entry=13.91, stop=-14.23, exit=17.76, atr=1.01, mult=27.81, risk=28.14, reward=3.85
+DEBUG: ARKR - Baseline failed setup checks: realistic=True, rr=0.13678055879350673
+DEBUG: UNK RR Debug: entry=14.97, stop=4.95, exit=17.62, atr=0.88, mult=11.37, risk=10.03, reward=2.65
+DEBUG: ARL - Baseline failed setup checks: realistic=True, rr=0.263933845636928
+DEBUG: UNK RR Debug: entry=11.77, stop=1.31, exit=13.43, atr=0.55, mult=18.86, risk=10.46, reward=1.66
+DEBUG: ARLO - Baseline failed setup checks: realistic=True, rr=0.1590765001671225
+DEBUG: UNK RR Debug: entry=152.61, stop=-1342.08, exit=182.88, atr=8.41, mult=177.78, risk=1494.69, reward=30.27
+DEBUG: ARM - Baseline failed setup checks: realistic=False, rr=0.0202509044847214
+DEBUG: ARMK - DF empty after target_date filter
+DEBUG: UNK RR Debug: entry=27.56, stop=-102.19, exit=29.88, atr=0.77, mult=167.88, risk=129.75, reward=2.32
+DEBUG: ARLP - Baseline failed setup checks: realistic=True, rr=0.017869461107565807
+DEBUG: UNK RR Debug: entry=28.63, stop=-105.86, exit=31.11, atr=0.83, mult=162.47, risk=134.48, reward=2.48
+DEBUG: AROC - Baseline failed setup checks: realistic=True, rr=0.018465190385310408
+DEBUG: AROW - DF empty after target_date filter
+DEBUG: ARQ - DF empty after target_date filter
+DEBUG: UNK RR Debug: entry=27.30, stop=-264.67, exit=52.79, atr=6.82, mult=42.79, risk=291.97, reward=25.49
+DEBUG: ARQQ - Baseline failed setup checks: realistic=True, rr=0.08729577532138885
+DEBUG: UNK RR Debug: entry=2.67, stop=-131.56, exit=4.75, atr=0.69, mult=193.90, risk=134.23, reward=2.08
+DEBUG: ARQQW - Baseline failed setup checks: realistic=True, rr=0.015471536028696945
+DEBUG: UNK RR Debug: entry=13.65, stop=-55.37, exit=16.67, atr=1.00, mult=68.75, risk=69.03, reward=3.01
+DEBUG: ARQT - Baseline failed setup checks: realistic=True, rr=0.04363347176584382
+DEBUG: ARRY - DF empty after target_date filter
+DEBUG: ARTE - Data too stale: 2023-11-03 00:00:00
+DEBUG: ARTEU - Data too stale: 2023-11-03 00:00:00
+DEBUG: UNK RR Debug: entry=1.16, stop=-0.69, exit=1.36, atr=0.07, mult=27.55, risk=1.85, reward=0.20
+DEBUG: ARTL - Baseline failed setup checks: realistic=True, rr=0.10889969870190681
+DEBUG: UNK RR Debug: entry=18.57, stop=12.24, exit=19.56, atr=0.33, mult=19.24, risk=6.33, reward=0.99
+DEBUG: ARR - Baseline failed setup checks: realistic=True, rr=0.1559021726283397
+DEBUG: UNK RR Debug: entry=7.56, stop=-18.22, exit=11.55, atr=0.94, mult=27.28, risk=25.78, reward=3.99
+DEBUG: ARTV - Baseline failed setup checks: realistic=True, rr=0.15464966222204884
+DEBUG: UNK RR Debug: entry=30.49, stop=20.55, exit=33.05, atr=0.85, mult=11.63, risk=9.94, reward=2.56
+DEBUG: ARTNA - Baseline failed setup checks: realistic=True, rr=0.2580422281523451
+DEBUG: UNK RR Debug: entry=18.31, stop=-132.67, exit=22.08, atr=1.26, mult=120.20, risk=150.99, reward=3.77
+DEBUG: ARVN - Baseline failed setup checks: realistic=True, rr=0.0249593013737991
+DEBUG: UNK RR Debug: entry=1.81, stop=-14.02, exit=4.15, atr=0.26, mult=61.75, risk=15.84, reward=2.34
+DEBUG: ARTW - Baseline failed setup checks: realistic=True, rr=0.14755798637656048
+DEBUG: ARWR - DF empty after target_date filter
+DEBUG: ARX - DF empty after target_date filter
+DEBUG: AS - DF empty after target_date filter
+DEBUG: ASAN - DF empty after target_date filter
+DEBUG: ASB - DF empty after target_date filter
+DEBUG: UNK RR Debug: entry=24.74, stop=13.39, exit=25.52, atr=0.26, mult=43.36, risk=11.34, reward=0.78
+DEBUG: ASBA - Baseline failed setup checks: realistic=True, rr=0.06919370159190233
+DEBUG: ASBP - DF empty after target_date filter
+DEBUG: UNK RR Debug: entry=0.05, stop=-0.12, exit=0.07, atr=0.01, mult=27.55, risk=0.16, reward=0.02
+DEBUG: ASBPW - Baseline failed setup checks: realistic=True, rr=0.12106167539968019
+DEBUG: UNK RR Debug: entry=115.89, stop=25.13, exit=124.26, atr=2.79, mult=32.53, risk=90.76, reward=8.37
+DEBUG: ARW - Baseline failed setup checks: realistic=True, rr=0.09222416574658855
+DEBUG: UNK RR Debug: entry=17.79, stop=-23.49, exit=18.67, atr=0.29, mult=140.73, risk=41.28, reward=0.88
+DEBUG: ASGI - Baseline failed setup checks: realistic=True, rr=0.021316762386836035
+DEBUG: UNK RR Debug: entry=11.41, stop=-3.10, exit=13.85, atr=0.52, mult=27.73, risk=14.51, reward=2.44
+DEBUG: ASC - Baseline failed setup checks: realistic=True, rr=0.16811507954637084
+DEBUG: ASGN - DF empty after target_date filter
+DEBUG: ASH - DF empty after target_date filter
+DEBUG: ASIC - DF empty after target_date filter
+DEBUG: UNK RR Debug: entry=6.53, stop=-31.94, exit=7.14, atr=0.20, mult=189.02, risk=38.46, reward=0.61
+DEBUG: ASLE - Baseline failed setup checks: realistic=True, rr=0.015871475073054604
+DEBUG: ASMB - DF empty after target_date filter
+DEBUG: ASML - DF empty after target_date filter
+DEBUG: ASND - DF empty after target_date filter
+DEBUG: UNK RR Debug: entry=30.32, stop=-33.28, exit=33.30, atr=0.99, mult=64.14, risk=63.60, reward=2.97
+DEBUG: ASIX - Baseline failed setup checks: realistic=True, rr=0.046771769573112965
+DEBUG: UNK RR Debug: entry=1.44, stop=-9.49, exit=1.92, atr=0.16, mult=68.98, risk=10.93, reward=0.48
+DEBUG: ASNS - Baseline failed setup checks: realistic=True, rr=0.043489567626012145
+DEBUG: ASPC - Insufficient data: 12
+DEBUG: ASPCR - Insufficient data: 12
+DEBUG: UNK RR Debug: entry=10.09, stop=8.18, exit=10.30, atr=0.04, mult=43.59, risk=1.90, reward=0.21
+DEBUG: ASPCU - Baseline failed setup checks: realistic=True, rr=0.11269312079195216
+DEBUG: UNK RR Debug: entry=54.65, stop=-46.33, exit=61.25, atr=2.13, mult=47.48, risk=100.97, reward=6.60
+DEBUG: ASO - Baseline failed setup checks: realistic=True, rr=0.06541081387536375
+DEBUG: UNK RR Debug: entry=5.62, stop=-110.67, exit=7.52, atr=0.63, mult=183.90, risk=116.29, reward=1.90
+DEBUG: ASPI - Baseline failed setup checks: realistic=False, rr=0.016313500360458335
+DEBUG: UNK RR Debug: entry=12.26, stop=2.16, exit=14.66, atr=0.80, mult=12.65, risk=10.10, reward=2.40
+DEBUG: ASPN - Baseline failed setup checks: realistic=True, rr=0.23709493952009614
+DEBUG: ASPSW - DF empty after target_date filter
+DEBUG: ASPSZ - DF empty after target_date filter
+DEBUG: UNK RR Debug: entry=268.26, stop=178.88, exit=288.44, atr=6.72, mult=13.29, risk=89.39, reward=20.17
+DEBUG: ASR - Baseline failed setup checks: realistic=True, rr=0.2256861989399146
+DEBUG: UNK RR Debug: entry=0.70, stop=-1.99, exit=1.04, atr=0.10, mult=27.59, risk=2.68, reward=0.34
+DEBUG: ASPS - Baseline failed setup checks: realistic=True, rr=0.12798262518313433
+DEBUG: UNK RR Debug: entry=2.70, stop=-13.37, exit=3.05, atr=0.12, mult=136.11, risk=16.07, reward=0.35
+DEBUG: ASRV - Baseline failed setup checks: realistic=True, rr=0.022040495401217105
+DEBUG: ASST - DF empty after target_date filter
+DEBUG: UNK RR Debug: entry=6.77, stop=-3.36, exit=7.92, atr=0.39, mult=26.23, risk=10.13, reward=1.16
+DEBUG: ASTC - Baseline failed setup checks: realistic=True, rr=0.11436652602491794
+DEBUG: ASTE - DF empty after target_date filter
+DEBUG: UNK RR Debug: entry=0.83, stop=-0.11, exit=0.98, atr=0.05, mult=18.47, risk=0.94, reward=0.15
+DEBUG: ASRT - Baseline failed setup checks: realistic=True, rr=0.16238191476653244
+DEBUG: UNK RR Debug: entry=34.31, stop=-128.74, exit=39.54, atr=1.74, mult=93.57, risk=163.05, reward=5.23
+DEBUG: ASTH - Baseline failed setup checks: realistic=True, rr=0.032063114094175865
+DEBUG: ASTL - DF empty after target_date filter
+DEBUG: ASTLW - DF empty after target_date filter
+DEBUG: ASTS - DF empty after target_date filter
+DEBUG: ASUR - DF empty after target_date filter
+DEBUG: UNK RR Debug: entry=2.77, stop=-57.32, exit=4.41, atr=0.32, mult=186.96, risk=60.09, reward=1.64
+DEBUG: ASTI - Baseline failed setup checks: realistic=True, rr=0.02723158670384078
+DEBUG: UNK RR Debug: entry=5.34, stop=3.02, exit=6.06, atr=0.24, mult=9.65, risk=2.31, reward=0.72
+DEBUG: ASYS - Baseline failed setup checks: realistic=True, rr=0.3108340908873945
+DEBUG: ATAI - DF empty after target_date filter
+DEBUG: UNK RR Debug: entry=25.90, stop=11.94, exit=29.79, atr=1.08, mult=12.98, risk=13.96, reward=3.89
+DEBUG: ATAT - Baseline failed setup checks: realistic=True, rr=0.27841660872088064
+DEBUG: ATCOL - DF empty after target_date filter
+DEBUG: UNK RR Debug: entry=10.62, stop=2.65, exit=11.52, atr=0.30, mult=26.60, risk=7.97, reward=0.90
+DEBUG: ASX - Baseline failed setup checks: realistic=True, rr=0.11278514328676767
+DEBUG: UNK RR Debug: entry=10.99, stop=-73.89, exit=12.55, atr=0.52, mult=162.41, risk=84.87, reward=1.57
+DEBUG: ATEC - Baseline failed setup checks: realistic=True, rr=0.01847143849101169
+DEBUG: UNK RR Debug: entry=18.74, stop=-59.41, exit=20.02, atr=0.43, mult=182.44, risk=78.14, reward=1.28
+DEBUG: ATEN - Baseline failed setup checks: realistic=True, rr=0.016444210872279465
+DEBUG: ATER - DF empty after target_date filter
+DEBUG: ATEX - DF empty after target_date filter
+DEBUG: ATGE - DF empty after target_date filter
+DEBUG: UNK RR Debug: entry=15.81, stop=-2.35, exit=21.46, atr=1.88, mult=9.65, risk=18.17, reward=5.65
+DEBUG: ATGL - Baseline failed setup checks: realistic=True, rr=0.31083409088739444
+DEBUG: UNK RR Debug: entry=3.39, stop=-8.11, exit=4.71, atr=0.35, mult=32.57, risk=11.49, reward=1.32
+DEBUG: ATHE - Baseline failed setup checks: realistic=True, rr=0.11507159154215196
+DEBUG: UNK RR Debug: entry=0.55, stop=-5.58, exit=0.68, atr=0.05, mult=135.19, risk=6.13, reward=0.14
+DEBUG: ATHA - Baseline failed setup checks: realistic=True, rr=0.022191390434130834
+DEBUG: ATHR - DF empty after target_date filter
+DEBUG: UNK RR Debug: entry=25.28, stop=16.79, exit=25.87, atr=0.20, mult=43.36, risk=8.50, reward=0.59
+DEBUG: ATHS - Baseline failed setup checks: realistic=True, rr=0.06919370159190223
+DEBUG: UNK RR Debug: entry=26.69, stop=-101.91, exit=29.34, atr=0.88, mult=145.82, risk=128.60, reward=2.65
+DEBUG: ATHM - Baseline failed setup checks: realistic=True, rr=0.020572864312954887
+DEBUG: ATIF - Data too stale: 2024-12-17 00:00:00
+DEBUG: ATII - DF empty after target_date filter
+DEBUG: ATIIU - DF empty after target_date filter
+DEBUG: UNK RR Debug: entry=56.96, stop=-119.58, exit=61.21, atr=1.42, mult=124.58, risk=176.54, reward=4.25

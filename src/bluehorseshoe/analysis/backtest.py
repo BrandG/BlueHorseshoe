@@ -19,11 +19,13 @@ from bluehorseshoe.reporting.report_generator import ReportSingleton
 class Backtester:
     """Class for orchestrating historical backtests of the trading strategy."""
 
-    def __init__(self, target_profit_factor: float = 1.01, stop_loss_factor: float = 0.98, hold_days: int = 3):
+    def __init__(self, target_profit_factor: float = 1.01, stop_loss_factor: float = 0.98, hold_days: int = 3, use_trailing_stop: bool = False, trailing_multiplier: float = 2.0):
         self.trader = SwingTrader()
         self.target_profit_factor = target_profit_factor
         self.stop_loss_factor = stop_loss_factor
         self.hold_days = hold_days
+        self.use_trailing_stop = use_trailing_stop
+        self.trailing_multiplier = trailing_multiplier
 
     def evaluate_prediction(self, prediction: Dict, target_date: str) -> Dict:
         """
@@ -76,12 +78,22 @@ class Backtester:
         status = 'hold'
         exit_date = None
         exit_price = None
+        current_stop = target_stop
 
         for _, day in remaining_data.iterrows():
             high = day['high']
             low = day['low']
             open_price = day['open']
             
+            # Update trailing stop if enabled
+            if self.use_trailing_stop:
+                atr = day.get('atr_14')
+                if atr and not pd.isna(atr):
+                    # Trail 2.0 * ATR from the high
+                    new_stop = high - (self.trailing_multiplier * atr)
+                    if new_stop > current_stop:
+                        current_stop = new_stop
+
             # Check for Gap Up Success
             if open_price >= target_exit:
                 status = 'success'
@@ -90,7 +102,7 @@ class Backtester:
                 break
                 
             # Check for Gap Down Failure
-            if open_price <= target_stop:
+            if open_price <= current_stop:
                 status = 'failure'
                 exit_price = open_price # Sold at open for a larger loss
                 exit_date = day['date'].strftime('%Y-%m-%d')
@@ -104,9 +116,9 @@ class Backtester:
                 break
             
             # Check for failure during the day
-            if low <= target_stop:
+            if low <= current_stop:
                 status = 'failure'
-                exit_price = target_stop
+                exit_price = current_stop
                 exit_date = day['date'].strftime('%Y-%m-%d')
                 break
 
@@ -126,6 +138,7 @@ class Backtester:
             'entry': actual_entry,
             'target': target_exit,
             'stop': target_stop,
+            'final_stop': current_stop,
             'exit_price': exit_price,
             'exit_date': exit_date,
             'days_held': len(future_data[(future_data['date'] >= entry_date) & (future_data['date'] <= pd.to_datetime(exit_date))]) if exit_date else self.hold_days

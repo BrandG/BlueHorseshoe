@@ -13,7 +13,8 @@ def main():
     parser = argparse.ArgumentParser(description='Run Grading Engine')
     parser.add_argument('--limit', type=int, default=5000, help='Max scores to grade')
     parser.add_argument('--strategy', type=str, help='Filter by strategy name')
-    parser.add_argument('--hold', type=int, default=10, help='Holding period in days')
+    parser.add_argument('--hold', type=int, default=10, help='Hold period in days')
+    parser.add_argument('--save', action='store_true', help='Save grading results to DB')
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO, format='%(levelname)s:%(message)s')
@@ -31,6 +32,35 @@ def main():
     if not results:
         print("No results found.")
         return
+
+    if args.save:
+        from bluehorseshoe.core.database import db
+        coll = db.get_db()['trade_scores']
+        print(f"Saving results for {len(results)} trades...")
+        save_count = 0
+        for res in results:
+            if res['status'] in ['success', 'failure']:
+                # Ensure date is a string YYYY-MM-DD
+                d_str = res['date']
+                if not isinstance(d_str, str):
+                    d_str = d_str.strftime('%Y-%m-%d')
+                else:
+                    d_str = d_str[:10]
+
+                update_result = coll.update_one(
+                    {"symbol": res['symbol'], "date": d_str, "strategy": res['strategy']},
+                    {"$set": {
+                        "status": res['status'],
+                        "pnl": float(res['pnl']),
+                        "mae_atr": float(res.get('mae_atr', 0.0)),
+                        "exit_price": float(res['exit_price']),
+                        "exit_date": res['exit_date'],
+                        "max_gain": float(res.get('max_gain', 0.0))
+                    }}
+                )
+                if update_result.modified_count > 0 or update_result.upserted_id:
+                    save_count += 1
+        print(f"Save complete. Modified/Updated {save_count} documents.")
         
     summary = engine.summarize_results(results)
     comp_summary = engine.summarize_components(results)

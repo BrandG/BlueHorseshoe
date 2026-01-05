@@ -25,3 +25,7 @@
 2026-01-04: Evaluated fundamental impact on strategy-specific success. Mean Reversion accuracy hit 78% using specialized models. Beta and Sentiment emerged as top drivers for MR.
 2026-01-04: Implemented strategy-specific ML model loading in MLInference. The system now uses ml_overlay_baseline.joblib and ml_overlay_mean_reversion.joblib for more precise win probability filtering.
 2026-01-04: Session summary: Successfully integrated News Sentiment and Fundamentals into the ML Overlay, achieving 71% general accuracy and 78% for Mean Reversion. Stabilized the test suite and deployed strategy-specific models.
+2026-01-04: Implemented weekly automated retraining job via maintenance.py (--retrain flag) and src/cron_weekly_retrain.sh. Added MLOverlayTrainer.retrain_all() for batch model updates.
+2026-01-04: Implemented ML-Driven Stop Loss regressor. Updated GradingEngine to calculate MAE in ATR units. Integrated StopLossInference into SwingTrader to provide dynamic, volatility-adjusted stop losses for each symbol.
+2026-01-04: Implemented Trailing Stop logic in Backtester. Added --trailing and --trailing-mult flags to main.py to allow testing volatility-adjusted trailing stops in historical simulations.
+2026-01-05: Session summary: Backfilled 2000 symbols into MongoDB, resolved collection name mismatches in historical_data.py, and initiated a full score rebuild for January 2025 to generate a high-quality training dataset for ML model refreshment.

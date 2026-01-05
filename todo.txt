@@ -1,8 +1,10 @@
 # ToDo: Indicator Analysis & Strategy Optimization
 
 ## Current State (v1.7)
-- **ML Overlay v1.0:** 70% Accuracy model deployed. Predictive features dominated by Industry, Market Cap, and Beta.
-- **Data Infrastructure:** Full backfill of Fundamental and News data for 6.7k symbols completed.
+- **ML Overlay v1.1:** 70% Accuracy model deployed. Predictive features dominated by Industry, Market Cap, and Beta.
+- **ML Stop Loss v1.0:** Regressor implemented to predict volatility-adjusted drawdown (MAE).
+- **Trailing Stops:** Implemented in Backtester (2.0 * ATR default).
+- **Data Infrastructure:** Full backfill of Fundamental and News data for 6.7k symbols completed. Automated retraining implemented.
 
 ## Performance Baseline (H2 2025 Stress Test)
 - **Baseline (Trend):** 54.39% Win Rate | 1.73% Avg PnL.
@@ -10,17 +12,23 @@
 
 ## Advanced Trading Architecture Improvements
 - [x] **Strategy Divorce:** Separate logic for Trend-Following and Mean-Reversion.
-- [x] **ML Overlay v1.0:** 70% Accuracy Random Forest model integrated into daily predictions.
+- [x] **ML Overlay v1.1:** 70% Accuracy Random Forest model integrated into daily predictions.
 - [x] **Fundamental Data Integration:** Added Sector, Industry, and Market Cap to features.
 - [x] **News Sentiment Integration:** Added AlphaVantage news feed support.
+- [x] **Automated Retraining:** Weekly job implemented in `src/cron_weekly_retrain.sh` and `maintenance.py`.
+- [x] **ML-Driven Stop Loss:** Regressor predicts optimal ATR multiplier per symbol.
+- [x] **Trailing Stops:** Implement a 2.0 * ATR trailing stop for the `Backtester`.
+- [x] **Data Alignment:** Unified historical data into `historical_prices` collection and backfilled 2000+ symbols.
+- [x] **Score Rebuild (Jan 2025):** Initiated background rebuild for training data generation.
 
 ## Future Ideas / Next Phase
-- [x] **Sentiment-Weighted ML:** Updated the `prepare_training_data` to incorporate the News Sentiment score as a feature.
-- [ ] **Implement a weekly automated retraining job:** For ML models using newly graded trades to ensure the system adapts to changing market regimes.
-- [ ] **ML-Driven Stop Loss:** Train a regressor to predict the optimal stop-loss distance (ATR multiplier) for each symbol.
-- [ ] **Trailing Stops:** Implement a 2.0 * ATR trailing stop for the `Backtester`.
+- [ ] **Grading & Retraining:** Run `run_grading.py` and retrain ML models with Jan 2025 data.
+- [ ] **H2 2025 Stress Test:** Perform 6-month simulation for both strategies with refreshed models.
 - [ ] **Intraday Data Integration:** Pull 15-minute data for top candidates to optimize the entry window.
 
 ## Completed Tasks
 - [x] Implement Machine Learning Overlay.
 - [x] Integrated News Sentiment and Fundamentals.
+- [x] Implement a weekly automated retraining job.
+- [x] Implement ML-Driven Stop Loss.
+- [x] Implement Trailing Stops.

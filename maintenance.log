@@ -693,3 +693,89 @@
 2026-01-04 00:06:17,532 - ERROR - No overview data for ZINGU. Response: {}
 2026-01-04 00:06:28,064 - ERROR - No overview data for ZTAQU. Response: {}
 2026-01-04 00:06:36,166 - ERROR - No overview data for ZYNE. Response: {}
+2026-01-04 13:18:45,093 - INFO - Weights loaded from /workspaces/BlueHorseshoe/src/weights.json
+2026-01-04 13:18:45,100 - INFO - Starting automated retraining of all models (limit=100)...
+2026-01-04 13:18:45,100 - INFO - Gathering graded trades for strategy=None...
+2026-01-04 13:18:45,194 - INFO - Found 100 scores to grade. Grouping by symbol...
+2026-01-04 13:18:45,204 - INFO - Connected to MongoDB server version 7.0.28
+2026-01-04 13:18:46,232 - INFO - Processed 100/100 symbols...
+2026-01-04 13:18:46,262 - INFO - Training on 8 samples, testing on 2 samples...
+2026-01-04 13:18:46,418 - INFO - 
+              precision    recall  f1-score   support
+
+           0       0.00      0.00      0.00         1
+           1       0.50      1.00      0.67         1
+
+    accuracy                           0.50         2
+   macro avg       0.25      0.50      0.33         2
+weighted avg       0.25      0.50      0.33         2
+
+2026-01-04 13:18:46,431 - INFO - Top Features:
+           feature  importance
+6           Sector    0.303704
+4   moving_average    0.157740
+0            trend    0.142140
+11  SentimentScore    0.095921
+8        MarketCap    0.082437
+1           volume    0.067452
+10         PERatio    0.057826
+7         Industry    0.039099
+9             Beta    0.031357
+2            limit    0.019423
+2026-01-04 13:18:46,464 - INFO - Model saved to src/models/ml_overlay_v1.joblib
+2026-01-04 13:18:46,465 - INFO - Gathering graded trades for strategy=baseline...
+2026-01-04 13:18:46,580 - INFO - Found 100 scores to grade. Grouping by symbol...
+2026-01-04 13:18:47,573 - INFO - Processed 100/100 symbols...
+2026-01-04 13:18:47,616 - INFO - Training on 12 samples, testing on 3 samples...
+2026-01-04 13:18:47,769 - INFO - 
+              precision    recall  f1-score   support
+
+           0       0.00      0.00      0.00       2.0
+           1       0.00      0.00      0.00       1.0
+
+    accuracy                           0.00       3.0
+   macro avg       0.00      0.00      0.00       3.0
+weighted avg       0.00      0.00      0.00       3.0
+
+2026-01-04 13:18:47,782 - INFO - Top Features:
+           feature  importance
+10         PERatio    0.179805
+4   moving_average    0.148854
+11  SentimentScore    0.106535
+8        MarketCap    0.090964
+1           volume    0.089248
+0            trend    0.088904
+6           Sector    0.064919
+9             Beta    0.060590
+7         Industry    0.050055
+2            limit    0.042660
+2026-01-04 13:18:47,813 - INFO - Model saved to src/models/ml_overlay_baseline.joblib
+2026-01-04 13:18:47,813 - INFO - Gathering graded trades for strategy=mean_reversion...
+2026-01-04 13:18:47,921 - INFO - Found 100 scores to grade. Grouping by symbol...
+2026-01-04 13:18:48,529 - INFO - Processed 100/100 symbols...
+2026-01-04 13:18:48,567 - INFO - Training on 8 samples, testing on 3 samples...
+2026-01-04 13:18:48,720 - INFO - 
+              precision    recall  f1-score   support
+
+           0       1.00      1.00      1.00         2
+           1       1.00      1.00      1.00         1
+
+    accuracy                           1.00         3
+   macro avg       1.00      1.00      1.00         3
+weighted avg       1.00      1.00      1.00         3
+
+2026-01-04 13:18:48,733 - INFO - Top Features:
+             feature  importance
+4               Beta    0.327656
+0  bonus_oversold_bb    0.140638
+1             Sector    0.138605
+3          MarketCap    0.121331
+6     SentimentScore    0.073853
+2           Industry    0.054203
+7      bonus_ma_dist    0.052653
+5            PERatio    0.049595
+8        candlestick    0.041464
+2026-01-04 13:18:48,762 - INFO - Model saved to src/models/ml_overlay_mean_reversion.joblib
+2026-01-04 13:18:48,763 - INFO - Automated retraining complete.
+2026-01-04 13:56:47,906 - ERROR - No Time Series (Daily) for ADCT. Response keys: []
+2026-01-04 13:56:47,907 - ERROR - Failed to update ADCT: 'Time Series (Daily)' missing for ADCT

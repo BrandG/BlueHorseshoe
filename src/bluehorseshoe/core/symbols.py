@@ -221,6 +221,7 @@ def fetch_daily_ohlc_from_net(symbol: str, recent: bool = False) -> Dict[str, An
         logging.error("No Time Series (Daily) for %s. Response keys: %s", sym, list(json_data.keys()))
         raise RuntimeError(f"'Time Series (Daily)' missing for {sym}")
 
+    print(f"DEBUG: Fetched {len(series)} days for {sym} (outputsize={outputsize})")
     days: List[Dict[str, Any]] = []
     for d, rec in series.items():
         open_ = round(float(rec["1. open"]), 4)
