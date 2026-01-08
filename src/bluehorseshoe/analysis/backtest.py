@@ -222,7 +222,7 @@ class Backtester:
         
         return results
 
-    def run_range_backtest(self, start_date: str, end_date: str, interval_days: int = 7, top_n: int = 10, strategy: str = "baseline", enabled_indicators: Optional[list[str]] = None, aggregation: str = "sum"):
+    def run_range_backtest(self, start_date: str, end_date: str, interval_days: int = 7, top_n: int = 10, strategy: str = "baseline", enabled_indicators: Optional[list[str]] = None, aggregation: str = "sum", symbols: Optional[List[str]] = None):
         """Runs backtests over a range of dates at set intervals."""
         start_ts = pd.to_datetime(start_date)
         end_ts = pd.to_datetime(end_date)
@@ -244,9 +244,10 @@ class Backtester:
         ReportSingleton().write(f"Target: {self.target_profit_factor} | Stop: {self.stop_loss_factor}")
         ReportSingleton().write(f"==========================================\n")
 
-        print(f"  > Fetching symbols...", end="", flush=True)
-        symbols = get_symbol_name_list()
-        print(f" Done ({len(symbols)} symbols).", flush=True)
+        if not symbols:
+            print(f"  > Fetching symbols...", end="", flush=True)
+            symbols = get_symbol_name_list()
+            print(f" Done ({len(symbols)} symbols).", flush=True)
 
         while current_ts <= end_ts:
             date_str = current_ts.strftime('%Y-%m-%d')

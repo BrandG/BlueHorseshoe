@@ -40,6 +40,13 @@ def process_date(date_str, tester, strategy="mean_reversion", top_n=10):
     
     date_failures = []
     for pred in valid_predictions:
+        # Flatten setup dict for evaluate_prediction
+        setup_key = "baseline_setup" if strategy == "baseline" else "mr_setup"
+        setup = pred.get(setup_key, {})
+        pred['entry_price'] = setup.get('entry_price')
+        pred['stop_loss'] = setup.get('stop_loss')
+        pred['take_profit'] = setup.get('take_profit')
+
         eval_res = tester.evaluate_prediction(pred, date_str)
         if eval_res['status'] in ['failure', 'closed_loss']:
             symbol = pred['symbol']

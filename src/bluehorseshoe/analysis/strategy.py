@@ -117,13 +117,15 @@ class SwingTrader:
         
         # Entry Logic:
         # If already bullish, has reasonable volume support, and near EMA 9, buy at current close.
-        # We relaxed the threshold from 1.5% to 5.0% to catch strong momentum.
-        # Also relaxed volume requirement to 0.9x avg for this specific immediate entry type.
+        # Enforce vol_ratio > 1.0 and RSI <= 65 to avoid weak momentum at local tops.
         dist_to_ema = (last_close - ema9) / ema9
         is_near_ema = (dist_to_ema < 0.05) or (abs(last_close - ema9) < 0.5 * atr)
-        has_decent_volume = vol_ratio >= 0.9
         
-        if is_bullish and has_decent_volume and is_near_ema:
+        rsi = last_row.get('rsi_14', 50)
+        has_decent_volume = vol_ratio >= 1.0
+        has_safe_rsi = rsi <= 65
+        
+        if is_bullish and has_decent_volume and is_near_ema and has_safe_rsi:
             entry_price = last_close
         else:
             # Otherwise, wait for a pullback to EMA 9 (support)

@@ -7,8 +7,9 @@
 - **Data Infrastructure:** Full backfill of Fundamental and News data for 6.7k symbols completed. Automated retraining implemented.
 
 ## Performance Baseline (H2 2025 Stress Test)
-- **Baseline (Trend):** 54.39% Win Rate | 1.73% Avg PnL.
-- **Mean Reversion (Dip):** 58.54% Win Rate (v1.6).
+- **Baseline (Trend):** 56.10% Win Rate | 0.86% Avg PnL (H2 2025)
+- **Mean Reversion (Dip):** 51.06% Win Rate | -0.20% Avg PnL (H2 2025)
+- **Nov 2025 Flash Test:** MR (76% WR, 4.8% PnL) vs Baseline (36% WR, -1.5% PnL)
 
 ## Advanced Trading Architecture Improvements
 - [x] **Strategy Divorce:** Separate logic for Trend-Following and Mean-Reversion.
@@ -21,9 +22,14 @@
 - [x] **Data Alignment:** Unified historical data into `historical_prices` collection and backfilled 2000+ symbols.
 - [x] **Score Rebuild (Jan 2025):** Initiated background rebuild for training data generation.
 
+## Data Infrastructure & Deep Backtesting
+- [ ] **Full History Backfill:** Incrementally run `python src/main.py -b` to build a multi-year historical database (currently only 2025+ is reliable).
+- [ ] **Staleness Analysis:** Identify and remove symbols with significant data gaps or low-quality historical records.
+- [ ] **Optimized Backfill:** Implement a batching mechanism in `historical_data.py` to allow resuming full builds from the last successful symbol.
+- [ ] **Data Completeness Check:** Verify that all 6.7k symbols have `atr_14` and other indicators pre-calculated for the entire 2025 period.
+
 ## Future Ideas / Next Phase
-- [ ] **Grading & Retraining:** Run `run_grading.py` and retrain ML models with Jan 2025 data.
-- [ ] **H2 2025 Stress Test:** Perform 6-month simulation for both strategies with refreshed models.
+- [x] **H2 2025 Stress Test:** Perform 6-month simulation for both strategies with refreshed models.
 - [x] **Intraday Verification:** Implemented `-i` flag in CLI to check live status of predictions using yfinance.
 - [x] **Strategy Optimization:** Relaxed Baseline entry logic to capture strong momentum (gap-up) plays.
 
