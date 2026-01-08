@@ -24,6 +24,7 @@
 
 ## Data Infrastructure & Deep Backtesting
 - [ ] **Full History Backfill:** Incrementally run `python src/main.py -b` to build a multi-year historical database (currently only 2025+ is reliable).
+- [ ] **Debug Stuck Symbols:** Investigate why symbols like AACBR remain incomplete after backfill.
 - [ ] **Staleness Analysis:** Identify and remove symbols with significant data gaps or low-quality historical records.
 - [ ] **Optimized Backfill:** Implement a batching mechanism in `historical_data.py` to allow resuming full builds from the last successful symbol.
 - [ ] **Data Completeness Check:** Verify that all 6.7k symbols have `atr_14` and other indicators pre-calculated for the entire 2025 period.

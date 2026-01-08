@@ -78,4 +78,4 @@ The system implements two primary scoring strategies in `TechnicalAnalyzer`:
 
 - **Score Rebuild:** Initiated a full rebuild of technical scores for January 2025 across 2000+ symbols to create a robust dataset for ML retraining.
 
-- **Next Task:** Monitor the forward performance of the new Momentum Entry Logic (Gap & Go vs Pullback) using the intraday checker.
+- **Next Task:** Debug backfill persistence issue (stuck symbols) and complete historical data backfill for remaining ~4600 symbols.

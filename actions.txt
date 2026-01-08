@@ -35,3 +35,4 @@
 2026-01-06: Performed H2 2025 Stress Test. Baseline: 56.10% Win Rate, 0.86% Avg PnL (123 trades). Mean Reversion: 51.06% Win Rate, -0.20% Avg PnL (141 trades). Retrained stop loss model to resolve extreme multiplier issues.
 2026-01-06: Performed November 2025 Stress Test. Baseline: 36.17% Win Rate, -1.58% Avg PnL (47 trades). Mean Reversion: 76.47% Win Rate, 4.88% Avg PnL (17 trades). MR significantly outperformed Baseline in this volatile period.
 2026-01-07: Updated Baseline strategy in strategy.py to enforce vol_ratio >= 1.0 and RSI <= 65 for immediate entries to filter out weak momentum and overextended setups.
+2026-01-08: Continued historical data backfill. Executed multiple batches. Identified persistence of specific symbols (e.g., AACBR) in incomplete list despite processing.
