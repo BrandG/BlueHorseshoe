@@ -111,12 +111,12 @@ def save_historical_data_to_mongo(symbol, data, db):
     recent_collection.update_one(
         {"symbol": symbol}, {"$set": recent_data}, upsert=True)
 
-def build_all_symbols_history(starting_at='', save_to_file=False, recent=False):
+def build_all_symbols_history(starting_at='', save_to_file=False, recent=False, symbols=None):
     """
     Builds historical data for all stock symbols and saves them as JSON files.
     """
 
-    symbol_list = get_symbol_list()
+    symbol_list = symbols if symbols is not None else get_symbol_list()
     if symbol_list is None:
         logging.error("Symbol list is None.")
         return
@@ -200,7 +200,7 @@ def validate_net_data(net_data, symbol, name):
     if 'full_name' in net_data and name:
         net_data['full_name'] = name
     else:
-        logging.error("No full name for net loaded data for %s.", symbol)
+        logging.warning("No full name for net loaded data for %s. Using symbol as name.", symbol)
         net_data['full_name'] = symbol
     if not isinstance(net_data, dict) or 'days' not in net_data:
         logging.error("Invalid data format for %s.", symbol)
