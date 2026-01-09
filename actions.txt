@@ -36,3 +36,8 @@
 2026-01-06: Performed November 2025 Stress Test. Baseline: 36.17% Win Rate, -1.58% Avg PnL (47 trades). Mean Reversion: 76.47% Win Rate, 4.88% Avg PnL (17 trades). MR significantly outperformed Baseline in this volatile period.
 2026-01-07: Updated Baseline strategy in strategy.py to enforce vol_ratio >= 1.0 and RSI <= 65 for immediate entries to filter out weak momentum and overextended setups.
 2026-01-08: Continued historical data backfill. Executed multiple batches. Identified persistence of specific symbols (e.g., AACBR) in incomplete list despite processing.
+2026-01-08: Implemented resumable backfill in historical_data.py using loader_checkpoints. Added --resume and --limit flags to main.py -b. Optimized check_data_completeness.py to skip symbols updated in the last 7 days, resolving the 'stuck symbols' issue for newer/limited-history tickers.
+2026-01-08: Executed backfill batch of 200 symbols using --resume. Processed up to 'ALCYW'. Verified progress via checkpoint.
+2026-01-08: Reset full_backfill_checkpoint to restart with correct 'full' outputsize.
+2026-01-09: Successfully completed full historical data backfill for all 6,778 symbols. Verified data counts (many symbols now have 26+ years of history). Cleaned up duplicate records and enforced unique index on symbol.
+2026-01-09: Verified and fixed remaining short-history symbols. Database now contains full history for all 6,781 symbols (777 legitimate short-history assets).

@@ -89,7 +89,14 @@ if __name__ == "__main__":
         build_all_symbols_history(recent=True)
         logging.info("Recent historical data updated.")
     elif "-b" in sys.argv:
-        build_all_symbols_history(recent=False)
+        resume = "--resume" in sys.argv
+        limit = None
+        if "--limit" in sys.argv:
+            try:
+                limit = int(sys.argv[sys.argv.index("--limit") + 1])
+            except (ValueError, IndexError):
+                pass
+        build_all_symbols_history(recent=False, resume=resume, limit=limit)
         logging.info("Full historical data updated.")
     elif "-p" in sys.argv:
         logging.info('Predicting next midpoints...')

@@ -29,16 +29,16 @@ def main():
 
     symbols_to_process = []
     with open(args.file, 'r') as f:
-        lines = f.readlines()
+        content = f.read()
+        # Handle both newlines and spaces
+        tokens = content.replace('\n', ' ').split(' ')
     
     # Parse symbols
-    for line in lines:
-        parts = line.strip().split(' ')
-        if parts:
-            sym = parts[0]
-            # Simple validation
-            if sym and sym.isalnum(): 
-                 symbols_to_process.append({'symbol': sym, 'name': sym}) # Placeholder name
+    for token in tokens:
+        sym = token.strip()
+        if sym and sym.isalnum(): 
+             symbols_to_process.append({'symbol': sym, 'name': sym})
+
 
     if not symbols_to_process:
         logging.info("No symbols found to process.")

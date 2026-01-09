@@ -26,6 +26,7 @@ from ratelimit import limits, sleep_and_retry #pylint: disable=import-error
 from pymongo.errors import ServerSelectionTimeoutError
 import talib as ta
 from bluehorseshoe.core.globals import GlobalData, get_mongo_client
+from bluehorseshoe.core.database import db
 from bluehorseshoe.core.symbols import get_symbol_list
 from bluehorseshoe.core.scores import score_manager
 from bluehorseshoe.analysis.technical_analyzer import TechnicalAnalyzer
@@ -101,20 +102,49 @@ def save_historical_data_to_mongo(symbol, data, db):
     if '_id' in save_data:
         del save_data['_id']
 
+    save_data['last_updated'] = pd.Timestamp.now().isoformat()
+
     collection = db['historical_prices']
     collection.update_one({"symbol": symbol}, {"$set": save_data}, upsert=True)
 
     # Store just the last year of data in a separate collection
     recent_data = save_data.copy()
-    recent_data['days'] = save_data['days'][-240:]
+    if 'days' in recent_data:
+        recent_data['days'] = save_data['days'][-240:]
     recent_collection = db['historical_prices_recent']
     recent_collection.update_one(
         {"symbol": symbol}, {"$set": recent_data}, upsert=True)
 
-def build_all_symbols_history(starting_at='', save_to_file=False, recent=False, symbols=None):
+def get_backfill_checkpoint():
+    """Returns the last successfully processed symbol from the checkpoint collection."""
+    try:
+        database = db.get_db()
+        checkpoint = database.loader_checkpoints.find_one({"_id": "full_backfill_checkpoint"})
+        return checkpoint.get("last_symbol") if checkpoint else None
+    except Exception as e:
+        logging.error("Failed to get checkpoint: %s", e)
+        return None
+
+def set_backfill_checkpoint(symbol):
+    """Saves the last successfully processed symbol to the checkpoint collection."""
+    try:
+        database = db.get_db()
+        database.loader_checkpoints.update_one(
+            {"_id": "full_backfill_checkpoint"},
+            {"$set": {"last_symbol": symbol, "updated_at": pd.Timestamp.now().isoformat()}},
+            upsert=True
+        )
+    except Exception as e:
+        logging.error("Failed to set checkpoint: %s", e)
+
+def build_all_symbols_history(starting_at='', save_to_file=False, recent=False, symbols=None, resume=False, limit=None):
     """
-    Builds historical data for all stock symbols and saves them as JSON files.
+    Builds historical data for all stock symbols and saves them to MongoDB.
     """
+    if resume and not starting_at:
+        starting_at = get_backfill_checkpoint()
+        if starting_at:
+            logging.info("Resuming backfill from symbol: %s", starting_at)
 
     symbol_list = symbols if symbols is not None else get_symbol_list()
     if symbol_list is None:
@@ -122,14 +152,28 @@ def build_all_symbols_history(starting_at='', save_to_file=False, recent=False, 
         return
 
     skip = bool(starting_at)
+    total_symbols = len(symbol_list)
+    processed_count = 0
 
     for index, row in enumerate(symbol_list, start=1):
+        symbol = row['symbol']
         if skip:
-            if row['symbol'] == starting_at:
+            if symbol == starting_at:
                 skip = False
+                # We skip the one we already finished
+                continue
             else:
                 continue
-        process_symbol(row, index, len(symbol_list), save_to_file, recent)
+        
+        process_symbol(row, index, total_symbols, save_to_file, recent)
+        set_backfill_checkpoint(symbol)
+        processed_count += 1
+        
+        if limit and processed_count >= limit:
+            logging.info("Reached limit of %d symbols. Stopping.", limit)
+            break
+
+
 
 def process_symbol(row, index, total_symbols, save_to_file, recent):
     """
@@ -183,6 +227,7 @@ def process_symbol(row, index, total_symbols, save_to_file, recent):
             del net_data['_id']
 
         logging.info('%d - %s (%d%%) - size: %d', index, symbol, percentage, len(net_data["days"]))
+        print(f"Processed {symbol}: {len(net_data['days'])} days")
         save_historical_data_to_mongo(symbol, net_data, get_mongo_client())
 
         if save_to_file:
