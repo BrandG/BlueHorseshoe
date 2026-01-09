@@ -23,21 +23,47 @@
 - [x] **Score Rebuild (Jan 2025):** Initiated background rebuild for training data generation.
 
 ## Data Infrastructure & Deep Backtesting
-- [ ] **Full History Backfill:** Incrementally run `python src/main.py -b` to build a multi-year historical database (currently only 2025+ is reliable).
-- [ ] **Debug Stuck Symbols:** Investigate why symbols like AACBR remain incomplete after backfill.
-- [ ] **Staleness Analysis:** Identify and remove symbols with significant data gaps or low-quality historical records.
-- [ ] **Optimized Backfill:** Implement a batching mechanism in `historical_data.py` to allow resuming full builds from the last successful symbol.
-- [ ] **Data Completeness Check:** Verify that all 6.7k symbols have `atr_14` and other indicators pre-calculated for the entire 2025 period.
+
+- [x] **Full History Backfill:** Incrementally run `python src/main.py -b` to build a multi-year historical database (currently only 2025+ is reliable).
+
+- [x] **Debug Stuck Symbols:** Investigate why symbols like AACBR remain incomplete after backfill.
+
+- [x] **Staleness Analysis:** Identify and remove symbols with significant data gaps or low-quality historical records.
+
+- [x] **Optimized Backfill:** Implement a batching mechanism in `historical_data.py` to allow resuming full builds from the last successful symbol.
+
+- [x] **Data Completeness Check:** Verify that all 6.7k symbols have `atr_14` and other indicators pre-calculated for the entire 2025 period.
+
+
 
 ## Future Ideas / Next Phase
+
+- [ ] **Data Quality Audit:** Scan the newly backfilled data for gaps, spikes, or anomalies now that we have deep history.
+
+- [ ] **Feature Engineering:** Re-run feature generation on the full historical dataset to train more robust ML models.
+
+- [ ] **Deep Backtesting:** Run strategy simulations over 5-10 year periods to validate performance across different market regimes.
+
 - [x] **H2 2025 Stress Test:** Perform 6-month simulation for both strategies with refreshed models.
+
 - [x] **Intraday Verification:** Implemented `-i` flag in CLI to check live status of predictions using yfinance.
+
 - [x] **Strategy Optimization:** Relaxed Baseline entry logic to capture strong momentum (gap-up) plays.
 
+
+
 ## Completed Tasks
+
 - [x] Implement Machine Learning Overlay.
+
 - [x] Integrated News Sentiment and Fundamentals.
+
 - [x] Implement a weekly automated retraining job.
+
 - [x] Implement ML-Driven Stop Loss.
+
 - [x] Implement Trailing Stops.
+
 - [x] Implement Intraday Verification Mechanism.
+
+- [x] Complete Full Historical Data Backfill.
