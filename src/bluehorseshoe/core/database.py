@@ -11,7 +11,7 @@ class Database:
     def connect(self):
         self.client = MongoClient(MONGO_URI)
         self.db = self.client[DB_NAME]
-        
+
     def get_db(self):
         if self.db is None:
             self.connect()

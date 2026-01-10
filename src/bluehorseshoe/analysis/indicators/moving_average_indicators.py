@@ -130,7 +130,7 @@ class MovingAverageIndicator(Indicator):
         """
         buy_score = 1.0 if aggregation == "product" else 0.0
         active_count = 0
-        
+
         sub_map = {
             'ma_score': self.calculate_ma_score,
             'crossovers': self.calculate_crossovers

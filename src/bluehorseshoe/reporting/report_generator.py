@@ -153,7 +153,7 @@ class ReportSingleton:
                 self._file.write(formatted_content + '\n')
                 self._file.flush()
                 os.fsync(self._file.fileno())  # Ensure write to disk
-                
+
                 # Also print to console
                 print(formatted_content)
 

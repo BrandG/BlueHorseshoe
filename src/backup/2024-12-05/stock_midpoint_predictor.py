@@ -1,11 +1,11 @@
 """
 StockMidpointPredictor Module
 
-This module provides the StockMidpointPredictor class, which uses a RandomForestRegressor model to 
+This module provides the StockMidpointPredictor class, which uses a RandomForestRegressor model to
     predict the midpoint of stock prices based on various technical indicators.
 
 Classes:
-    StockMidpointPredictor: A class to predict the midpoint of stock prices using technical 
+    StockMidpointPredictor: A class to predict the midpoint of stock prices using technical
         indicators and a RandomForestRegressor model.
 
 Methods:

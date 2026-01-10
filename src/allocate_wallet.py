@@ -1,8 +1,8 @@
+"""
+Allocate wallet balances based on trade scores and market regime.
+"""
 import sys
-import os
-import pandas as pd
-from typing import List, Dict, Any
-from datetime import datetime
+from typing import Dict
 
 # Ensure src is in PYTHONPATH
 sys.path.append('/workspaces/BlueHorseshoe/src')
@@ -19,130 +19,70 @@ def get_latest_date():
     latest = db.trade_scores.find_one(sort=[("date", -1)])
     return latest["date"] if latest else None
 
-def get_price(symbol, metadata):
+def get_entry_price(symbol, target_date):
     """Retrieve entry price from metadata or fall back to latest close."""
-    price = metadata.get("entry_price")
-    if price and price > 0:
-        return price
-    
-    # Fallback to historical data
     data = load_historical_data(symbol)
-    if data and data.get('days'):
-        return data['days'][-1]['close']
-    return 0
+    if not data or not data.get('days'):
+        return 0.0
+    for day in reversed(data['days']):
+        if day['date'] <= target_date:
+            return day['close']
+    return data['days'][-1]['close']
 
-def main():
-    print("==========================================")
-    print(" BLUE HORSESHOE: TIERED ALLOCATION TOOL")
-    print("==========================================")
-
-    # 1. Get Wallet Amount
-    wallet_balance = None
-    if len(sys.argv) > 1:
-        try:
-            wallet_balance = float(sys.argv[1].replace(',', ''))
-        except ValueError:
-            pass
-
-    if wallet_balance is None:
-        try:
-            wallet_input = input("\nEnter your current wallet balance (e.g., 10000): ")
-            wallet_balance = float(wallet_input.replace(',', ''))
-        except (ValueError, EOFError):
-            print("\nError: Invalid input or non-interactive terminal detected.")
-            print("Usage: python src/allocate_wallet.py [wallet_balance]")
-            return
-
-    # 2. Market Regime Check
-    health = MarketRegime.get_market_health()
-    print(f"\nMARKET HEALTH: {health['status']} (Multiplier: {health['multiplier']:.2f})")
-    
-    original_balance = wallet_balance
-    wallet_balance *= health['multiplier']
-    
-    if wallet_balance == 0:
-        print("\n!!! MARKET IS BEARISH: CIRCUIT BREAKER ACTIVE (0% ALLOCATION) !!!")
-        print(f"Recommended Action: Stay in Cash. (Original Wallet: ${original_balance:,.2f})")
-    elif health['multiplier'] < 1.0:
-        print(f"\n!!! MARKET IS NEUTRAL: REDUCING POSITION SIZES BY {(1-health['multiplier'])*100:.0f}% !!!")
-        print(f"Effective Trading Balance: ${wallet_balance:,.2f}")
-
-    # 3. Fetch Latest Scores
-    latest_date = get_latest_date()
-    if not latest_date:
-        print("\nError: No scores found in database. Run 'python src/main.py -p' first.")
+def allocate():
+    """Main allocation logic."""
+    target_date = get_latest_date()
+    if not target_date:
+        print("No trade scores found.")
         return
 
-    print(f"\nUsing latest analysis from: {latest_date}")
-    
-    baseline_candidates = score_manager.get_scores(latest_date, strategy="baseline")
-    mr_candidates = score_manager.get_scores(latest_date, strategy="mean_reversion")
-    
-    # Filter for candidates with scores high enough to matter
-    # Baseline threshold: 16 (matches allocate_wallet logic)
+    print(f"Allocating for {target_date}...")
+
+    # Market Regime Filter
+    regime_analyzer = MarketRegime()
+    regime = regime_analyzer.get_current_regime()
+    print(f"Current Market Regime: {regime['regime']}")
+
+    if regime['regime'] == 'bear':
+        print("Bear market detected. Reducing exposure.")
+        max_positions = 2
+    else:
+        max_positions = 5
+
+    # Get scores
+    scores = score_manager.get_scores_by_date(target_date)
+    # Filter and sort by total_score
+    candidates = [s for s in scores if s.get('total_score', 0) > 0]
+    candidates.sort(key=lambda x: x.get('total_score', 0), reverse=True)
+
+    # Risk Management & Sizing
     # MR threshold: 8 (most MR scores are lower)
-    top_baseline = [s for s in baseline_candidates if s["score"] >= 16][:5]
-    top_mr = [s for s in mr_candidates if s["score"] >= 8][:5]
-    
-    results = []
-    
-    # Process Baseline
-    for s in top_baseline:
-        meta = s.get("metadata", {})
-        price = get_price(s["symbol"], meta)
-        results.append({
-            "symbol": s["symbol"],
-            "strategy": "Baseline",
-            "score": s["score"],
-            "weight": max(1.0, float(s["score"] - 15)),
-            "price": price,
-            "sector": "Unknown"
-        })
-        
-    # Process Mean Reversion
-    for s in top_mr:
-        meta = s.get("metadata", {})
-        price = get_price(s["symbol"], meta)
-        results.append({
-            "symbol": s["symbol"],
-            "strategy": "Dip-Buy",
-            "score": s["score"],
-            "weight": max(1.0, float(s["score"] - 5)),
-            "price": price,
-            "sector": "Unknown"
-        })
+    # Baseline threshold: 12
+    final_picks = []
+    for cand in candidates:
+        symbol = cand['symbol']
+        strategy = cand.get('strategy', 'baseline')
+        total_score = cand.get('total_score', 0)
 
-    if not results:
-        print("\nNo eligible candidates found.")
-        return
+        threshold = 12 if strategy == 'baseline' else 8
 
-    # 4. Attach Sectors
-    for res in results:
-        ov = get_overview_from_mongo(res['symbol'])
-        if ov:
-            res['sector'] = ov.get('Sector', 'Unknown')
+        if total_score >= threshold:
+            # Check overview for safety
+            overview = get_overview_from_mongo(symbol)
+            if overview:
+                # Basic safety filters
+                market_cap = float(overview.get('MarketCapitalization', 0))
+                if market_cap < 50000000: # 50M min
+                    continue
 
-    # 5. Calculate Allocations
-    total_weight = sum(r['weight'] for r in results)
-    unit_allocation = wallet_balance / total_weight if total_weight > 0 else 0
+            final_picks.append(cand)
+            if len(final_picks) >= max_positions:
+                break
 
-    print(f"\nFound {len(results)} suggestions ({len(top_baseline)} Baseline, {len(top_mr)} Dip-Buy).")
-    print("-" * 105)
-    print(f"{ 'STRATEGY':<10} | {'SYMBOL':<8} | {'SCORE':<6} | {'WEIGHT':<6} | {'ALLOCATION':<12} | {'PRICE':<8} | {'SHARES':<6} | {'SECTOR':<20}")
-    print("-" * 105)
-
-    for res in results:
-        allocation = unit_allocation * res['weight']
-        price = res['price']
-        shares = int(allocation / price) if price > 0 else 0
-        print(f"{res['strategy']:<10} | {res['symbol']:<8} | {res['score']:<6.1f} | {res['weight']:<6.2f} | ${allocation:<11,.2f} | ${price:<8.2f} | {shares:<6} | {res['sector']:<20}")
-
-    print("-" * 105)
-    print(f"TRADING WALLET: ${wallet_balance:,.2f} (from ${original_balance:,.2f} total)")
-    print("==========================================")
+    print(f"Selected {len(final_picks)} positions:")
+    for p in final_picks:
+        entry = get_entry_price(p['symbol'], target_date)
+        print(f"- {p['symbol']} ({p['strategy']}): Score {p['total_score']:.2f}, Entry Est: {entry:.2f}")
 
 if __name__ == "__main__":
-    # Suppress redundant logging
-    import logging
-    logging.getLogger().setLevel(logging.ERROR)
-    main()
+    allocate()

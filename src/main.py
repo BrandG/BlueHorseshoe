@@ -1,7 +1,7 @@
 """
 BlueHorseshoe Trading System
 
-This module provides functionality for analyzing historical stock price data and predicting potential entry and exit points for trading. 
+This module provides functionality for analyzing historical stock price data and predicting potential entry and exit points for trading.
 It includes functions for loading historical data, calculating trading signals, and generating reports.
 
 Modules:
@@ -115,7 +115,7 @@ if __name__ == "__main__":
         enabled_indicators = None
         if "--indicators" in sys.argv:
             enabled_indicators = [i.strip() for i in sys.argv[sys.argv.index("--indicators") + 1].split(",")]
-        
+
         aggregation = "sum"
         if "--aggregation" in sys.argv:
             aggregation = sys.argv[sys.argv.index("--aggregation") + 1]
@@ -125,12 +125,12 @@ if __name__ == "__main__":
         try:
             test_idx = sys.argv.index("-t")
             target_date = sys.argv[test_idx + 1]
-            
+
             # Optional parameters
             target_profit = 1.01
             stop_loss = 0.98
             hold_days = 3
-            
+
             use_trailing = "--trailing" in sys.argv
             trailing_mult = 2.0
             if "--trailing-mult" in sys.argv:
@@ -142,10 +142,10 @@ if __name__ == "__main__":
                 stop_loss = float(sys.argv[sys.argv.index("--stop") + 1])
             if "--hold" in sys.argv:
                 hold_days = int(sys.argv[sys.argv.index("--hold") + 1])
-            
+
             from bluehorseshoe.analysis.backtest import Backtester
-            tester = Backtester(target_profit_factor=target_profit, 
-                               stop_loss_factor=stop_loss, 
+            tester = Backtester(target_profit_factor=target_profit,
+                               stop_loss_factor=stop_loss,
                                hold_days=hold_days,
                                use_trailing_stop=use_trailing,
                                trailing_multiplier=trailing_mult)
@@ -157,7 +157,7 @@ if __name__ == "__main__":
             enabled_indicators = None
             if "--indicators" in sys.argv:
                 enabled_indicators = [i.strip() for i in sys.argv[sys.argv.index("--indicators") + 1].split(",")]
-            
+
             aggregation = "sum"
             if "--aggregation" in sys.argv:
                 aggregation = sys.argv[sys.argv.index("--aggregation") + 1]
@@ -170,7 +170,7 @@ if __name__ == "__main__":
                 end_date = sys.argv[sys.argv.index("--end") + 1]
                 interval = int(sys.argv[sys.argv.index("--interval") + 1]) if "--interval" in sys.argv else 7
                 logging.info("Running range backtest from %s to %s | Strategy: %s...", target_date, end_date, strategy)
-                tester.run_range_backtest(target_date, end_date, interval_days=interval, strategy=strategy, 
+                tester.run_range_backtest(target_date, end_date, interval_days=interval, strategy=strategy,
                                          enabled_indicators=enabled_indicators, aggregation=aggregation, symbols=symbols_filter)
             else:
                 logging.info("Running backtest for %s | Strategy: %s...", target_date, strategy)
@@ -190,21 +190,21 @@ if __name__ == "__main__":
                 idx = sys.argv.index("-i")
             else:
                 idx = sys.argv.index("--intraday")
-            
+
             if len(sys.argv) < idx + 5:
                 print("Usage: python src/main.py -i SYMBOL ENTRY STOP TARGET")
                 sys.exit(1)
-                
+
             symbol = sys.argv[idx + 1]
             entry = float(sys.argv[idx + 2])
             stop = float(sys.argv[idx + 3])
             target = float(sys.argv[idx + 4])
-            
+
             # Import dynamically to avoid breaking if yfinance isn't installed for other modes
             sys.path.append(os.path.join(os.getcwd(), 'src'))
             from check_intraday_status import check_intraday
             check_intraday(symbol, entry, stop, target)
-            
+
         except ValueError as e:
             print(f"Error parsing arguments: {e}")
             sys.exit(1)

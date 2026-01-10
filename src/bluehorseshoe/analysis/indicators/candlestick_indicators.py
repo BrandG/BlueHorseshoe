@@ -165,7 +165,7 @@ class CandlestickIndicator(Indicator):
         close price data of the DataFrame stored in `self.data`.
 
         Returns:
-            float: 
+            float:
             - 1.0 if a bullish "Rising Three Methods" pattern is detected on the last bar.
             - -1.0 if a bearish "Falling Three Methods" pattern is detected on the last bar.
             - 0.0 if no pattern is detected on the last bar.
@@ -189,7 +189,7 @@ class CandlestickIndicator(Indicator):
         TA-Lib library to detect the pattern.
 
         Returns:
-            float: 
+            float:
                 1.0 if a Bullish Marubozu pattern is detected,
                -1.0 if a Bearish Marubozu pattern is detected,
                 0.0 if no pattern is detected.
@@ -210,7 +210,7 @@ class CandlestickIndicator(Indicator):
         candlestick data. The Belt Hold pattern can be either bullish or bearish.
 
         Returns:
-            float: 
+            float:
                 1.0 if a Bullish Belt Hold pattern is detected,
                 -1.0 if a Bearish Belt Hold pattern is detected,
                 0.0 if no Belt Hold pattern is detected.
@@ -239,7 +239,8 @@ class CandlestickIndicator(Indicator):
 
         for name, (func, weight_key) in sub_map.items():
             if enabled_sub_indicators is None or name in enabled_sub_indicators:
-                score = func() * self.weights[weight_key]
+                multiplier = self.weights[weight_key] if weight_key else 1.0
+                score = func() * multiplier  # pylint: disable=not-callable
                 if aggregation == "product":
                     buy_score *= score
                 else:

@@ -7,6 +7,7 @@ BlueHorseshoe is a quantitative trading and analysis system built in Python. It 
 **CRITICAL:** All Python execution and testing MUST be performed through the project's Docker container.
 - **Main Command:** `docker exec bluehorseshoe python src/main.py [args]`
 - **Testing Command:** `docker exec bluehorseshoe pytest [path_to_test]`
+- **Linting Command:** `docker exec bluehorseshoe ./lint.sh`
 - **Temporary Files:** Use `/root/.gemini/tmp/` or the project's `src/logs/` directory for output logs.
 
 ## Technology Stack
@@ -66,4 +67,4 @@ The system implements two primary scoring strategies in `TechnicalAnalyzer`:
 - **Validation:** When adding new technical scoring logic, ensure column presence checks use `Series.index` to avoid value-based subsetting errors.
 - **Logging:** Always update `actions.txt` with key decisions and validation results.
 
-- **Next Task:** Conduct a data quality audit on the newly backfilled history and begin deep backtesting of strategies over multi-year periods.
+- **Next Task:** Re-run feature engineering on the full historical dataset using the new `ml_utils` and begin deep backtesting.

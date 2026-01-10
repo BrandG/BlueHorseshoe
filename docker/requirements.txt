@@ -14,3 +14,4 @@ fastapi
 uvicorn[standard]
 ta-lib
 pandas_ta
+pylint

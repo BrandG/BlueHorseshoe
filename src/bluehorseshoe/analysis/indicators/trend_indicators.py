@@ -75,10 +75,10 @@ class TrendIndicator(Indicator):
     def calculate_psar_score(self, step: float = 0.02, max_step: float = 0.2) -> float:
         """
         Calculates a Parabolic SAR flip-based score for the latest row in 'df'.
-        
-        Parabolic SAR flips if it moves from above price to below price (bullish) 
+
+        Parabolic SAR flips if it moves from above price to below price (bullish)
         or from below price to above price (bearish).
-        
+
         :param df:       DataFrame with columns ['High', 'Low', 'Close'].
         :param step:     The AF (acceleration factor) initial step, commonly 0.02.
         :param max_step: The maximum step for AF, commonly 0.2.

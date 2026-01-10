@@ -13,11 +13,11 @@ def debug_macd(symbol):
     df = pd.DataFrame(data['days'])
     print(f"Data for {symbol}: {len(df)} rows")
     print(f"Columns: {df.columns.tolist()}")
-    
+
     indicator = MomentumIndicator(df)
     score = indicator.get_score(enabled_sub_indicators=['macd'])
     print(f"MACD Score for {symbol}: {score.buy}")
-    
+
     last_row = df.iloc[-1]
     if 'macd_line' in last_row:
         print(f"Last MACD Line: {last_row['macd_line']}, Signal: {last_row['macd_signal']}")

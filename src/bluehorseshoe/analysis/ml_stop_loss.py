@@ -1,18 +1,16 @@
 import logging
 import pandas as pd
-import numpy as np
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.preprocessing import LabelEncoder
 from sklearn.metrics import mean_squared_error, r2_score
 import joblib
 import os
-from typing import List, Dict, Any
+from typing import Dict
 from datetime import datetime
 
 from bluehorseshoe.analysis.grading_engine import GradingEngine
-from bluehorseshoe.core.database import db
-from bluehorseshoe.core.symbols import get_overview_from_mongo, get_sentiment_score
+from bluehorseshoe.analysis.ml_utils import extract_features
 
 class StopLossTrainer:
     """
@@ -23,7 +21,7 @@ class StopLossTrainer:
         self.model_path = model_path
         self.grading_engine = GradingEngine(hold_days=10)
         self.label_encoders = {}
-        
+
         # Ensure models directory exists
         os.makedirs(os.path.dirname(self.model_path), exist_ok=True)
 
@@ -35,63 +33,39 @@ class StopLossTrainer:
         query = {"metadata.entry_price": {"$exists": True}}
         if before_date:
             query["date"] = {"$lt": before_date}
-            
+
         results = self.grading_engine.run_grading(query=query, limit=limit)
         df_graded = pd.DataFrame(results)
-        
+
         if df_graded.empty:
             logging.error("No graded trades found to train on.")
             return pd.DataFrame()
 
         # We want to train on both successes and failures to see how deep they go
         df_graded = df_graded[df_graded['status'].isin(['success', 'failure'])]
-        
+
         features = []
         for _, row in df_graded.iterrows():
             symbol = row['symbol']
-            
-            # 1. Technical Features (from components)
-            feat = row.get('components', {}).copy()
-            if not feat:
-                continue
-                
-            # 2. Fundamental Features
-            overview = get_overview_from_mongo(symbol)
-            
-            def safe_float(val):
-                try:
-                    if val is None or str(val).lower() == 'none':
-                        return 0.0
-                    return float(val)
-                except (ValueError, TypeError):
-                    return 0.0
 
-            if overview:
-                feat['Sector'] = overview.get('Sector', 'Unknown')
-                feat['Industry'] = overview.get('Industry', 'Unknown')
-                feat['MarketCap'] = safe_float(overview.get('MarketCapitalization'))
-                feat['Beta'] = safe_float(overview.get('Beta'))
-                feat['PERatio'] = safe_float(overview.get('PERatio'))
-            else:
-                feat['Sector'] = 'Unknown'
-                feat['Industry'] = 'Unknown'
-                feat['MarketCap'] = 0.0
-                feat['Beta'] = 0.0
-                feat['PERatio'] = 0.0
-                
-            # Sentiment
-            feat['SentimentScore'] = get_sentiment_score(symbol, row['date'])
-                
+            # Technical Components
+            components = row.get('components', {})
+            if not components:
+                continue
+
+            # Extract unified features
+            feat = extract_features(symbol, components, row['date'])
+
             # 3. Label (Target): MAE in ATR units
             feat['TARGET'] = float(row.get('mae_atr', 0.0))
-            
+
             # Meta
             feat['symbol'] = symbol
             feat['date'] = row['date']
             feat['strategy'] = row.get('strategy', 'unknown')
-            
+
             features.append(feat)
-            
+
         return pd.DataFrame(features)
 
     def train(self, limit: int = 10000, output_path: str = None, before_date: str = None):
@@ -100,7 +74,7 @@ class StopLossTrainer:
         """
         if output_path is None:
             output_path = self.model_path
-            
+
         df = self.prepare_training_data(limit=limit, before_date=before_date)
         if df.empty:
             return
@@ -115,14 +89,14 @@ class StopLossTrainer:
         # Drop non-feature columns
         X = df.drop(columns=['TARGET', 'symbol', 'date', 'strategy'])
         y = df['TARGET']
-        
+
         X = X.fillna(0)
 
         # Split data
         X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
         logging.info(f"Training Regressor on {len(X_train)} samples, testing on {len(X_test)} samples...")
-        
+
         # Train Model
         model = RandomForestRegressor(n_estimators=100, max_depth=10, random_state=42)
         model.fit(X_train, y_train)
@@ -132,13 +106,13 @@ class StopLossTrainer:
         mse = mean_squared_error(y_test, y_pred)
         r2 = r2_score(y_test, y_pred)
         logging.info(f"Regression Performance - MSE: {mse:.4f}, R2: {r2:.4f}")
-        
+
         # Feature Importance
         importances = pd.DataFrame({
             'feature': X.columns,
             'importance': model.feature_importances_
         }).sort_values('importance', ascending=False)
-        
+
         logging.info("Top Features for Stop Loss:\n" + importances.head(10).to_string())
 
         # Save model and encoders
@@ -179,31 +153,7 @@ class StopLossInference:
         if target_date is None:
             target_date = datetime.now().strftime("%Y-%m-%d")
 
-        feat = components.copy()
-        overview = get_overview_from_mongo(symbol)
-        
-        def safe_float(val):
-            try:
-                if val is None or str(val).lower() == 'none':
-                    return 0.0
-                return float(val)
-            except (ValueError, TypeError):
-                return 0.0
-
-        if overview:
-            feat['Sector'] = overview.get('Sector', 'Unknown')
-            feat['Industry'] = overview.get('Industry', 'Unknown')
-            feat['MarketCap'] = safe_float(overview.get('MarketCapitalization'))
-            feat['Beta'] = safe_float(overview.get('Beta'))
-            feat['PERatio'] = safe_float(overview.get('PERatio'))
-        else:
-            feat['Sector'] = 'Unknown'
-            feat['Industry'] = 'Unknown'
-            feat['MarketCap'] = 0.0
-            feat['Beta'] = 0.0
-            feat['PERatio'] = 0.0
-
-        feat['SentimentScore'] = get_sentiment_score(symbol, target_date)
+        feat = extract_features(symbol, components, target_date)
 
         for col in ['Sector', 'Industry']:
             le = self.encoders.get(col)
@@ -220,12 +170,12 @@ class StopLossInference:
         for f in self.features:
             if f not in df.columns:
                 df[f] = 0.0
-        
+
         df = df[self.features]
         df = df.fillna(0)
 
         predicted_mae = float(self.model.predict(df)[0])
-        
+
         # We recommend a stop loss slightly beyond the predicted MAE
         # e.g., predicted_mae + 0.5 ATR, with a minimum of 1.5 ATR
         recommended_multiplier = max(1.5, predicted_mae + 0.5)

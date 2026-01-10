@@ -53,24 +53,24 @@ class TechnicalAnalyzer:
         """
         if len(days) < 5:
             return False
-            
+
         recent = days.tail(5)
         avg_close = recent['close'].mean()
-        
+
         # 1. Check ATR (normalized)
         # Calculate approximate True Range for last 5 days
         high_low = recent['high'] - recent['low']
         # We need previous close for the full TR, but simple H-L is usually enough to catch dead stocks
         avg_tr = high_low.mean()
-        
+
         if avg_tr / avg_close < 0.005: # Less than 0.5% average daily range
             return True
-            
+
         # 2. Check Standard Deviation of Close
         std_dev = recent['close'].std()
         if std_dev / avg_close < 0.002: # Extremely pinned price
             return True
-            
+
         return False
 
     @classmethod
@@ -111,7 +111,7 @@ class TechnicalAnalyzer:
         'aggregation' can be 'sum' or 'product'.
         """
         components = {}
-        
+
         if len(days) == 0 or days.iloc[-1].get('avg_volume_20', 0) < MIN_VOLUME_THRESHOLD:
             return {"total": 0.0}
 
@@ -146,23 +146,23 @@ class TechnicalAnalyzer:
         for name, cls in all_indicators_classes.items():
             if enabled_indicators and name not in indicator_filters:
                 continue
-            
+
             indicator_inst = cls(days)
             sub_filters = indicator_filters.get(name)
-            
+
             try:
                 score = indicator_inst.get_score(enabled_sub_indicators=sub_filters, aggregation=aggregation).buy
             except TypeError:
                 # Fallback for indicators not yet updated to support sub-filters
                 score = indicator_inst.get_score().buy
-                
+
             components[name] = float(score)
-            
+
             if aggregation == "product":
                 total_score *= score
             else:
                 total_score += score
-            
+
             active_indicator_count += 1
 
         # If product resulted in 0 or no indicators were active
@@ -180,7 +180,7 @@ class TechnicalAnalyzer:
             components.setdefault("penalty_volume_exhaustion", 0.0)
 
             last_row = days.iloc[-1]
-            
+
             # EMA Overextension Penalty (Trend logic: Don't buy the peak of a parabolic move)
             ema9 = days['close'].ewm(span=9).mean().iloc[-1]
             dist_ema9 = (last_row['close'] / ema9) - 1
@@ -200,7 +200,7 @@ class TechnicalAnalyzer:
             # RSI Oversold Signal (Refined: Reward if in Uptrend, otherwise Penalty)
             trend = TechnicalAnalyzer.calculate_trend(days)
             is_uptrend = "Uptrend" in trend
-            
+
             if rsi < OVERSOLD_RSI_THRESHOLD_EXTREME:
                 reward = abs(OVERSOLD_RSI_REWARD_EXTREME) if is_uptrend else OVERSOLD_RSI_REWARD_EXTREME
                 components["bonus_oversold_rsi"] = reward
@@ -220,7 +220,7 @@ class TechnicalAnalyzer:
             # Volume Exhaustion / Selling Climax
             avg_vol = last_row.get('avg_volume_20', 1)
             vol_ratio = last_row['volume'] / avg_vol
-            
+
             if rsi < OVERSOLD_RSI_THRESHOLD_EXTREME and vol_ratio > 2.0:
                 # Selling climax: Extreme oversold + high volume = strong reversal potential
                 components["bonus_selling_climax"] = 3.0
@@ -239,7 +239,7 @@ class TechnicalAnalyzer:
         Mean-reversion scoring: Rewards oversold conditions and "buying the dip".
         """
         components = {}
-        
+
         if len(days) == 0 or days.iloc[-1].get('avg_volume_20', 0) < MIN_VOLUME_THRESHOLD:
             return {"total": 0.0}
 
@@ -271,7 +271,7 @@ class TechnicalAnalyzer:
                 rsi_score = MR_OVERSOLD_RSI_REWARD_EXTREME
             elif rsi < OVERSOLD_RSI_THRESHOLD_MODERATE:
                 rsi_score = MR_OVERSOLD_RSI_REWARD_MODERATE
-            
+
             rsi_score *= weights.get('RSI_MULTIPLIER', 1.0)
             if rsi_score > 0 or enabled_indicators:
                 add_to_score("bonus_oversold_rsi", rsi_score)
@@ -289,7 +289,7 @@ class TechnicalAnalyzer:
                     # Extra bonus if price is actually below the lower band
                     if last_row['close'] < bb_lower:
                         bb_bonus += MR_BELLOW_LOW_BB_BONUS
-            
+
             bb_bonus *= weights.get('BB_MULTIPLIER', 1.0)
             if bb_bonus > 0 or enabled_indicators:
                 add_to_score("bonus_oversold_bb", bb_bonus)
@@ -303,7 +303,7 @@ class TechnicalAnalyzer:
                 if dist_ema20 < -0.05:
                     # Scale bonus based on distance
                     ma_bonus = 3.0 if dist_ema20 < -0.10 else 1.5
-            
+
             ma_bonus *= weights.get('MA_DIST_MULTIPLIER', 1.0)
             if ma_bonus > 0 or enabled_indicators:
                 add_to_score("bonus_ma_dist", ma_bonus)
@@ -313,7 +313,7 @@ class TechnicalAnalyzer:
             cs = CandlestickIndicator(days)
             # We only care about bullish patterns appearing at the bottom
             cs_score = 2.0 if cs.get_score().buy > 0 else 0.0
-            
+
             cs_score *= weights.get('CANDLESTICK_MULTIPLIER', 1.0)
             if cs_score > 0 or enabled_indicators:
                 add_to_score("candlestick", cs_score)

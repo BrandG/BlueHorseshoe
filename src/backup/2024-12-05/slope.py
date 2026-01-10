@@ -1,6 +1,6 @@
 """
-The `Slope` class provides methods to determine the direction of a trend using OHLCV (Open, High, Low, Close, Volume) data. 
-It includes various techniques such as moving averages, price action analysis, trend lines, technical indicators, volume analysis, 
+The `Slope` class provides methods to determine the direction of a trend using OHLCV (Open, High, Low, Close, Volume) data.
+It includes various techniques such as moving averages, price action analysis, trend lines, technical indicators, volume analysis,
 chart patterns, and multi-time frame analysis to identify and confirm trend directions.
 
 Methods:
@@ -13,7 +13,7 @@ Methods:
     - Multi-Time Frame Analysis: Ensure trend consistency across different time frames.
     - Combining Multiple Methods: Use a holistic approach for stronger trend confirmation.
 
-By systematically applying these methods to OHLCV data, users can gain a clearer understanding of trend directions, 
+By systematically applying these methods to OHLCV data, users can gain a clearer understanding of trend directions,
 enabling more informed trading or investment decisions.
 """
 # Determining whether a trend is going up or down using OHLCV (Open, High, Low, Close, Volume) data

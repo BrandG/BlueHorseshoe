@@ -158,7 +158,7 @@ def test_find_belt_hold():
     """
     Test the find_belt_hold method of the CandlestickIndicator class.
 
-    This test initializes a CandlestickIndicator object with sample data and 
+    This test initializes a CandlestickIndicator object with sample data and
     asserts that the find_belt_hold method returns 0.0.
 
     Returns:

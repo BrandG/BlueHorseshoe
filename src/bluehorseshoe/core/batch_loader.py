@@ -189,7 +189,7 @@ def classify_symbols_batch(limit=50, sleep_seconds=1.2):
         data = fetch_daily_ohlc_from_net(sym, recent=True)  # compact
         latest_date = data["days"][-1]["date"]  # oldest-first list
 
-        refresh_historical_for_symbol(sym, true)
+        refresh_historical_for_symbol(sym, True)
 
         processed_total += 1
         set_checkpoint(sym, processed_total, run_count)

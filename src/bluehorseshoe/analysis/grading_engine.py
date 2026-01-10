@@ -1,7 +1,7 @@
 """
 grading_engine.py
 
-This module provides the GradingEngine class, which evaluates historical 
+This module provides the GradingEngine class, which evaluates historical
 trading signals (scores) against actual market outcomes to quantify performance.
 """
 
@@ -22,7 +22,7 @@ class GradingEngine:
     def evaluate_score(self, score_doc: Dict) -> Dict:
         """
         Evaluates a single score document from the trade_scores collection.
-        
+
         Logic:
         1. Extract entry_price, stop_loss, and take_profit from metadata.
         2. Load historical data for the symbol.
@@ -32,12 +32,12 @@ class GradingEngine:
         symbol = score_doc['symbol']
         signal_date = score_doc['date']
         metadata = score_doc.get('metadata', {})
-        
+
         # We need entry, stop, and take_profit to evaluate.
         entry_price = metadata.get('entry_price')
         stop_loss = metadata.get('stop_loss')
         take_profit = metadata.get('take_profit')
-        
+
         if entry_price is None or stop_loss is None or take_profit is None:
              return {'symbol': symbol, 'date': signal_date, 'score': score_doc.get('score'), 'status': 'missing_metadata'}
 
@@ -48,7 +48,7 @@ class GradingEngine:
         df = pd.DataFrame(price_data['days'])
         # Ensure date is string for comparison
         df['date'] = pd.to_datetime(df['date']).dt.strftime('%Y-%m-%d')
-        
+
         # Get data strictly after signal_date
         future_data = df[df['date'] > signal_date].sort_values('date').head(self.hold_days)
         if future_data.empty:
@@ -58,7 +58,7 @@ class GradingEngine:
         exit_date = None
         exit_price = None
         max_gain = -999.0
-        
+
         # Track min_low over the entire hold window for ML training
         all_lows = future_data['low'].values
         min_low = min(all_lows) if len(all_lows) > 0 else entry_price
@@ -74,7 +74,7 @@ class GradingEngine:
         for _, day in future_data.iterrows():
             high = day['high']
             low = day['low']
-            
+
             # Calculate max gain seen so far relative to entry
             current_max_gain = ((high / entry_price) - 1) * 100
             if current_max_gain > max_gain:
@@ -86,7 +86,7 @@ class GradingEngine:
                 exit_price = take_profit
                 exit_date = day['date']
                 break
-            
+
             # Failure condition: Low hits or drops below stop_loss
             if low <= stop_loss:
                 status = 'failure'
@@ -129,12 +129,12 @@ class GradingEngine:
         if query is None:
             # Default to scores that have the necessary metadata
             query = {"metadata.entry_price": {"$exists": True}}
-            
+
         coll = db.get_db()['trade_scores']
         scores = list(coll.find(query).sort("date", -1).limit(limit))
-        
+
         logging.info("Found %d scores to grade. Grouping by symbol...", len(scores))
-        
+
         # Group scores by symbol
         symbol_map = {}
         for s in scores:
@@ -142,7 +142,7 @@ class GradingEngine:
             if sym not in symbol_map:
                 symbol_map[sym] = []
             symbol_map[sym].append(s)
-            
+
         results = []
         total_symbols = len(symbol_map)
         for i, (symbol, sym_scores) in enumerate(symbol_map.items()):
@@ -155,14 +155,14 @@ class GradingEngine:
 
             df = pd.DataFrame(price_data['days'])
             df['date'] = pd.to_datetime(df['date']).dt.strftime('%Y-%m-%d')
-            
+
             for score_doc in sym_scores:
                 res = self._evaluate_with_df(score_doc, df)
                 results.append(res)
-                
+
             if (i + 1) % 100 == 0:
                 logging.info("Processed %d/%d symbols...", i + 1, total_symbols)
-            
+
         return results
 
     def _evaluate_with_df(self, score_doc: Dict, df: pd.DataFrame) -> Dict:
@@ -172,11 +172,11 @@ class GradingEngine:
         symbol = score_doc['symbol']
         signal_date = score_doc['date']
         metadata = score_doc.get('metadata', {})
-        
+
         entry_price = metadata.get('entry_price')
         stop_loss = metadata.get('stop_loss')
         take_profit = metadata.get('take_profit')
-        
+
         if entry_price is None or stop_loss is None or take_profit is None:
              return {'symbol': symbol, 'date': signal_date, 'score': score_doc.get('score'), 'status': 'missing_metadata'}
 
@@ -189,7 +189,7 @@ class GradingEngine:
         exit_date = None
         exit_price = None
         max_gain = -999.0
-        
+
         # Track min_low over the entire hold window for ML training
         all_lows = future_data['low'].values
         min_low = min(all_lows) if len(all_lows) > 0 else entry_price
@@ -205,7 +205,7 @@ class GradingEngine:
         for _, day in future_data.iterrows():
             high = day['high']
             low = day['low']
-            
+
             current_max_gain = ((high / entry_price) - 1) * 100
             if current_max_gain > max_gain:
                 max_gain = current_max_gain
@@ -215,7 +215,7 @@ class GradingEngine:
                 exit_price = take_profit
                 exit_date = day['date']
                 break
-            
+
             if low <= stop_loss:
                 status = 'failure'
                 exit_price = stop_loss
@@ -258,10 +258,10 @@ class GradingEngine:
         if 'status' not in df.columns:
             return pd.DataFrame()
         df = df[df['status'].isin(['success', 'failure'])]
-        
+
         if df.empty:
             return pd.DataFrame()
-            
+
         # Group by score and calculate metrics
         summary = df.groupby('score').agg(
             count=('symbol', 'count'),
@@ -270,7 +270,7 @@ class GradingEngine:
             avg_max_gain=('max_gain', 'mean'),
             profit_factor=('pnl', lambda x: x[x > 0].sum() / abs(x[x < 0].sum()) if x[x < 0].sum() != 0 else float('inf'))
         ).reset_index()
-        
+
         return summary.sort_values('score', ascending=False)
 
     @staticmethod
@@ -283,7 +283,7 @@ class GradingEngine:
         if 'status' not in df.columns or 'components' not in df.columns:
             logging.warning("Missing 'status' or 'components' columns in results. Columns: %s", df.columns.tolist())
             return pd.DataFrame()
-            
+
         df = df[df['status'].isin(['success', 'failure'])]
         if df.empty:
             return pd.DataFrame()
@@ -295,7 +295,7 @@ class GradingEngine:
             comps = row['components']
             if not isinstance(comps, dict) or not comps:
                 continue
-            
+
             valid_comp_count += 1
             for comp_name, comp_val in comps.items():
                 if comp_val != 0: # Only analyze if the indicator actually triggered
@@ -306,17 +306,17 @@ class GradingEngine:
                         'status': row['status'],
                         'pnl': row['pnl']
                     })
-        
+
         logging.info("Found %d rows with valid component data.", valid_comp_count)
         if not comp_rows:
             return pd.DataFrame()
-            
+
         comp_df = pd.DataFrame(comp_rows)
-        
+
         summary = comp_df.groupby(['component', 'is_bullish']).agg(
             count=('status', 'count'),
             win_rate=('status', lambda x: (x == 'success').mean() * 100),
             avg_pnl=('pnl', 'mean')
         ).reset_index()
-        
+
         return summary.sort_values(['component', 'is_bullish'])

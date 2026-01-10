@@ -1,3 +1,4 @@
+#!/bin/bash
 date
-pylint $(git ls-files '*.py') > linting.txt
+pylint $(find src -name "*.py") > linting.txt
 date

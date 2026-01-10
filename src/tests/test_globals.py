@@ -10,7 +10,7 @@ Functions:
     test_load_invalid_symbols(): Tests the load_invalid_symbols function.
     test_load_invalid_symbols_file_not_found(): Tests the load_invalid_symbols function when the symbols file is not found.
     test_get_mongo_client(mock_mongo_client): Tests the get_mongo_client function to ensure it returns a non-None client instance.
-    test_get_symbol_list_from_net(mock_get): Tests the get_symbol_list_from_net function to ensure it correctly parses 
+    test_get_symbol_list_from_net(mock_get): Tests the get_symbol_list_from_net function to ensure it correctly parses
         the symbol list from the network response.
     test_get_symbol_list(mock_get_symbol_list_from_net): Tests the get_symbol_list function.
     test_graph(mock_datetime): Tests the graph function from globals module.
@@ -81,9 +81,9 @@ def test_load_invalid_symbols_file_not_found():
     """
     Test case for load_invalid_symbols function when the symbols file is not found.
 
-    This test sets the GlobalData.base_path to an invalid path and calls the 
-    load_invalid_symbols function. It asserts that the GlobalData.invalid_symbols 
-    list remains empty, indicating that the function handles the file not found 
+    This test sets the GlobalData.base_path to an invalid path and calls the
+    load_invalid_symbols function. It asserts that the GlobalData.invalid_symbols
+    list remains empty, indicating that the function handles the file not found
     scenario correctly.
     """
     GlobalData.base_path = "/invalid/path"

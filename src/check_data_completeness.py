@@ -18,21 +18,21 @@ def check_completeness():
     if db is None:
         logging.error("Could not connect to MongoDB")
         sys.exit(1)
-        
+
     col = db['historical_prices']
-    
+
     logging.info("Fetching symbol list...")
     symbols = get_symbol_list()
     logging.info(f"Found {len(symbols)} total symbols.")
-    
+
     incomplete_symbols = []
     missing_symbols = []
-    
+
     # We can optimize this by fetching all existing symbols in one go, but let's do one-by-one for detailed checks first
     # Or better, fetch a projection of symbol, min_date, and count
-    
+
     logging.info("Checking historical data completeness...")
-    
+
     # Use aggregation to get stats for all symbols in historical_prices
     pipeline = [
         {
@@ -44,44 +44,44 @@ def check_completeness():
             }
         }
     ]
-    
+
     # Create a map of existing data stats
     existing_stats = {}
     cursor = col.aggregate(pipeline)
     for doc in cursor:
         existing_stats[doc['symbol']] = doc
-        
+
     logging.info(f"Found historical data for {len(existing_stats)} symbols.")
-    
+
     cutoff_date = "2024-01-01"
-    
+
     for s in symbols:
         sym = s['symbol']
         if sym not in existing_stats:
             missing_symbols.append(sym)
             continue
-            
+
         stats = existing_stats[sym]
         count = stats.get('count', 0)
         first_date = stats.get('first_date', '9999-99-99')
-        
+
         # Criteria for incomplete
         if count < 200: # Less than a year roughly
             incomplete_symbols.append(f"{sym} (Count: {count})")
         elif first_date > cutoff_date:
             incomplete_symbols.append(f"{sym} (First Date: {first_date})")
-            
+
     logging.info(f"Missing Data: {len(missing_symbols)}")
     logging.info(f"Incomplete Data: {len(incomplete_symbols)}")
-    
+
     with open('src/logs/missing_symbols.txt', 'w') as f:
         for s in missing_symbols:
             f.write(f"{s}\n")
-            
+
     with open('src/logs/incomplete_symbols.txt', 'w') as f:
         for s in incomplete_symbols:
             f.write(f"{s}\n")
-            
+
     logging.info("Written lists to src/logs/missing_symbols.txt and src/logs/incomplete_symbols.txt")
 
 if __name__ == "__main__":

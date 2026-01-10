@@ -11,22 +11,22 @@ def process_date(date_str, tester, strategy="mean_reversion", top_n=10):
     print(f"Analyzing {date_str} for strategy {strategy}...", flush=True)
     symbols = get_symbol_name_list()
     predictions = []
-    
+
     score_key = "mr_score" if strategy == "mean_reversion" else "baseline_score"
-    
+
     max_workers = min(8, os.cpu_count() or 4)
     processed_count = 0
     total_symbols = len(symbols)
-    
+
     with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
         process_func = partial(tester.trader.process_symbol, target_date=date_str)
         future_to_symbol = {executor.submit(process_func, sym): sym for sym in symbols}
-        
+
         for future in concurrent.futures.as_completed(future_to_symbol):
             processed_count += 1
             if processed_count % 500 == 0 or processed_count == total_symbols:
                 print(f"  Progress: {processed_count}/{total_symbols} symbols ({(processed_count/total_symbols)*100:.1f}%)", flush=True)
-                
+
             try:
                 result = future.result()
                 if result and result.get(score_key, 0) > 0:
@@ -35,9 +35,9 @@ def process_date(date_str, tester, strategy="mean_reversion", top_n=10):
                     predictions.append(result)
             except Exception as e:
                 logging.error(f"Error processing {future_to_symbol[future]}: {e}")
-                
+
     valid_predictions = sorted(predictions, key=lambda x: x['score'], reverse=True)[:top_n]
-    
+
     date_failures = []
     for pred in valid_predictions:
         # Flatten setup dict for evaluate_prediction
@@ -56,7 +56,7 @@ def process_date(date_str, tester, strategy="mean_reversion", top_n=10):
             df = pd.DataFrame(price_data['days'])
             df['date'] = pd.to_datetime(df['date'])
             df = df[df['date'] <= pd.to_datetime(date_str)]
-            
+
             if df.empty:
                 continue
 
@@ -76,23 +76,23 @@ def process_date(date_str, tester, strategy="mean_reversion", top_n=10):
 
 def analyze_failures(start_date, end_date, strategy="mean_reversion", interval_days=7):
     tester = Backtester(target_profit_factor=1.02, stop_loss_factor=0.98, hold_days=3)
-    
+
     start_ts = pd.to_datetime(start_date)
     end_ts = pd.to_datetime(end_date)
     current_ts = start_ts
-    
+
     failures = []
     while current_ts <= end_ts:
         date_str = current_ts.strftime('%Y-%m-%d')
         failures.extend(process_date(date_str, tester, strategy=strategy))
         current_ts += pd.Timedelta(days=interval_days)
-    
+
     df_failures = pd.DataFrame(failures)
     print(f"\n--- Failure Analysis Data for {strategy} ---", flush=True)
     if not df_failures.empty:
         print(df_failures.to_string(), flush=True)
         df_failures.to_csv(f'src/logs/failure_analysis_{strategy}.csv', index=False)
-        
+
         print("\nAverages for Failures:", flush=True)
         print(df_failures[['score', 'rsi', 'vol_ratio', 'dist_ema9', 'dist_ema21']].mean(), flush=True)
     else:

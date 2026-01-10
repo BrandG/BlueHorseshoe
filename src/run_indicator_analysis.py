@@ -2,7 +2,7 @@
 run_indicator_analysis.py
 
 CLI tool to run backtests on specific technical indicators over a 6-month period.
-This helps in identifying the predictive power of individual factors and 
+This helps in identifying the predictive power of individual factors and
 optimizing strategy weights.
 
 Usage:
@@ -36,7 +36,7 @@ def main():
     parser.add_argument('--convergence', action='store_true', help='Use multiplication (convergence) instead of summation for indicator scores')
     parser.add_argument('--combine', action='store_true', help='Combine all specified indicators into a single test case')
     parser.add_argument('--random', action='store_true', help='Pick a random start date within the last 18 months')
-    
+
     args = parser.parse_args()
 
     if args.list:
@@ -58,7 +58,7 @@ def main():
         else:
             # Test them one by one
             indicators_to_test = [i.strip() for i in args.indicators.split(",")]
-        
+
         # Validate all mentioned indicators
         for i in indicators_to_test:
             for sub_i in i.split(","):
@@ -76,25 +76,25 @@ def main():
         # Max end date is 2025-12-30
         latest_possible_end = datetime(2025, 12, 30)
         earliest_possible_start = latest_possible_end - timedelta(days=18 * 30)
-        
+
         # Calculate max possible start to allow for the requested duration
         max_start = latest_possible_end - timedelta(days=args.months * 30)
-        
+
         delta = max_start - earliest_possible_start
         random_days = random.randint(0, delta.days)
-        
+
         start_date = earliest_possible_start + timedelta(days=random_days)
         end_date = start_date + timedelta(days=args.months * 30)
     else:
         # Default to the most recent period
         end_date = datetime(2025, 12, 30)
         start_date = end_date - timedelta(days=args.months * 30)
-    
+
     start_date_str = start_date.strftime('%Y-%m-%d')
     end_date_str = end_date.strftime('%Y-%m-%d')
 
     print(f"\nStarting Indicator Analysis for period: {start_date_str} to {end_date_str}", flush=True)
-    
+
     print("Initializing Backtester...", end="", flush=True)
     backtester = Backtester(target_profit_factor=1.02, stop_loss_factor=0.97, hold_days=5)
     print(" Done.", flush=True)
@@ -107,7 +107,7 @@ def main():
     for idx, indicator in enumerate(indicators_to_test, 1):
         label = indicator.upper()
         current_enabled = [i.strip() for i in indicator.split(",")]
-        
+
         print(f"\n[{idx}/{total_indicators}] >>> TESTING INDICATOR: {label} (Agg: {aggregation}) <<<", flush=True)
         backtester.run_range_backtest(
             start_date=start_date_str,

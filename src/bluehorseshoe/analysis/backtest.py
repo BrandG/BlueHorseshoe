@@ -2,7 +2,7 @@
 backtest.py
 
 This module provides functionality for backtesting the swing trading strategy.
-It allows for historical performance evaluation by simulating trades based on 
+It allows for historical performance evaluation by simulating trades based on
 past data and verifying results against subsequent price action.
 """
 
@@ -36,7 +36,7 @@ class Backtester:
         target_entry = prediction['entry_price']
         target_stop = prediction['stop_loss']
         target_exit = prediction['take_profit']
-        
+
         price_data = load_historical_data(symbol)
         if not price_data or 'days' not in price_data:
             return {'symbol': symbol, 'status': 'no_data'}
@@ -44,7 +44,7 @@ class Backtester:
         df = pd.DataFrame(price_data['days'])
         df['date'] = pd.to_datetime(df['date'])
         target_ts = pd.to_datetime(target_date)
-        
+
         # Get data after target_date
         future_data = df[df['date'] > target_ts].sort_values('date').head(self.hold_days)
         if future_data.empty:
@@ -57,7 +57,7 @@ class Backtester:
         actual_entry = None
         entry_date = None
         remaining_data = None
-        
+
         for i, day in future_data.iterrows():
             if day['open'] <= target_entry:
                 actual_entry = day['open']
@@ -65,13 +65,13 @@ class Backtester:
             elif day['low'] <= target_entry:
                 actual_entry = target_entry
                 entry_found = True
-            
+
             if entry_found:
                 entry_date = day['date']
                 # Trade continues from this day onwards
                 remaining_data = future_data.loc[i:]
                 break
-                
+
         if not entry_found:
             return {'symbol': symbol, 'status': 'no_entry'}
 
@@ -84,7 +84,7 @@ class Backtester:
             high = day['high']
             low = day['low']
             open_price = day['open']
-            
+
             # Update trailing stop if enabled
             if self.use_trailing_stop:
                 atr = day.get('atr_14')
@@ -100,7 +100,7 @@ class Backtester:
                 exit_price = open_price # Sold at open for even more profit
                 exit_date = day['date'].strftime('%Y-%m-%d')
                 break
-                
+
             # Check for Gap Down Failure
             if open_price <= current_stop:
                 status = 'failure'
@@ -114,7 +114,7 @@ class Backtester:
                 exit_price = target_exit
                 exit_date = day['date'].strftime('%Y-%m-%d')
                 break
-            
+
             # Check for failure during the day
             if low <= current_stop:
                 status = 'failure'
@@ -148,21 +148,21 @@ class Backtester:
         """Runs a backtest for a specific historical date and returns results."""
         indicator_str = f" | Indicators: {', '.join(enabled_indicators)}" if enabled_indicators else ""
         ReportSingleton().write(f"\n--- {strategy.title()} Backtest Report for {target_date} (Hold: {self.hold_days} days){indicator_str} | Agg: {aggregation} ---")
-        
+
         if not symbols:
             print("  > Loading symbols from database...", end="", flush=True)
             symbols = get_symbol_name_list()
             print(f" Done ({len(symbols)} symbols).", flush=True)
 
         max_workers = min(8, os.cpu_count() or 4)
-        
+
         logging.info("Generating %s predictions for %s...", strategy, target_date)
         predictions = []
-        
+
         with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
             process_func = partial(self.trader.process_symbol, target_date=target_date, enabled_indicators=enabled_indicators, aggregation=aggregation)
             future_to_symbol = {executor.submit(process_func, sym): sym for sym in symbols}
-            
+
             processed_count = 0
             total_symbols = len(symbols)
             for future in concurrent.futures.as_completed(future_to_symbol):
@@ -172,13 +172,13 @@ class Backtester:
                     predictions.append(result)
                 except Exception as e:
                     logging.error("Exception during prediction: %s", e)
-                
+
                 if processed_count % 500 == 0 or processed_count == total_symbols:
                     print(f"  > Progress: {processed_count}/{total_symbols} symbols analyzed ({ (processed_count/total_symbols)*100:.1f}%)", flush=True)
 
         # Use strategy-specific score key
         score_key = "baseline_score" if strategy == "baseline" else "mr_score"
-        
+
         # Filter out scores <= 0 to avoid noise
         valid_predictions = sorted(
             (p for p in predictions if p is not None and p.get(score_key, 0.0) > 0),
@@ -199,14 +199,14 @@ class Backtester:
             pred['entry_price'] = setup.get('entry_price')
             pred['stop_loss'] = setup.get('stop_loss')
             pred['take_profit'] = setup.get('take_profit')
-            
+
             eval_result = self.evaluate_prediction(pred, target_date)
             results.append(eval_result)
-            
+
             pnl = 0.0
             if 'entry' in eval_result and 'exit_price' in eval_result:
                 pnl = ((eval_result['exit_price'] / eval_result['entry']) - 1) * 100
-            
+
             score_val = pred.get(score_key, 0.0)
             msg = f"{pred['symbol']} (Score: {score_val:.2f}): {eval_result['status']}"
             if 'entry' in eval_result:
@@ -219,17 +219,17 @@ class Backtester:
             success_count = sum(1 for r in valid_results if r['status'] in ['success', 'closed_profit'])
             win_rate = (success_count / len(valid_results)) * 100
             ReportSingleton().write(f"Summary: {success_count}/{len(valid_results)} profitable ({win_rate:.2f}%) | Avg PnL: {avg_pnl:.2f}%")
-        
+
         return results
 
     def run_range_backtest(self, start_date: str, end_date: str, interval_days: int = 7, top_n: int = 10, strategy: str = "baseline", enabled_indicators: Optional[list[str]] = None, aggregation: str = "sum", symbols: Optional[List[str]] = None):
         """Runs backtests over a range of dates at set intervals."""
         start_ts = pd.to_datetime(start_date)
         end_ts = pd.to_datetime(end_date)
-        
+
         current_ts = start_ts
         all_results = []
-        
+
         # Calculate total steps for progress tracking
         total_days = (end_ts - start_ts).days
         total_steps = (total_days // interval_days) + 1

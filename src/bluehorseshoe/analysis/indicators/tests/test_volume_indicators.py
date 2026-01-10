@@ -1,17 +1,17 @@
 """Volume Indicator Tests Module
 
-This module contains test cases for the VolumeIndicator class, which calculates 
+This module contains test cases for the VolumeIndicator class, which calculates
 various volume-based technical indicators and scores for financial market data.
 
 The tests verify the functionality of:
 - ATR (Average True Range) spike detection
-- ATR band scoring  
+- ATR band scoring
 - Average volume calculations
 - Chaikin Money Flow (CMF) indicator
 - On Balance Volume (OBV) trend scoring
 - Overall volume score calculation
 
-Test data is provided via a fixture that generates a sample DataFrame with 
+Test data is provided via a fixture that generates a sample DataFrame with
 synthetic price and volume data. The data consists of 25 periods where prices
 increment linearly and volume remains constant.
 
@@ -19,7 +19,7 @@ Test Fixtures:
     sample_data: Generates DataFrame with OHLCV data for testing
 
 Dependencies:
-    - pandas 
+    - pandas
     - pytest
     - bluehorseshoe.analysis.indicators.volume_indicators.VolumeIndicator
 """
@@ -76,7 +76,7 @@ def sample_data() -> pd.DataFrame:
 def test_score_atr_spike():
     """Test the score_atr_spike method of VolumeIndicator.
 
-    This test verifies that the score_atr_spike() method correctly calculates 
+    This test verifies that the score_atr_spike() method correctly calculates
     the ATR spike score for the given sample data.
 
     Args:
@@ -186,7 +186,7 @@ def test_score_obv_trend():
 def test_calculate_score():
     """Test the calculate_score method of the VolumeIndicator class.
 
-    Tests if the calculate_score method returns the expected volume score calculation 
+    Tests if the calculate_score method returns the expected volume score calculation
     based on the sample data provided.
 
     Args:
@@ -202,4 +202,3 @@ def test_calculate_score():
     result = vi.get_score()
     expected_result = Score(buy=0.5, sell=0.0)  # Corrected from 0.0 based on current weights
     assert result == expected_result, f"Expected {expected_result}, but got {result}"
-    

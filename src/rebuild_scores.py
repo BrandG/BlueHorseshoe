@@ -16,10 +16,10 @@ def rebuild_scores(start_date: str, end_date: str, inverted: bool = False, symbo
     Rebuilds scores for a range of dates.
     """
     trader = SwingTrader()
-    
+
     start = datetime.strptime(start_date, '%Y-%m-%d')
     end = datetime.strptime(end_date, '%Y-%m-%d')
-    
+
     current = start
     while current <= end:
         # Skip weekends
@@ -31,20 +31,20 @@ def rebuild_scores(start_date: str, end_date: str, inverted: bool = False, symbo
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
-    
+
     if len(sys.argv) < 3:
         print("Usage: python src/rebuild_scores.py <start_date> <end_date> [--inverted] [--symbols=A,AAPL]")
         sys.exit(1)
-        
+
     start_dt = sys.argv[1]
     end_dt = sys.argv[2]
     is_inverted = "--inverted" in sys.argv
-    
+
     # Parse symbols if provided
     symbols_filter = None
     for arg in sys.argv:
         if arg.startswith("--symbols="):
             symbols_filter = arg.split("=")[1].split(",")
-    
+
     rebuild_scores(start_dt, end_dt, inverted=is_inverted, symbols=symbols_filter)
     print("\nRebuild complete.")

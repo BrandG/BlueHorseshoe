@@ -43,7 +43,7 @@ def backtest(
     if start >= end:
         raise HTTPException(status_code=400, detail="start must be before end")
 
-    result = service.run_backtest(symbol=symbol, start=start, end=end, strategy=strategy)
+    result = service.run_backtest(symbol=symbol, start=start, end=end, strategy_name=strategy)
     return result
 
 @app.get("/run_daily")
@@ -53,19 +53,19 @@ def run_daily():
 
 @app.post("/trigger")
 @app.get("/trigger")
-def trigger_action(action: str = Query(..., description="Name of the action to trigger"), 
+def trigger_action(action: str = Query(..., description="Name of the action to trigger"),
                   payload: Optional[Dict[str, Any]] = Body(default=None)):
     """
     Flexible endpoint for triggering backend actions during development.
-    
+
     This endpoint allows you to trigger custom backend actions without needing to
     create specific endpoints for each temporary action. Perfect for development
     and testing scenarios where the action logic changes frequently.
-    
+
     Args:
         action: String identifier for the action to trigger
         payload: Optional JSON payload with parameters for the action
-        
+
     Examples:
         POST /trigger?action=test_analysis
         POST /trigger?action=debug_symbols {"symbol": "AAPL", "verbose": true}

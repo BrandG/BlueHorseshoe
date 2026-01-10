@@ -38,9 +38,9 @@ def sample_data() -> pd.DataFrame:
     The DataFrame contains 30 rows with incrementing values from 1 to 30,
     where each row has the following columns:
     - open: Opening price
-    - high: Highest price 
+    - high: Highest price
     - low: Lowest price
-    - close: Closing price 
+    - close: Closing price
     - stoch_k: Stochastic oscillator %K value
     - stoch_d: Stochastic oscillator %D value
 
@@ -157,8 +157,8 @@ def test_calculate_ichimoku_score():
 def test_calculate_heiken_ashi():
     """Test the calculation of Heiken Ashi indicator score.
 
-    This test function verifies that the calculate_heiken_ashi method 
-    properly calculates a Heiken Ashi score from the provided test data 
+    This test function verifies that the calculate_heiken_ashi method
+    properly calculates a Heiken Ashi score from the provided test data
     and returns a float value.
 
     Args:

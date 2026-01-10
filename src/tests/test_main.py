@@ -25,10 +25,10 @@ def setup_logging():
     """
     Sets up logging configuration for the application.
 
-    This function configures the logging to write logs to a file named 
-    'blueHorseshoe_test.log' located in the '/workspaces/BlueHorseshoe/src/logs/' 
-    directory. The log file is overwritten each time the function is called. 
-    The logging level is set to DEBUG, and the log messages are formatted to 
+    This function configures the logging to write logs to a file named
+    'blueHorseshoe_test.log' located in the '/workspaces/BlueHorseshoe/src/logs/'
+    directory. The log file is overwritten each time the function is called.
+    The logging level is set to DEBUG, and the log messages are formatted to
     include the timestamp, log level, and message.
 
     Yields:

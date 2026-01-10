@@ -1,18 +1,16 @@
 import logging
 import pandas as pd
-import numpy as np
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.preprocessing import LabelEncoder
-from sklearn.metrics import classification_report, confusion_matrix
+from sklearn.metrics import classification_report
 import joblib
 import os
-from typing import List, Dict, Any
+from typing import Dict
 from datetime import datetime
 
 from bluehorseshoe.analysis.grading_engine import GradingEngine
-from bluehorseshoe.core.database import db
-from bluehorseshoe.core.symbols import get_overview_from_mongo, get_sentiment_score
+from bluehorseshoe.analysis.ml_utils import extract_features
 
 class MLOverlayTrainer:
     """
@@ -23,7 +21,7 @@ class MLOverlayTrainer:
         self.model_path = model_path
         self.grading_engine = GradingEngine(hold_days=10)
         self.label_encoders = {}
-        
+
         # Ensure models directory exists
         os.makedirs(os.path.dirname(self.model_path), exist_ok=True)
 
@@ -36,64 +34,40 @@ class MLOverlayTrainer:
         query = {"metadata.entry_price": {"$exists": True}}
         if strategy:
             query["strategy"] = strategy
-        
+
         if before_date:
             query["date"] = {"$lt": before_date}
-            
+
         results = self.grading_engine.run_grading(query=query, limit=limit)
         df_graded = pd.DataFrame(results)
-        
+
         if df_graded.empty:
             logging.error("No graded trades found to train on.")
             return pd.DataFrame()
 
         # Filter for successful/failed trades only
         df_graded = df_graded[df_graded['status'].isin(['success', 'failure'])]
-        
+
         features = []
         for _, row in df_graded.iterrows():
             symbol = row['symbol']
-            
-            # 1. Technical Features (from components)
-            feat = row.get('components', {}).copy()
-            if not feat:
-                continue
-                
-            # 2. Fundamental Features (from overviews)
-            overview = get_overview_from_mongo(symbol)
-            
-            def safe_float(val):
-                try:
-                    if val is None or str(val).lower() == 'none':
-                        return 0.0
-                    return float(val)
-                except (ValueError, TypeError):
-                    return 0.0
 
-            if overview:
-                feat['Sector'] = overview.get('Sector', 'Unknown')
-                feat['Industry'] = overview.get('Industry', 'Unknown')
-                feat['MarketCap'] = safe_float(overview.get('MarketCapitalization'))
-                feat['Beta'] = safe_float(overview.get('Beta'))
-                feat['PERatio'] = safe_float(overview.get('PERatio'))
-            else:
-                feat['Sector'] = 'Unknown'
-                feat['Industry'] = 'Unknown'
-                feat['MarketCap'] = 0.0
-                feat['Beta'] = 0.0
-                feat['PERatio'] = 0.0
-                
-            # 2.5 News Sentiment Feature
-            feat['SentimentScore'] = get_sentiment_score(symbol, row['date'])
-                
+            # Technical Components
+            components = row.get('components', {})
+            if not components:
+                continue
+
+            # Extract unified features
+            feat = extract_features(symbol, components, row['date'])
+
             # 3. Label (Target)
             feat['TARGET'] = 1 if row['status'] == 'success' else 0
             feat['symbol'] = symbol
             feat['date'] = row['date']
             feat['strategy'] = row.get('strategy', 'unknown')
-            
+
             features.append(feat)
-            
+
         return pd.DataFrame(features)
 
     def train(self, limit: int = 10000, strategy: str = None, output_path: str = None, before_date: str = None):
@@ -102,7 +76,7 @@ class MLOverlayTrainer:
         """
         if output_path is None:
             output_path = self.model_path
-            
+
         df = self.prepare_training_data(limit=limit, strategy=strategy, before_date=before_date)
         if df.empty:
             return
@@ -117,7 +91,7 @@ class MLOverlayTrainer:
         # Drop non-feature columns
         X = df.drop(columns=['TARGET', 'symbol', 'date', 'strategy'])
         y = df['TARGET']
-        
+
         # Fill NaNs
         X = X.fillna(0)
 
@@ -125,7 +99,7 @@ class MLOverlayTrainer:
         X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
         logging.info(f"Training on {len(X_train)} samples, testing on {len(X_test)} samples...")
-        
+
         # Train Model
         model = RandomForestClassifier(n_estimators=100, max_depth=10, random_state=42)
         model.fit(X_train, y_train)
@@ -133,13 +107,13 @@ class MLOverlayTrainer:
         # Evaluate
         y_pred = model.predict(X_test)
         logging.info("\n" + classification_report(y_test, y_pred))
-        
+
         # Calculate Feature Importance
         importances = pd.DataFrame({
             'feature': X.columns,
             'importance': model.feature_importances_
         }).sort_values('importance', ascending=False)
-        
+
         logging.info("Top Features:\n" + importances.head(10).to_string())
 
         # Save model and encoders
@@ -156,15 +130,15 @@ class MLOverlayTrainer:
         Retrains all models (General, Baseline, Mean Reversion).
         """
         logging.info(f"Starting automated retraining of all models (limit={limit}, before={before_date})...")
-        
+
         # 1. General Model
         self.train(limit=limit, output_path="src/models/ml_overlay_v1.joblib", before_date=before_date)
-        
+
         # 2. Strategy-Specific Models
         self.train(limit=limit, strategy="baseline", output_path="src/models/ml_overlay_baseline.joblib", before_date=before_date)
-        
+
         self.train(limit=limit, strategy="mean_reversion", output_path="src/models/ml_overlay_mean_reversion.joblib", before_date=before_date)
-        
+
         logging.info("Automated retraining complete.")
 
 class MLInference:
@@ -197,11 +171,11 @@ class MLInference:
         if strategy != "general" and strategy not in self.models:
             strat_path = f"src/models/ml_overlay_{strategy}.joblib"
             self._load_model(strat_path, strategy)
-            
+
         # Fallback to general model
         model_key = strategy if strategy in self.models else "general"
         model = self.models.get(model_key)
-        
+
         if model is None:
             return 0.0
 
@@ -209,32 +183,7 @@ class MLInference:
             target_date = datetime.now().strftime("%Y-%m-%d")
 
         # Build feature vector
-        feat = components.copy()
-        overview = get_overview_from_mongo(symbol)
-        
-        def safe_float(val):
-            try:
-                if val is None or str(val).lower() == 'none':
-                    return 0.0
-                return float(val)
-            except (ValueError, TypeError):
-                return 0.0
-
-        if overview:
-            feat['Sector'] = overview.get('Sector', 'Unknown')
-            feat['Industry'] = overview.get('Industry', 'Unknown')
-            feat['MarketCap'] = safe_float(overview.get('MarketCapitalization'))
-            feat['Beta'] = safe_float(overview.get('Beta'))
-            feat['PERatio'] = safe_float(overview.get('PERatio'))
-        else:
-            feat['Sector'] = 'Unknown'
-            feat['Industry'] = 'Unknown'
-            feat['MarketCap'] = 0.0
-            feat['Beta'] = 0.0
-            feat['PERatio'] = 0.0
-
-        # Sentiment Feature
-        feat['SentimentScore'] = get_sentiment_score(symbol, target_date)
+        feat = extract_features(symbol, components, target_date)
 
         # Encode categorical
         encoders = self.encoders.get(model_key, {})
@@ -251,13 +200,13 @@ class MLInference:
 
         # Create DataFrame aligned with training features
         df = pd.DataFrame([feat])
-        
+
         # Ensure all training features are present
         model_features = self.features.get(model_key, [])
         for f in model_features:
             if f not in df.columns:
                 df[f] = 0.0
-        
+
         # Reorder columns to match training
         df = df[model_features]
         df = df.fillna(0)

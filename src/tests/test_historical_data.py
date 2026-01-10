@@ -145,7 +145,7 @@ def test_get_technical_indicators():
     Test the get_technical_indicators function.
 
     This test creates a sample DataFrame with columns 'close', 'high', 'low', and 'volume',
-    and passes it to the get_technical_indicators function. It then asserts that the 
+    and passes it to the get_technical_indicators function. It then asserts that the
     resulting DataFrame contains the 'ema_20' column.
 
     The sample data used for testing is as follows:

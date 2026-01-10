@@ -9,7 +9,7 @@ class MarketRegime:
     Analyzes overall market health using major indices (SPY, QQQ).
     Used as a "Circuit Breaker" to reduce risk during downturns.
     """
-    
+
     @staticmethod
     def get_market_health(target_date: Optional[str] = None) -> Dict[str, Any]:
         """
@@ -24,14 +24,14 @@ class MarketRegime:
         indices = ['SPY', 'QQQ']
         health_data = {}
         bullish_count = 0
-        
+
         for symbol in indices:
             data = load_historical_data(symbol)
             if not data or not data.get('days'):
                 logging.warning("MarketRegime: No data for %s", symbol)
                 health_data[symbol] = 'Unknown'
                 continue
-                
+
             df = pd.DataFrame(data['days'])
             if target_date:
                 df['date'] = pd.to_datetime(df['date'])
@@ -41,17 +41,17 @@ class MarketRegime:
                     continue
 
             last_row = df.iloc[-1]
-            
+
             # Simple health check: Price > EMA 20 and Trend is not Downtrend
             ema20 = last_row.get('ema_20')
             close = last_row['close']
             trend = TechnicalAnalyzer.calculate_trend(df)
-            
+
             is_bullish = False
             if ema20 and close > ema20 and "Downtrend" not in trend:
                 is_bullish = True
                 bullish_count += 1
-            
+
             health_data[symbol] = {
                 'bullish': is_bullish,
                 'trend': trend,
@@ -69,7 +69,7 @@ class MarketRegime:
         else:
             status = 'Bearish'
             multiplier = 0.0 # or 0.25 depending on risk appetite
-            
+
         return {
             'status': status,
             'multiplier': multiplier,

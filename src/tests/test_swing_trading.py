@@ -129,17 +129,17 @@ def test_process_symbol(swing_trader, sample_data, mocker): # pylint: disable=re
                                                                      'symbol':'IBM', 'full_name': 'Test Stock'})
     mocker.patch('bluehorseshoe.analysis.strategy.GlobalData', holiday=False)
     mocker.patch('bluehorseshoe.analysis.strategy.MIN_RR_RATIO', 0.0)
-    
+
     # Mocking now to a Sunday so BDay(1) is Friday (Jan 2)
     mocker.patch('bluehorseshoe.analysis.strategy.pd.Timestamp.now', return_value=pd.Timestamp('2026-01-04'))
-    
+
     # Adjust sample data to have Jan 2 as the last date to match BDay(1) from Jan 4
     adjusted_data = sample_data.copy()
     last_trading_day = pd.Timestamp('2026-01-04').normalize() - pd.offsets.BDay(1)
     # Re-calculate dates so the last one is last_trading_day
     for i in range(len(adjusted_data)):
         adjusted_data.loc[i, 'date'] = last_trading_day - pd.Timedelta(days=len(adjusted_data)-1-i)
-    
+
     mocker.patch('bluehorseshoe.analysis.strategy.load_historical_data', return_value={'days': adjusted_data.to_dict('records'),
                                                                      'symbol':'IBM', 'full_name': 'Test Stock'})
 

@@ -19,10 +19,10 @@ def check_intraday(symbol: str, entry_price: float, stop_loss: float, take_profi
     print(f"Plan: Entry {entry_price:.2f} | Stop {stop_loss:.2f} | Target {take_profit:.2f}")
 
     # Fetch 1 day of intraday data (default interval is usually adequate, but we can be explicit)
-    # yfinance '1d' period gives 1m/2m/5m/etc. depending on provider availability. 
+    # yfinance '1d' period gives 1m/2m/5m/etc. depending on provider availability.
     # '1d' usually returns 1-minute or 5-minute bars if available, or daily if market closed.
     ticker = yf.Ticker(symbol)
-    
+
     # Attempt to get intraday data
     # period="1d" often gets the most recent trading session
     df = ticker.history(period="1d", interval="5m")
@@ -46,20 +46,20 @@ def check_intraday(symbol: str, entry_price: float, stop_loss: float, take_profi
     # 1. Did we trigger entry?
     # Assuming 'LIMIT' buy order at Entry Price.
     # If High >= Entry and Low <= Entry (and Open was not well below?), we likely filled.
-    # Logic: 
+    # Logic:
     #   - If we opened BELOW entry, and High >= Entry -> Filled.
     #   - If we opened ABOVE entry, and Low <= Entry -> Filled (Pullback).
-    
+
     filled = False
     fill_time = None
-    
+
     # Iterate to find first fill
     for idx, row in df.iterrows():
         if row['Low'] <= entry_price <= row['High']:
             filled = True
             fill_time = idx
             break
-            
+
     if not filled:
         # Check if we opened below entry and stayed below (GAP DOWN scenario - technically filled if limit, but context dependent)
         # Assuming simple Pullback logic: We want to buy at X.
@@ -72,10 +72,10 @@ def check_intraday(symbol: str, entry_price: float, stop_loss: float, take_profi
     # 2. After fill, did we hit Stop or Target?
     # Scan from fill_time onwards
     post_fill_df = df.loc[fill_time:]
-    
+
     outcome = "OPEN"
     pnl = (current_price - entry_price) / entry_price * 100
-    
+
     for idx, row in post_fill_df.iterrows():
         if row['Low'] <= stop_loss:
             outcome = "STOPPED OUT 🛑"
@@ -85,7 +85,7 @@ def check_intraday(symbol: str, entry_price: float, stop_loss: float, take_profi
             outcome = "TARGET HIT 🎯"
             pnl = (take_profit - entry_price) / entry_price * 100
             break
-            
+
     print(f"Outcome: {outcome}")
     print(f"Unrealized PnL: {pnl:.2f}%")
 
@@ -97,5 +97,5 @@ if __name__ == "__main__":
     parser.add_argument("target", type=float, help="Take profit target")
 
     args = parser.parse_args()
-    
+
     check_intraday(args.symbol, args.entry, args.stop, args.target)

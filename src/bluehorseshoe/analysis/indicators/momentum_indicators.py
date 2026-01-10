@@ -129,10 +129,10 @@ class MomentumIndicator(Indicator):
         """
         Calculate a MACD-based score for the most recent day of data.
 
-        Examines the 'macd_line' and 'macd_signal' values from the last row in the 
-        data frame to determine whether the MACD difference is positive. Returns an 
-        integer score based on the relative difference between 'macd_line' and 
-        'macd_signal' compared to a predefined multiplier. If the necessary columns 
+        Examines the 'macd_line' and 'macd_signal' values from the last row in the
+        data frame to determine whether the MACD difference is positive. Returns an
+        integer score based on the relative difference between 'macd_line' and
+        'macd_signal' compared to a predefined multiplier. If the necessary columns
         are missing or conditions are not met, returns 0.
 
         Returns:
@@ -197,7 +197,8 @@ class MomentumIndicator(Indicator):
 
         for name, (func, weight_key) in sub_map.items():
             if enabled_sub_indicators is None or name in enabled_sub_indicators:
-                score = func() * self.weights[weight_key]
+                multiplier = self.weights[weight_key] if weight_key else 1.0
+                score = func() * multiplier  # pylint: disable=not-callable
                 if aggregation == "product":
                     buy_score *= score
                 else:

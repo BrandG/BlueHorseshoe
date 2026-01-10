@@ -5,8 +5,8 @@ This module contains test functions for verifying the functionality of the Limit
 class methods. The tests cover calculation of pivot points, scoring of pivot levels,
 52-week range scoring, and overall indicator score calculation.
 
-The module uses a sample DataFrame with synthetic OHLC (Open, High, Low, Close) price 
-data for testing purposes. The sample data consists of 30 rows where all OHLC values 
+The module uses a sample DataFrame with synthetic OHLC (Open, High, Low, Close) price
+data for testing purposes. The sample data consists of 30 rows where all OHLC values
 increment by 1 from 1 to 30.
 
 Test Functions:

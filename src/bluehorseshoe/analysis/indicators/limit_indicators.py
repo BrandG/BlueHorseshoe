@@ -18,7 +18,7 @@ class LimitIndicator(Indicator):
     """
     A class to calculate and analyze pivot points for financial data.
     This class provides methods to calculate Classic Pivot Points (P, R1, R2, S1, S2)
-    based on historical high, low, and close prices, and to score the behavior of 
+    based on historical high, low, and close prices, and to score the behavior of
     prices relative to these pivot levels.
     Attributes:
         data (pd.DataFrame): A DataFrame containing the financial data with required columns 'close', 'high', and 'low'.
@@ -54,7 +54,7 @@ class LimitIndicator(Indicator):
         """
         Calculates Classic Pivot Points (P, R1, R2, S1, S2) for each row
         based on the previous row's High, Low, and Close.
-        
+
         Returns df with additional columns: 'Pivot', 'R1', 'R2', 'S1', 'S2'.
         """
         # Shift by 1 so we use "yesterday's" data for today's pivots
@@ -88,7 +88,7 @@ class LimitIndicator(Indicator):
         - If Close is below S2 => -2
         - Else if Close is below S1 => -1
         - If today's Low is close to Pivot => +1 (small bounce signal)
-        
+
         :param df: DataFrame with columns: 'Pivot', 'R1', 'R2', 'S1', 'S2', 'Close', 'Low'
         :param proximity_pct: if Low is within this % of Pivot, consider it a bounce
         :return: a float score
@@ -136,7 +136,7 @@ class LimitIndicator(Indicator):
         Scores if the Close price is at a 52-week high.
         If Close is at a 52-week high => +1
         Otherwise => 0
-        
+
         :param window: lookback window for the 52-week high
         :return: a float score
         """

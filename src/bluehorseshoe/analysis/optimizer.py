@@ -10,7 +10,7 @@ class WeightOptimizer:
 
     def run_optimization(self):
         logging.info("Starting weight optimization based on last %d days...", self.days_lookback)
-        
+
         # 1. Fetch scores from the last 30 days
         # In a real scenario, we'd filter by date. Here we'll just take the last 5000 scores.
         results = self.engine.run_grading(limit=5000)
@@ -27,11 +27,11 @@ class WeightOptimizer:
         logging.info("Component Performance:\n%s", summary.to_string())
 
         # 3. Adjust weights
-        # Logic: 
+        # Logic:
         # - If Win Rate > 55%, increase weight by 10%
         # - If Win Rate < 45%, decrease weight by 10%
         # - Min weight 0.1, Max weight 5.0
-        
+
         categories = {
             'trend': ['trend'],
             'momentum': ['momentum'],
@@ -41,18 +41,18 @@ class WeightOptimizer:
 
         # We also have safety filters and oversold bonuses which are top-level components
         # We could optimize those too, but they are currently constants.
-        
+
         for category, component_names in categories.items():
             current_weights = weights_config.get_weights(category)
             new_weights = current_weights.copy()
-            
+
             # Find the average win rate for this category
             cat_summary = summary[summary['component'].isin(component_names)]
             if cat_summary.empty:
                 continue
-                
+
             avg_win_rate = cat_summary['win_rate'].mean()
-            
+
             adjustment = 1.0
             if avg_win_rate > 55:
                 adjustment = 1.1
@@ -68,10 +68,10 @@ class WeightOptimizer:
                 # Don't adjust MACD_SIGNAL_MULTIPLIER as it's a sub-multiplier relative to MACD
                 if m_name == 'MACD_SIGNAL_MULTIPLIER':
                     continue
-                
+
                 new_val = new_weights[m_name] * adjustment
                 new_weights[m_name] = max(0.1, min(5.0, round(new_val, 2)))
-            
+
             weights_config.update_weights(category, new_weights)
 
         logging.info("Weight optimization complete.")

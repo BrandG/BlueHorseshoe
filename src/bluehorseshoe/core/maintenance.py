@@ -27,14 +27,14 @@ def update_symbol_universe():
         result = symbols.refresh_symbols()
         status = result.get("status")
         count = result.get("count", 0)
-        
+
         if status == "ok":
             logging.info(f"Symbol universe updated. Processed {result.get('symbol_count')} symbols. Database changes: {count}")
             print(f"✅ Success. {count} symbol records created/updated.")
         else:
             logging.warning(f"Symbol update returned status: {status}")
             print(f"⚠️ Warning: Status {status}")
-            
+
     except Exception as e:
         logging.error(f"Failed to update symbol universe: {e}")
         print(f"❌ Error: {e}")
@@ -42,47 +42,47 @@ def update_symbol_universe():
 def update_history_batch(limit: int = 0, recent_only: bool = True):
     """
     Step 2: Loop through symbols in DB and update their price history.
-    
+
     Args:
         limit: Max number of symbols to update (0 for all).
         recent_only: If True, fetches 'compact' data (faster, less data).
     """
     print(f"\n--- STEP 2: Updating Price History (Recent Only: {recent_only}) ---")
-    
+
     # 1. Get all symbols from Mongo
     all_symbols = symbols.get_symbols_from_mongo()
-    
+
     if limit > 0:
         all_symbols = all_symbols[:limit]
         print(f"Limit applied: Updating first {limit} symbols only.")
-    
+
     print(f"Found {len(all_symbols)} symbols in database. Starting batch update...")
-    
+
     # Dynamic rate limit logging
     current_cps = getattr(symbols, 'CPS', 'Unknown')
     print(f"Note: Rate limiting is active ({current_cps} calls/sec). This may take a while.")
 
     success_count = 0
     error_count = 0
-    
+
     # tqdm provides a nice progress bar
     pbar = tqdm(all_symbols, unit="ticker")
-    
+
     for sym_doc in pbar:
         ticker = sym_doc.get("symbol")
         pbar.set_description(f"Processing {ticker}")
-        
+
         try:
             # This function already has the @limits decorator for rate limiting
             symbols.refresh_historical_for_symbol(ticker, recent=recent_only)
             success_count += 1
-            
+
         except Exception as e:
             error_count += 1
             logging.error(f"Failed to update {ticker}: {str(e)}")
             # Don't crash the whole batch on one failure
             continue
-            
+
     print(f"\n✅ Batch Complete.")
     print(f"Success: {success_count}")
     print(f"Errors:  {error_count}")
@@ -95,12 +95,12 @@ def update_overviews_batch(limit: int = 0):
     all_symbols = symbols.get_symbols_from_mongo()
     if limit > 0:
         all_symbols = all_symbols[:limit]
-    
+
     print(f"Found {len(all_symbols)} symbols. Starting overview update...")
     success_count = 0
     error_count = 0
     pbar = tqdm(all_symbols, unit="ticker")
-    
+
     for sym_doc in pbar:
         ticker = sym_doc.get("symbol")
         pbar.set_description(f"Processing {ticker}")
@@ -113,7 +113,7 @@ def update_overviews_batch(limit: int = 0):
             error_count += 1
             logging.error(f"Failed to update overview for {ticker}: {str(e)}")
             continue
-            
+
     print(f"\n✅ Overviews Complete. Success: {success_count}, Errors: {error_count}")
 
 def update_news_batch(limit: int = 0):
@@ -124,12 +124,12 @@ def update_news_batch(limit: int = 0):
     all_symbols = symbols.get_symbols_from_mongo()
     if limit > 0:
         all_symbols = all_symbols[:limit]
-    
+
     print(f"Found {len(all_symbols)} symbols. Starting news update...")
     success_count = 0
     error_count = 0
     pbar = tqdm(all_symbols, unit="ticker")
-    
+
     for sym_doc in pbar:
         ticker = sym_doc.get("symbol")
         pbar.set_description(f"Processing {ticker}")
@@ -142,7 +142,7 @@ def update_news_batch(limit: int = 0):
             error_count += 1
             logging.error(f"Failed to update news for {ticker}: {str(e)}")
             continue
-            
+
     print(f"\n✅ News Complete. Success: {success_count}, Errors: {error_count}")
 
 def retrain_ml_models(limit: int = 10000):
@@ -161,7 +161,7 @@ def retrain_ml_models(limit: int = 10000):
 
 def main():
     parser = argparse.ArgumentParser(description="BlueHorseshoe Data Maintenance")
-    
+
     parser.add_argument("--symbols", action="store_true", help="Update the list of active symbols from AlphaVantage")
     parser.add_argument("--history", action="store_true", help="Update OHLC price history for symbols in DB")
     parser.add_argument("--overviews", action="store_true", help="Update company overview data (Sector, Industry, etc.)")
@@ -178,7 +178,7 @@ def main():
 
     if args.symbols or args.full:
         update_symbol_universe()
-    
+
     if args.history or args.full:
         # Default to recent=True unless --deep is passed
         recent_mode = not args.deep
@@ -186,7 +186,7 @@ def main():
 
     if args.overviews or args.full:
         update_overviews_batch(limit=args.limit)
-        
+
     if args.news or args.full:
         update_news_batch(limit=args.limit)
 

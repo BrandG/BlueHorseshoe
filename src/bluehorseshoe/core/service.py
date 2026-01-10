@@ -7,8 +7,8 @@ from .models import DailyReport, Candidate
 from .database import db
 from bluehorseshoe.analysis import legacy_strategy as strategy
 from .symbols import (
-    get_symbols_from_mongo, 
-    fetch_overview_from_net, 
+    get_symbols_from_mongo,
+    fetch_overview_from_net,
     upsert_overview_to_mongo,
     get_overview_from_mongo
 )
@@ -37,11 +37,11 @@ def handle_trigger_action(action: str, payload: Dict[str, Any]) -> Dict[str, Any
     Flexible action handler for development triggers.
     """
     _db = db.get_db()
-    
+
     if action == "hello":
         name = payload.get("name", "World")
         return {"message": f"Hello, {name}!"}
-    
+
     elif action == "test_db":
         try:
             collections = _db.list_collection_names()
@@ -54,7 +54,7 @@ def handle_trigger_action(action: str, payload: Dict[str, Any]) -> Dict[str, Any
             }
         except Exception as e:
             return {"error": f"Database test failed: {e}"}
-            
+
     elif action == "backfill_overviews":
         limit = payload.get("limit", 10)
         symbols = get_symbols_from_mongo(limit=limit)
@@ -72,7 +72,7 @@ def handle_trigger_action(action: str, payload: Dict[str, Any]) -> Dict[str, Any
                 except Exception as e:
                     print(f"Failed to fetch overview for {sym}: {e}")
         return {"status": "ok", "backfilled_count": count}
-        
+
     else:
         return {
             "error": f"Unknown action: {action}",
@@ -85,10 +85,10 @@ def run_daily() -> Dict[str, Any]:
     """
     # 1. Determine date
     report_date = date.today().isoformat()
-    
+
     # 2. Load universe data EFFICIENTLY
     universe_data = load_universe_data()
-    
+
     if not universe_data:
         return {"error": "No data found for scanning"}
 
@@ -103,7 +103,7 @@ def run_daily() -> Dict[str, Any]:
     # This replaces the row-by-row loop and is significantly faster
     df['range'] = df['high'] - df['low']
     df['body'] = (df['close'] - df['open']).abs()
-    
+
     # Handle division by zero for stability
     # If range is 0, set stability to 0, otherwise body/range
     df['stability'] = 0.0
@@ -133,7 +133,7 @@ def run_daily() -> Dict[str, Any]:
             stability=row['stability'],
         )
         candidates.append(cand)
-    
+
     selected = {}
     if candidates:
         selected = {
@@ -165,7 +165,7 @@ def load_universe_data(
 ) -> List[Dict[str, Any]]:
     """
     Load OHLCV bars for the universe using an Efficient Aggregation Pipeline.
-    
+
     This replaces the 'Look-Ahead' / 'N+1 Query' loop.
     """
     _db = db.get_db()
@@ -185,7 +185,7 @@ def load_universe_data(
     pipeline = [
         # Match only documents that HAVE this date in their days array
         { "$match": { "days.date": data_date } },
-        
+
         # Project only the specific day we want using $filter
         { "$project": {
             "symbol": 1,
@@ -197,13 +197,13 @@ def load_universe_data(
                 }
             }
         }},
-        
+
         # The filter returns an array (of 1 element). Unwind it.
         { "$unwind": "$day" },
-        
+
         # Filter by minimum price
         { "$match": { "day.close": { "$gte": min_price } } },
-        
+
         # Format the output to be flat
         { "$project": {
             "_id": 0,
@@ -219,5 +219,5 @@ def load_universe_data(
 
     # Run the aggregation
     results = list(_db["historical_prices_recent"].aggregate(pipeline))
-    
+
     return results

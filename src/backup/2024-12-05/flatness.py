@@ -1,8 +1,8 @@
 """
 Module: flatness
 
-This module provides functionality to analyze a list of midpoints and calculate statistical metrics such as mean, 
-standard deviation, coefficient of variation, mean absolute change, and slope. It also computes a flatness score 
+This module provides functionality to analyze a list of midpoints and calculate statistical metrics such as mean,
+standard deviation, coefficient of variation, mean absolute change, and slope. It also computes a flatness score
 based on these metrics.
 
 Functions:

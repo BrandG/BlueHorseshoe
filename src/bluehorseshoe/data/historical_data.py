@@ -164,11 +164,11 @@ def build_all_symbols_history(starting_at='', save_to_file=False, recent=False, 
                 continue
             else:
                 continue
-        
+
         process_symbol(row, index, total_symbols, save_to_file, recent)
         set_backfill_checkpoint(symbol)
         processed_count += 1
-        
+
         if limit and processed_count >= limit:
             logging.info("Reached limit of %d symbols. Stopping.", limit)
             break
@@ -177,7 +177,7 @@ def build_all_symbols_history(starting_at='', save_to_file=False, recent=False, 
 
 def process_symbol(row, index, total_symbols, save_to_file, recent):
     """
-    Processes a stock symbol by loading its historical data, validating it, 
+    Processes a stock symbol by loading its historical data, validating it,
     calculating technical indicators, and saving the data to MongoDB and optionally to a file.
     """
     symbol = row['symbol']
@@ -200,7 +200,7 @@ def process_symbol(row, index, total_symbols, save_to_file, recent):
 
         df = df.sort_values(by='date').reset_index(drop=True)
         net_data['days'] = get_technical_indicators(df)
-        
+
         # Calculate and save score for the latest day
         try:
             # We need the full DF with indicators to calculate the score
@@ -208,7 +208,7 @@ def process_symbol(row, index, total_symbols, save_to_file, recent):
             score_components = TechnicalAnalyzer.calculate_technical_score(full_df)
             total_score = score_components.pop("total", 0.0)
             last_date = net_data['days'][-1]['date']
-            
+
             score_manager.save_scores([{
                 "symbol": symbol,
                 "date": last_date,
@@ -341,7 +341,7 @@ def load_historical_data(symbol):
                 df = pd.DataFrame(days)
                 data['days'] = get_technical_indicators(df)
                 save_historical_data_to_mongo(symbol, data, get_mongo_client())
-                
+
                 # Also update score
                 try:
                     full_df = pd.DataFrame(data['days'])

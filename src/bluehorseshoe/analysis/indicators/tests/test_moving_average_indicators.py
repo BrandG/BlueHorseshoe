@@ -2,7 +2,7 @@
 This module contains test functions for the MovingAverageIndicator class.
 
 The module includes tests for various moving average calculations including:
-- Weighted Moving Average (WMA)  
+- Weighted Moving Average (WMA)
 - Volume Weighted Moving Average (VWMA)
 - Moving Average Score
 - Moving Average Crossovers
@@ -12,7 +12,7 @@ which creates a DataFrame with sequential test data for volume and close prices.
 
 Test Functions:
 - test_calculate_wma(): Tests WMA calculation
-- test_calculate_vwma(): Tests VWMA calculation  
+- test_calculate_vwma(): Tests VWMA calculation
 - test_calculate_ma_score(): Tests MA score calculation
 - test_calculate_crossovers(): Tests MA crossover signals
 - test_calculate_score(): Tests overall indicator score

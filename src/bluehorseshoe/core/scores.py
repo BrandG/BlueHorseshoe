@@ -8,7 +8,7 @@ class ScoreManager:
     Manages the 'trade_scores' collection.
     Allows saving, retrieving, and clearing scores without touching historical data.
     """
-    
+
     def __init__(self, collection_name: str = "trade_scores"):
         self.collection_name = collection_name
         self._db = db.get_db()
@@ -51,7 +51,7 @@ class ScoreManager:
         query = {"date": date, "strategy": strategy}
         if min_score is not None:
             query["score"] = {"$gte": min_score}
-            
+
         return list(self.collection.find(query).sort("score", -1))
 
     def clear_scores(self, strategy: str = None, version: str = None):
@@ -64,7 +64,7 @@ class ScoreManager:
             query["strategy"] = strategy
         if version:
             query["version"] = version
-            
+
         result = self.collection.delete_many(query)
         return result.deleted_count
 

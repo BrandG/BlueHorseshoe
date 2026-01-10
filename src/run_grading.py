@@ -18,9 +18,9 @@ def main():
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO, format='%(levelname)s:%(message)s')
-    
+
     engine = GradingEngine(hold_days=args.hold)
-    
+
     query = {"metadata.entry_price": {"$exists": True}}
     if args.strategy:
         query["strategy"] = args.strategy
@@ -28,7 +28,7 @@ def main():
 
     print(f"Fetching up to {args.limit} scores and evaluating performance...")
     results = engine.run_grading(query=query, limit=args.limit)
-    
+
     if not results:
         print("No results found.")
         return
@@ -61,18 +61,18 @@ def main():
                 if update_result.modified_count > 0 or update_result.upserted_id:
                     save_count += 1
         print(f"Save complete. Modified/Updated {save_count} documents.")
-        
+
     summary = engine.summarize_results(results)
     comp_summary = engine.summarize_components(results)
-    
+
     if summary.empty:
         print("Could not generate summary (likely no valid trades found).")
         return
-        
+
     print("\nPerformance Summary by Score Tier:")
     print("===================================")
     print(summary.to_string(index=False, float_format=lambda x: f"{x:.2f}"))
-    
+
     if not comp_summary.empty:
         print("\nPerformance Summary by Individual Component:")
         print("===========================================")

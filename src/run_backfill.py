@@ -32,11 +32,11 @@ def main():
         content = f.read()
         # Handle both newlines and spaces
         tokens = content.replace('\n', ' ').split(' ')
-    
+
     # Parse symbols
     for token in tokens:
         sym = token.strip()
-        if sym and sym.isalnum(): 
+        if sym and sym.isalnum():
              symbols_to_process.append({'symbol': sym, 'name': sym})
 
 
@@ -47,13 +47,13 @@ def main():
     # Apply limit
     batch = symbols_to_process[:args.limit]
     logging.info(f"Starting backfill for {len(batch)} symbols (Limit: {args.limit})...")
-    
+
     # Run backfill
     # We set recent=False to force 'full' outputsize
     build_all_symbols_history(symbols=batch, recent=False)
-    
+
     logging.info("Batch complete.")
-    
+
     # Optional: Update the file (remove processed)
     # For now, we won't auto-modify the input file to avoid data loss if it fails mid-way,
     # but in a robust system we would mark them as done.

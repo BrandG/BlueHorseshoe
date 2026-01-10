@@ -31,7 +31,7 @@ with open(allSymbolsFile, 'r') as infile:
 				writer.writerow(["Symbol", "Year", "Month", "Day", "Open", "High", "Low", "Close", "Volume"])
 
 			splitDate = line['Date'].split('-')
-			
+
 			writer.writerow([line['AAAP'], splitDate[0]+"-"+splitDate[1]+"-"+splitDate[2], "{:5.3f}".format(openVal), "{:5.3f}".format(float(line['High'])), "{:5.3f}".format(float(line['Low'])), "{:5.3f}".format(float(line['Close'])), "{:09d}".format(int(line['Volume']))])
 		except ValueError:
 			print line

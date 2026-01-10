@@ -119,7 +119,7 @@ def upsert_symbols_to_mongo(symbols: Iterable[Dict[str, Any]]) -> int:
     # Use the centralized db
     _db = db.get_db()
     _symbols_col = _db["symbols"]
-    
+
     # Create index if it doesn't exist (idempotent)
     _symbols_col.create_index("symbol", unique=True)
 
@@ -251,13 +251,13 @@ def upsert_historical_to_mongo(symbol: str, days: List[Dict[str, Any]]) -> None:
     sym = symbol.upper().strip()
     if not sym:
         raise ValueError("symbol is required")
-    
+
     _db = db.get_db()
     _prices = _db["historical_prices"]
     _prices_recent = _db["historical_prices_recent"]
 
     now = datetime.utcnow().isoformat()
-    
+
     # Update Full History
     full_doc = {"symbol": sym, "days": days, "last_updated": now}
     _prices.update_one({"symbol": sym}, {"$set": full_doc}, upsert=True)
@@ -303,7 +303,7 @@ def fetch_overview_from_net(symbol: str) -> Dict[str, Any]:
     response = requests.get(url, timeout=15)
     response.raise_for_status()
     json_data = response.json()
-    
+
     if not json_data or "Symbol" not in json_data:
         logging.error("No overview data for %s. Response: %s", sym, json_data)
         return {}
@@ -318,13 +318,13 @@ def upsert_overview_to_mongo(symbol: str, overview: Dict[str, Any]) -> None:
     sym = symbol.upper().strip()
     if not sym:
         raise ValueError("symbol is required")
-    
+
     _db = db.get_db()
     _overviews = _db["symbol_overviews"]
 
     overview["symbol"] = sym
     overview["last_updated"] = datetime.utcnow().isoformat()
-    
+
     _overviews.update_one({"symbol": sym}, {"$set": overview}, upsert=True)
 
 
@@ -419,7 +419,7 @@ def get_sentiment_score(symbol: str, target_date: str | date) -> float:
 
     if not scores:
         return 0.0
-    
+
     return sum(scores) / len(scores)
 
 
@@ -433,6 +433,6 @@ def get_historical_from_mongo(symbol: str, recent: bool = False) -> List[Dict[st
 
     _db = db.get_db()
     col = _db["historical_prices_recent"] if recent else _db["historical_prices"]
-    
+
     doc = col.find_one({"symbol": sym}, {"_id": 0, "days": 1})
     return (doc or {}).get("days", [])
