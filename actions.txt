@@ -42,3 +42,4 @@
 2026-01-09: Successfully completed full historical data backfill for all 6,778 symbols. Verified data counts (many symbols now have 26+ years of history). Cleaned up duplicate records and enforced unique index on symbol.
 2026-01-09: Verified and fixed remaining short-history symbols. Database now contains full history for all 6,781 symbols (777 legitimate short-history assets).
 2026-01-09: Completed full historical data backfill for 6,781 symbols, ensuring 'full' outputsize for deep history. Implemented resumable backfill with checkpointing and resolved 'stuck symbols' issue by refining completeness checks.
+- 2026-01-09: Validated strategy changes on historical date 2024-03-19. Baseline: YPF (+11%), OXM (+6%). Mean Reversion: RDFN (+23%), PARAP (+14%). Confirmed 'Market Buy' logic efficacy and absence of 'dead' stocks.

@@ -116,20 +116,20 @@ class SwingTrader:
         swing_high_20 = df['high'].rolling(window=20).max().iloc[-1]
         
         # Entry Logic:
-        # If already bullish, has reasonable volume support, and near EMA 9, buy at current close.
-        # Enforce vol_ratio > 1.0 and RSI <= 65 to avoid weak momentum at local tops.
+        # If already bullish (Green Candle) and has volume support, buy at current close (Momentum).
+        # We rely on the Risk:Reward calculation downstream to filter out over-extended setups.
         dist_to_ema = (last_close - ema9) / ema9
-        is_near_ema = (dist_to_ema < 0.05) or (abs(last_close - ema9) < 0.5 * atr)
         
         rsi = last_row.get('rsi_14', 50)
-        has_decent_volume = vol_ratio >= 1.0
-        has_safe_rsi = rsi <= 65
+        has_decent_volume = vol_ratio >= 0.8
+        has_safe_rsi = rsi <= 70
         
-        if is_bullish and has_decent_volume and is_near_ema and has_safe_rsi:
+        if is_bullish and has_decent_volume and has_safe_rsi:
             entry_price = last_close
         else:
-            # Otherwise, wait for a pullback to EMA 9 (support)
-            entry_price = ema9
+            # Otherwise (Red candle or low volume), wait for a pullback to support.
+            # Support is the higher of EMA 9 or the Previous Low.
+            entry_price = max(ema9, last_row['low'])
             
         # Stop Loss: Use the lower of (Swing Low) or (ml_stop_multiplier * ATR)
         # This provides "breathing room" based on the stock's actual volatility.

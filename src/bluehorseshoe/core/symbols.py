@@ -101,8 +101,8 @@ def fetch_symbol_list_from_net() -> List[Dict[str, Any]]:
         # Basic filtering for valid common stocks
         if (
             row.get("status") == "Active"
-            and row.get("exchange") in {"NYSE", "NASDAQ"}
-            and row.get("assetType") == "Stock"
+            and row.get("exchange") in {"NYSE", "NASDAQ", "NYSE ARCA", "NYSE MKT", "AMEX"}
+            and row.get("assetType") in {"Stock", "ETF"}
             and sym
             and "-" not in sym
             and sym.upper() not in invalid_symbols

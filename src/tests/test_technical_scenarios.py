@@ -10,7 +10,7 @@ def base_data():
         "open": [100.0] * 30,
         "high": [105.0] * 30,
         "low": [95.0] * 30,
-        "close": [100.0] * 30,
+        "close": [100.0 + (1.0 if i % 2 == 0 else -1.0) for i in range(30)],
         "volume": [200000] * 30,
         "avg_volume_20": [200000] * 30,
         "rsi_14": [50.0] * 30,
@@ -29,8 +29,8 @@ def test_baseline_score(base_data):
     scores = TechnicalAnalyzer.calculate_technical_score(base_data)
     # Baseline total can be 0.0 if no indicators trigger
     assert "total" in scores
-    assert "penalty_rsi" not in scores
-    assert "bonus_oversold_rsi" not in scores
+    assert scores.get("penalty_rsi") == 0.0
+    assert scores.get("bonus_oversold_rsi") == 0.0
 
 def test_rsi_oversold_extreme(base_data):
     """Verify RSI < 30 gives a -5.0 reward."""

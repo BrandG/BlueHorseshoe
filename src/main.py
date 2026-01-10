@@ -41,7 +41,7 @@ DEBUG = False
 def get_latest_market_date():
     """Find the most recent date available in historical_data."""
     database = db.get_db()
-    latest = database.historical_data.find_one({}, {'days.date': 1}, sort=[('days.date', -1)])
+    latest = database.historical_prices.find_one({}, {'days.date': 1}, sort=[('days.date', -1)])
     return latest['days'][-1]['date'] if latest else None
 
 

@@ -45,6 +45,34 @@ class TechnicalAnalyzer:
         strides = a.strides + (a.strides[-1],)
         return np.lib.stride_tricks.as_strided(a, shape=shape, strides=strides, writeable=False)
 
+    @staticmethod
+    def _is_dead_or_flat(days: pd.DataFrame) -> bool:
+        """
+        Detects if a stock is 'dead', halted, or pinned (e.g., pending acquisition).
+        Criteria: Extremely low volatility over the last 5 days.
+        """
+        if len(days) < 5:
+            return False
+            
+        recent = days.tail(5)
+        avg_close = recent['close'].mean()
+        
+        # 1. Check ATR (normalized)
+        # Calculate approximate True Range for last 5 days
+        high_low = recent['high'] - recent['low']
+        # We need previous close for the full TR, but simple H-L is usually enough to catch dead stocks
+        avg_tr = high_low.mean()
+        
+        if avg_tr / avg_close < 0.005: # Less than 0.5% average daily range
+            return True
+            
+        # 2. Check Standard Deviation of Close
+        std_dev = recent['close'].std()
+        if std_dev / avg_close < 0.002: # Extremely pinned price
+            return True
+            
+        return False
+
     @classmethod
     def calculate_trend(cls, df: pd.DataFrame) -> str:
         """Calculate trend with vectorized operations."""
@@ -85,6 +113,9 @@ class TechnicalAnalyzer:
         components = {}
         
         if len(days) == 0 or days.iloc[-1].get('avg_volume_20', 0) < MIN_VOLUME_THRESHOLD:
+            return {"total": 0.0}
+
+        if TechnicalAnalyzer._is_dead_or_flat(days):
             return {"total": 0.0}
 
         all_indicators_classes = {
@@ -140,6 +171,14 @@ class TechnicalAnalyzer:
 
         # Only apply penalties and bonuses if we are running the full baseline
         if not enabled_indicators:
+            # Initialize keys to 0.0 to ensure consistent output structure
+            components.setdefault("penalty_ema_overextension", 0.0)
+            components.setdefault("penalty_rsi", 0.0)
+            components.setdefault("bonus_oversold_rsi", 0.0)
+            components.setdefault("bonus_oversold_bb", 0.0)
+            components.setdefault("bonus_selling_climax", 0.0)
+            components.setdefault("penalty_volume_exhaustion", 0.0)
+
             last_row = days.iloc[-1]
             
             # EMA Overextension Penalty (Trend logic: Don't buy the peak of a parabolic move)
@@ -202,6 +241,9 @@ class TechnicalAnalyzer:
         components = {}
         
         if len(days) == 0 or days.iloc[-1].get('avg_volume_20', 0) < MIN_VOLUME_THRESHOLD:
+            return {"total": 0.0}
+
+        if TechnicalAnalyzer._is_dead_or_flat(days):
             return {"total": 0.0}
 
         from bluehorseshoe.core.config import weights_config

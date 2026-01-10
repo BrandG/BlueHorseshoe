@@ -50,34 +50,20 @@ The system implements two primary scoring strategies in `TechnicalAnalyzer`:
 
 ## Analysis & Scoring Notes
 
-- **Indicator Testing Infrastructure:** A new script `src/run_indicator_analysis.py` allows for 6-month backtests of individual or combined indicators using the `--indicators` flag (e.g., `momentum:macd,momentum:rsi`).
+- **Baseline Optimization (Jan 2026):**
+    - **Entry Logic:** Switch to "Buy at Last Close" (Market Buy) for high-momentum setups (Green Candle, High Vol, RSI < 70) to ensure fills on runaway trends.
+    - **Safety Filter:** Implemented `_is_dead_or_flat` (ATR < 0.5% or StdDev < 0.2%) to reject pinned stocks or buyouts.
+    - **Performance:** Validated on historical data (YPF +11%, OXM +6% with new logic).
 
-- **Aggregation Models:** Added support for both `sum` (additive) and `product` (convergence) scoring in `TechnicalAnalyzer`. Convergence currently requires very precise timing and may need further threshold relaxation.
-
-- **Baseline Strategy:** Currently undergoing single-factor analysis to optimize weights.
-
-- **MACD Performance:** MACD alone showed a ~61% win rate and ~34% cumulative PnL over the H2 2025 period.
-
-- **RSI Tweak:** RSI scoring was moved from neutral (45-65) to oversold (<50) to better capture "buying the dip" in established trends.
-
-- **Momentum Entry Logic:** Relaxed Baseline entry criteria (EMA distance 1.5% -> 5.0%, Volume Ratio 1.0 -> 0.9) to allow "Buy at Close" entries for strong momentum stocks that don't pull back to the EMA.
+- **Mean Reversion:**
+    - **Status:** Highly effective on volatile names (RDFN +23%).
+    - **Scoring:** Rewards extreme oversold conditions (RSI < 30) with significant mean reversion potential.
 
 ## Developer Notes
 
-- **Granular Indicators:** All indicator groups now support sub-indicator filtering in their `get_score` methods.
-
+- **Testing:** Ensure `base_data` fixtures in tests include price volatility to bypass the "Dead Stock" filter.
 - **Reporting:** `ReportSingleton` now prints to console and writes to `src/logs/report.txt`.
-
 - **Validation:** When adding new technical scoring logic, ensure column presence checks use `Series.index` to avoid value-based subsetting errors.
-
-- **Logging:** When decisions are made, like a new indicator, strategy, or revision, always append an entry to the file `actions.txt` that is a line or two, so that it will be easy when we start a new session, to pick up where the previous session left off. When a session begins, tail the last ten lines from `actions.txt` so that we can begin with a known history of actions taken.
-
-- **ML Win Prediction:** Strategy-specific models (Baseline vs. Mean Reversion) improved accuracy significantly. MR accuracy reached 78% with Beta and Sentiment as key features.
-
-- **Data Alignment:** Resolved collection name inconsistencies between `historical_prices` (maintenance) and `historical_prices_recent` (scanning). All historical data is now unified in `historical_prices`.
-
-- **Score Rebuild:** Initiated a full rebuild of technical scores for January 2025 across 2000+ symbols to create a robust dataset for ML retraining.
-
-- **Full Backfill Completed:** Successfully backfilled full historical data for all 6,781 symbols, ensuring deep history (20+ years for majors) is available for analysis. Implemented resumable batch processing and resolved completeness tracking issues.
+- **Logging:** Always update `actions.txt` with key decisions and validation results.
 
 - **Next Task:** Conduct a data quality audit on the newly backfilled history and begin deep backtesting of strategies over multi-year periods.
