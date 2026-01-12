@@ -11,6 +11,7 @@ from datetime import datetime
 from typing import Iterable, List, Optional, Dict, Any
 
 from pymongo.collection import Collection
+from requests.exceptions import RequestException
 
 from .symbols import (
     get_symbols_from_mongo,
@@ -145,7 +146,7 @@ def run_historical_batch(
             successes += 1
             processed_total += 1
             logging.info("Loaded %s (%d/%d this batch)", sym, successes + failures, len(symbols))
-        except Exception as e:
+        except (RuntimeError, ValueError, RequestException) as e:
             failures += 1
             processed_total += 1
             failed_symbols.append(sym)

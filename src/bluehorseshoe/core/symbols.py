@@ -18,6 +18,7 @@ import io
 import logging
 
 import requests
+from requests.exceptions import RequestException
 from ratelimit import limits, sleep_and_retry
 from pymongo import UpdateOne
 from pymongo.results import BulkWriteResult
@@ -69,7 +70,7 @@ def get_invalid_symbols() -> set[str]:
     try:
         with open(INVALID_SYMBOLS_FILE, "r", encoding="utf-8") as f:
             return {line.strip().upper() for line in f if line.strip()}
-    except Exception as e:
+    except OSError as e:
         logging.error("Error reading invalid symbols file: %s", e)
         return set()
 
@@ -177,7 +178,7 @@ def get_symbol_list(prefer_net: bool = False) -> List[Dict[str, Any]]:
     if prefer_net:
         try:
             symbols = fetch_symbol_list_from_net()
-        except Exception as e:
+        except (RequestException, RuntimeError) as e:
             logging.warning("Net symbol fetch failed; falling back to Mongo: %s", e)
 
     if not symbols:

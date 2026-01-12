@@ -23,7 +23,7 @@ import json
 import pandas as pd
 import requests
 from ratelimit import limits, sleep_and_retry #pylint: disable=import-error
-from pymongo.errors import ServerSelectionTimeoutError
+from pymongo.errors import ServerSelectionTimeoutError, PyMongoError
 import talib as ta
 from bluehorseshoe.core.globals import GlobalData, get_mongo_client
 from bluehorseshoe.core.database import db
@@ -87,7 +87,7 @@ def load_historical_data_from_mongo(symbol, db):
         data = collection.find_one({"symbol": symbol})
         if data is None:
             data = {}
-    except (ServerSelectionTimeoutError, OSError) as e:
+    except (ServerSelectionTimeoutError, OSError, PyMongoError) as e:
         logging.error("Error accessing MongoDB: %s", e)
 
     return data
@@ -121,7 +121,7 @@ def get_backfill_checkpoint():
         database = db.get_db()
         checkpoint = database.loader_checkpoints.find_one({"_id": "full_backfill_checkpoint"})
         return checkpoint.get("last_symbol") if checkpoint else None
-    except Exception as e:
+    except PyMongoError as e:
         logging.error("Failed to get checkpoint: %s", e)
         return None
 
@@ -134,7 +134,7 @@ def set_backfill_checkpoint(symbol):
             {"$set": {"last_symbol": symbol, "updated_at": pd.Timestamp.now().isoformat()}},
             upsert=True
         )
-    except Exception as e:
+    except PyMongoError as e:
         logging.error("Failed to set checkpoint: %s", e)
 
 def build_all_symbols_history(starting_at='', save_to_file=False, recent=False, symbols=None, resume=False, limit=None):
@@ -220,7 +220,7 @@ def process_symbol(row, index, total_symbols, save_to_file, recent):
                     "components": score_components
                 }
             }])
-        except Exception as e:
+        except (PyMongoError, ValueError, KeyError) as e:
             logging.error("Failed to calculate/save score for %s: %s", symbol, e)
 
         if '_id' in net_data:
@@ -359,7 +359,7 @@ def load_historical_data(symbol):
                             "components": score_components
                         }
                     }])
-                except Exception as e:
+                except (PyMongoError, ValueError, KeyError) as e:
                     logging.error("Failed to update score for %s during load: %s", symbol, e)
 
     return data

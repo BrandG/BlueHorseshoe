@@ -39,7 +39,7 @@ class GradingEngine:
         take_profit = metadata.get('take_profit')
 
         if entry_price is None or stop_loss is None or take_profit is None:
-             return {'symbol': symbol, 'date': signal_date, 'score': score_doc.get('score'), 'status': 'missing_metadata'}
+            return {'symbol': symbol, 'date': signal_date, 'score': score_doc.get('score'), 'status': 'missing_metadata'}
 
         price_data = load_historical_data(symbol)
         if not price_data or 'days' not in price_data:
@@ -178,7 +178,7 @@ class GradingEngine:
         take_profit = metadata.get('take_profit')
 
         if entry_price is None or stop_loss is None or take_profit is None:
-             return {'symbol': symbol, 'date': signal_date, 'score': score_doc.get('score'), 'status': 'missing_metadata'}
+            return {'symbol': symbol, 'date': signal_date, 'score': score_doc.get('score'), 'status': 'missing_metadata'}
 
         # Get data strictly after signal_date
         future_data = df[df['date'] > signal_date].sort_values('date').head(self.hold_days)

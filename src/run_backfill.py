@@ -37,7 +37,7 @@ def main():
     for token in tokens:
         sym = token.strip()
         if sym and sym.isalnum():
-             symbols_to_process.append({'symbol': sym, 'name': sym})
+            symbols_to_process.append({'symbol': sym, 'name': sym})
 
 
     if not symbols_to_process:

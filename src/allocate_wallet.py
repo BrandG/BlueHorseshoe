@@ -39,21 +39,23 @@ def allocate():
     print(f"Allocating for {target_date}...")
 
     # Market Regime Filter
-    regime_analyzer = MarketRegime()
-    regime = regime_analyzer.get_current_regime()
-    print(f"Current Market Regime: {regime['regime']}")
+    regime_info = MarketRegime.get_market_health(target_date)
+    print(f"Current Market Regime: {regime_info['status']}")
 
-    if regime['regime'] == 'bear':
+    if regime_info['status'] == 'Bearish':
         print("Bear market detected. Reducing exposure.")
         max_positions = 2
     else:
         max_positions = 5
 
     # Get scores
-    scores = score_manager.get_scores_by_date(target_date)
-    # Filter and sort by total_score
-    candidates = [s for s in scores if s.get('total_score', 0) > 0]
-    candidates.sort(key=lambda x: x.get('total_score', 0), reverse=True)
+    scores_baseline = score_manager.get_scores(target_date, strategy='baseline')
+    scores_mr = score_manager.get_scores(target_date, strategy='mean_reversion')
+    scores = scores_baseline + scores_mr
+    
+    # Filter and sort by score
+    candidates = [s for s in scores if s.get('score', 0) > 0]
+    candidates.sort(key=lambda x: x.get('score', 0), reverse=True)
 
     # Risk Management & Sizing
     # MR threshold: 8 (most MR scores are lower)
@@ -62,7 +64,7 @@ def allocate():
     for cand in candidates:
         symbol = cand['symbol']
         strategy = cand.get('strategy', 'baseline')
-        total_score = cand.get('total_score', 0)
+        total_score = cand.get('score', 0)
 
         threshold = 12 if strategy == 'baseline' else 8
 
@@ -82,7 +84,7 @@ def allocate():
     print(f"Selected {len(final_picks)} positions:")
     for p in final_picks:
         entry = get_entry_price(p['symbol'], target_date)
-        print(f"- {p['symbol']} ({p['strategy']}): Score {p['total_score']:.2f}, Entry Est: {entry:.2f}")
+        print(f"- {p['symbol']} ({p['strategy']}): Score {p['score']:.2f}, Entry Est: {entry:.2f}")
 
 if __name__ == "__main__":
     allocate()

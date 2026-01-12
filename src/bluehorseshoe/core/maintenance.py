@@ -3,6 +3,8 @@ import logging
 import time
 from datetime import datetime
 from tqdm import tqdm  # You might need to pip install tqdm
+from requests.exceptions import RequestException
+from pymongo.errors import PyMongoError
 
 # Import our internal modules
 from . import symbols
@@ -35,7 +37,7 @@ def update_symbol_universe():
             logging.warning(f"Symbol update returned status: {status}")
             print(f"⚠️ Warning: Status {status}")
 
-    except Exception as e:
+    except (RequestException, PyMongoError, RuntimeError) as e:
         logging.error(f"Failed to update symbol universe: {e}")
         print(f"❌ Error: {e}")
 
@@ -77,7 +79,7 @@ def update_history_batch(limit: int = 0, recent_only: bool = True):
             symbols.refresh_historical_for_symbol(ticker, recent=recent_only)
             success_count += 1
 
-        except Exception as e:
+        except (RequestException, PyMongoError, RuntimeError, ValueError) as e:
             error_count += 1
             logging.error(f"Failed to update {ticker}: {str(e)}")
             # Don't crash the whole batch on one failure
@@ -109,7 +111,7 @@ def update_overviews_batch(limit: int = 0):
             if overview:
                 symbols.upsert_overview_to_mongo(ticker, overview)
                 success_count += 1
-        except Exception as e:
+        except (RequestException, PyMongoError, RuntimeError) as e:
             error_count += 1
             logging.error(f"Failed to update overview for {ticker}: {str(e)}")
             continue
@@ -138,7 +140,7 @@ def update_news_batch(limit: int = 0):
             if news:
                 symbols.upsert_news_sentiment_to_mongo(ticker, news)
                 success_count += 1
-        except Exception as e:
+        except (RequestException, PyMongoError, RuntimeError) as e:
             error_count += 1
             logging.error(f"Failed to update news for {ticker}: {str(e)}")
             continue

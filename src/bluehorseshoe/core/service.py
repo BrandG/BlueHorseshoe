@@ -1,7 +1,11 @@
+import time
 from datetime import date, datetime
 from typing import Dict, Any, List, Optional
 import os
+
 import pandas as pd  # Added pandas import
+from pymongo.errors import PyMongoError
+from requests.exceptions import RequestException
 
 from .models import DailyReport, Candidate
 from .database import db
@@ -12,7 +16,6 @@ from .symbols import (
     upsert_overview_to_mongo,
     get_overview_from_mongo
 )
-import time
 
 def run_backtest(symbol: str, start: date, end: date, strategy_name: str = "baseline") -> Dict[str, Any]:
     """
@@ -52,7 +55,7 @@ def handle_trigger_action(action: str, payload: Dict[str, Any]) -> Dict[str, Any
                 "collections": collections,
                 "document_counts": stats
             }
-        except Exception as e:
+        except PyMongoError as e:
             return {"error": f"Database test failed: {e}"}
 
     elif action == "backfill_overviews":
@@ -69,7 +72,7 @@ def handle_trigger_action(action: str, payload: Dict[str, Any]) -> Dict[str, Any
                         upsert_overview_to_mongo(sym, ov)
                         count += 1
                         time.sleep(0.2) # Small delay
-                except Exception as e:
+                except (RequestException, PyMongoError, RuntimeError) as e:
                     print(f"Failed to fetch overview for {sym}: {e}")
         return {"status": "ok", "backfilled_count": count}
 
