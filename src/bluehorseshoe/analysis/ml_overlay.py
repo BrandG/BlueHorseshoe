@@ -32,7 +32,7 @@ class MLOverlayTrainer:
         """
         Extracts features and labels from graded trades and fundamental data.
         """
-        logging.info(f"Gathering graded trades for strategy={strategy}, before={before_date}...")
+        logging.info("Gathering graded trades for strategy=%s, before=%s...", strategy, before_date)
         # Get graded results (Success/Failure)
         query = {"metadata.entry_price": {"$exists": True}}
         if strategy:
@@ -101,7 +101,7 @@ class MLOverlayTrainer:
         # Split data
         X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
-        logging.info(f"Training on {len(X_train)} samples, testing on {len(X_test)} samples...")
+        logging.info("Training on %d samples, testing on %d samples...", len(X_train), len(X_test))
 
         # Train Model
         model = RandomForestClassifier(n_estimators=100, max_depth=10, random_state=42)
@@ -126,13 +126,13 @@ class MLOverlayTrainer:
             'features': X.columns.tolist()
         }
         joblib.dump(output, output_path)
-        logging.info(f"Model saved to {output_path}")
+        logging.info("Model saved to %s", output_path)
 
     def retrain_all(self, limit: int = 10000, before_date: str = None):
         """
         Retrains all models (General, Baseline, Mean Reversion).
         """
-        logging.info(f"Starting automated retraining of all models (limit={limit}, before={before_date})...")
+        logging.info("Starting automated retraining of all models (limit=%s, before=%s)...", limit, before_date)
 
         # 1. General Model
         self.train(limit=limit, output_path="src/models/ml_overlay_v1.joblib", before_date=before_date)
@@ -161,10 +161,10 @@ class MLInference:
             self.models[key] = data['model']
             self.encoders[key] = data['encoders']
             self.features[key] = data['features']
-            logging.info(f"ML Overlay model ({key}) loaded from {path}")
+            logging.info("ML Overlay model (%s) loaded from %s", key, path)
         else:
             if key == "general":
-                logging.warning(f"ML Overlay model not found at {path}")
+                logging.warning("ML Overlay model not found at %s", path)
 
     def predict_probability(self, symbol: str, components: Dict[str, float], target_date: str = None, strategy: str = "general") -> float:
         """

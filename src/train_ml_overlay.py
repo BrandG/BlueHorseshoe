@@ -34,7 +34,7 @@ if __name__ == "__main__":
     if len(sys.argv) > 2:
         before_date = sys.argv[2]
 
-    logging.info(f"Starting ML Overlay training with limit={limit}, before={before_date}...")
+    logging.info("Starting ML Overlay training with limit=%s, before=%s...", limit, before_date)
     trainer = MLOverlayTrainer()
 
     trainer.retrain_all(limit=limit, before_date=before_date)

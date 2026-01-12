@@ -34,14 +34,14 @@ def update_symbol_universe():
         count = result.get("count", 0)
 
         if status == "ok":
-            logging.info(f"Symbol universe updated. Processed {result.get('symbol_count')} symbols. Database changes: {count}")
+            logging.info("Symbol universe updated. Processed %s symbols. Database changes: %s", result.get('symbol_count'), count)
             print(f"✅ Success. {count} symbol records created/updated.")
         else:
-            logging.warning(f"Symbol update returned status: {status}")
+            logging.warning("Symbol update returned status: %s", status)
             print(f"⚠️ Warning: Status {status}")
 
     except (RequestException, PyMongoError, RuntimeError) as e:
-        logging.error(f"Failed to update symbol universe: {e}")
+        logging.error("Failed to update symbol universe: %s", e)
         print(f"❌ Error: {e}")
 
 def update_history_batch(limit: int = 0, recent_only: bool = True):
@@ -84,7 +84,7 @@ def update_history_batch(limit: int = 0, recent_only: bool = True):
 
         except (RequestException, PyMongoError, RuntimeError, ValueError) as e:
             error_count += 1
-            logging.error(f"Failed to update {ticker}: {str(e)}")
+            logging.error("Failed to update %s: %s", ticker, str(e))
             # Don't crash the whole batch on one failure
             continue
 
@@ -116,7 +116,7 @@ def update_overviews_batch(limit: int = 0):
                 success_count += 1
         except (RequestException, PyMongoError, RuntimeError) as e:
             error_count += 1
-            logging.error(f"Failed to update overview for {ticker}: {str(e)}")
+            logging.error("Failed to update overview for %s: %s", ticker, str(e))
             continue
 
     print(f"\n✅ Overviews Complete. Success: {success_count}, Errors: {error_count}")
@@ -145,7 +145,7 @@ def update_news_batch(limit: int = 0):
                 success_count += 1
         except (RequestException, PyMongoError, RuntimeError) as e:
             error_count += 1
-            logging.error(f"Failed to update news for {ticker}: {str(e)}")
+            logging.error("Failed to update news for %s: %s", ticker, str(e))
             continue
 
     print(f"\n✅ News Complete. Success: {success_count}, Errors: {error_count}")
@@ -161,7 +161,7 @@ def retrain_ml_models(limit: int = 10000):
         trainer.retrain_all(limit=limit)
         print("✅ Retraining Complete.")
     except Exception as e:
-        logging.error(f"Failed to retrain ML models: {e}")
+        logging.error("Failed to retrain ML models: %s", e)
         print(f"❌ Error: {e}")
 
 def main():

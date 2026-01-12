@@ -26,7 +26,7 @@ def check_completeness():
 
     logging.info("Fetching symbol list...")
     symbols = get_symbol_list()
-    logging.info(f"Found {len(symbols)} total symbols.")
+    logging.info("Found %d total symbols.", len(symbols))
 
     incomplete_symbols = []
     missing_symbols = []
@@ -54,7 +54,7 @@ def check_completeness():
     for doc in cursor:
         existing_stats[doc['symbol']] = doc
 
-    logging.info(f"Found historical data for {len(existing_stats)} symbols.")
+    logging.info("Found historical data for %d symbols.", len(existing_stats))
 
     cutoff_date = "2024-01-01"
 
@@ -74,8 +74,8 @@ def check_completeness():
         elif first_date > cutoff_date:
             incomplete_symbols.append(f"{sym} (First Date: {first_date})")
 
-    logging.info(f"Missing Data: {len(missing_symbols)}")
-    logging.info(f"Incomplete Data: {len(incomplete_symbols)}")
+    logging.info("Missing Data: %d", len(missing_symbols))
+    logging.info("Incomplete Data: %d", len(incomplete_symbols))
 
     with open('src/logs/missing_symbols.txt', 'w') as f:
         for s in missing_symbols:

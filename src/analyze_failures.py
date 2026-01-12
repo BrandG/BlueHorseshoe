@@ -37,7 +37,7 @@ def process_date(date_str, tester, strategy="mean_reversion", top_n=10):
                     result['score'] = result[score_key]
                     predictions.append(result)
             except Exception as e:
-                logging.error(f"Error processing {future_to_symbol[future]}: {e}")
+                logging.error("Error processing %s: %s", future_to_symbol[future], e)
 
     valid_predictions = sorted(predictions, key=lambda x: x['score'], reverse=True)[:top_n]
 

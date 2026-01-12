@@ -3,6 +3,7 @@
 FastAPI application for BlueHorseshoe market data operations.
 """
 import os
+import sys
 from datetime import date
 from typing import Optional, Dict, Any
 
@@ -21,7 +22,6 @@ def health():
 
 @app.get("/info")
 def info():
-    import sys, os
     return {
         "python": sys.version,
         "cwd": os.getcwd(),

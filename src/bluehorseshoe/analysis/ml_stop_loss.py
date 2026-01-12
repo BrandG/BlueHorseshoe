@@ -32,7 +32,7 @@ class StopLossTrainer:
         """
         Extracts features and labels (mae_atr) from graded trades.
         """
-        logging.info(f"Gathering graded trades for Stop Loss training, before={before_date}...")
+        logging.info("Gathering graded trades for Stop Loss training, before=%s...", before_date)
         query = {"metadata.entry_price": {"$exists": True}}
         if before_date:
             query["date"] = {"$lt": before_date}
@@ -98,7 +98,7 @@ class StopLossTrainer:
         # Split data
         X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
-        logging.info(f"Training Regressor on {len(X_train)} samples, testing on {len(X_test)} samples...")
+        logging.info("Training Regressor on %d samples, testing on %d samples...", len(X_train), len(X_test))
 
         # Train Model
         model = RandomForestRegressor(n_estimators=100, max_depth=10, random_state=42)
@@ -108,7 +108,7 @@ class StopLossTrainer:
         y_pred = model.predict(X_test)
         mse = mean_squared_error(y_test, y_pred)
         r2 = r2_score(y_test, y_pred)
-        logging.info(f"Regression Performance - MSE: {mse:.4f}, R2: {r2:.4f}")
+        logging.info("Regression Performance - MSE: %.4f, R2: %.4f", mse, r2)
 
         # Feature Importance
         importances = pd.DataFrame({
@@ -125,7 +125,7 @@ class StopLossTrainer:
             'features': X.columns.tolist()
         }
         joblib.dump(output, output_path)
-        logging.info(f"Stop Loss Model saved to {output_path}")
+        logging.info("Stop Loss Model saved to %s", output_path)
 
 class StopLossInference:
     """
@@ -144,7 +144,7 @@ class StopLossInference:
             self.model = data['model']
             self.encoders = data['encoders']
             self.features = data['features']
-            logging.info(f"Stop Loss Model loaded from {self.model_path}")
+            logging.info("Stop Loss Model loaded from %s", self.model_path)
 
     def predict_stop_loss_multiplier(self, symbol: str, components: Dict[str, float], target_date: str = None) -> float:
         """

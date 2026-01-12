@@ -28,7 +28,7 @@ def main():
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s', handlers=[logging.StreamHandler(sys.stdout)])
 
     if not os.path.exists(args.file):
-        logging.error(f"File {args.file} not found.")
+        logging.error("File %s not found.", args.file)
         sys.exit(1)
 
     symbols_to_process = []
@@ -50,7 +50,7 @@ def main():
 
     # Apply limit
     batch = symbols_to_process[:args.limit]
-    logging.info(f"Starting backfill for {len(batch)} symbols (Limit: {args.limit})...")
+    logging.info("Starting backfill for %d symbols (Limit: %d)...", len(batch), args.limit)
 
     # Run backfill
     # We set recent=False to force 'full' outputsize
