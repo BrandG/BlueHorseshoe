@@ -1,3 +1,6 @@
+"""
+Core service module for handling business logic and trade operations.
+"""
 import time
 from datetime import date, datetime
 from typing import Dict, Any, List, Optional

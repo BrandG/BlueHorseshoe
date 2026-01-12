@@ -1,3 +1,6 @@
+"""
+Script to analyze trading failures and identify patterns.
+"""
 import os
 import logging
 import concurrent.futures

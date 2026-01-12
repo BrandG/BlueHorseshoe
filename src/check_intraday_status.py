@@ -1,3 +1,6 @@
+"""
+Script to check the intraday status of active trades.
+"""
 import sys
 import os
 import argparse

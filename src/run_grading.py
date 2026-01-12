@@ -1,3 +1,6 @@
+"""
+Script to grade trades using the GradingEngine.
+"""
 import sys
 import os
 import logging
@@ -7,6 +10,7 @@ import argparse
 # Ensure src is in PYTHONPATH
 sys.path.append('/workspaces/BlueHorseshoe/src')
 
+# pylint: disable=wrong-import-position
 from bluehorseshoe.analysis.grading_engine import GradingEngine
 
 def main():

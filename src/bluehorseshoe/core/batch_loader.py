@@ -37,6 +37,7 @@ logging.basicConfig(level=getattr(logging, LOG_LEVEL, logging.INFO))
 
 
 def _checkpoint_col() -> Collection:
+    """Return the checkpoint collection."""
     return db.get_db()[CHECKPOINT_COLLECTION]
 
 
@@ -69,6 +70,7 @@ def set_checkpoint(last_symbol: str, processed_total: int, run_count: int) -> No
 
 
 def clear_checkpoint() -> None:
+    """Remove the current checkpoint."""
     _checkpoint_col().delete_one({"_id": CHECKPOINT_ID})
 
 def _active_symbols_after(last_symbol, limit) -> List[str]:
@@ -89,6 +91,7 @@ def _active_symbols_after(last_symbol, limit) -> List[str]:
     return [d["symbol"] for d in cursor]
 
 def _symbols_after(last_symbol, limit, active_only: bool) -> List[str]:
+    """Retrieve a list of symbols alphabetically following the last symbol."""
     query = {}
     if active_only:
         query["active"] = True
@@ -177,6 +180,7 @@ def run_historical_batch(
     return summary
 
 def classify_symbols_batch(limit=50, sleep_seconds=1.2):
+    """Classify a batch of symbols by updating their data."""
     ck = get_checkpoint()
     last_symbol = ck.get("last_symbol")
     symbols = _symbols_after(last_symbol, limit, active_only=False)

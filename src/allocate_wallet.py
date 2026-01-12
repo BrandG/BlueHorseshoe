@@ -7,6 +7,7 @@ from typing import Dict
 # Ensure src is in PYTHONPATH
 sys.path.append('/workspaces/BlueHorseshoe/src')
 
+# pylint: disable=wrong-import-position
 from bluehorseshoe.core.database import db as database_instance
 from bluehorseshoe.core.scores import score_manager
 from bluehorseshoe.core.symbols import get_overview_from_mongo

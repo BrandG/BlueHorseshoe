@@ -1,8 +1,12 @@
+"""
+Module for performing technical analysis and scoring.
+"""
 import logging
-import numpy as np
-import pandas as pd
 from functools import lru_cache
 from typing import Dict, Optional
+
+import numpy as np
+import pandas as pd
 
 from bluehorseshoe.analysis.constants import (
     TREND_PERIOD, STRONG_R2_THRESHOLD, MIN_VOLUME_THRESHOLD,

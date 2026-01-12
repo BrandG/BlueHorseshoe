@@ -1,3 +1,7 @@
+"""
+Legacy trading strategy module.
+"""
+from typing import Dict, Any
 import pandas as pd
 import pandas_ta as ta
 

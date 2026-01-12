@@ -1,3 +1,6 @@
+"""
+Module for ML-based trade signal overlay.
+"""
 import logging
 import pandas as pd
 from sklearn.model_selection import train_test_split

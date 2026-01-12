@@ -1,4 +1,7 @@
 
+"""
+Script to run backfill for incomplete symbols.
+"""
 import logging
 import sys
 import os
@@ -7,6 +10,7 @@ import argparse
 # Add src to path
 sys.path.append(os.path.join(os.getcwd(), 'src'))
 
+# pylint: disable=wrong-import-position
 from bluehorseshoe.data.historical_data import build_all_symbols_history
 from bluehorseshoe.core.globals import get_mongo_client
 

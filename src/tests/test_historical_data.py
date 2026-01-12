@@ -1,3 +1,6 @@
+"""
+Tests for historical data management and fetching.
+"""
 import sys
 from unittest.mock import patch, MagicMock
 import pandas as pd

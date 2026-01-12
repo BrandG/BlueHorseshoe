@@ -1,3 +1,6 @@
+"""
+Maintenance utilities for updating symbols, history, and retraining models.
+"""
 import argparse
 import logging
 import time
@@ -162,6 +165,7 @@ def retrain_ml_models(limit: int = 10000):
         print(f"❌ Error: {e}")
 
 def main():
+    """Main entry point for maintenance script."""
     parser = argparse.ArgumentParser(description="BlueHorseshoe Data Maintenance")
 
     parser.add_argument("--symbols", action="store_true", help="Update the list of active symbols from AlphaVantage")

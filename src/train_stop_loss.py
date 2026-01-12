@@ -1,3 +1,6 @@
+"""
+Script to train the ML stop loss prediction model.
+"""
 import logging
 import sys
 from bluehorseshoe.analysis.ml_stop_loss import StopLossTrainer

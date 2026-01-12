@@ -9,6 +9,9 @@ from datetime import date
 
 @dataclass
 class Candidate:
+    """
+    Represents a single trading candidate with price data and scores.
+    """
     symbol: str
     score: float
     open: float
@@ -27,11 +30,15 @@ class Candidate:
     expected_downside: Optional[float] = None
 
     def to_dict(self):
+        """Convert object to dictionary."""
         return self.__dict__
 
 
 @dataclass
 class DailyReport:
+    """
+    Represents the daily generated report containing market analysis and top picks.
+    """
     report_date: str
     data_date: str
     strategy: str
@@ -41,4 +48,5 @@ class DailyReport:
     selected: Dict[str, Any]
 
     def to_dict(self):
+        """Convert object to dictionary."""
         return self.__dict__

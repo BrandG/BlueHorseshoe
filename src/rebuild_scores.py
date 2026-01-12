@@ -1,3 +1,6 @@
+"""
+Script to rebuild trade scores for a historical date range.
+"""
 import sys
 import os
 import logging
@@ -7,6 +10,7 @@ import pandas as pd
 # Ensure src is in PYTHONPATH
 sys.path.append('/workspaces/BlueHorseshoe/src')
 
+# pylint: disable=wrong-import-position
 from bluehorseshoe.analysis.strategy import SwingTrader
 from bluehorseshoe.core.scores import score_manager
 from bluehorseshoe.core.globals import get_mongo_client

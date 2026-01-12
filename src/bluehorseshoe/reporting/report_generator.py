@@ -1,3 +1,6 @@
+"""
+Module for generating trading reports and candidates.
+"""
 import json
 import logging
 import os
@@ -5,7 +8,7 @@ from datetime import datetime
 from dataclasses import dataclass, field
 from pathlib import Path
 from threading import Lock
-from typing import Optional, Union
+from typing import Dict, List, Any, Optional
 import matplotlib.pyplot as plt
 from matplotlib.ticker import MultipleLocator
 import mplfinance as mpf #pylint: disable=import-error

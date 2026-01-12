@@ -1,4 +1,6 @@
-
+"""
+Script to check for missing historical price data.
+"""
 import logging
 import sys
 import os
@@ -7,6 +9,7 @@ from datetime import datetime
 # Add src to path
 sys.path.append(os.path.join(os.getcwd(), 'src'))
 
+# pylint: disable=wrong-import-position
 from bluehorseshoe.core.globals import get_mongo_client
 from bluehorseshoe.core.symbols import get_symbol_list
 

@@ -1,11 +1,17 @@
 # src/bluehorseshoe/data/api.py
-from fastapi import FastAPI, Query, HTTPException, Body
+"""
+FastAPI application for BlueHorseshoe market data operations.
+"""
+import os
 from datetime import date
 from typing import Optional, Dict, Any
-import os
+
+from fastapi import FastAPI, Query, HTTPException, Body
 from pymongo import MongoClient
+
 from bluehorseshoe.core import service
 from bluehorseshoe.core.symbols import refresh_symbols, refresh_historical_for_symbol, get_historical_from_mongo
+from bluehorseshoe.core.batch_loader import run_historical_batch, clear_checkpoint
 
 app = FastAPI()
 
@@ -94,8 +100,6 @@ def load_symbol(symbol: str, recent: bool = False):
 @app.get("/historicals/{symbol}")
 def historicals(symbol: str, recent: bool = False):
     return {"symbol": symbol, "days": get_historical_from_mongo(symbol, recent=recent)}
-
-from bluehorseshoe.core.batch_loader import run_historical_batch, clear_checkpoint
 
 @app.post("/run_historical_batch")
 @app.get("/run_historical_batch")

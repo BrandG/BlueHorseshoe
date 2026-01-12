@@ -1,3 +1,6 @@
+"""
+Module for managing trade scores in MongoDB.
+"""
 from typing import List, Dict, Any, Optional
 from datetime import datetime
 from pymongo import UpdateOne

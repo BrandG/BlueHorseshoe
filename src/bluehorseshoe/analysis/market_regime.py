@@ -1,3 +1,6 @@
+"""
+Module for analyzing market regime and health.
+"""
 import pandas as pd
 import logging
 from typing import Dict, Any, Optional
