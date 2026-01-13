@@ -127,7 +127,7 @@ class ReportSingleton:
             self.log_path.parent.mkdir(parents=True, exist_ok=True)
 
             # Open file with explicit newline handling
-            self._file = open(
+            self._file = open(  # pylint: disable=consider-using-with
                 self.log_path,
                 mode="w",
                 encoding="utf-8",
