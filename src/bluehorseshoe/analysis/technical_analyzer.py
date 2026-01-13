@@ -8,6 +8,7 @@ from typing import Dict, Optional
 import numpy as np
 import pandas as pd
 
+from bluehorseshoe.core.config import weights_config
 from bluehorseshoe.analysis.constants import (
     TREND_PERIOD, STRONG_R2_THRESHOLD, MIN_VOLUME_THRESHOLD,
     OVERSOLD_RSI_THRESHOLD_EXTREME, OVERSOLD_RSI_REWARD_EXTREME,
@@ -29,6 +30,7 @@ from bluehorseshoe.analysis.indicators.volume_indicators import VolumeIndicator
 
 class TechnicalAnalyzer:
     """Handles technical analysis calculations with optimized methods."""
+    # pylint: disable=too-few-public-methods
 
     @staticmethod
     @lru_cache(maxsize=128)
@@ -132,7 +134,7 @@ class TechnicalAnalyzer:
             "bonus_selling_climax": 0.0,
             "penalty_volume_exhaustion": 0.0
         }
-        
+
         last_row = days.iloc[-1]
         score_adj = 0.0
 
@@ -145,7 +147,7 @@ class TechnicalAnalyzer:
 
         # RSI Checks
         rsi = last_row.get('rsi_14', 50)
-        
+
         # Overbought Penalty
         if rsi > PENALTY_RSI_THRESHOLD_EXTREME:
             components["penalty_rsi"] = PENALTY_RSI_SCORE_EXTREME
@@ -188,19 +190,48 @@ class TechnicalAnalyzer:
         return score_adj, components
 
     @staticmethod
-    def calculate_baseline_score(days: pd.DataFrame, enabled_indicators: Optional[list[str]] = None, aggregation: str = "sum") -> Dict[str, float]:
-        """
-        Trend-following scoring: Rewards strength, momentum, and breakouts.
-        'aggregation' can be 'sum' or 'product'.
-        """
-        components = {}
+    def _score_rsi_mr(last_row: pd.Series, weights: Dict[str, float]) -> float:
+        """Helper for RSI mean reversion scoring."""
+        rsi = last_row.get('rsi_14', 50)
+        rsi_score = 0.0
+        if rsi < OVERSOLD_RSI_THRESHOLD_EXTREME:
+            rsi_score = MR_OVERSOLD_RSI_REWARD_EXTREME
+        elif rsi < OVERSOLD_RSI_THRESHOLD_MODERATE:
+            rsi_score = MR_OVERSOLD_RSI_REWARD_MODERATE
+        return rsi_score * weights.get('RSI_MULTIPLIER', 1.0)
 
-        if len(days) == 0 or days.iloc[-1].get('avg_volume_20', 0) < MIN_VOLUME_THRESHOLD:
-            return {"total": 0.0}
+    @staticmethod
+    def _score_bb_mr(last_row: pd.Series, weights: Dict[str, float]) -> float:
+        """Helper for Bollinger Band mean reversion scoring."""
+        bb_lower = last_row.get('bb_lower')
+        bb_upper = last_row.get('bb_upper')
+        bb_bonus = 0.0
+        if bb_lower is not None and bb_upper is not None and bb_upper > bb_lower:
+            bb_pos = (last_row['close'] - bb_lower) / (bb_upper - bb_lower)
+            if bb_pos < OVERSOLD_BB_POSITION_THRESHOLD:
+                bb_bonus = MR_OVERSOLD_BB_REWARD
+                if last_row['close'] < bb_lower:
+                    bb_bonus += MR_BELLOW_LOW_BB_BONUS
+        return bb_bonus * weights.get('BB_MULTIPLIER', 1.0)
 
-        if TechnicalAnalyzer._is_dead_or_flat(days):
-            return {"total": 0.0}
+    @staticmethod
+    def _score_ma_mr(last_row: pd.Series, weights: Dict[str, float]) -> float:
+        """Helper for MA distance mean reversion scoring."""
+        ema20 = last_row.get('ema_20')
+        ma_bonus = 0.0
+        if ema20 is not None:
+            dist_ema20 = (last_row['close'] / ema20) - 1
+            if dist_ema20 < -0.05:
+                ma_bonus = 3.0 if dist_ema20 < -0.10 else 1.5
+        return ma_bonus * weights.get('MA_DIST_MULTIPLIER', 1.0)
 
+    @staticmethod
+    def _score_indicators(
+        days: pd.DataFrame,
+        indicator_filters: Dict[str, Optional[list[str]]],
+        aggregation: str
+    ) -> tuple[float, Dict[str, float], int]:
+        """Calculates combined score from all active indicator classes."""
         all_indicators_classes = {
             "trend": TrendIndicator,
             "volume": VolumeIndicator,
@@ -209,6 +240,50 @@ class TechnicalAnalyzer:
             "moving_average": MovingAverageIndicator,
             "momentum": MomentumIndicator
         }
+
+        components = {}
+        total_score = 1.0 if aggregation == "product" else 0.0
+        active_count = 0
+
+        for name, cls in all_indicators_classes.items():
+            if indicator_filters and name not in indicator_filters:
+                continue
+
+            indicator_inst = cls(days)
+            sub_filters = indicator_filters.get(name)
+
+            try:
+                score = indicator_inst.get_score(
+                    enabled_sub_indicators=sub_filters,
+                    aggregation=aggregation
+                ).buy
+            except TypeError:
+                score = indicator_inst.get_score().buy
+
+            components[name] = float(score)
+            if aggregation == "product":
+                total_score *= score
+            else:
+                total_score += score
+            active_count += 1
+
+        return total_score, components, active_count
+
+    @staticmethod
+    def calculate_baseline_score(
+        days: pd.DataFrame,
+        enabled_indicators: Optional[list[str]] = None,
+        aggregation: str = "sum"
+    ) -> Dict[str, float]:
+        """
+        Trend-following scoring: Rewards strength, momentum, and breakouts.
+        'aggregation' can be 'sum' or 'product'.
+        """
+        if len(days) == 0 or days.iloc[-1].get('avg_volume_20', 0) < MIN_VOLUME_THRESHOLD:
+            return {"total": 0.0}
+
+        if TechnicalAnalyzer._is_dead_or_flat(days):
+            return {"total": 0.0}
 
         # Parse granular indicators if provided (e.g., "momentum:macd")
         indicator_filters = {}
@@ -222,34 +297,11 @@ class TechnicalAnalyzer:
                 else:
                     indicator_filters[item] = None
 
-        # Instantiate and score
-        total_score = 1.0 if aggregation == "product" else 0.0
-        active_indicator_count = 0
+        total_score, components, active_count = TechnicalAnalyzer._score_indicators(
+            days, indicator_filters, aggregation
+        )
 
-        for name, cls in all_indicators_classes.items():
-            if enabled_indicators and name not in indicator_filters:
-                continue
-
-            indicator_inst = cls(days)
-            sub_filters = indicator_filters.get(name)
-
-            try:
-                score = indicator_inst.get_score(enabled_sub_indicators=sub_filters, aggregation=aggregation).buy
-            except TypeError:
-                # Fallback for indicators not yet updated to support sub-filters
-                score = indicator_inst.get_score().buy
-
-            components[name] = float(score)
-
-            if aggregation == "product":
-                total_score *= score
-            else:
-                total_score += score
-
-            active_indicator_count += 1
-
-        # If product resulted in 0 or no indicators were active
-        if active_indicator_count == 0:
+        if active_count == 0:
             total_score = 0.0
 
         # Only apply penalties and bonuses if we are running the full baseline
@@ -262,6 +314,44 @@ class TechnicalAnalyzer:
         return components
 
     @staticmethod
+    def _get_mean_reversion_components(
+        days: pd.DataFrame,
+        enabled_indicators: Optional[list[str]],
+        weights: Dict[str, float]
+    ) -> Dict[str, float]:
+        """Calculates individual mean reversion scoring components."""
+        last_row = days.iloc[-1]
+        results = {}
+
+        # 1. RSI Oversold
+        if (not enabled_indicators or "rsi" in enabled_indicators) and weights.get('RSI_MULTIPLIER', 1.0) > 0:
+            rsi_score = TechnicalAnalyzer._score_rsi_mr(last_row, weights)
+            if rsi_score > 0 or enabled_indicators:
+                results["bonus_oversold_rsi"] = float(rsi_score)
+
+        # 2. Bollinger Band Position
+        if (not enabled_indicators or "bb" in enabled_indicators) and weights.get('BB_MULTIPLIER', 1.0) > 0:
+            bb_score = TechnicalAnalyzer._score_bb_mr(last_row, weights)
+            if bb_score > 0 or enabled_indicators:
+                results["bonus_oversold_bb"] = float(bb_score)
+
+        # 3. Distance from Moving Average
+        if (not enabled_indicators or "ma_dist" in enabled_indicators) and weights.get('MA_DIST_MULTIPLIER', 1.0) > 0:
+            ma_score = TechnicalAnalyzer._score_ma_mr(last_row, weights)
+            if ma_score > 0 or enabled_indicators:
+                results["bonus_ma_dist"] = float(ma_score)
+
+        # 4. Candlestick Reversals
+        if (not enabled_indicators or "candlestick" in enabled_indicators) and weights.get('CANDLESTICK_MULTIPLIER', 1.0) > 0:
+            cs = CandlestickIndicator(days)
+            cs_score = 2.0 if cs.get_score().buy > 0 else 0.0
+            cs_score *= weights.get('CANDLESTICK_MULTIPLIER', 1.0)
+            if cs_score > 0 or enabled_indicators:
+                results["candlestick"] = float(cs_score)
+
+        return results
+
+    @staticmethod
     def calculate_mean_reversion_score(
         days: pd.DataFrame,
         enabled_indicators: Optional[list[str]] = None,
@@ -270,88 +360,24 @@ class TechnicalAnalyzer:
         """
         Mean-reversion scoring: Rewards oversold conditions and "buying the dip".
         """
-        components = {}
-
         if len(days) == 0 or days.iloc[-1].get('avg_volume_20', 0) < MIN_VOLUME_THRESHOLD:
             return {"total": 0.0}
 
         if TechnicalAnalyzer._is_dead_or_flat(days):
             return {"total": 0.0}
 
-        from bluehorseshoe.core.config import weights_config
         weights = weights_config.get_weights('mean_reversion')
+        mr_components = TechnicalAnalyzer._get_mean_reversion_components(days, enabled_indicators, weights)
 
-        last_row = days.iloc[-1]
         total_score = 1.0 if aggregation == "product" else 0.0
-        active_count = 0
+        if not mr_components:
+            total_score = 0.0
 
-        # Define components
-        def add_to_score(name, score):
-            nonlocal total_score, active_count
-            components[name] = float(score)
+        for _, score in mr_components.items():
             if aggregation == "product":
                 total_score *= score
             else:
                 total_score += score
-            active_count += 1
 
-        # 1. RSI Oversold (The primary driver)
-        if (not enabled_indicators or "rsi" in enabled_indicators) and weights.get('RSI_MULTIPLIER', 1.0) > 0:
-            rsi = last_row.get('rsi_14', 50)
-            rsi_score = 0.0
-            if rsi < OVERSOLD_RSI_THRESHOLD_EXTREME:
-                rsi_score = MR_OVERSOLD_RSI_REWARD_EXTREME
-            elif rsi < OVERSOLD_RSI_THRESHOLD_MODERATE:
-                rsi_score = MR_OVERSOLD_RSI_REWARD_MODERATE
-
-            rsi_score *= weights.get('RSI_MULTIPLIER', 1.0)
-            if rsi_score > 0 or enabled_indicators:
-                add_to_score("bonus_oversold_rsi", rsi_score)
-
-        # 2. Bollinger Band Position (Granular)
-        if (not enabled_indicators or "bb" in enabled_indicators) and weights.get('BB_MULTIPLIER', 1.0) > 0:
-            bb_lower = last_row.get('bb_lower')
-            bb_upper = last_row.get('bb_upper')
-            bb_bonus = 0.0
-            if bb_lower is not None and bb_upper is not None and bb_upper > bb_lower:
-                # Calculate %B (Bollinger Band Position)
-                bb_pos = (last_row['close'] - bb_lower) / (bb_upper - bb_lower)
-                if bb_pos < OVERSOLD_BB_POSITION_THRESHOLD:
-                    bb_bonus = MR_OVERSOLD_BB_REWARD
-                    # Extra bonus if price is actually below the lower band
-                    if last_row['close'] < bb_lower:
-                        bb_bonus += MR_BELLOW_LOW_BB_BONUS
-
-            bb_bonus *= weights.get('BB_MULTIPLIER', 1.0)
-            if bb_bonus > 0 or enabled_indicators:
-                add_to_score("bonus_oversold_bb", bb_bonus)
-
-        # 3. Distance from Moving Average (Inverse of trend logic)
-        if (not enabled_indicators or "ma_dist" in enabled_indicators) and weights.get('MA_DIST_MULTIPLIER', 1.0) > 0:
-            ema20 = last_row.get('ema_20')
-            ma_bonus = 0.0
-            if ema20 is not None:
-                dist_ema20 = (last_row['close'] / ema20) - 1
-                if dist_ema20 < -0.05:
-                    # Scale bonus based on distance
-                    ma_bonus = 3.0 if dist_ema20 < -0.10 else 1.5
-
-            ma_bonus *= weights.get('MA_DIST_MULTIPLIER', 1.0)
-            if ma_bonus > 0 or enabled_indicators:
-                add_to_score("bonus_ma_dist", ma_bonus)
-
-        # 4. Candlestick Reversals (Hammers, etc.)
-        if (not enabled_indicators or "candlestick" in enabled_indicators) and weights.get('CANDLESTICK_MULTIPLIER', 1.0) > 0:
-            cs = CandlestickIndicator(days)
-            # We only care about bullish patterns appearing at the bottom
-            cs_score = 2.0 if cs.get_score().buy > 0 else 0.0
-
-            cs_score *= weights.get('CANDLESTICK_MULTIPLIER', 1.0)
-            if cs_score > 0 or enabled_indicators:
-                add_to_score("candlestick", cs_score)
-
-        if active_count == 0 or (aggregation == "product" and total_score == 0):
-            total_score = 0.0
-
-        components["total"] = float(total_score)
+        components = {**mr_components, "total": float(total_score)}
         return components
