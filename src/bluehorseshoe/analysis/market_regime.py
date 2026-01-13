@@ -12,6 +12,7 @@ class MarketRegime:
     Analyzes overall market health using major indices (SPY, QQQ).
     Used as a "Circuit Breaker" to reduce risk during downturns.
     """
+    # pylint: disable=too-few-public-methods
 
     @staticmethod
     def get_market_health(target_date: Optional[str] = None) -> Dict[str, Any]:

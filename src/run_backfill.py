@@ -34,7 +34,7 @@ def main():
         sys.exit(1)
 
     symbols_to_process = []
-    with open(args.file, 'r') as f:
+    with open(args.file, 'r', encoding='utf-8') as f:
         content = f.read()
         # Handle both newlines and spaces
         tokens = content.replace('\n', ' ').split(' ')

@@ -15,30 +15,8 @@ from bluehorseshoe.core.symbols import get_symbol_list
 # Setup logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
 
-def check_completeness():
-    """
-    Checks the completeness of historical price data.
-    """
-    db = get_mongo_client()
-    if db is None:
-        logging.error("Could not connect to MongoDB")
-        sys.exit(1)
-
-    col = db['historical_prices']
-
-    logging.info("Fetching symbol list...")
-    symbols = get_symbol_list()
-    logging.info("Found %d total symbols.", len(symbols))
-
-    incomplete_symbols = []
-    missing_symbols = []
-
-    # We can optimize this by fetching all existing symbols in one go, but let's do one-by-one for detailed checks first
-    # Or better, fetch a projection of symbol, min_date, and count
-
-    logging.info("Checking historical data completeness...")
-
-    # Use aggregation to get stats for all symbols in historical_prices
+def _get_existing_stats(col):
+    """Fetches stats for all symbols in historical_prices using aggregation."""
     pipeline = [
         {
             "$project": {
@@ -49,15 +27,33 @@ def check_completeness():
             }
         }
     ]
-
-    # Create a map of existing data stats
-    existing_stats = {}
     cursor = col.aggregate(pipeline)
-    for doc in cursor:
-        existing_stats[doc['symbol']] = doc
+    return {doc['symbol']: doc for doc in cursor}
 
+def _write_symbol_list(file_path, symbols):
+    """Writes a list of symbols to a file with UTF-8 encoding."""
+    with open(file_path, 'w', encoding='utf-8') as f:
+        for s in symbols:
+            f.write(f"{s}\n")
+
+def check_completeness():
+    """
+    Checks the completeness of historical price data.
+    """
+    database = get_mongo_client()
+    if database is None:
+        logging.error("Could not connect to MongoDB")
+        sys.exit(1)
+
+    logging.info("Fetching symbol list...")
+    symbols = get_symbol_list()
+    logging.info("Found %d total symbols.", len(symbols))
+
+    existing_stats = _get_existing_stats(database['historical_prices'])
     logging.info("Found historical data for %d symbols.", len(existing_stats))
 
+    incomplete_symbols = []
+    missing_symbols = []
     cutoff_date = "2024-01-01"
 
     for s in symbols:
@@ -70,7 +66,6 @@ def check_completeness():
         count = stats.get('count', 0)
         first_date = stats.get('first_date', '9999-99-99')
 
-        # Criteria for incomplete
         if count < 200: # Less than a year roughly
             incomplete_symbols.append(f"{sym} (Count: {count})")
         elif first_date > cutoff_date:
@@ -79,13 +74,8 @@ def check_completeness():
     logging.info("Missing Data: %d", len(missing_symbols))
     logging.info("Incomplete Data: %d", len(incomplete_symbols))
 
-    with open('src/logs/missing_symbols.txt', 'w') as f:
-        for s in missing_symbols:
-            f.write(f"{s}\n")
-
-    with open('src/logs/incomplete_symbols.txt', 'w') as f:
-        for s in incomplete_symbols:
-            f.write(f"{s}\n")
+    _write_symbol_list('src/logs/missing_symbols.txt', missing_symbols)
+    _write_symbol_list('src/logs/incomplete_symbols.txt', incomplete_symbols)
 
     logging.info("Written lists to src/logs/missing_symbols.txt and src/logs/incomplete_symbols.txt")
 

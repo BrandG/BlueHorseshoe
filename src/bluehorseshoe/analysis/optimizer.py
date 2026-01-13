@@ -10,6 +10,7 @@ class WeightOptimizer:
     """
     Analyzes trading performance and optimizes indicator weights.
     """
+    # pylint: disable=too-few-public-methods
     def __init__(self, days_lookback: int = 30):
         self.engine = GradingEngine(hold_days=10)
         self.days_lookback = days_lookback
