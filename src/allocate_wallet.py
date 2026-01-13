@@ -30,6 +30,30 @@ def get_entry_price(symbol, target_date):
             return day['close']
     return data['days'][-1]['close']
 
+def _select_candidates(candidates, max_positions):
+    """Filter candidates based on score thresholds and market cap."""
+    final_picks = []
+    for cand in candidates:
+        symbol = cand['symbol']
+        strategy = cand.get('strategy', 'baseline')
+        total_score = cand.get('score', 0)
+
+        threshold = 12 if strategy == 'baseline' else 8
+
+        if total_score >= threshold:
+            # Check overview for safety
+            overview = get_overview_from_mongo(symbol)
+            if overview:
+                # Basic safety filters
+                market_cap = float(overview.get('MarketCapitalization', 0))
+                if market_cap < 50000000: # 50M min
+                    continue
+
+            final_picks.append(cand)
+            if len(final_picks) >= max_positions:
+                break
+    return final_picks
+
 def allocate():
     """Main allocation logic."""
     target_date = get_latest_date()
@@ -58,29 +82,8 @@ def allocate():
     candidates = [s for s in scores if s.get('score', 0) > 0]
     candidates.sort(key=lambda x: x.get('score', 0), reverse=True)
 
-    # Risk Management & Sizing
-    # MR threshold: 8 (most MR scores are lower)
-    # Baseline threshold: 12
-    final_picks = []
-    for cand in candidates:
-        symbol = cand['symbol']
-        strategy = cand.get('strategy', 'baseline')
-        total_score = cand.get('score', 0)
-
-        threshold = 12 if strategy == 'baseline' else 8
-
-        if total_score >= threshold:
-            # Check overview for safety
-            overview = get_overview_from_mongo(symbol)
-            if overview:
-                # Basic safety filters
-                market_cap = float(overview.get('MarketCapitalization', 0))
-                if market_cap < 50000000: # 50M min
-                    continue
-
-            final_picks.append(cand)
-            if len(final_picks) >= max_positions:
-                break
+    # Select final positions
+    final_picks = _select_candidates(candidates, max_positions)
 
     print(f"Selected {len(final_picks)} positions:")
     for p in final_picks:

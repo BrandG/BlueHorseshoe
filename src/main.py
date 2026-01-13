@@ -236,9 +236,11 @@ if __name__ == "__main__":
         logging.info("Debugging...")
         debug_test()
     else:
-        USAGE_STRING = "Invalid arguments. Use -u to update historical data, -p to predict next day swing trading midpoints, -t YYYY-MM-DD to backtest, -d " \
-                                "to debug, or -b to build historical data."
-        logging.error(USAGE_STRING)
+        USAGE_STRING = (
+            "Invalid arguments. Use -u to update historical data, -p to predict next day "
+            "swing trading midpoints, -t YYYY-MM-DD to backtest, -d to debug, or -b to "
+            "build historical data."
+        )
         print(USAGE_STRING)
         sys.exit(1)
 

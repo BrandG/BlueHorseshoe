@@ -99,15 +99,14 @@ def fetch_symbol_list_from_net() -> List[Dict[str, Any]]:
     symbols: List[Dict[str, str]] = []
     for row in rows:
         sym = (row.get("symbol") or "").replace("/", "")
-        # Basic filtering for valid common stocks
-        if (
-            row.get("status") == "Active"
-            and row.get("exchange") in {"NYSE", "NASDAQ", "NYSE ARCA", "NYSE MKT", "AMEX"}
-            and row.get("assetType") in {"Stock", "ETF"}
-            and sym
-            and "-" not in sym
-            and sym.upper() not in invalid_symbols
-        ):
+
+        # Group conditions for readability and to satisfy linting
+        is_active = row.get("status") == "Active"
+        is_correct_exchange = row.get("exchange") in {"NYSE", "NASDAQ", "NYSE ARCA", "NYSE MKT", "AMEX"}
+        is_correct_asset = row.get("assetType") in {"Stock", "ETF"}
+        is_valid_sym = sym and "-" not in sym and sym.upper() not in invalid_symbols
+
+        if is_active and is_correct_exchange and is_correct_asset and is_valid_sym:
             symbols.append({"symbol": sym, "name": row.get("name", "")})
 
     return symbols

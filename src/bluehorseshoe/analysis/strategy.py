@@ -22,7 +22,8 @@ import logging
 import os
 import concurrent.futures
 from functools import partial
-from typing import Dict, Optional
+from dataclasses import dataclass
+from typing import Dict, Optional, List
 
 import pandas as pd
 from ta.volatility import AverageTrueRange
@@ -30,8 +31,9 @@ from ta.volatility import AverageTrueRange
 from bluehorseshoe.analysis.constants import (
     MIN_STOCK_PRICE, MAX_STOCK_PRICE,
     ATR_WINDOW,
-    MIN_RR_RATIO, MIN_REL_VOLUME, REQUIRE_WEEKLY_UPTREND
+    MIN_RR_RATIO, REQUIRE_WEEKLY_UPTREND
 )
+
 from bluehorseshoe.analysis.market_regime import MarketRegime
 from bluehorseshoe.analysis.ml_overlay import MLInference
 from bluehorseshoe.analysis.ml_stop_loss import StopLossInference
@@ -41,6 +43,14 @@ from bluehorseshoe.core.scores import score_manager
 from bluehorseshoe.core.symbols import get_symbol_name_list
 from bluehorseshoe.data.historical_data import load_historical_data
 from bluehorseshoe.reporting.report_generator import ReportSingleton
+
+@dataclass
+class StrategyContext:
+    """Encapsulates common parameters for strategy processing."""
+    target_date: Optional[str] = None
+    enabled_indicators: Optional[List[str]] = None
+    aggregation: str = "sum"
+    benchmark_df: Optional[pd.DataFrame] = None
 
 class SwingTrader:
     """Main class for swing trading analysis."""
@@ -76,6 +86,37 @@ class SwingTrader:
 
         return last_ema10 > last_ema30
 
+    def _calculate_atr(self, df: pd.DataFrame) -> float:
+        """Helper to calculate or retrieve ATR."""
+        if 'ATR' not in df.columns:
+            df['ATR'] = AverageTrueRange(
+                high=df['high'],
+                low=df['low'],
+                close=df['close'],
+                window=ATR_WINDOW
+            ).average_true_range()
+        atr = df.iloc[-1]['ATR']
+        if pd.isna(atr):
+            return df.iloc[-1]['close'] * 0.02
+        return atr
+
+    def _determine_baseline_entry(self, last_row: pd.Series, ema9: float) -> float:
+        """Helper to determine entry price based on momentum or pullback."""
+        last_close = last_row['close']
+        is_bullish = last_close > last_row['open']
+
+        avg_volume = last_row.get('avg_volume_20', 1)
+        vol_ratio = last_row['volume'] / avg_volume if avg_volume > 0 else 0
+        has_decent_volume = vol_ratio >= 0.8
+
+        rsi = last_row.get('rsi_14', 50)
+        has_safe_rsi = rsi <= 70
+
+        if is_bullish and has_decent_volume and has_safe_rsi:
+            return last_close
+
+        return max(ema9, last_row['low'])
+
     def calculate_baseline_setup(self, df: pd.DataFrame, ml_stop_multiplier: float = 2.0) -> Dict[str, float]:
         """
         Calculate structural prices for Baseline (Trend) strategy:
@@ -86,79 +127,42 @@ class SwingTrader:
         last_row = df.iloc[-1]
         last_close = last_row['close']
 
-        # 1. EMAs for support
+        # 1. Indicators
         ema9 = df['close'].ewm(span=9).mean().iloc[-1]
+        atr = self._calculate_atr(df)
 
-        # 2. Bullish Confirmation (Last candle closed green)
-        is_bullish = last_close > last_row['open']
-
-        # 3. Volume Confirmation (Above average volume)
-        avg_volume = last_row.get('avg_volume_20', 1)
-        vol_ratio = last_row['volume'] / avg_volume if avg_volume > 0 else 0
-        has_volume_support = vol_ratio >= MIN_REL_VOLUME
-
-        # 4. Volatility (ATR)
-        if 'ATR' not in df.columns:
-            df['ATR'] = AverageTrueRange(
-                high=df['high'],
-                low=df['low'],
-                close=df['close'],
-                window=ATR_WINDOW
-            ).average_true_range()
-        atr = df.iloc[-1]['ATR']
-        if pd.isna(atr):
-            atr = last_close * 0.02 # Fallback to 2%
-
-        # 5. Structural levels
-        # Recent swing low (5-day)
+        # 2. Structural levels
         swing_low_5 = df['low'].rolling(window=5).min().iloc[-1]
-        # Recent swing high (20-day) for target
         swing_high_20 = df['high'].rolling(window=20).max().iloc[-1]
 
-        # Entry Logic:
-        # If already bullish (Green Candle) and has volume support, buy at current close (Momentum).
-        # We rely on the Risk:Reward calculation downstream to filter out over-extended setups.
-        dist_to_ema = (last_close - ema9) / ema9
+        # 3. Entry Logic
+        entry_price = self._determine_baseline_entry(last_row, ema9)
 
-        rsi = last_row.get('rsi_14', 50)
-        has_decent_volume = vol_ratio >= 0.8
-        has_safe_rsi = rsi <= 70
-
-        if is_bullish and has_decent_volume and has_safe_rsi:
-            entry_price = last_close
-        else:
-            # Otherwise (Red candle or low volume), wait for a pullback to support.
-            # Support is the higher of EMA 9 or the Previous Low.
-            entry_price = max(ema9, last_row['low'])
-
-        # Stop Loss: Use the lower of (Swing Low) or (ml_stop_multiplier * ATR)
-        # This provides "breathing room" based on the stock's actual volatility.
+        # 4. Stop Loss & Take Profit
         stop_loss = min(swing_low_5 * 0.985, entry_price - (ml_stop_multiplier * atr))
-
-        # Take Profit: Prior 20-day high, or at least a 3.0 * ATR move
         take_profit = max(swing_high_20, entry_price + (3.0 * atr))
 
-        # 6. Calculate Reward-to-Risk (R:R)
-        reward = take_profit - entry_price
-        risk = entry_price - stop_loss
-        rr_ratio = reward / risk if risk > 0 else 0
+        # 5. Risk Calculation
+        rr_ratio = (take_profit - entry_price) / (entry_price - stop_loss) if (entry_price - stop_loss) > 0 else 0
 
+        # Debugging
         if rr_ratio < 0.5:
-            print(f"DEBUG: {last_row.get('symbol', 'UNK')} RR Debug: entry={entry_price:.2f}, stop={stop_loss:.2f}, exit={take_profit:.2f}, atr={atr:.2f}, mult={ml_stop_multiplier:.2f}, risk={risk:.2f}, reward={reward:.2f}")
+            print(
+                f"DEBUG: {last_row.get('symbol', 'UNK')} RR Debug: entry={entry_price:.2f}, "
+                f"stop={stop_loss:.2f}, exit={take_profit:.2f}, atr={atr:.2f}, "
+                f"mult={ml_stop_multiplier:.2f}, rr={rr_ratio:.2f}"
+            )
 
-        # 7. Quality Check: Is the entry price realistic?
-        # If the targeted entry (EMA) is more than 15% away from the close,
-        # the price structure is likely broken or parabolic.
-        dist_to_close = abs((last_close / entry_price) - 1)
-        is_realistic = dist_to_close <= 0.15
+        # 6. Quality Check & Return
+        avg_volume = last_row.get('avg_volume_20', 1)
 
         return {
             'entry_price': float(entry_price),
             'stop_loss': float(stop_loss),
             'take_profit': float(take_profit),
             'rr_ratio': float(rr_ratio),
-            'vol_ratio': float(vol_ratio),
-            'is_realistic': is_realistic
+            'vol_ratio': float(last_row['volume'] / avg_volume if avg_volume > 0 else 0),
+            'is_realistic': abs((last_close / entry_price) - 1) <= 0.15
         }
 
     def calculate_mean_reversion_setup(self, df: pd.DataFrame, ml_stop_multiplier: float = 1.5) -> Dict[str, float]:
@@ -223,121 +227,154 @@ class SwingTrader:
 
         return stock_perf / bench_perf if bench_perf > 0 else 1.0
 
-    def process_symbol(self, symbol: str, target_date: Optional[str] = None, enabled_indicators: Optional[list[str]] = None, aggregation: str = "sum", benchmark_df: Optional[pd.DataFrame] = None) -> Optional[Dict]:
-        """Process a single symbol and return its trading data."""
+    def _load_and_validate_data(self, symbol: str, target_date: Optional[str]) -> Optional[tuple[pd.DataFrame, dict, dict]]:
+        """Helper to load and validate historical data."""
         price_data = load_historical_data(symbol)
-        if price_data is None or not price_data['days']:
+        if price_data is None or not price_data.get('days'):
             logging.error("Failed to load historical data for %s.", symbol)
             return None
 
         df = pd.DataFrame(price_data['days'])
-        if df.empty:
-            logging.error("DataFrame is empty for %s.", symbol)
-            return None
 
         if target_date:
             df['date'] = pd.to_datetime(df['date'])
             target_ts = pd.to_datetime(target_date)
             df = df[df['date'] <= target_ts]
-            if df.empty:
-                print(f"DEBUG: {symbol} - DF empty after target_date filter")
-                return None
 
-            # Staleness check
-            last_date = pd.to_datetime(df.iloc[-1]['date'])
-            if (target_ts - last_date).days > 7:
-                print(f"DEBUG: {symbol} - Data too stale: {last_date}")
-                logging.info("Symbol %s data is too stale for target date %s. Skipping.", symbol, target_date)
-                return None
+            if not df.empty:
+                last_date = pd.to_datetime(df.iloc[-1]['date'])
+                if (target_ts - last_date).days > 7:
+                    logging.info("Symbol %s data is too stale for target date %s. Skipping.", symbol, target_date)
+                    return None
 
-        if len(df) < 30:
-            print(f"DEBUG: {symbol} - Insufficient data: {len(df)}")
+        if df.empty or len(df) < 30:
             logging.info("Symbol %s has insufficient data (%d days) for target date. Skipping.", symbol, len(df))
             return None
 
         yesterday = dict(df.iloc[-1])
+        if not target_date and not GlobalData.holiday:
+            last_trading_day = pd.Timestamp.now().normalize() - pd.offsets.BDay(1)
+            yesterday['date'] = pd.to_datetime(yesterday['date'])
+            if yesterday['date'] != last_trading_day:
+                logging.error("Data for %s on date '%s' is not '%s'.", symbol, yesterday['date'], last_trading_day)
+                with open('src/error_symbols.txt', 'a', encoding='utf-8') as f:
+                    f.write(f"{symbol}\n")
+                return None
 
-        if not target_date:
-            if not GlobalData.holiday:
-                last_trading_day = pd.Timestamp.now().normalize() - pd.offsets.BDay(1)
-                yesterday['date'] = pd.to_datetime(yesterday['date'])
-                if yesterday['date'] != last_trading_day:
-                    logging.error("Data for %s on date '%s' is not '%s'.", symbol, yesterday['date'], last_trading_day)
-                    with open('src/error_symbols.txt', 'a', encoding='utf-8') as f:
-                        f.write(f"{symbol}\n")
-                    return None
+        return df, price_data, yesterday
 
-        # --- Baseline Strategy Processing ---
-        baseline_data = None
+    def _process_baseline(self, df: pd.DataFrame, symbol: str, yesterday: dict, ctx: StrategyContext) -> Optional[Dict]:
+        """Process Baseline strategy logic."""
         is_uptrend = self.is_weekly_uptrend(df)
-
-        # Baseline strictly requires Weekly Uptrend if enabled
-        if not REQUIRE_WEEKLY_UPTREND or is_uptrend:
-            score_components = self.technical_analyzer.calculate_baseline_score(df, enabled_indicators=enabled_indicators, aggregation=aggregation)
-
-            # Predict ML Stop Loss Multiplier
-            # ml_stop_multiplier = self.stop_loss_inference.predict_stop_loss_multiplier(symbol, score_components, target_date=str(yesterday['date'])[:10])
-            ml_stop_multiplier = 2.0
-
-            baseline_setup = self.calculate_baseline_setup(df, ml_stop_multiplier=ml_stop_multiplier)
-            if baseline_setup['is_realistic'] and baseline_setup['rr_ratio'] >= MIN_RR_RATIO:
-                entry_price = baseline_setup['entry_price']
-                if MIN_STOCK_PRICE < entry_price < MAX_STOCK_PRICE:
-                    # Apply Relative Strength (RS) Bonus
-                    rs_ratio = 1.0
-                    if benchmark_df is not None:
-                        rs_ratio = self.calculate_relative_strength(df, benchmark_df)
-                        if rs_ratio > 1.10: rs_bonus = 5.0
-                        elif rs_ratio > 1.0: rs_bonus = 2.0
-                        else: rs_bonus = -2.0
-                        score_components["rs_index"] = rs_bonus
-                        score_components["total"] += rs_bonus
-
-                    # Calculate ML Win Probability
-                    ml_prob = self.ml_inference.predict_probability(symbol, score_components, target_date=str(yesterday['date'])[:10], strategy="baseline")
-
-                    baseline_data = {
-                        "score": score_components.pop("total", 0.0),
-                        "components": score_components,
-                        "setup": baseline_setup,
-                        "ml_prob": ml_prob,
-                        "stop_multiplier": ml_stop_multiplier
-                    }
-                else:
-                    print(f"DEBUG: {symbol} - Baseline price out of range: {entry_price}")
-            else:
-                print(f"DEBUG: {symbol} - Baseline failed setup checks: realistic={baseline_setup['is_realistic']}, rr={baseline_setup['rr_ratio']}")
-        else:
+        if REQUIRE_WEEKLY_UPTREND and not is_uptrend:
             print(f"DEBUG: {symbol} - Baseline failed weekly uptrend")
+            return None
 
-        # --- Mean Reversion Strategy Processing ---
-        mr_data = None
-        # MR relaxes the Weekly Uptrend requirement (can buy dips in Stage 1/4)
-        score_components_mr = self.technical_analyzer.calculate_technical_score(df, strategy="mean_reversion", enabled_indicators=enabled_indicators, aggregation=aggregation)
+        score_components = self.technical_analyzer.calculate_baseline_score(
+            df,
+            enabled_indicators=ctx.enabled_indicators,
+            aggregation=ctx.aggregation
+        )
 
-        # Predict ML Stop Loss Multiplier (specifically for MR)
-        ml_stop_multiplier_mr = self.stop_loss_inference.predict_stop_loss_multiplier(symbol, score_components_mr, target_date=str(yesterday['date'])[:10])
+        ml_stop_multiplier = 2.0
+        baseline_setup = self.calculate_baseline_setup(df, ml_stop_multiplier=ml_stop_multiplier)
+
+        if not baseline_setup['is_realistic'] or baseline_setup['rr_ratio'] < MIN_RR_RATIO:
+            print(f"DEBUG: {symbol} - Baseline failed setup checks: realistic={baseline_setup['is_realistic']}, rr={baseline_setup['rr_ratio']}")
+            return None
+
+        entry_price = baseline_setup['entry_price']
+        if not MIN_STOCK_PRICE < entry_price < MAX_STOCK_PRICE:
+            print(f"DEBUG: {symbol} - Baseline price out of range: {entry_price}")
+            return None
+
+        # Apply Relative Strength (RS) Bonus
+        if ctx.benchmark_df is not None:
+            rs_ratio = self.calculate_relative_strength(df, ctx.benchmark_df)
+            if rs_ratio > 1.10:
+                rs_bonus = 5.0
+            elif rs_ratio > 1.0:
+                rs_bonus = 2.0
+            else:
+                rs_bonus = -2.0
+            score_components["rs_index"] = rs_bonus
+            score_components["total"] += rs_bonus
+
+        # Calculate ML Win Probability
+        ml_prob = self.ml_inference.predict_probability(
+            symbol,
+            score_components,
+            target_date=str(yesterday['date'])[:10],
+            strategy="baseline"
+        )
+
+        return {
+            "score": score_components.pop("total", 0.0),
+            "components": score_components,
+            "setup": baseline_setup,
+            "ml_prob": ml_prob,
+            "stop_multiplier": ml_stop_multiplier
+        }
+
+    def _process_mr(self, df: pd.DataFrame, symbol: str, yesterday: dict, ctx: StrategyContext) -> Optional[Dict]:
+        """Process Mean Reversion strategy logic."""
+        score_components_mr = self.technical_analyzer.calculate_technical_score(
+            df,
+            strategy="mean_reversion",
+            enabled_indicators=ctx.enabled_indicators,
+            aggregation=ctx.aggregation
+        )
+
+        # Predict ML Stop Loss Multiplier
+        ml_stop_multiplier_mr = self.stop_loss_inference.predict_stop_loss_multiplier(
+            symbol,
+            score_components_mr,
+            target_date=str(yesterday['date'])[:10]
+        )
 
         mr_setup = self.calculate_mean_reversion_setup(df, ml_stop_multiplier=ml_stop_multiplier_mr)
-        if mr_setup['rr_ratio'] >= MIN_RR_RATIO:
-            entry_price = mr_setup['entry_price']
-            if MIN_STOCK_PRICE < entry_price < MAX_STOCK_PRICE:
-                # Calculate ML Win Probability
-                ml_prob_mr = self.ml_inference.predict_probability(symbol, score_components_mr, target_date=str(yesterday['date'])[:10], strategy="mean_reversion")
+        if mr_setup['rr_ratio'] < MIN_RR_RATIO:
+            return None
 
-                mr_data = {
-                    "score": score_components_mr.pop("total", 0.0),
-                    "components": score_components_mr,
-                    "setup": mr_setup,
-                    "ml_prob": ml_prob_mr,
-                    "stop_multiplier": ml_stop_multiplier_mr
-                }
+        entry_price = mr_setup['entry_price']
+        if not MIN_STOCK_PRICE < entry_price < MAX_STOCK_PRICE:
+            return None
+
+        # Calculate ML Win Probability
+        ml_prob_mr = self.ml_inference.predict_probability(
+            symbol,
+            score_components_mr,
+            target_date=str(yesterday['date'])[:10],
+            strategy="mean_reversion"
+        )
+
+        return {
+            "score": score_components_mr.pop("total", 0.0),
+            "components": score_components_mr,
+            "setup": mr_setup,
+            "ml_prob": ml_prob_mr,
+            "stop_multiplier": ml_stop_multiplier_mr
+        }
+
+    def process_symbol(self, symbol: str, ctx: StrategyContext) -> Optional[Dict]:
+        """Process a single symbol and return its trading data."""
+        # 1. Load and Validate Data
+        data_result = self._load_and_validate_data(symbol, ctx.target_date)
+        if not data_result:
+            return None
+        df, price_data, yesterday = data_result
+
+        # 2. Process Strategies
+        baseline_data = self._process_baseline(df, symbol, yesterday, ctx)
+        mr_data = self._process_mr(df, symbol, yesterday, ctx)
 
         if not baseline_data and not mr_data:
             return None
 
-        # Calculate RS ratio once if not already done
-        rs_ratio = self.calculate_relative_strength(df, benchmark_df) if benchmark_df is not None else 1.0
+        # 3. Finalize Result
+        rs_ratio = 1.0
+        if ctx.benchmark_df is not None:
+            rs_ratio = self.calculate_relative_strength(df, ctx.benchmark_df)
 
         ret_val = {
             'symbol': symbol,
@@ -355,126 +392,138 @@ class SwingTrader:
         }
         logging.info("Processed %s with results Baseline: %.2f, MR: %.2f", symbol, ret_val['baseline_score'], ret_val['mr_score'])
         return ret_val
+    def _load_benchmark_data(self, target_date: Optional[str]) -> Optional[pd.DataFrame]:
+        benchmark_data = load_historical_data("SPY")
+        if benchmark_data and benchmark_data.get('days'):
+            df = pd.DataFrame(benchmark_data['days'])
+            if target_date:
+                df['date'] = pd.to_datetime(df['date'])
+                df = df[df['date'] <= pd.to_datetime(target_date)]
+            return df
+        return None
 
-    def swing_predict(self, target_date: Optional[str] = None, enabled_indicators: Optional[list[str]] = None, aggregation: str = "sum", symbols: Optional[list[str]] = None) -> None:
+    def _execute_prediction_batch(self, symbols: List[str], ctx: StrategyContext) -> List[Dict]:
+        """Execute parallel prediction for a batch of symbols."""
+        max_workers = min(8, os.cpu_count() or 4)
+
+        ReportSingleton().write(f"Yesterday was {'not ' if not GlobalData.holiday else ''}a holiday.")
+        if ctx.target_date:
+            ReportSingleton().write(f"Predicting for historical date: {ctx.target_date}")
+        logging.info("Processing %d symbols with %d workers...", len(symbols), max_workers)
+
+        results = []
+        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+            # Partial binding for the common arguments
+            process_func = partial(
+                self.process_symbol,
+                ctx=ctx
+            )
+
+            # Submit all tasks
+            future_map = {executor.submit(process_func, sym): sym for sym in symbols}
+
+            total = len(symbols)
+            for i, future in enumerate(concurrent.futures.as_completed(future_map), 1):
+                try:
+                    res = future.result()
+                    results.append(res)
+                except Exception as e: # pylint: disable=broad-exception-caught
+                    sym = future_map[future]
+                    logging.error("%s generated an exception: %s", sym, e)
+
+                if i % 50 == 0 or i == total:
+                    pct = (i / total) * 100
+                    logging.info("Progress: %d/%d symbols processed (%.1f%%)", i, total, pct)
+                    print(f"Progress: {i}/{total} symbols processed ({pct:.1f}%)", flush=True)
+
+        return [r for r in results if r is not None]
+
+    def _report_top_candidates(self, results, strategy_key, setup_key, title):
+        sorted_results = sorted([r for r in results if r[strategy_key] > 0], key=lambda x: x[strategy_key], reverse=True)
+        ReportSingleton().write(f'\n--- Top 5 {title} Candidates ---')
+        for i in range(min(5, len(sorted_results))):
+            res = sorted_results[i]
+            setup = res[setup_key]
+            prob_key = 'baseline_ml_prob' if 'baseline' in strategy_key else 'mr_ml_prob'
+            ReportSingleton().write(
+                f"{res['symbol']} - Entry: {setup['entry_price']:.2f} | "
+                f"Stop: {setup['stop_loss']:.2f} (SL Mult: {res.get('stop_multiplier', 0):.1f}) | Exit: {setup['take_profit']:.2f} | "
+                f"Score: {res[strategy_key]:.2f} | ML Win%: {res[prob_key]*100:.1f}% - Name: {res['name']}"
+            )
+
+    def _prepare_scores_for_save(self, valid_results) -> List[Dict]:
+        score_data = []
+        for r in valid_results:
+            if r['baseline_score'] > 0:
+                setup = r['baseline_setup']
+                score_data.append({
+                    "symbol": r["symbol"],
+                    "date": r["date"][:10],
+                    "score": r["baseline_score"],
+                    "strategy": "baseline",
+                    "version": "1.6",
+                    "metadata": {
+                        "entry_price": setup["entry_price"],
+                        "stop_loss": setup["stop_loss"],
+                        "take_profit": setup["take_profit"],
+                        "ml_win_prob": r["baseline_ml_prob"],
+                        "stop_multiplier": r.get("stop_multiplier", 2.0),
+                        "components": r["baseline_components"]
+                    }
+                })
+            if r['mr_score'] > 0:
+                setup = r['mr_setup']
+                score_data.append({
+                    "symbol": r["symbol"],
+                    "date": r["date"][:10],
+                    "score": r["mr_score"],
+                    "strategy": "mean_reversion",
+                    "version": "1.6",
+                    "metadata": {
+                        "entry_price": setup["entry_price"],
+                        "stop_loss": setup["stop_loss"],
+                        "take_profit": setup["take_profit"],
+                        "ml_win_prob": r["mr_ml_prob"],
+                        "stop_multiplier": r.get("stop_multiplier", 1.5),
+                        "components": r["mr_components"]
+                    }
+                })
+        return score_data
+
+    def swing_predict(
+        self,
+        target_date: Optional[str] = None,
+        enabled_indicators: Optional[list[str]] = None,
+        aggregation: str = "sum",
+        symbols: Optional[list[str]] = None
+    ) -> None:
         """Main prediction function with parallel processing capability."""
 
-        # 1. Market Context Filter (The "Big Picture")
+        # 1. Market Context Filter
         market_health = MarketRegime.get_market_health(target_date=target_date)
         ReportSingleton().write(f"Market Status: {market_health['status']} ({market_health['multiplier']}x risk)")
 
-        # if market_health['status'] == 'Bearish':
-        #     ReportSingleton().write("BROAD MARKET IS BEARISH. Skipping all long signals to protect capital.")
-        #     return
-
-        # Load Benchmark for Relative Strength
-        benchmark_data = load_historical_data("SPY")
-        benchmark_df = None
-        if benchmark_data and benchmark_data.get('days'):
-            benchmark_df = pd.DataFrame(benchmark_data['days'])
-            if target_date:
-                benchmark_df['date'] = pd.to_datetime(benchmark_df['date'])
-                benchmark_df = benchmark_df[benchmark_df['date'] <= pd.to_datetime(target_date)]
-
+        # 2. Setup Data
+        benchmark_df = self._load_benchmark_data(target_date)
         if symbols is None:
             symbols = get_symbol_name_list()
-        # Reduce max_workers to avoid pegging CPU, and use as_completed for progress logging
-        max_workers = min(8, os.cpu_count() or 4)
-        results = []
 
-        ReportSingleton().write(f"Yesterday was {'not ' if not GlobalData.holiday else ''}a holiday.")
-        if target_date:
-            ReportSingleton().write(f"Predicting for historical date: {target_date}")
+        ctx = StrategyContext(
+            target_date=target_date,
+            enabled_indicators=enabled_indicators,
+            aggregation=aggregation,
+            benchmark_df=benchmark_df
+        )
 
-        logging.info("Processing %d symbols with %d workers...", len(symbols), max_workers)
+        # 3. Execute
+        valid_results = self._execute_prediction_batch(symbols, ctx)
 
-        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
-            process_func = partial(self.process_symbol, target_date=target_date, enabled_indicators=enabled_indicators, aggregation=aggregation, benchmark_df=benchmark_df)
-            future_to_symbol = {executor.submit(process_func, sym): sym for sym in symbols}
+        # 4. Report
+        self._report_top_candidates(valid_results, 'baseline_score', 'baseline_setup', 'Baseline (Trend)')
+        self._report_top_candidates(valid_results, 'mr_score', 'mr_setup', 'Mean Reversion (Dip)')
 
-            processed_count = 0
-            total_symbols = len(symbols)
-            for future in concurrent.futures.as_completed(future_to_symbol):
-                processed_count += 1
-                try:
-                    result = future.result()
-                    results.append(result)
-                except Exception as e:
-                    symbol = future_to_symbol[future]
-                    logging.error("%s generated an exception: %s", symbol, e)
-
-                if processed_count % 50 == 0 or processed_count == total_symbols:
-                    msg = f"Progress: {processed_count}/{total_symbols} symbols processed ({(processed_count/total_symbols)*100:.1f}%)"
-                    logging.info(msg)
-                    print(msg, flush=True)
-
-        # Filter None results
-        valid_results = [r for r in results if r is not None]
-
-        # 1. Handle Baseline (Trend) Results
-        baseline_sorted = sorted([r for r in valid_results if r['baseline_score'] > 0], key=lambda x: x['baseline_score'], reverse=True)
-        ReportSingleton().write('\n--- Top 5 Baseline (Trend) Candidates ---')
-        for i in range(min(5, len(baseline_sorted))):
-            res = baseline_sorted[i]
-            setup = res['baseline_setup']
-            ReportSingleton().write(
-                f"{res['symbol']} - Entry: {setup['entry_price']:.2f} | "
-                f"Stop: {setup['stop_loss']:.2f} (SL Mult: {res.get('stop_multiplier', 0):.1f}) | Exit: {setup['take_profit']:.2f} | "
-                f"Score: {res['baseline_score']:.2f} | ML Win%: {res['baseline_ml_prob']*100:.1f}% - Name: {res['name']}"
-            )
-
-        # 2. Handle Mean Reversion (Dip) Results
-        mr_sorted = sorted([r for r in valid_results if r['mr_score'] > 0], key=lambda x: x['mr_score'], reverse=True)
-        ReportSingleton().write('\n--- Top 5 Mean Reversion (Dip) Candidates ---')
-        for i in range(min(5, len(mr_sorted))):
-            res = mr_sorted[i]
-            setup = res['mr_setup']
-            ReportSingleton().write(
-                f"{res['symbol']} - Entry: {setup['entry_price']:.2f} | "
-                f"Stop: {setup['stop_loss']:.2f} (SL Mult: {res.get('stop_multiplier', 0):.1f}) | Exit: {setup['take_profit']:.2f} | "
-                f"Score: {res['mr_score']:.2f} | ML Win%: {res['mr_ml_prob']*100:.1f}% - Name: {res['name']}"
-            )
-
-        # Save results to the trade_scores collection
+        # 5. Save
         if valid_results:
-            score_data = []
-            for r in valid_results:
-                # Add Baseline score
-                if r['baseline_score'] > 0:
-                    setup = r['baseline_setup']
-                    score_data.append({
-                        "symbol": r["symbol"],
-                        "date": r["date"][:10],
-                        "score": r["baseline_score"],
-                        "strategy": "baseline",
-                        "version": "1.6", # Incremented version
-                        "metadata": {
-                            "entry_price": setup["entry_price"],
-                            "stop_loss": setup["stop_loss"],
-                            "take_profit": setup["take_profit"],
-                            "ml_win_prob": r["baseline_ml_prob"],
-                            "stop_multiplier": r.get("stop_multiplier", 2.0),
-                            "components": r["baseline_components"]
-                        }
-                    })
-                # Add Mean Reversion score
-                if r['mr_score'] > 0:
-                    setup = r['mr_setup']
-                    score_data.append({
-                        "symbol": r["symbol"],
-                        "date": r["date"][:10],
-                        "score": r["mr_score"],
-                        "strategy": "mean_reversion",
-                        "version": "1.6",
-                        "metadata": {
-                            "entry_price": setup["entry_price"],
-                            "stop_loss": setup["stop_loss"],
-                            "take_profit": setup["take_profit"],
-                            "ml_win_prob": r["mr_ml_prob"],
-                            "stop_multiplier": r.get("stop_multiplier", 1.5),
-                            "components": r["mr_components"]
-                        }
-                    })
-
+            score_data = self._prepare_scores_for_save(valid_results)
             score_manager.save_scores(score_data)
             logging.info("Saved %d scores (Baseline & Mean Reversion) to trade_scores", len(score_data))

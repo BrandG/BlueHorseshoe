@@ -99,14 +99,93 @@ class TechnicalAnalyzer:
         return trend_map.get((slope > 0, r2_value > STRONG_R2_THRESHOLD), "No Clear Trend")
 
     @staticmethod
-    def calculate_technical_score(days: pd.DataFrame, strategy: str = "baseline", enabled_indicators: Optional[list[str]] = None, aggregation: str = "sum") -> Dict[str, float]:
+    def calculate_technical_score(
+        days: pd.DataFrame,
+        strategy: str = "baseline",
+        enabled_indicators: Optional[list[str]] = None,
+        aggregation: str = "sum"
+    ) -> Dict[str, float]:
         """
         Calculate a technical score based on the specified strategy.
         Returns a dictionary of component scores for granular analysis.
         """
         if strategy == "mean_reversion":
-            return TechnicalAnalyzer.calculate_mean_reversion_score(days, enabled_indicators=enabled_indicators, aggregation=aggregation)
-        return TechnicalAnalyzer.calculate_baseline_score(days, enabled_indicators=enabled_indicators, aggregation=aggregation)
+            return TechnicalAnalyzer.calculate_mean_reversion_score(
+                days,
+                enabled_indicators=enabled_indicators,
+                aggregation=aggregation
+            )
+        return TechnicalAnalyzer.calculate_baseline_score(
+            days,
+            enabled_indicators=enabled_indicators,
+            aggregation=aggregation
+        )
+
+    @staticmethod
+    def _calculate_baseline_modifiers(days: pd.DataFrame) -> tuple[float, Dict[str, float]]:
+        """Calculates penalties and bonuses for the baseline strategy."""
+        components = {
+            "penalty_ema_overextension": 0.0,
+            "penalty_rsi": 0.0,
+            "bonus_oversold_rsi": 0.0,
+            "bonus_oversold_bb": 0.0,
+            "bonus_selling_climax": 0.0,
+            "penalty_volume_exhaustion": 0.0
+        }
+        
+        last_row = days.iloc[-1]
+        score_adj = 0.0
+
+        # EMA Overextension Penalty
+        ema9 = days['close'].ewm(span=9).mean().iloc[-1]
+        dist_ema9 = (last_row['close'] / ema9) - 1
+        if dist_ema9 > 0.10:
+            components["penalty_ema_overextension"] = PENALTY_EMA_OVEREXTENSION
+            score_adj += PENALTY_EMA_OVEREXTENSION
+
+        # RSI Checks
+        rsi = last_row.get('rsi_14', 50)
+        
+        # Overbought Penalty
+        if rsi > PENALTY_RSI_THRESHOLD_EXTREME:
+            components["penalty_rsi"] = PENALTY_RSI_SCORE_EXTREME
+            score_adj += PENALTY_RSI_SCORE_EXTREME
+        elif rsi > PENALTY_RSI_THRESHOLD_MODERATE:
+            components["penalty_rsi"] = PENALTY_RSI_SCORE_MODERATE
+            score_adj += PENALTY_RSI_SCORE_MODERATE
+
+        # Oversold Signal (Reward if Uptrend)
+        trend = TechnicalAnalyzer.calculate_trend(days)
+        is_uptrend = "Uptrend" in trend
+
+        if rsi < OVERSOLD_RSI_THRESHOLD_EXTREME:
+            reward = abs(OVERSOLD_RSI_REWARD_EXTREME) if is_uptrend else OVERSOLD_RSI_REWARD_EXTREME
+            components["bonus_oversold_rsi"] = reward
+            score_adj += reward
+        elif rsi < OVERSOLD_RSI_THRESHOLD_MODERATE:
+            reward = abs(OVERSOLD_RSI_REWARD_MODERATE) if is_uptrend else OVERSOLD_RSI_REWARD_MODERATE
+            components["bonus_oversold_rsi"] = reward
+            score_adj += reward
+
+        # Bollinger Band Oversold
+        bb_lower = last_row.get('bb_lower')
+        if bb_lower is not None and last_row['close'] < bb_lower:
+            reward = abs(OVERSOLD_BB_REWARD) if is_uptrend else OVERSOLD_BB_REWARD
+            components["bonus_oversold_bb"] = reward
+            score_adj += reward
+
+        # Volume Exhaustion
+        avg_vol = last_row.get('avg_volume_20', 1)
+        vol_ratio = last_row['volume'] / avg_vol
+
+        if rsi < OVERSOLD_RSI_THRESHOLD_EXTREME and vol_ratio > 2.0:
+            components["bonus_selling_climax"] = 3.0
+            score_adj += 3.0
+        elif vol_ratio > 3.0:
+            components["penalty_volume_exhaustion"] = PENALTY_VOLUME_EXHAUSTION
+            score_adj += PENALTY_VOLUME_EXHAUSTION
+
+        return score_adj, components
 
     @staticmethod
     def calculate_baseline_score(days: pd.DataFrame, enabled_indicators: Optional[list[str]] = None, aggregation: str = "sum") -> Dict[str, float]:
@@ -175,70 +254,19 @@ class TechnicalAnalyzer:
 
         # Only apply penalties and bonuses if we are running the full baseline
         if not enabled_indicators:
-            # Initialize keys to 0.0 to ensure consistent output structure
-            components.setdefault("penalty_ema_overextension", 0.0)
-            components.setdefault("penalty_rsi", 0.0)
-            components.setdefault("bonus_oversold_rsi", 0.0)
-            components.setdefault("bonus_oversold_bb", 0.0)
-            components.setdefault("bonus_selling_climax", 0.0)
-            components.setdefault("penalty_volume_exhaustion", 0.0)
-
-            last_row = days.iloc[-1]
-
-            # EMA Overextension Penalty (Trend logic: Don't buy the peak of a parabolic move)
-            ema9 = days['close'].ewm(span=9).mean().iloc[-1]
-            dist_ema9 = (last_row['close'] / ema9) - 1
-            if dist_ema9 > 0.10:
-                components["penalty_ema_overextension"] = PENALTY_EMA_OVEREXTENSION
-                total_score += PENALTY_EMA_OVEREXTENSION
-
-            # RSI Overbought Penalty
-            rsi = last_row.get('rsi_14', 50)
-            if rsi > PENALTY_RSI_THRESHOLD_EXTREME:
-                components["penalty_rsi"] = PENALTY_RSI_SCORE_EXTREME
-                total_score += PENALTY_RSI_SCORE_EXTREME
-            elif rsi > PENALTY_RSI_THRESHOLD_MODERATE:
-                components["penalty_rsi"] = PENALTY_RSI_SCORE_MODERATE
-                total_score += PENALTY_RSI_SCORE_MODERATE
-
-            # RSI Oversold Signal (Refined: Reward if in Uptrend, otherwise Penalty)
-            trend = TechnicalAnalyzer.calculate_trend(days)
-            is_uptrend = "Uptrend" in trend
-
-            if rsi < OVERSOLD_RSI_THRESHOLD_EXTREME:
-                reward = abs(OVERSOLD_RSI_REWARD_EXTREME) if is_uptrend else OVERSOLD_RSI_REWARD_EXTREME
-                components["bonus_oversold_rsi"] = reward
-                total_score += reward
-            elif rsi < OVERSOLD_RSI_THRESHOLD_MODERATE:
-                reward = abs(OVERSOLD_RSI_REWARD_MODERATE) if is_uptrend else OVERSOLD_RSI_REWARD_MODERATE
-                components["bonus_oversold_rsi"] = reward
-                total_score += reward
-
-            # Bollinger Band Oversold Signal
-            bb_lower = last_row.get('bb_lower')
-            if bb_lower is not None and last_row['close'] < bb_lower:
-                reward = abs(OVERSOLD_BB_REWARD) if is_uptrend else OVERSOLD_BB_REWARD
-                components["bonus_oversold_bb"] = reward
-                total_score += reward
-
-            # Volume Exhaustion / Selling Climax
-            avg_vol = last_row.get('avg_volume_20', 1)
-            vol_ratio = last_row['volume'] / avg_vol
-
-            if rsi < OVERSOLD_RSI_THRESHOLD_EXTREME and vol_ratio > 2.0:
-                # Selling climax: Extreme oversold + high volume = strong reversal potential
-                components["bonus_selling_climax"] = 3.0
-                total_score += 3.0
-            elif vol_ratio > 3.0:
-                # Simple exhaustion penalty (could be buying climax at the top)
-                components["penalty_volume_exhaustion"] = PENALTY_VOLUME_EXHAUSTION
-                total_score += PENALTY_VOLUME_EXHAUSTION
+            mod_score, mod_components = TechnicalAnalyzer._calculate_baseline_modifiers(days)
+            total_score += mod_score
+            components.update(mod_components)
 
         components["total"] = float(total_score)
         return components
 
     @staticmethod
-    def calculate_mean_reversion_score(days: pd.DataFrame, enabled_indicators: Optional[list[str]] = None, aggregation: str = "sum") -> Dict[str, float]:
+    def calculate_mean_reversion_score(
+        days: pd.DataFrame,
+        enabled_indicators: Optional[list[str]] = None,
+        aggregation: str = "sum"
+    ) -> Dict[str, float]:
         """
         Mean-reversion scoring: Rewards oversold conditions and "buying the dip".
         """

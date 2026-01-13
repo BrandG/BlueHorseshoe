@@ -62,8 +62,7 @@ class GradingEngine:
         # Track min_low over the entire hold window for ML training
         all_lows = future_data['low'].values
         min_low = min(all_lows) if len(all_lows) > 0 else entry_price
-        if min_low > entry_price:
-            min_low = entry_price
+        min_low = min(min_low, entry_price)
 
         # ATR at signal date (or closest before)
         signal_row = df[df['date'] <= signal_date].iloc[-1] if not df[df['date'] <= signal_date].empty else None
@@ -77,8 +76,7 @@ class GradingEngine:
 
             # Calculate max gain seen so far relative to entry
             current_max_gain = ((high / entry_price) - 1) * 100
-            if current_max_gain > max_gain:
-                max_gain = current_max_gain
+            max_gain = max(max_gain, current_max_gain)
 
             # Success condition: High hits or exceeds take_profit
             if high >= take_profit:
@@ -193,8 +191,7 @@ class GradingEngine:
         # Track min_low over the entire hold window for ML training
         all_lows = future_data['low'].values
         min_low = min(all_lows) if len(all_lows) > 0 else entry_price
-        if min_low > entry_price:
-            min_low = entry_price
+        min_low = min(min_low, entry_price)
 
         # ATR at signal date (or closest before)
         signal_rows = df[df['date'] <= signal_date]
@@ -207,8 +204,7 @@ class GradingEngine:
             low = day['low']
 
             current_max_gain = ((high / entry_price) - 1) * 100
-            if current_max_gain > max_gain:
-                max_gain = current_max_gain
+            max_gain = max(max_gain, current_max_gain)
 
             if high >= take_profit:
                 status = 'success'

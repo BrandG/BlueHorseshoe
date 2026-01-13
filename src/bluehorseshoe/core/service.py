@@ -9,7 +9,7 @@ import pandas as pd  # Added pandas import
 from pymongo.errors import PyMongoError
 from requests.exceptions import RequestException
 
-from .models import DailyReport, Candidate
+from .models import DailyReport, Candidate, PriceData, PredictionData
 from .database import db
 from .symbols import (
     get_symbols_from_mongo,
@@ -126,14 +126,17 @@ def run_daily() -> Dict[str, Any]:
     for _, row in top_df.iterrows():
         cand = Candidate(
             symbol=row['symbol'],
+            price_data=PriceData(
+                open=row['open'],
+                high=row['high'],
+                low=row['low'],
+                close=row['close'],
+                volume=row['volume'],
+                range=row['range'],
+                body=row['body']
+            ),
+            prediction_data=PredictionData(),
             score=row['score'],
-            open=row['open'],
-            high=row['high'],
-            low=row['low'],
-            close=row['close'],
-            volume=row['volume'],
-            range=row['range'],
-            body=row['body'],
             stability=row['stability'],
         )
         candidates.append(cand)

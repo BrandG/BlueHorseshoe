@@ -14,7 +14,7 @@ Fixtures:
 
 import pytest
 import pandas as pd
-from bluehorseshoe.analysis.strategy import SwingTrader, TechnicalAnalyzer
+from bluehorseshoe.analysis.strategy import SwingTrader, TechnicalAnalyzer, StrategyContext
 
 @pytest.fixture
 def sample_data():
@@ -143,7 +143,8 @@ def test_process_symbol(swing_trader, sample_data, mocker): # pylint: disable=re
     mocker.patch('bluehorseshoe.analysis.strategy.load_historical_data', return_value={'days': adjusted_data.to_dict('records'),
                                                                      'symbol':'IBM', 'full_name': 'Test Stock'})
 
-    result = swing_trader.process_symbol('IBM')
+    ctx = StrategyContext()
+    result = swing_trader.process_symbol('IBM', ctx)
     assert result is not None
     assert result['symbol'] == 'IBM'
     assert result['name'] == 'Test Stock'

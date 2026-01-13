@@ -89,7 +89,7 @@ def trigger_action(action: str = Query(..., description="Name of the action to t
             "result": result
         }
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Action '{action}' failed: {str(e)}")
+        raise HTTPException(status_code=400, detail=f"Action '{action}' failed: {str(e)}") from e
 
 @app.post("/load_symbols")
 @app.get("/load_symbols")

@@ -7,12 +7,8 @@ from typing import List, Optional, Dict, Any
 
 
 @dataclass
-class Candidate:
-    """
-    Represents a single trading candidate with price data and scores.
-    """
-    symbol: str
-    score: float
+class PriceData:
+    """Encapsulates price and candle metrics."""
     open: float
     high: float
     low: float
@@ -20,17 +16,37 @@ class Candidate:
     volume: int
     range: float
     body: float
-    stability: float
-    volatility: Optional[float] = None
 
+@dataclass
+class PredictionData:
+    """Encapsulates predictive metrics."""
     predicted_high: Optional[float] = None
     predicted_low: Optional[float] = None
     expected_upside: Optional[float] = None
     expected_downside: Optional[float] = None
 
+@dataclass
+class Candidate:
+    """
+    Represents a single trading candidate with price data and scores.
+    """
+    symbol: str
+    price_data: PriceData
+    prediction_data: PredictionData
+    score: float
+    stability: float
+    volatility: Optional[float] = None
+
     def to_dict(self):
         """Convert object to dictionary."""
-        return self.__dict__
+        return {
+            "symbol": self.symbol,
+            "score": self.score,
+            "stability": self.stability,
+            "volatility": self.volatility,
+            **self.price_data.__dict__,
+            **self.prediction_data.__dict__
+        }
 
 
 @dataclass

@@ -13,7 +13,7 @@ from functools import partial
 from dataclasses import dataclass
 from typing import Optional, List, Dict
 import pandas as pd
-from bluehorseshoe.analysis.strategy import SwingTrader
+from bluehorseshoe.analysis.strategy import SwingTrader, StrategyContext
 from bluehorseshoe.core.symbols import get_symbol_name_list
 from bluehorseshoe.data.historical_data import load_historical_data
 from bluehorseshoe.reporting.report_generator import ReportSingleton
@@ -37,6 +37,19 @@ class BacktestOptions:
     aggregation: str = "sum"
     symbols: Optional[List[str]] = None
 
+@dataclass
+class TradeState:
+    """Mutable state for a single trade simulation."""
+    # pylint: disable=too-many-instance-attributes
+    entry_price: float
+    take_profit: float
+    current_stop: float
+    status: str = 'no_entry'
+    actual_entry: Optional[float] = None
+    exit_price: Optional[float] = None
+    exit_date: Optional[pd.Timestamp] = None
+    entry_idx: int = -1
+
 class Backtester:
     """Class for orchestrating historical backtests of the trading strategy."""
 
@@ -51,6 +64,69 @@ class Backtester:
         self.trailing_multiplier = config.trailing_multiplier
         self.target_profit_factor = config.target_profit_factor
         self.stop_loss_factor = config.stop_loss_factor
+
+    def _check_entry(self, row, i, state):
+        """Check if entry conditions are met."""
+        if row['low'] <= state.entry_price:
+            state.status = 'active'
+            state.entry_idx = i
+
+            # Slippage/Gap Logic
+            if row['open'] < state.entry_price:
+                state.actual_entry = row['open']
+            else:
+                state.actual_entry = state.entry_price
+
+            # Immediate Stop/Target Check (Intraday)
+            if row['low'] <= state.current_stop:
+                state.status = 'stopped_out'
+                state.exit_price = state.current_stop
+                if row['open'] < state.current_stop:
+                    state.exit_price = row['open']
+                state.exit_date = row['date']
+                return
+
+            if row['high'] >= state.take_profit:
+                state.status = 'success'
+                state.exit_price = state.take_profit
+                if row['open'] > state.take_profit:
+                    state.exit_price = row['open']
+                state.exit_date = row['date']
+                return
+
+        elif i >= self.hold_days:
+            state.status = 'limit_expired'
+
+    def _check_active_trade(self, row, state, future_data):
+        """Check for exit conditions in an active trade."""
+        # Stop Loss
+        if row['low'] <= state.current_stop:
+            state.status = 'stopped_out'
+            state.exit_price = state.current_stop
+            if row['open'] < state.current_stop:
+                state.exit_price = row['open']
+            state.exit_date = row['date']
+            return
+
+        # Take Profit
+        if row['high'] >= state.take_profit:
+            state.status = 'success'
+            state.exit_price = state.take_profit
+            if row['open'] > state.take_profit:
+                state.exit_price = row['open']
+            state.exit_date = row['date']
+            return
+
+        # Time Exit
+        days_in_trade = (row['date'] - future_data.iloc[state.entry_idx]['date']).days
+        if days_in_trade >= self.hold_days:
+            state.status = 'time_exit'
+            state.exit_price = row['close']
+            state.exit_date = row['date']
+            if state.exit_price > state.actual_entry:
+                state.status = 'closed_profit'
+            else:
+                state.status = 'closed_loss'
 
     def evaluate_prediction(self, prediction: Dict, target_date: str) -> Dict:
         """
@@ -91,150 +167,59 @@ class Backtester:
         if future_data.empty:
             return {'symbol': symbol, 'status': 'no_future_data'}
 
-        status = 'no_entry'
-        actual_entry = None
-        exit_price = None
-        exit_date = None
-
-        # Tracking variables
-        target_stop = stop_loss
-        target_exit = take_profit
-        current_stop = stop_loss
-
-        # 1. Check for Entry
-        # We look for entry within the first few days? Or just the immediate next day?
-        # A limit order might be valid for X days. Let's assume 1-3 days validity or just 1 day.
-        # For this system, let's assume valid for `hold_days` or until filled.
-
-        entry_idx = -1
+        state = TradeState(
+            entry_price=entry_price,
+            take_profit=take_profit,
+            current_stop=stop_loss
+        )
 
         for i, row in future_data.iterrows():
             # If we haven't entered yet
-            if status == 'no_entry':
-                # Check if price hit entry level
-                # Assuming Limit Buy at entry_price
-                if row['low'] <= entry_price:
-                    # Filled
-                    status = 'active'
-                    actual_entry = entry_price
-                    # If Open was lower than limit, we might have got better price,
-                    # but let's be conservative and say we got filled at limit.
-                    # Unless Open < Entry, then maybe we got Open?
-                    # Let's stick to entry_price for consistency.
-                    if row['open'] < entry_price:
-                        actual_entry = row['open'] # Gap down fill
-                    else:
-                        actual_entry = entry_price
-
-                    entry_date = row['date']
-                    entry_idx = i
-
-                    # Check if we also stopped out or hit profit on the SAME day?
-                    # If Low <= Stop, we stopped out.
-                    # If High >= Target, we profited.
-                    # Sequence matters: Open -> Low/High -> Close.
-                    # Approximation: If Low <= Stop, assume stopped out first?
-                    # Or look at candle body? Impossible to know intraday path without tick data.
-                    # Conservative: If Low <= Stop, we stopped out.
-
-                    if row['low'] <= current_stop:
-                        status = 'stopped_out'
-                        exit_price = current_stop
-                        if row['open'] < current_stop:
-                            exit_price = row['open'] # Gap down stop
-                        exit_date = row['date']
-                        break
-
-                    elif row['high'] >= target_exit:
-                        status = 'success'
-                        exit_price = target_exit
-                        if row['open'] > target_exit:
-                            exit_price = row['open'] # Gap up profit
-                        exit_date = row['date']
-                        break
-
-                # Expiry of limit order?
-                if i >= self.hold_days: # If not filled by hold_days, cancel
-                    status = 'limit_expired'
-                    break
-
+            if state.status == 'no_entry':
+                self._check_entry(row, i, state)
             # If we are in a trade
-            elif status == 'active':
-                # Check Stop
-                if row['low'] <= current_stop:
-                    status = 'stopped_out'
-                    exit_price = current_stop
-                    if row['open'] < current_stop:
-                        exit_price = row['open']
-                    exit_date = row['date']
-                    break
+            elif state.status == 'active':
+                self._check_active_trade(row, state, future_data)
 
-                # Check Target
-                elif row['high'] >= target_exit:
-                    status = 'success'
-                    exit_price = target_exit
-                    if row['open'] > target_exit:
-                        exit_price = row['open']
-                    exit_date = row['date']
-                    break
-
-                # Trailing Stop Update
-                if self.use_trailing_stop:
-                    # If price moves up, move stop up
-                    # Simple trailing: defined by ATR or percentage?
-                    # Backtester config has trailing_multiplier.
-                    # Let's assume trailing based on High - (Multiplier * ATR)?
-                    # Or just: new_stop = max(current_stop, row['close'] * (1 - 0.02))?
-                    # Let's use the config provided trailing logic if feasible, or simple % trail.
-                    # Given `ml_stop_multiplier` is in prediction, maybe use that?
-                    pass
-
-                # Time Exit
-                days_in_trade = (row['date'] - future_data.iloc[entry_idx]['date']).days
-                if days_in_trade >= self.hold_days:
-                    status = 'time_exit'
-                    exit_price = row['close']
-                    exit_date = row['date']
-                    # Check if time exit is profitable
-                    if exit_price > actual_entry:
-                        status = 'closed_profit'
-                    else:
-                        status = 'closed_loss'
-                    break
+            if state.status in ['stopped_out', 'success', 'limit_expired', 'time_exit', 'closed_profit', 'closed_loss']:
+                break
 
         return {
             'symbol': symbol,
-            'status': status,
-            'entry': actual_entry,
-            'target': target_exit,
-            'stop': target_stop,
-            'final_stop': current_stop,
-            'exit_price': exit_price,
-            'exit_date': exit_date,
-            'days_held': (exit_date - future_data.iloc[entry_idx]['date']).days if exit_date and entry_idx != -1 else 0
+            'status': state.status,
+            'entry': state.actual_entry,
+            'exit_price': state.exit_price,
+            'exit_date': state.exit_date,
+            'days_held': (state.exit_date - future_data.iloc[state.entry_idx]['date']).days if state.exit_date and state.entry_idx != -1 else 0
         }
 
-    def run_backtest(self, target_date: str, options: BacktestOptions = None):
-        """Runs a backtest for a specific historical date and returns results."""
-        if options is None:
-            options = BacktestOptions()
-
+    def _print_backtest_header(self, target_date: str, options: BacktestOptions) -> None:
         indicator_str = f" | Indicators: {', '.join(options.enabled_indicators)}" if options.enabled_indicators else ""
-        ReportSingleton().write(f"\n--- {options.strategy.title()} Backtest Report for {target_date} (Hold: {self.hold_days} days){indicator_str} | Agg: {options.aggregation} ---")
+        header = (
+            f"\n--- {options.strategy.title()} Backtest Report for {target_date} "
+            f"(Hold: {self.hold_days} days){indicator_str} | Agg: {options.aggregation} ---"
+        )
+        ReportSingleton().write(header)
 
-        symbols = options.symbols
-        if not symbols:
-            print("  > Loading symbols from database...", end="", flush=True)
-            symbols = get_symbol_name_list()
-            print(f" Done ({len(symbols)} symbols).", flush=True)
+    def _load_symbols(self) -> List[str]:
+        print("  > Loading symbols from database...", end="", flush=True)
+        symbols = get_symbol_name_list()
+        print(f" Done ({len(symbols)} symbols).", flush=True)
+        return symbols
 
+    def _generate_predictions(self, symbols: List[str], target_date: str, options: BacktestOptions) -> List[Dict]:
         max_workers = min(8, os.cpu_count() or 4)
-
         logging.info("Generating %s predictions for %s...", options.strategy, target_date)
         predictions = []
 
+        ctx = StrategyContext(
+            target_date=target_date,
+            enabled_indicators=options.enabled_indicators,
+            aggregation=options.aggregation
+        )
+
         with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
-            process_func = partial(self.trader.process_symbol, target_date=target_date, enabled_indicators=options.enabled_indicators, aggregation=options.aggregation)
+            process_func = partial(self.trader.process_symbol, ctx=ctx)
             future_to_symbol = {executor.submit(process_func, sym): sym for sym in symbols}
 
             processed_count = 0
@@ -244,31 +229,33 @@ class Backtester:
                 try:
                     result = future.result()
                     predictions.append(result)
-                except Exception as e:
+                except Exception as e: # pylint: disable=broad-exception-caught
                     logging.error("Exception during prediction: %s", e)
 
                 if processed_count % 500 == 0 or processed_count == total_symbols:
-                    print(f"  > Progress: {processed_count}/{total_symbols} symbols analyzed ({ (processed_count/total_symbols)*100:.1f}%)", flush=True)
+                    print(
+                        f"  > Progress: {processed_count}/{total_symbols} symbols analyzed "
+                        f"({(processed_count / total_symbols) * 100:.1f}%)",
+                        flush=True
+                    )
+        return predictions
 
-        # Use strategy-specific score key
+    def _filter_and_sort_predictions(self, predictions: List[Dict], options: BacktestOptions) -> List[Dict]:
         score_key = "baseline_score" if options.strategy == "baseline" else "mr_score"
-
-        # Filter out scores <= 0 to avoid noise
         valid_predictions = sorted(
             (p for p in predictions if p is not None and p.get(score_key, 0.0) > 0),
             key=lambda x: x.get(score_key, 0.0),
             reverse=True
         )
+        return valid_predictions[:options.top_n]
 
-        if not valid_predictions:
-            ReportSingleton().write("No valid signals found for this date.")
-            return []
-
-        top_predictions = valid_predictions[:options.top_n]
+    def _evaluate_candidates(self, top_predictions: List[Dict], target_date: str, options: BacktestOptions) -> List[Dict]:
         results = []
+        score_key = "baseline_score" if options.strategy == "baseline" else "mr_score"
+        setup_key = "baseline_setup" if options.strategy == "baseline" else "mr_setup"
+
         for pred in top_predictions:
             # Flatten strategy-specific setup for evaluate_prediction
-            setup_key = "baseline_setup" if options.strategy == "baseline" else "mr_setup"
             setup = pred.get(setup_key, {})
             pred['entry_price'] = setup.get('entry_price')
             pred['stop_loss'] = setup.get('stop_loss')
@@ -286,7 +273,9 @@ class Backtester:
             if eval_result.get('entry') is not None:
                 msg += f" | PnL: {pnl:.2f}%"
             ReportSingleton().write(msg)
+        return results
 
+    def _print_summary(self, results: List[Dict]) -> None:
         valid_results = [r for r in results if r.get('entry') is not None and r.get('exit_price') is not None]
         if valid_results:
             avg_pnl = sum(((r['exit_price'] / r['entry']) - 1) * 100 for r in valid_results) / len(valid_results)
@@ -294,27 +283,67 @@ class Backtester:
             win_rate = (success_count / len(valid_results)) * 100
             ReportSingleton().write(f"Summary: {success_count}/{len(valid_results)} profitable ({win_rate:.2f}%) | Avg PnL: {avg_pnl:.2f}%")
 
+    def run_backtest(self, target_date: str, options: BacktestOptions = None):
+        """Runs a backtest for a specific historical date and returns results."""
+        if options is None:
+            options = BacktestOptions()
+
+        self._print_backtest_header(target_date, options)
+
+        symbols = options.symbols
+        if not symbols:
+            symbols = self._load_symbols()
+
+        predictions = self._generate_predictions(symbols, target_date, options)
+
+        top_predictions = self._filter_and_sort_predictions(predictions, options)
+
+        if not top_predictions:
+            ReportSingleton().write("No valid signals found for this date.")
+            return []
+
+        results = self._evaluate_candidates(top_predictions, target_date, options)
+
+        self._print_summary(results)
+
         return results
+
+    def _summarize_range_results(self, all_results):
+        """Summarize aggregated backtest results."""
+        valid_all = [r for r in all_results if 'entry' in r and 'exit_price' in r]
+        if not valid_all:
+            ReportSingleton().write("\nNo valid trades in range.")
+            return
+
+        total_trades = len(valid_all)
+        profitable_trades = sum(1 for r in valid_all if r['status'] in ['success', 'closed_profit'])
+        total_pnl = sum(((r['exit_price'] / r['entry']) - 1) * 100 for r in valid_all)
+        avg_pnl = total_pnl / total_trades
+        win_rate = (profitable_trades / total_trades) * 100
+
+        ReportSingleton().write("\n--- FINAL STRESS TEST SUMMARY ---")
+        ReportSingleton().write(f"Total Trades Evaluated: {total_trades}")
+        ReportSingleton().write(f"Overall Win Rate: {win_rate:.2f}%")
+        ReportSingleton().write(f"Overall Average PnL: {avg_pnl:.2f}%")
+        ReportSingleton().write(f"Total Cumulative PnL: {total_pnl:.2f}%")
+        ReportSingleton().write("---------------------------------")
 
     def run_range_backtest(self, start_date: str, end_date: str, interval_days: int = 7, options: BacktestOptions = None):
         """Runs backtests over a range of dates at set intervals."""
         if options is None:
             options = BacktestOptions()
 
-        start_ts = pd.to_datetime(start_date)
+        current_ts = pd.to_datetime(start_date)
         end_ts = pd.to_datetime(end_date)
-
-        current_ts = start_ts
         all_results = []
 
         # Calculate total steps for progress tracking
-        total_days = (end_ts - start_ts).days
+        total_days = (end_ts - current_ts).days
         total_steps = (total_days // interval_days) + 1
         current_step = 1
 
         indicator_str = f" | Indicators: {', '.join(options.enabled_indicators)}" if options.enabled_indicators else "ALL"
         ReportSingleton().write("\n==========================================")
-        ReportSingleton().write(f"Interval: {interval_days} days | Hold: {self.hold_days} days")
         ReportSingleton().write(f"Interval: {interval_days} days | Hold: {self.hold_days} days")
         ReportSingleton().write(f"Indicators: {indicator_str}")
         ReportSingleton().write(f"Aggregation: {options.aggregation}")
@@ -338,20 +367,4 @@ class Backtester:
             current_step += 1
 
         # Aggregate Summary
-        valid_all = [r for r in all_results if 'entry' in r and 'exit_price' in r]
-        if not valid_all:
-            ReportSingleton().write("\nNo valid trades in range.")
-            return
-
-        total_trades = len(valid_all)
-        profitable_trades = sum(1 for r in valid_all if r['status'] in ['success', 'closed_profit'])
-        total_pnl = sum(((r['exit_price'] / r['entry']) - 1) * 100 for r in valid_all)
-        avg_pnl = total_pnl / total_trades
-        win_rate = (profitable_trades / total_trades) * 100
-
-        ReportSingleton().write("\n--- FINAL STRESS TEST SUMMARY ---")
-        ReportSingleton().write(f"Total Trades Evaluated: {total_trades}")
-        ReportSingleton().write(f"Overall Win Rate: {win_rate:.2f}%")
-        ReportSingleton().write(f"Overall Average PnL: {avg_pnl:.2f}%")
-        ReportSingleton().write(f"Total Cumulative PnL: {total_pnl:.2f}%")
-        ReportSingleton().write("---------------------------------")
+        self._summarize_range_results(all_results)
