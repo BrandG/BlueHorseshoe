@@ -6,7 +6,6 @@ It includes functionalities for loading invalid symbols, managing a singleton re
 plotting graphs, and fetching stock symbols from the internet or a file.
 
 Imports:
-    - json
     - io
     - csv
     - logging
@@ -39,7 +38,6 @@ Classes:
     - GraphData: A class used to represent data for a graph.
 """
 
-import json
 import logging
 import os
 from dataclasses import dataclass, field

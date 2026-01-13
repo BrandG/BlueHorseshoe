@@ -1,10 +1,8 @@
 """
 Tests for ML overlay prediction logic.
 """
-import pytest
-import pandas as pd
 import os
-import joblib
+import pytest
 from bluehorseshoe.analysis.ml_overlay import MLInference
 
 def test_ml_inference_loading():

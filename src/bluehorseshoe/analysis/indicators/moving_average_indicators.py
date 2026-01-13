@@ -10,9 +10,9 @@ Usage example:
     indicator = MovingAverageIndicator(data)
     signal = indicator.calculate_crossovers()
 """
+from typing import Optional
 import numpy as np
 import pandas as pd
-from typing import Optional
 
 from bluehorseshoe.analysis.indicators.indicator import Indicator, IndicatorScore
 

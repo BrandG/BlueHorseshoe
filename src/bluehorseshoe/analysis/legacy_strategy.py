@@ -1,11 +1,12 @@
 """
 Legacy trading strategy module.
 """
-from typing import Dict, Any
 import pandas as pd
-import pandas_ta as ta
 
 def calculate_technical_indicators(days_list):
+    """
+    Calculates technical indicators for a given list of days.
+    """
     df = pd.DataFrame(days_list)
     # Ensure sorted by date
     df.sort_values('date', inplace=True)

@@ -20,27 +20,27 @@ Constants:
 """
 import logging
 import os
-from typing import Dict, Optional
-from functools import partial
 import concurrent.futures
+from functools import partial
+from typing import Dict, Optional
+
 import pandas as pd
-from bluehorseshoe.core.globals import GlobalData
-from bluehorseshoe.reporting.report_generator import ReportSingleton
-from bluehorseshoe.core.symbols import get_symbol_name_list
-from bluehorseshoe.data.historical_data import load_historical_data
-from bluehorseshoe.analysis.indicators.candlestick_indicators import CandlestickIndicator
-from bluehorseshoe.analysis.indicators.limit_indicators import LimitIndicator
 from ta.volatility import AverageTrueRange
-from bluehorseshoe.core.scores import score_manager
+
 from bluehorseshoe.analysis.constants import (
-    MIN_VOLUME_THRESHOLD, MIN_STOCK_PRICE, MAX_STOCK_PRICE,
-    STOP_LOSS_FACTOR, TAKE_PROFIT_FACTOR, ATR_WINDOW, ATR_MULTIPLIER_UPTREND, ATR_MULTIPLIER_DOWNTREND,
+    MIN_STOCK_PRICE, MAX_STOCK_PRICE,
+    ATR_WINDOW,
     MIN_RR_RATIO, MIN_REL_VOLUME, REQUIRE_WEEKLY_UPTREND
 )
-from bluehorseshoe.analysis.technical_analyzer import TechnicalAnalyzer
 from bluehorseshoe.analysis.market_regime import MarketRegime
 from bluehorseshoe.analysis.ml_overlay import MLInference
 from bluehorseshoe.analysis.ml_stop_loss import StopLossInference
+from bluehorseshoe.analysis.technical_analyzer import TechnicalAnalyzer
+from bluehorseshoe.core.globals import GlobalData
+from bluehorseshoe.core.scores import score_manager
+from bluehorseshoe.core.symbols import get_symbol_name_list
+from bluehorseshoe.data.historical_data import load_historical_data
+from bluehorseshoe.reporting.report_generator import ReportSingleton
 
 class SwingTrader:
     """Main class for swing trading analysis."""
@@ -478,4 +478,3 @@ class SwingTrader:
 
             score_manager.save_scores(score_data)
             logging.info("Saved %d scores (Baseline & Mean Reversion) to trade_scores", len(score_data))
-

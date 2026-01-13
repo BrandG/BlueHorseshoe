@@ -23,9 +23,9 @@ Methods:
     calculate_score(self): Calculates the overall trend score based on all indicators.
 """
 
+from typing import Optional
 import numpy as np
 import pandas as pd
-from typing import Optional
 from ta.trend import PSARIndicator # pylint: disable=import-error
 
 from bluehorseshoe.analysis.indicators.indicator import Indicator, IndicatorScore

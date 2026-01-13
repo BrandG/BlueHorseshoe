@@ -12,9 +12,11 @@ sys.path.append(os.path.join(os.getcwd(), 'src'))
 
 # pylint: disable=wrong-import-position
 from bluehorseshoe.data.historical_data import build_all_symbols_history
-from bluehorseshoe.core.globals import get_mongo_client
 
 def main():
+    """
+    Main function to run the backfill script.
+    """
     parser = argparse.ArgumentParser(description='Backfill historical data for incomplete symbols.')
     parser.add_argument('--limit', type=int, default=50, help='Number of symbols to process')
     parser.add_argument('--file', type=str, default='src/logs/incomplete_symbols.txt', help='Path to incomplete symbols list')

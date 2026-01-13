@@ -26,9 +26,9 @@ Methods:
 
     calculate_score(self) -> float:
 """
+from typing import Optional
 import numpy as np
 import pandas as pd
-from typing import Optional
 from ta.volume import OnBalanceVolumeIndicator, ChaikinMoneyFlowIndicator #pylint: disable=import-error
 from ta.volatility import AverageTrueRange # pylint: disable=import-error
 

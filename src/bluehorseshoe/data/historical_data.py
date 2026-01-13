@@ -16,7 +16,6 @@ Functions:
 
     build_all_symbols_history(starting_at='', save_to_file=False):
 """
-import sys
 import logging
 import os
 import json
@@ -77,13 +76,13 @@ def load_historical_data_from_net(stock_symbol, recent=False):
     return symbol
 
 
-def load_historical_data_from_mongo(symbol, db):
+def load_historical_data_from_mongo(symbol, db_instance):
     """
     Loads historical stock price data from MongoDB for a given symbol.
     """
     data = {}
     try:
-        collection = db['historical_prices']
+        collection = db_instance['historical_prices']
         data = collection.find_one({"symbol": symbol})
         if data is None:
             data = {}
@@ -93,7 +92,7 @@ def load_historical_data_from_mongo(symbol, db):
     return data
 
 
-def save_historical_data_to_mongo(symbol, data, db):
+def save_historical_data_to_mongo(symbol, data, db_instance):
     """
     Saves historical stock price data for a given symbol, performing an upsert operation.
     """
@@ -104,14 +103,14 @@ def save_historical_data_to_mongo(symbol, data, db):
 
     save_data['last_updated'] = pd.Timestamp.now().isoformat()
 
-    collection = db['historical_prices']
+    collection = db_instance['historical_prices']
     collection.update_one({"symbol": symbol}, {"$set": save_data}, upsert=True)
 
     # Store just the last year of data in a separate collection
     recent_data = save_data.copy()
     if 'days' in recent_data:
         recent_data['days'] = save_data['days'][-240:]
-    recent_collection = db['historical_prices_recent']
+    recent_collection = db_instance['historical_prices_recent']
     recent_collection.update_one(
         {"symbol": symbol}, {"$set": recent_data}, upsert=True)
 
@@ -160,10 +159,7 @@ def build_all_symbols_history(starting_at='', save_to_file=False, recent=False, 
         if skip:
             if symbol == starting_at:
                 skip = False
-                # We skip the one we already finished
-                continue
-            else:
-                continue
+            continue
 
         process_symbol(row, index, total_symbols, save_to_file, recent)
         set_backfill_checkpoint(symbol)

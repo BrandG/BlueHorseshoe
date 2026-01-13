@@ -1,6 +1,9 @@
 """
 Module for ML-based trade signal overlay.
 """
+import os
+from typing import Dict
+from datetime import datetime
 import logging
 import pandas as pd
 from sklearn.model_selection import train_test_split
@@ -8,9 +11,6 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.preprocessing import LabelEncoder
 from sklearn.metrics import classification_report
 import joblib
-import os
-from typing import Dict
-from datetime import datetime
 
 from bluehorseshoe.analysis.grading_engine import GradingEngine
 from bluehorseshoe.analysis.ml_utils import extract_features
@@ -92,14 +92,14 @@ class MLOverlayTrainer:
             self.label_encoders[col] = le
 
         # Drop non-feature columns
-        X = df.drop(columns=['TARGET', 'symbol', 'date', 'strategy'])
+        X = df.drop(columns=['TARGET', 'symbol', 'date', 'strategy']) # pylint: disable=invalid-name
         y = df['TARGET']
 
         # Fill NaNs
         X = X.fillna(0)
 
         # Split data
-        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42) # pylint: disable=invalid-name,unbalanced-tuple-unpacking
 
         logging.info("Training on %d samples, testing on %d samples...", len(X_train), len(X_test))
 
@@ -109,7 +109,7 @@ class MLOverlayTrainer:
 
         # Evaluate
         y_pred = model.predict(X_test)
-        logging.info("\n" + classification_report(y_test, y_pred))
+        logging.info("Classification Report:\n%s", classification_report(y_test, y_pred))
 
         # Calculate Feature Importance
         importances = pd.DataFrame({
@@ -117,7 +117,7 @@ class MLOverlayTrainer:
             'importance': model.feature_importances_
         }).sort_values('importance', ascending=False)
 
-        logging.info("Top Features:\n" + importances.head(10).to_string())
+        logging.info("Top Features:\n%s", importances.head(10).to_string())
 
         # Save model and encoders
         output = {

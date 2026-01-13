@@ -2,7 +2,6 @@
 Script to grade trades using the GradingEngine.
 """
 import sys
-import os
 import logging
 import pandas as pd
 import argparse
@@ -14,6 +13,9 @@ sys.path.append('/workspaces/BlueHorseshoe/src')
 from bluehorseshoe.analysis.grading_engine import GradingEngine
 
 def main():
+    """
+    Main function to run the grading engine script.
+    """
     parser = argparse.ArgumentParser(description='Run Grading Engine')
     parser.add_argument('--limit', type=int, default=5000, help='Max scores to grade')
     parser.add_argument('--strategy', type=str, help='Filter by strategy name')

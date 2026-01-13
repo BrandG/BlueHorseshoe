@@ -4,7 +4,6 @@ models.py (v1.0)
 
 from dataclasses import dataclass
 from typing import List, Optional, Dict, Any
-from datetime import date
 
 
 @dataclass

@@ -1,7 +1,7 @@
 """
 Module for performing technical analysis and scoring.
 """
-import logging
+
 from functools import lru_cache
 from typing import Dict, Optional
 
@@ -327,4 +327,3 @@ class TechnicalAnalyzer:
 
         components["total"] = float(total_score)
         return components
-

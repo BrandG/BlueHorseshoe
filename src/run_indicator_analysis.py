@@ -14,9 +14,12 @@ import argparse
 import logging
 import random
 from datetime import datetime, timedelta
-from bluehorseshoe.analysis.backtest import Backtester
+from bluehorseshoe.analysis.backtest import Backtester, BacktestConfig, BacktestOptions
 
 def main():
+    """
+    Main function to run the indicator analysis script.
+    """
     available_indicators = {
         "momentum": ["macd", "rsi", "roc", "bb_position"],
         "trend": ["stochastic", "ichimoku", "psar", "heiken_ashi", "adx"],
@@ -96,7 +99,8 @@ def main():
     print(f"\nStarting Indicator Analysis for period: {start_date_str} to {end_date_str}", flush=True)
 
     print("Initializing Backtester...", end="", flush=True)
-    backtester = Backtester(target_profit_factor=1.02, stop_loss_factor=0.97, hold_days=5)
+    config = BacktestConfig(target_profit_factor=1.02, stop_loss_factor=0.97, hold_days=5)
+    backtester = Backtester(config=config)
     print(" Done.", flush=True)
 
     print(f"Hold Period: {backtester.hold_days} days | Interval: {args.interval} days\n", flush=True)
@@ -109,14 +113,17 @@ def main():
         current_enabled = [i.strip() for i in indicator.split(",")]
 
         print(f"\n[{idx}/{total_indicators}] >>> TESTING INDICATOR: {label} (Agg: {aggregation}) <<<", flush=True)
+        options = BacktestOptions(
+            strategy="baseline",
+            top_n=args.top_n,
+            enabled_indicators=current_enabled,
+            aggregation=aggregation
+        )
         backtester.run_range_backtest(
             start_date=start_date_str,
             end_date=end_date_str,
             interval_days=args.interval,
-            top_n=args.top_n,
-            strategy="baseline",
-            enabled_indicators=current_enabled,
-            aggregation=aggregation
+            options=options
         )
 
 if __name__ == "__main__":

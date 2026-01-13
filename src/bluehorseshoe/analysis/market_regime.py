@@ -1,9 +1,9 @@
 """
 Module for analyzing market regime and health.
 """
-import pandas as pd
 import logging
 from typing import Dict, Any, Optional
+import pandas as pd
 from bluehorseshoe.data.historical_data import load_historical_data
 from bluehorseshoe.analysis.technical_analyzer import TechnicalAnalyzer
 

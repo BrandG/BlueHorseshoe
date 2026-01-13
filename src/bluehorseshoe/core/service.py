@@ -2,9 +2,8 @@
 Core service module for handling business logic and trade operations.
 """
 import time
-from datetime import date, datetime
+from datetime import date
 from typing import Dict, Any, List, Optional
-import os
 
 import pandas as pd  # Added pandas import
 from pymongo.errors import PyMongoError
@@ -12,7 +11,6 @@ from requests.exceptions import RequestException
 
 from .models import DailyReport, Candidate
 from .database import db
-from bluehorseshoe.analysis import legacy_strategy as strategy
 from .symbols import (
     get_symbols_from_mongo,
     fetch_overview_from_net,
@@ -48,7 +46,7 @@ def handle_trigger_action(action: str, payload: Dict[str, Any]) -> Dict[str, Any
         name = payload.get("name", "World")
         return {"message": f"Hello, {name}!"}
 
-    elif action == "test_db":
+    if action == "test_db":
         try:
             collections = _db.list_collection_names()
             stats = {}
@@ -161,7 +159,8 @@ def run_daily() -> Dict[str, Any]:
 
 
 def _parse_date_str(d: str) -> str:
-    if not d: return ""
+    if not d:
+        return ""
     return str(d).strip()[:10]
 
 

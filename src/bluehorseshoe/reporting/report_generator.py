@@ -8,7 +8,7 @@ from datetime import datetime
 from dataclasses import dataclass, field
 from pathlib import Path
 from threading import Lock
-from typing import Dict, List, Any, Optional
+from typing import Optional, Union
 import matplotlib.pyplot as plt
 from matplotlib.ticker import MultipleLocator
 import mplfinance as mpf #pylint: disable=import-error

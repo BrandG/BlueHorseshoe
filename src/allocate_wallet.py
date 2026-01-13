@@ -2,7 +2,7 @@
 Allocate wallet balances based on trade scores and market regime.
 """
 import sys
-from typing import Dict
+
 
 # Ensure src is in PYTHONPATH
 sys.path.append('/workspaces/BlueHorseshoe/src')
@@ -53,7 +53,7 @@ def allocate():
     scores_baseline = score_manager.get_scores(target_date, strategy='baseline')
     scores_mr = score_manager.get_scores(target_date, strategy='mean_reversion')
     scores = scores_baseline + scores_mr
-    
+
     # Filter and sort by score
     candidates = [s for s in scores if s.get('score', 0) > 0]
     candidates.sort(key=lambda x: x.get('score', 0), reverse=True)

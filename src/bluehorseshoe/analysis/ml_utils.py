@@ -2,8 +2,7 @@
 """
 Utility functions for ML model management and performance tracking.
 """
-from typing import Dict, Any, Optional
-import logging
+from typing import Dict, Any
 from bluehorseshoe.core.symbols import get_overview_from_mongo, get_sentiment_score
 
 def safe_float(val: Any) -> float:

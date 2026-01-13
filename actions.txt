@@ -2,3 +2,4 @@
 2026-01-10: Ran Bull Market Backtest (Jan 3, 2024). Result: 8/10 profitable (80% Win Rate), Avg PnL: +0.09%. Strategy captures steady uptrends but gains were small. Confirms high sensitivity to market regime.
 2026-01-10: Ran Chop Market Backtest (Jan 3, 2023). Result: 4/5 profitable (80% Win Rate), Avg PnL: +3.49%. Strong performance from BA and SHYF, but many high-scoring symbols resulted in 'no_entry', indicating entry logic might be too tight for volatile sideways markets.
 2026-01-11: Resuming historical backfill from symbol 'DLS' with optimized rate (2s sleep). Cleared stale lock file.
+2026-01-12: Performed extensive linting cleanup across core and data modules. Fixed unused imports, trailing whitespace, missing final newlines, and split long lines in symbols.py and service.py. Improved linting score to 8.97/10.

@@ -18,10 +18,12 @@ app = FastAPI()
 
 @app.get("/health")
 def health():
+    """Returns the health status of the API."""
     return {"status": "ok"}
 
 @app.get("/info")
 def info():
+    """Returns system information."""
     return {
         "python": sys.version,
         "cwd": os.getcwd(),
@@ -30,6 +32,7 @@ def info():
 
 @app.get("/dbcheck")
 def dbcheck():
+    """Checks the database connection."""
     client = MongoClient(os.environ["MONGO_URI"])
     db = client.get_database("admin")
     return {"ok": db.command("ping")}
@@ -55,6 +58,7 @@ def backtest(
 @app.get("/run_daily")
 @app.post("/run_daily")
 def run_daily():
+    """Triggers the daily run."""
     return service.run_daily()
 
 @app.post("/trigger")
@@ -90,24 +94,29 @@ def trigger_action(action: str = Query(..., description="Name of the action to t
 @app.post("/load_symbols")
 @app.get("/load_symbols")
 def load_symbols():
+    """Refreshes the symbol list."""
     return refresh_symbols()
 
 @app.post("/load_symbol/{symbol}")
 @app.get("/load_symbol/{symbol}")
 def load_symbol(symbol: str, recent: bool = False):
+    """Refreshes historical data for a given symbol."""
     return refresh_historical_for_symbol(symbol, recent=recent)
 
 @app.get("/historicals/{symbol}")
 def historicals(symbol: str, recent: bool = False):
+    """Gets historical data for a given symbol."""
     return {"symbol": symbol, "days": get_historical_from_mongo(symbol, recent=recent)}
 
 @app.post("/run_historical_batch")
 @app.get("/run_historical_batch")
 def run_hist_batch(limit: int = 50, recent_only: bool = False):
+    """Runs a historical batch load."""
     return run_historical_batch(limit=limit, recent_only=recent_only)
 
 @app.post("/reset_historical_batch")
 @app.get("/reset_historical_batch")
 def reset_hist_batch():
+    """Resets the historical batch checkpoint."""
     clear_checkpoint()
     return {"status": "ok", "message": "checkpoint cleared"}

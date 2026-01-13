@@ -108,10 +108,6 @@ source-roots=
 # user-friendly hints instead of false-positive error messages.
 #suggestion-mode=yes
 
-# Allow loading of arbitrary C extensions. Extensions are imported into the
-# active Python interpreter and may run arbitrary code.
-unsafe-load-any-extension=no
-
 # In verbose mode, extra non-checker-related info will be displayed.
 #verbose=
 
@@ -438,7 +434,10 @@ disable=raw-checker-failed,
         deprecated-pragma,
         use-symbolic-message-instead,
         use-implicit-booleaness-not-comparison-to-string,
-        use-implicit-booleaness-not-comparison-to-zero
+        use-implicit-booleaness-not-comparison-to-zero,
+        logging-not-lazy,
+        f-string-without-interpolation,
+        invalid-name
 
 # Enable the message, report, category or checker with the given id(s). You can
 # either give multiple identifier separated by comma (,) or put this option

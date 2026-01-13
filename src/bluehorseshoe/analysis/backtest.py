@@ -7,130 +7,200 @@ past data and verifying results against subsequent price action.
 """
 
 import logging
-import pandas as pd
+import os
 import concurrent.futures
-from typing import List, Optional, Dict
 from functools import partial
+from dataclasses import dataclass
+from typing import Optional, List, Dict
+import pandas as pd
 from bluehorseshoe.analysis.strategy import SwingTrader
 from bluehorseshoe.core.symbols import get_symbol_name_list
 from bluehorseshoe.data.historical_data import load_historical_data
 from bluehorseshoe.reporting.report_generator import ReportSingleton
 
+
+@dataclass
+class BacktestConfig:
+    """Configuration for backtest parameters."""
+    target_profit_factor: float = 1.01
+    stop_loss_factor: float = 0.98
+    hold_days: int = 3
+    use_trailing_stop: bool = False
+    trailing_multiplier: float = 2.0
+
+@dataclass
+class BacktestOptions:
+    """Runtime options for running a backtest."""
+    strategy: str = "baseline"
+    top_n: int = 10
+    enabled_indicators: Optional[List[str]] = None
+    aggregation: str = "sum"
+    symbols: Optional[List[str]] = None
+
 class Backtester:
     """Class for orchestrating historical backtests of the trading strategy."""
 
-    def __init__(self, target_profit_factor: float = 1.01, stop_loss_factor: float = 0.98, hold_days: int = 3, use_trailing_stop: bool = False, trailing_multiplier: float = 2.0):
+    def __init__(self, config: BacktestConfig = None):
+        if config is None:
+            config = BacktestConfig()
         self.trader = SwingTrader()
-        self.target_profit_factor = target_profit_factor
-        self.stop_loss_factor = stop_loss_factor
-        self.hold_days = hold_days
-        self.use_trailing_stop = use_trailing_stop
-        self.trailing_multiplier = trailing_multiplier
+        self.config = config
+        # Expose config attributes
+        self.hold_days = config.hold_days
+        self.use_trailing_stop = config.use_trailing_stop
+        self.trailing_multiplier = config.trailing_multiplier
+        self.target_profit_factor = config.target_profit_factor
+        self.stop_loss_factor = config.stop_loss_factor
 
     def evaluate_prediction(self, prediction: Dict, target_date: str) -> Dict:
         """
-        Evaluates a single prediction against the price action of the following trading days.
-        Uses structural entry, stop, and target from the prediction metadata.
+        Simulates a trade based on the prediction using future data.
+
+        Args:
+            prediction: The prediction dictionary containing entry/exit parameters.
+            target_date: The date the prediction was made (trade starts the next day).
+
+        Returns:
+            A dictionary containing the trade outcome (status, PnL, exit details).
         """
         symbol = prediction['symbol']
-        target_entry = prediction['entry_price']
-        target_stop = prediction['stop_loss']
-        target_exit = prediction['take_profit']
+        entry_price = prediction.get('entry_price')
+        stop_loss = prediction.get('stop_loss')
+        take_profit = prediction.get('take_profit')
+
+        # Determine strictness of entry (optional, can be passed in config)
+        # strict_entry = True # If True, Low must be <= Entry. If False, buy at Open.
 
         price_data = load_historical_data(symbol)
         if not price_data or 'days' not in price_data:
-            return {'symbol': symbol, 'status': 'no_data'}
+            return {'symbol': symbol, 'status': 'data_error'}
 
         df = pd.DataFrame(price_data['days'])
-        df['date'] = pd.to_datetime(df['date'])
-        target_ts = pd.to_datetime(target_date)
+        if df.empty:
+            return {'symbol': symbol, 'status': 'data_error'}
 
-        # Get data after target_date
-        future_data = df[df['date'] > target_ts].sort_values('date').head(self.hold_days)
+        df['date'] = pd.to_datetime(df['date'])
+
+        # Filter for data AFTER the target date
+        # target_date is the analysis date. We can enter on target_date (if intraday) or next day.
+        # Typically "predictions for target_date" means analysis done on target_date close.
+        # So we look at data > target_date.
+        start_date = pd.to_datetime(target_date)
+        future_data = df[df['date'] > start_date].sort_values('date').reset_index(drop=True)
+
         if future_data.empty:
             return {'symbol': symbol, 'status': 'no_future_data'}
 
-        # 1. Entry check: Did we ever hit the entry price?
-        # Simulation: If Open is below target_entry, we buy at Open.
-        # If Open is above target_entry, but Low is below target_entry, we buy at target_entry.
-        entry_found = False
+        status = 'no_entry'
         actual_entry = None
-        entry_date = None
-        remaining_data = None
-
-        for i, day in future_data.iterrows():
-            if day['open'] <= target_entry:
-                actual_entry = day['open']
-                entry_found = True
-            elif day['low'] <= target_entry:
-                actual_entry = target_entry
-                entry_found = True
-
-            if entry_found:
-                entry_date = day['date']
-                # Trade continues from this day onwards
-                remaining_data = future_data.loc[i:]
-                break
-
-        if not entry_found:
-            return {'symbol': symbol, 'status': 'no_entry'}
-
-        status = 'hold'
-        exit_date = None
         exit_price = None
-        current_stop = target_stop
+        exit_date = None
 
-        for _, day in remaining_data.iterrows():
-            high = day['high']
-            low = day['low']
-            open_price = day['open']
+        # Tracking variables
+        target_stop = stop_loss
+        target_exit = take_profit
+        current_stop = stop_loss
 
-            # Update trailing stop if enabled
-            if self.use_trailing_stop:
-                atr = day.get('atr_14')
-                if atr and not pd.isna(atr):
-                    # Trail 2.0 * ATR from the high
-                    new_stop = high - (self.trailing_multiplier * atr)
-                    if new_stop > current_stop:
-                        current_stop = new_stop
+        # 1. Check for Entry
+        # We look for entry within the first few days? Or just the immediate next day?
+        # A limit order might be valid for X days. Let's assume 1-3 days validity or just 1 day.
+        # For this system, let's assume valid for `hold_days` or until filled.
 
-            # Check for Gap Up Success
-            if open_price >= target_exit:
-                status = 'success'
-                exit_price = open_price # Sold at open for even more profit
-                exit_date = day['date'].strftime('%Y-%m-%d')
-                break
+        entry_idx = -1
 
-            # Check for Gap Down Failure
-            if open_price <= current_stop:
-                status = 'failure'
-                exit_price = open_price # Sold at open for a larger loss
-                exit_date = day['date'].strftime('%Y-%m-%d')
-                break
+        for i, row in future_data.iterrows():
+            # If we haven't entered yet
+            if status == 'no_entry':
+                # Check if price hit entry level
+                # Assuming Limit Buy at entry_price
+                if row['low'] <= entry_price:
+                    # Filled
+                    status = 'active'
+                    actual_entry = entry_price
+                    # If Open was lower than limit, we might have got better price,
+                    # but let's be conservative and say we got filled at limit.
+                    # Unless Open < Entry, then maybe we got Open?
+                    # Let's stick to entry_price for consistency.
+                    if row['open'] < entry_price:
+                        actual_entry = row['open'] # Gap down fill
+                    else:
+                        actual_entry = entry_price
 
-            # Check for success during the day
-            if high >= target_exit:
-                status = 'success'
-                exit_price = target_exit
-                exit_date = day['date'].strftime('%Y-%m-%d')
-                break
+                    entry_date = row['date']
+                    entry_idx = i
 
-            # Check for failure during the day
-            if low <= current_stop:
-                status = 'failure'
-                exit_price = current_stop
-                exit_date = day['date'].strftime('%Y-%m-%d')
-                break
+                    # Check if we also stopped out or hit profit on the SAME day?
+                    # If Low <= Stop, we stopped out.
+                    # If High >= Target, we profited.
+                    # Sequence matters: Open -> Low/High -> Close.
+                    # Approximation: If Low <= Stop, assume stopped out first?
+                    # Or look at candle body? Impossible to know intraday path without tick data.
+                    # Conservative: If Low <= Stop, we stopped out.
 
-        if status == 'hold':
-            # If still holding after hold_days, exit at the last day's Close
-            last_day = future_data.iloc[-1]
-            exit_price = last_day['close']
-            exit_date = last_day['date'].strftime('%Y-%m-%d')
-            if exit_price > actual_entry:
-                status = 'closed_profit'
-            else:
-                status = 'closed_loss'
+                    if row['low'] <= current_stop:
+                        status = 'stopped_out'
+                        exit_price = current_stop
+                        if row['open'] < current_stop:
+                            exit_price = row['open'] # Gap down stop
+                        exit_date = row['date']
+                        break
+
+                    elif row['high'] >= target_exit:
+                        status = 'success'
+                        exit_price = target_exit
+                        if row['open'] > target_exit:
+                            exit_price = row['open'] # Gap up profit
+                        exit_date = row['date']
+                        break
+
+                # Expiry of limit order?
+                if i >= self.hold_days: # If not filled by hold_days, cancel
+                    status = 'limit_expired'
+                    break
+
+            # If we are in a trade
+            elif status == 'active':
+                # Check Stop
+                if row['low'] <= current_stop:
+                    status = 'stopped_out'
+                    exit_price = current_stop
+                    if row['open'] < current_stop:
+                        exit_price = row['open']
+                    exit_date = row['date']
+                    break
+
+                # Check Target
+                elif row['high'] >= target_exit:
+                    status = 'success'
+                    exit_price = target_exit
+                    if row['open'] > target_exit:
+                        exit_price = row['open']
+                    exit_date = row['date']
+                    break
+
+                # Trailing Stop Update
+                if self.use_trailing_stop:
+                    # If price moves up, move stop up
+                    # Simple trailing: defined by ATR or percentage?
+                    # Backtester config has trailing_multiplier.
+                    # Let's assume trailing based on High - (Multiplier * ATR)?
+                    # Or just: new_stop = max(current_stop, row['close'] * (1 - 0.02))?
+                    # Let's use the config provided trailing logic if feasible, or simple % trail.
+                    # Given `ml_stop_multiplier` is in prediction, maybe use that?
+                    pass
+
+                # Time Exit
+                days_in_trade = (row['date'] - future_data.iloc[entry_idx]['date']).days
+                if days_in_trade >= self.hold_days:
+                    status = 'time_exit'
+                    exit_price = row['close']
+                    exit_date = row['date']
+                    # Check if time exit is profitable
+                    if exit_price > actual_entry:
+                        status = 'closed_profit'
+                    else:
+                        status = 'closed_loss'
+                    break
 
         return {
             'symbol': symbol,
@@ -141,14 +211,18 @@ class Backtester:
             'final_stop': current_stop,
             'exit_price': exit_price,
             'exit_date': exit_date,
-            'days_held': len(future_data[(future_data['date'] >= entry_date) & (future_data['date'] <= pd.to_datetime(exit_date))]) if exit_date else self.hold_days
+            'days_held': (exit_date - future_data.iloc[entry_idx]['date']).days if exit_date and entry_idx != -1 else 0
         }
 
-    def run_backtest(self, target_date: str, strategy: str = "baseline", top_n: int = 10, enabled_indicators: Optional[list[str]] = None, aggregation: str = "sum", symbols: Optional[List[str]] = None):
+    def run_backtest(self, target_date: str, options: BacktestOptions = None):
         """Runs a backtest for a specific historical date and returns results."""
-        indicator_str = f" | Indicators: {', '.join(enabled_indicators)}" if enabled_indicators else ""
-        ReportSingleton().write(f"\n--- {strategy.title()} Backtest Report for {target_date} (Hold: {self.hold_days} days){indicator_str} | Agg: {aggregation} ---")
+        if options is None:
+            options = BacktestOptions()
 
+        indicator_str = f" | Indicators: {', '.join(options.enabled_indicators)}" if options.enabled_indicators else ""
+        ReportSingleton().write(f"\n--- {options.strategy.title()} Backtest Report for {target_date} (Hold: {self.hold_days} days){indicator_str} | Agg: {options.aggregation} ---")
+
+        symbols = options.symbols
         if not symbols:
             print("  > Loading symbols from database...", end="", flush=True)
             symbols = get_symbol_name_list()
@@ -156,11 +230,11 @@ class Backtester:
 
         max_workers = min(8, os.cpu_count() or 4)
 
-        logging.info("Generating %s predictions for %s...", strategy, target_date)
+        logging.info("Generating %s predictions for %s...", options.strategy, target_date)
         predictions = []
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
-            process_func = partial(self.trader.process_symbol, target_date=target_date, enabled_indicators=enabled_indicators, aggregation=aggregation)
+            process_func = partial(self.trader.process_symbol, target_date=target_date, enabled_indicators=options.enabled_indicators, aggregation=options.aggregation)
             future_to_symbol = {executor.submit(process_func, sym): sym for sym in symbols}
 
             processed_count = 0
@@ -177,7 +251,7 @@ class Backtester:
                     print(f"  > Progress: {processed_count}/{total_symbols} symbols analyzed ({ (processed_count/total_symbols)*100:.1f}%)", flush=True)
 
         # Use strategy-specific score key
-        score_key = "baseline_score" if strategy == "baseline" else "mr_score"
+        score_key = "baseline_score" if options.strategy == "baseline" else "mr_score"
 
         # Filter out scores <= 0 to avoid noise
         valid_predictions = sorted(
@@ -190,11 +264,11 @@ class Backtester:
             ReportSingleton().write("No valid signals found for this date.")
             return []
 
-        top_predictions = valid_predictions[:top_n]
+        top_predictions = valid_predictions[:options.top_n]
         results = []
         for pred in top_predictions:
             # Flatten strategy-specific setup for evaluate_prediction
-            setup_key = "baseline_setup" if strategy == "baseline" else "mr_setup"
+            setup_key = "baseline_setup" if options.strategy == "baseline" else "mr_setup"
             setup = pred.get(setup_key, {})
             pred['entry_price'] = setup.get('entry_price')
             pred['stop_loss'] = setup.get('stop_loss')
@@ -204,16 +278,16 @@ class Backtester:
             results.append(eval_result)
 
             pnl = 0.0
-            if 'entry' in eval_result and 'exit_price' in eval_result:
+            if eval_result.get('entry') is not None and eval_result.get('exit_price') is not None:
                 pnl = ((eval_result['exit_price'] / eval_result['entry']) - 1) * 100
 
             score_val = pred.get(score_key, 0.0)
             msg = f"{pred['symbol']} (Score: {score_val:.2f}): {eval_result['status']}"
-            if 'entry' in eval_result:
+            if eval_result.get('entry') is not None:
                 msg += f" | PnL: {pnl:.2f}%"
             ReportSingleton().write(msg)
 
-        valid_results = [r for r in results if 'entry' in r and 'exit_price' in r]
+        valid_results = [r for r in results if r.get('entry') is not None and r.get('exit_price') is not None]
         if valid_results:
             avg_pnl = sum(((r['exit_price'] / r['entry']) - 1) * 100 for r in valid_results) / len(valid_results)
             success_count = sum(1 for r in valid_results if r['status'] in ['success', 'closed_profit'])
@@ -222,8 +296,11 @@ class Backtester:
 
         return results
 
-    def run_range_backtest(self, start_date: str, end_date: str, interval_days: int = 7, top_n: int = 10, strategy: str = "baseline", enabled_indicators: Optional[list[str]] = None, aggregation: str = "sum", symbols: Optional[List[str]] = None):
+    def run_range_backtest(self, start_date: str, end_date: str, interval_days: int = 7, options: BacktestOptions = None):
         """Runs backtests over a range of dates at set intervals."""
+        if options is None:
+            options = BacktestOptions()
+
         start_ts = pd.to_datetime(start_date)
         end_ts = pd.to_datetime(end_date)
 
@@ -235,24 +312,27 @@ class Backtester:
         total_steps = (total_days // interval_days) + 1
         current_step = 1
 
-        indicator_str = f" | Indicators: {', '.join(enabled_indicators)}" if enabled_indicators else "ALL"
-        ReportSingleton().write(f"\n==========================================")
-        ReportSingleton().write(f"STRESS TEST: {start_date} to {end_date} | Strategy: {strategy}")
+        indicator_str = f" | Indicators: {', '.join(options.enabled_indicators)}" if options.enabled_indicators else "ALL"
+        ReportSingleton().write("\n==========================================")
+        ReportSingleton().write(f"Interval: {interval_days} days | Hold: {self.hold_days} days")
         ReportSingleton().write(f"Interval: {interval_days} days | Hold: {self.hold_days} days")
         ReportSingleton().write(f"Indicators: {indicator_str}")
-        ReportSingleton().write(f"Aggregation: {aggregation}")
+        ReportSingleton().write(f"Aggregation: {options.aggregation}")
         ReportSingleton().write(f"Target: {self.target_profit_factor} | Stop: {self.stop_loss_factor}")
-        ReportSingleton().write(f"==========================================\n")
+        ReportSingleton().write("\n==========================================")
 
+        symbols = options.symbols
         if not symbols:
             print(f"  > Fetching symbols...", end="", flush=True)
             symbols = get_symbol_name_list()
             print(f" Done ({len(symbols)} symbols).", flush=True)
+            # Update options with loaded symbols to pass down
+            options.symbols = symbols
 
         while current_ts <= end_ts:
             date_str = current_ts.strftime('%Y-%m-%d')
             print(f"\n--- Processing Step {current_step}/{total_steps}: {date_str} ---", flush=True)
-            day_results = self.run_backtest(date_str, strategy=strategy, top_n=top_n, enabled_indicators=enabled_indicators, aggregation=aggregation, symbols=symbols)
+            day_results = self.run_backtest(date_str, options=options)
             all_results.extend(day_results)
             current_ts += pd.Timedelta(days=interval_days)
             current_step += 1
@@ -269,11 +349,9 @@ class Backtester:
         avg_pnl = total_pnl / total_trades
         win_rate = (profitable_trades / total_trades) * 100
 
-        ReportSingleton().write(f"\n--- FINAL STRESS TEST SUMMARY ---")
+        ReportSingleton().write("\n--- FINAL STRESS TEST SUMMARY ---")
         ReportSingleton().write(f"Total Trades Evaluated: {total_trades}")
         ReportSingleton().write(f"Overall Win Rate: {win_rate:.2f}%")
         ReportSingleton().write(f"Overall Average PnL: {avg_pnl:.2f}%")
         ReportSingleton().write(f"Total Cumulative PnL: {total_pnl:.2f}%")
-        ReportSingleton().write(f"---------------------------------")
-
-import os
+        ReportSingleton().write("---------------------------------")

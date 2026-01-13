@@ -6,11 +6,14 @@ import logging
 import concurrent.futures
 from functools import partial
 import pandas as pd
-from bluehorseshoe.analysis.backtest import Backtester
+from bluehorseshoe.analysis.backtest import Backtester, BacktestConfig
 from bluehorseshoe.core.symbols import get_symbol_name_list
 from bluehorseshoe.data.historical_data import load_historical_data
 
 def process_date(date_str, tester, strategy="mean_reversion", top_n=10):
+    """
+    Processes a single date, identifies top predictions, and evaluates their outcomes.
+    """
     print(f"Analyzing {date_str} for strategy {strategy}...", flush=True)
     symbols = get_symbol_name_list()
     predictions = []
@@ -78,7 +81,11 @@ def process_date(date_str, tester, strategy="mean_reversion", top_n=10):
     return date_failures
 
 def analyze_failures(start_date, end_date, strategy="mean_reversion", interval_days=7):
-    tester = Backtester(target_profit_factor=1.02, stop_loss_factor=0.98, hold_days=3)
+    """
+    Analyzes trading failures over a given period.
+    """
+    config = BacktestConfig(target_profit_factor=1.02, stop_loss_factor=0.98, hold_days=3)
+    tester = Backtester(config)
 
     start_ts = pd.to_datetime(start_date)
     end_ts = pd.to_datetime(end_date)

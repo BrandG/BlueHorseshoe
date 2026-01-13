@@ -1,9 +1,8 @@
 """
 Module for optimizing trading strategy weights.
 """
-from typing import Dict, List, Any
+
 import logging
-import pandas as pd
 from bluehorseshoe.analysis.grading_engine import GradingEngine
 from bluehorseshoe.core.config import weights_config
 
@@ -16,6 +15,9 @@ class WeightOptimizer:
         self.days_lookback = days_lookback
 
     def run_optimization(self):
+        """
+        Runs the weight optimization process.
+        """
         logging.info("Starting weight optimization based on last %d days...", self.days_lookback)
 
         # 1. Fetch scores from the last 30 days

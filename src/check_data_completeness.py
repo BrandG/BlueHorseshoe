@@ -4,7 +4,6 @@ Script to check for missing historical price data.
 import logging
 import sys
 import os
-from datetime import datetime
 
 # Add src to path
 sys.path.append(os.path.join(os.getcwd(), 'src'))
@@ -17,6 +16,9 @@ from bluehorseshoe.core.symbols import get_symbol_list
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
 
 def check_completeness():
+    """
+    Checks the completeness of historical price data.
+    """
     db = get_mongo_client()
     if db is None:
         logging.error("Could not connect to MongoDB")

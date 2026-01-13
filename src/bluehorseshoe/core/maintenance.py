@@ -3,8 +3,6 @@ Maintenance utilities for updating symbols, history, and retraining models.
 """
 import argparse
 import logging
-import time
-from datetime import datetime
 from tqdm import tqdm  # You might need to pip install tqdm
 from requests.exceptions import RequestException
 from pymongo.errors import PyMongoError
@@ -88,7 +86,7 @@ def update_history_batch(limit: int = 0, recent_only: bool = True):
             # Don't crash the whole batch on one failure
             continue
 
-    print(f"\n✅ Batch Complete.")
+    print("\n✅ Batch Complete.")
     print(f"Success: {success_count}")
     print(f"Errors:  {error_count}")
 
@@ -96,7 +94,7 @@ def update_overviews_batch(limit: int = 0):
     """
     Step 3: Update company overview data for symbols in DB.
     """
-    print(f"\n--- STEP 3: Updating Company Overviews ---")
+    print("\n--- STEP 3: Updating Company Overviews ---")
     all_symbols = symbols.get_symbols_from_mongo()
     if limit > 0:
         all_symbols = all_symbols[:limit]
@@ -125,7 +123,7 @@ def update_news_batch(limit: int = 0):
     """
     Step 4: Update news sentiment data for symbols in DB.
     """
-    print(f"\n--- STEP 4: Updating News Sentiment ---")
+    print("\n--- STEP 4: Updating News Sentiment ---")
     all_symbols = symbols.get_symbols_from_mongo()
     if limit > 0:
         all_symbols = all_symbols[:limit]
@@ -154,7 +152,7 @@ def retrain_ml_models(limit: int = 10000):
     """
     Step 5: Retrain ML Overlay models using newly graded trades.
     """
-    print(f"\n--- STEP 5: Retraining ML Models ---")
+    print("\n--- STEP 5: Retraining ML Models ---")
     try:
         from bluehorseshoe.analysis.ml_overlay import MLOverlayTrainer
         trainer = MLOverlayTrainer()

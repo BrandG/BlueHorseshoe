@@ -8,13 +8,12 @@ import os
 import time
 import logging
 from datetime import datetime
-from typing import Iterable, List, Optional, Dict, Any
+from typing import List, Dict, Any
 
 from pymongo.collection import Collection
 from requests.exceptions import RequestException
 
 from .symbols import (
-    get_symbols_from_mongo,
     refresh_historical_for_symbol,
     fetch_daily_ohlc_from_net,
 )
@@ -57,6 +56,7 @@ def get_checkpoint() -> Dict[str, Any]:
 
 
 def set_checkpoint(last_symbol: str, processed_total: int, run_count: int) -> None:
+    """Update the batch loader checkpoint in the database."""
     _checkpoint_col().update_one(
         {"_id": CHECKPOINT_ID},
         {"$set": {
@@ -191,8 +191,7 @@ def classify_symbols_batch(limit=50, sleep_seconds=1.2):
     processed_total = int(ck.get("processed_total", 0))
     run_count = int(ck.get("run_count", 0)) + 1
     for sym in symbols:
-        data = fetch_daily_ohlc_from_net(sym, recent=True)  # compact
-        latest_date = data["days"][-1]["date"]  # oldest-first list
+        fetch_daily_ohlc_from_net(sym, recent=True)  # compact
 
         refresh_historical_for_symbol(sym, True)
 
@@ -204,4 +203,3 @@ def classify_symbols_batch(limit=50, sleep_seconds=1.2):
 
 if __name__ == "__main__":
     run_historical_batch()
-

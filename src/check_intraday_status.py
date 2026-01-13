@@ -2,10 +2,7 @@
 Script to check the intraday status of active trades.
 """
 import sys
-import os
 import argparse
-from datetime import datetime
-import pandas as pd
 
 # Try importing yfinance; handle gracefully if missing
 try:

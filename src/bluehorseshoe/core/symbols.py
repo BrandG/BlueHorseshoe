@@ -396,7 +396,10 @@ def get_sentiment_score(symbol: str, target_date: str | date) -> float:
         except ValueError:
             return 0.0
     elif isinstance(target_date, (date, datetime)):
-        target_dt = datetime.combine(target_date, datetime.min.time()) if isinstance(target_date, date) and not isinstance(target_date, datetime) else target_date
+        if isinstance(target_date, date) and not isinstance(target_date, datetime):
+            target_dt = datetime.combine(target_date, datetime.min.time())
+        else:
+            target_dt = target_date
     else:
         return 0.0
 

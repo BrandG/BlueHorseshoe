@@ -20,12 +20,13 @@ Usage example:
     indicator = CandlestickIndicator(data)
     score = indicator.calculate_score()
 """
+from typing import Optional
+
 from matplotlib import pyplot as plt
 import numpy as np
 import pandas as pd
 import talib
 import mplfinance as mpf #pylint: disable=import-error
-from typing import Optional
 
 from bluehorseshoe.reporting.report_generator import GraphData, graph
 from bluehorseshoe.analysis.indicators.indicator import Indicator, IndicatorScore

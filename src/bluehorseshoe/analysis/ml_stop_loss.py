@@ -1,6 +1,9 @@
 """
 Module for ML-based stop loss prediction.
 """
+import os
+from typing import Dict
+from datetime import datetime
 import logging
 import pandas as pd
 from sklearn.model_selection import train_test_split
@@ -8,9 +11,6 @@ from sklearn.ensemble import RandomForestRegressor
 from sklearn.preprocessing import LabelEncoder
 from sklearn.metrics import mean_squared_error, r2_score
 import joblib
-import os
-from typing import Dict
-from datetime import datetime
 
 from bluehorseshoe.analysis.grading_engine import GradingEngine
 from bluehorseshoe.analysis.ml_utils import extract_features
@@ -90,13 +90,13 @@ class StopLossTrainer:
             self.label_encoders[col] = le
 
         # Drop non-feature columns
-        X = df.drop(columns=['TARGET', 'symbol', 'date', 'strategy'])
+        X = df.drop(columns=['TARGET', 'symbol', 'date', 'strategy']) # pylint: disable=invalid-name
         y = df['TARGET']
 
         X = X.fillna(0)
 
         # Split data
-        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42) # pylint: disable=invalid-name,unbalanced-tuple-unpacking
 
         logging.info("Training Regressor on %d samples, testing on %d samples...", len(X_train), len(X_test))
 

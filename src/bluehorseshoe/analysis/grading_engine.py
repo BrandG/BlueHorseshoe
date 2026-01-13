@@ -6,8 +6,8 @@ trading signals (scores) against actual market outcomes to quantify performance.
 """
 
 import logging
+from typing import List, Dict
 import pandas as pd
-from typing import List, Dict, Optional
 from bluehorseshoe.core.database import db
 from bluehorseshoe.data.historical_data import load_historical_data
 

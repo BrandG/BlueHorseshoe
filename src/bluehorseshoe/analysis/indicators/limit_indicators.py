@@ -5,9 +5,8 @@ based on historical high, low, and close prices, and to score the behavior of
 prices relative to these pivot levels.
 """
 
-import numpy as np
-import pandas as pd
 from typing import Optional
+import pandas as pd
 from bluehorseshoe.reporting.report_generator import GraphData, graph
 from bluehorseshoe.analysis.indicators.indicator import Indicator, IndicatorScore
 

@@ -5,6 +5,9 @@ from bluehorseshoe.data.historical_data import load_historical_data
 from bluehorseshoe.analysis.indicators.momentum_indicators import MomentumIndicator
 
 def debug_macd(symbol):
+    """
+    Debugs the MACD calculation for a given symbol.
+    """
     data = load_historical_data(symbol)
     if not data or 'days' not in data:
         print(f"No data for {symbol}")

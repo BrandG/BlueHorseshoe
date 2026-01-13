@@ -1,13 +1,14 @@
 """
 Tests for technical analysis scenarios.
 """
+# pylint: disable=redefined-outer-name
 import pytest
 import pandas as pd
-import numpy as np
 from bluehorseshoe.analysis.technical_analyzer import TechnicalAnalyzer
 
 @pytest.fixture
 def base_data():
+    """Provides a base DataFrame for testing."""
     return pd.DataFrame({
         "date": pd.date_range(start="2025-12-01", periods=30),
         "open": [100.0] * 30,
@@ -29,6 +30,7 @@ def base_data():
     })
 
 def test_baseline_score(base_data):
+    """Tests the baseline score calculation."""
     scores = TechnicalAnalyzer.calculate_technical_score(base_data)
     # Baseline total can be 0.0 if no indicators trigger
     assert "total" in scores
