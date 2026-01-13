@@ -8,6 +8,7 @@ from requests.exceptions import RequestException
 from pymongo.errors import PyMongoError
 
 # Import our internal modules
+from bluehorseshoe.analysis.ml_overlay import MLOverlayTrainer
 from . import symbols
 from .database import db
 
@@ -154,11 +155,10 @@ def retrain_ml_models(limit: int = 10000):
     """
     print("\n--- STEP 5: Retraining ML Models ---")
     try:
-        from bluehorseshoe.analysis.ml_overlay import MLOverlayTrainer
         trainer = MLOverlayTrainer()
         trainer.retrain_all(limit=limit)
         print("✅ Retraining Complete.")
-    except Exception as e:
+    except Exception as e:  # pylint: disable=broad-exception-caught
         logging.error("Failed to retrain ML models: %s", e)
         print(f"❌ Error: {e}")
 

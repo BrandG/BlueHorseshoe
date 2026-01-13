@@ -134,50 +134,42 @@ def run_historical_batch(
             "run_count": run_count,
         }
 
-    successes = 0
-    failures = 0
-    failed_symbols: List[str] = []
-    current_last = last_symbol
+    stats = {"successes": 0, "failures": 0, "failed_symbols": []}
 
     logging.info("Starting batch run #%d. last_symbol=%s limit=%d recent_only=%s",
                  run_count, last_symbol, limit, recent_only)
 
     for sym in symbols:
-        current_last = sym
+        last_symbol = sym
         try:
             refresh_historical_for_symbol(sym, recent=recent_only)
-            successes += 1
+            stats["successes"] += 1
             processed_total += 1
-            logging.info("Loaded %s (%d/%d this batch)", sym, successes + failures, len(symbols))
+            logging.info("Loaded %s (%d/%d this batch)", sym,
+                         stats["successes"] + stats["failures"], len(symbols))
         except (RuntimeError, ValueError, RequestException) as e:
-            failures += 1
+            stats["failures"] += 1
             processed_total += 1
-            failed_symbols.append(sym)
+            stats["failed_symbols"].append(sym)
             logging.exception("Failed loading %s: %s", sym, e)
 
         # cushion for AV + keep CPU polite
         time.sleep(sleep_seconds)
 
         # checkpoint after each symbol so restarts are painless
-        set_checkpoint(current_last, processed_total, run_count)
+        set_checkpoint(last_symbol, processed_total, run_count)
 
-#    if classify:
-#        classify_symbol_activity(symbol, days)
-
-    summary = {
+    return {
         "status": "ok",
         "batch_size": len(symbols),
-        "successes": successes,
-        "failures": failures,
-        "failed_symbols": failed_symbols[:20],  # cap log size
-        "last_symbol": current_last,
+        "successes": stats["successes"],
+        "failures": stats["failures"],
+        "failed_symbols": stats["failed_symbols"][:20],  # cap log size
+        "last_symbol": last_symbol,
         "processed_total": processed_total,
         "run_count": run_count,
         "recent_only": recent_only,
     }
-
-    logging.info("Batch summary: %s", summary)
-    return summary
 
 def classify_symbols_batch(limit=50, sleep_seconds=1.2):
     """Classify a batch of symbols by updating their data."""

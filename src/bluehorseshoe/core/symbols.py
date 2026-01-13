@@ -380,50 +380,50 @@ def get_news_sentiment_from_mongo(symbol: str) -> List[Dict[str, Any]]:
     return (doc or {}).get("feed", [])
 
 
+def _normalize_target_date(target_date: str | date) -> datetime | None:
+    """Helper to convert various date inputs to datetime."""
+    if isinstance(target_date, str):
+        try:
+            return datetime.strptime(target_date, "%Y-%m-%d")
+        except ValueError:
+            return None
+    if isinstance(target_date, datetime):
+        return target_date
+    if isinstance(target_date, date):
+        return datetime.combine(target_date, datetime.min.time())
+    return None
+
+
 def get_sentiment_score(symbol: str, target_date: str | date) -> float:
     """
     Calculates an average sentiment score for a symbol up to a target date.
     Lookback is 7 days.
     """
     feed = get_news_sentiment_from_mongo(symbol)
-    if not feed:
-        return 0.0
+    target_dt = _normalize_target_date(target_date)
 
-    if isinstance(target_date, str):
-        try:
-            target_dt = datetime.strptime(target_date, "%Y-%m-%d")
-        except ValueError:
-            return 0.0
-    elif isinstance(target_date, (date, datetime)):
-        if isinstance(target_date, date) and not isinstance(target_date, datetime):
-            target_dt = datetime.combine(target_date, datetime.min.time())
-        else:
-            target_dt = target_date
-    else:
+    if not feed or not target_dt:
         return 0.0
 
     scores = []
+    symbol_upper = symbol.upper()
+
     for item in feed:
-        # time_published format: 20260103T200305
         try:
             pub_dt = datetime.strptime(item["time_published"], "%Y%m%dT%H%M%S")
         except (ValueError, KeyError):
             continue
 
-        # Check if within 7 days BEFORE target_dt
         delta = target_dt - pub_dt
         if 0 <= delta.days <= 7:
             for ts in item.get("ticker_sentiment", []):
-                if ts.get("ticker") == symbol.upper():
+                if ts.get("ticker") == symbol_upper:
                     try:
                         scores.append(float(ts.get("ticker_sentiment_score", 0.0)))
                     except (ValueError, TypeError):
                         pass
 
-    if not scores:
-        return 0.0
-
-    return sum(scores) / len(scores)
+    return sum(scores) / len(scores) if scores else 0.0
 
 
 def get_historical_from_mongo(symbol: str, recent: bool = False) -> List[Dict[str, Any]]:
