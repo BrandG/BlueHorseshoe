@@ -53,25 +53,42 @@ class MLOverlayTrainer:
 
         features = []
         for _, row in df_graded.iterrows():
-            symbol = row['symbol']
-
-            # Technical Components
-            components = row.get('components', {})
-            if not components:
+            # Extract unified features
+            feat = extract_features(row['symbol'], row.get('components', {}), row['date'])
+            if not feat:
                 continue
 
-            # Extract unified features
-            feat = extract_features(symbol, components, row['date'])
-
             # 3. Label (Target)
-            feat['TARGET'] = 1 if row['status'] == 'success' else 0
-            feat['symbol'] = symbol
-            feat['date'] = row['date']
-            feat['strategy'] = row.get('strategy', 'unknown')
-
+            feat.update({
+                'TARGET': 1 if row['status'] == 'success' else 0,
+                'symbol': row['symbol'],
+                'date': row['date'],
+                'strategy': row.get('strategy', 'unknown')
+            })
             features.append(feat)
 
         return pd.DataFrame(features)
+
+    def _handle_categorical_data(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Encodes categorical columns and stores encoders."""
+        categorical_cols = ['Sector', 'Industry']
+        for col in categorical_cols:
+            le = LabelEncoder()
+            df[col] = le.fit_transform(df[col].astype(str))
+            self.label_encoders[col] = le
+        return df
+
+    def _evaluate_model(self, model, X_test, y_test): # pylint: disable=invalid-name
+        """Evaluates model performance and logs metrics."""
+        y_pred = model.predict(X_test)
+        logging.info("Classification Report:\n%s", classification_report(y_test, y_pred))
+
+        # Calculate Feature Importance
+        importances = pd.DataFrame({
+            'feature': X_test.columns,
+            'importance': model.feature_importances_
+        }).sort_values('importance', ascending=False)
+        logging.info("Top Features:\n%s", importances.head(10).to_string())
 
     def train(self, limit: int = 10000, strategy: str = None, output_path: str = None, before_date: str = None):
         """
@@ -84,40 +101,22 @@ class MLOverlayTrainer:
         if df.empty:
             return
 
-        # Handle Categorical Data
-        categorical_cols = ['Sector', 'Industry']
-        for col in categorical_cols:
-            le = LabelEncoder()
-            df[col] = le.fit_transform(df[col].astype(str))
-            self.label_encoders[col] = le
+        df = self._handle_categorical_data(df)
 
         # Drop non-feature columns
         X = df.drop(columns=['TARGET', 'symbol', 'date', 'strategy']) # pylint: disable=invalid-name
         y = df['TARGET']
-
-        # Fill NaNs
         X = X.fillna(0)
 
         # Split data
         X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42) # pylint: disable=invalid-name,unbalanced-tuple-unpacking
-
         logging.info("Training on %d samples, testing on %d samples...", len(X_train), len(X_test))
 
         # Train Model
         model = RandomForestClassifier(n_estimators=100, max_depth=10, random_state=42)
         model.fit(X_train, y_train)
 
-        # Evaluate
-        y_pred = model.predict(X_test)
-        logging.info("Classification Report:\n%s", classification_report(y_test, y_pred))
-
-        # Calculate Feature Importance
-        importances = pd.DataFrame({
-            'feature': X.columns,
-            'importance': model.feature_importances_
-        }).sort_values('importance', ascending=False)
-
-        logging.info("Top Features:\n%s", importances.head(10).to_string())
+        self._evaluate_model(model, X_test, y_test)
 
         # Save model and encoders
         output = {
@@ -148,6 +147,7 @@ class MLInference:
     """
     Handles loading the trained ML model and performing predictions.
     """
+    # pylint: disable=too-few-public-methods
     def __init__(self, model_path: str = "src/models/ml_overlay_v1.joblib"):
         self.model_path = model_path
         self.models = {} # Cache for strategy-specific models
@@ -165,6 +165,29 @@ class MLInference:
         else:
             if key == "general":
                 logging.warning("ML Overlay model not found at %s", path)
+
+    def _encode_features(self, feat: Dict, encoders: Dict) -> Dict:
+        """Helper to encode categorical features for inference."""
+        for col in ['Sector', 'Industry']:
+            le = encoders.get(col)
+            val = str(feat.get(col, 'Unknown'))
+            if le:
+                try:
+                    feat[col] = le.transform([val])[0]
+                except ValueError:
+                    feat[col] = 0
+            else:
+                feat[col] = 0
+        return feat
+
+    def _prepare_inference_df(self, feat: Dict, model_key: str) -> pd.DataFrame:
+        """Aligns feature dict with model training features and returns DataFrame."""
+        df = pd.DataFrame([feat])
+        model_features = self.features.get(model_key, [])
+        for f in model_features: # pylint: disable=invalid-name
+            if f not in df.columns:
+                df[f] = 0.0
+        return df[model_features].fillna(0)
 
     def predict_probability(self, symbol: str, components: Dict[str, float], target_date: str = None, strategy: str = "general") -> float:
         """
@@ -187,35 +210,11 @@ class MLInference:
 
         # Build feature vector
         feat = extract_features(symbol, components, target_date)
-
-        # Encode categorical
-        encoders = self.encoders.get(model_key, {})
-        for col in ['Sector', 'Industry']:
-            le = encoders.get(col)
-            val = str(feat.get(col, 'Unknown'))
-            if le:
-                try:
-                    feat[col] = le.transform([val])[0]
-                except ValueError:
-                    feat[col] = 0
-            else:
-                feat[col] = 0
-
-        # Create DataFrame aligned with training features
-        df = pd.DataFrame([feat])
-
-        # Ensure all training features are present
-        model_features = self.features.get(model_key, [])
-        for f in model_features:
-            if f not in df.columns:
-                df[f] = 0.0
-
-        # Reorder columns to match training
-        df = df[model_features]
-        df = df.fillna(0)
+        feat = self._encode_features(feat, self.encoders.get(model_key, {}))
+        df_inf = self._prepare_inference_df(feat, model_key)
 
         # Predict probability of class 1 (Success)
-        probs = model.predict_proba(df)[0]
+        probs = model.predict_proba(df_inf)[0]
         return float(probs[1])
 
 if __name__ == "__main__":

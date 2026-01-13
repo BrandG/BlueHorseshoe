@@ -49,27 +49,44 @@ class StopLossTrainer:
 
         features = []
         for _, row in df_graded.iterrows():
-            symbol = row['symbol']
-
-            # Technical Components
-            components = row.get('components', {})
-            if not components:
+            # Extract unified features
+            feat = extract_features(row['symbol'], row.get('components', {}), row['date'])
+            if not feat:
                 continue
 
-            # Extract unified features
-            feat = extract_features(symbol, components, row['date'])
-
             # 3. Label (Target): MAE in ATR units
-            feat['TARGET'] = float(row.get('mae_atr', 0.0))
-
-            # Meta
-            feat['symbol'] = symbol
-            feat['date'] = row['date']
-            feat['strategy'] = row.get('strategy', 'unknown')
-
+            feat.update({
+                'TARGET': float(row.get('mae_atr', 0.0)),
+                'symbol': row['symbol'],
+                'date': row['date'],
+                'strategy': row.get('strategy', 'unknown')
+            })
             features.append(feat)
 
         return pd.DataFrame(features)
+
+    def _handle_categorical_data(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Encodes categorical columns and stores encoders."""
+        categorical_cols = ['Sector', 'Industry']
+        for col in categorical_cols:
+            le = LabelEncoder()
+            df[col] = le.fit_transform(df[col].astype(str))
+            self.label_encoders[col] = le
+        return df
+
+    def _evaluate_model(self, model, X_test, y_test): # pylint: disable=invalid-name
+        """Evaluates model performance and logs metrics."""
+        y_pred = model.predict(X_test)
+        mse = mean_squared_error(y_test, y_pred)
+        r2 = r2_score(y_test, y_pred) # pylint: disable=invalid-name
+        logging.info("Regression Performance - MSE: %.4f, R2: %.4f", mse, r2)
+
+        # Feature Importance
+        importances = pd.DataFrame({
+            'feature': X_test.columns,
+            'importance': model.feature_importances_
+        }).sort_values('importance', ascending=False)
+        logging.info("Top Features for Stop Loss:\n" + importances.head(10).to_string())
 
     def train(self, limit: int = 10000, output_path: str = None, before_date: str = None):
         """
@@ -82,41 +99,22 @@ class StopLossTrainer:
         if df.empty:
             return
 
-        # Handle Categorical Data
-        categorical_cols = ['Sector', 'Industry']
-        for col in categorical_cols:
-            le = LabelEncoder()
-            df[col] = le.fit_transform(df[col].astype(str))
-            self.label_encoders[col] = le
+        df = self._handle_categorical_data(df)
 
         # Drop non-feature columns
         X = df.drop(columns=['TARGET', 'symbol', 'date', 'strategy']) # pylint: disable=invalid-name
         y = df['TARGET']
-
         X = X.fillna(0)
 
         # Split data
         X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42) # pylint: disable=invalid-name,unbalanced-tuple-unpacking
-
         logging.info("Training Regressor on %d samples, testing on %d samples...", len(X_train), len(X_test))
 
         # Train Model
         model = RandomForestRegressor(n_estimators=100, max_depth=10, random_state=42)
         model.fit(X_train, y_train)
 
-        # Evaluate
-        y_pred = model.predict(X_test)
-        mse = mean_squared_error(y_test, y_pred)
-        r2 = r2_score(y_test, y_pred)
-        logging.info("Regression Performance - MSE: %.4f, R2: %.4f", mse, r2)
-
-        # Feature Importance
-        importances = pd.DataFrame({
-            'feature': X.columns,
-            'importance': model.feature_importances_
-        }).sort_values('importance', ascending=False)
-
-        logging.info("Top Features for Stop Loss:\n" + importances.head(10).to_string())
+        self._evaluate_model(model, X_test, y_test)
 
         # Save model and encoders
         output = {
@@ -131,6 +129,7 @@ class StopLossInference:
     """
     Predicts optimal ATR multiplier for a stop loss.
     """
+    # pylint: disable=too-few-public-methods
     def __init__(self, model_path: str = "src/models/ml_stop_loss_v1.joblib"):
         self.model_path = model_path
         self.model = None
@@ -146,6 +145,28 @@ class StopLossInference:
             self.features = data['features']
             logging.info("Stop Loss Model loaded from %s", self.model_path)
 
+    def _encode_features(self, feat: Dict) -> Dict:
+        """Helper to encode categorical features for inference."""
+        for col in ['Sector', 'Industry']:
+            le = self.encoders.get(col)
+            val = str(feat.get(col, 'Unknown'))
+            if le:
+                try:
+                    feat[col] = le.transform([val])[0]
+                except ValueError:
+                    feat[col] = 0
+            else:
+                feat[col] = 0
+        return feat
+
+    def _prepare_inference_df(self, feat: Dict) -> pd.DataFrame:
+        """Aligns feature dict with model training features and returns DataFrame."""
+        df = pd.DataFrame([feat])
+        for f in self.features: # pylint: disable=invalid-name
+            if f not in df.columns:
+                df[f] = 0.0
+        return df[self.features].fillna(0)
+
     def predict_stop_loss_multiplier(self, symbol: str, components: Dict[str, float], target_date: str = None) -> float:
         """
         Predicts the recommended ATR multiplier for the stop loss.
@@ -157,27 +178,10 @@ class StopLossInference:
             target_date = datetime.now().strftime("%Y-%m-%d")
 
         feat = extract_features(symbol, components, target_date)
+        feat = self._encode_features(feat)
+        df_inf = self._prepare_inference_df(feat)
 
-        for col in ['Sector', 'Industry']:
-            le = self.encoders.get(col)
-            val = str(feat.get(col, 'Unknown'))
-            if le:
-                try:
-                    feat[col] = le.transform([val])[0]
-                except ValueError:
-                    feat[col] = 0
-            else:
-                feat[col] = 0
-
-        df = pd.DataFrame([feat])
-        for f in self.features:
-            if f not in df.columns:
-                df[f] = 0.0
-
-        df = df[self.features]
-        df = df.fillna(0)
-
-        predicted_mae = float(self.model.predict(df)[0])
+        predicted_mae = float(self.model.predict(df_inf)[0])
 
         # We recommend a stop loss slightly beyond the predicted MAE
         # e.g., predicted_mae + 0.5 ATR, with a minimum of 1.5 ATR
