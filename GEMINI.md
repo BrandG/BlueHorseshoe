@@ -51,11 +51,7 @@ The system implements two primary scoring strategies in `TechnicalAnalyzer`:
 
 ## Analysis & Scoring Notes
 
-- **Baseline Optimization (Jan 2026):**
-    - **Entry Logic:** Switch to "Buy at Last Close" (Market Buy) for high-momentum setups (Green Candle, High Vol, RSI < 70) to ensure fills on runaway trends.
-    - **Safety Filter:** Implemented `_is_dead_or_flat` (ATR < 0.5% or StdDev < 0.2%) to reject pinned stocks or buyouts.
-    - **Performance:** Validated on historical data (YPF +11%, OXM +6% with new logic).
-
+- **Market Regime Filter (Jan 2026):** Implemented a robust market health check (`MarketRegime`) using SPY/QQQ price action against key EMAs (20, 50, 200) and market breadth. Momentum signals are now automatically disabled during 'Bearish' regimes to prevent aggressive entries at market tops.
 - **Mean Reversion:**
     - **Status:** Highly effective on volatile names (RDFN +23%).
     - **Scoring:** Rewards extreme oversold conditions (RSI < 30) with significant mean reversion potential.
@@ -67,4 +63,4 @@ The system implements two primary scoring strategies in `TechnicalAnalyzer`:
 - **Validation:** When adding new technical scoring logic, ensure column presence checks use `Series.index` to avoid value-based subsetting errors.
 - **Logging:** Always update `actions.txt` with key decisions and validation results.
 
-- **Next Task:** Re-run feature engineering on the full historical dataset using the new `ml_utils` and begin deep backtesting.
+- **Next Task:** Perform a data quality audit on the historical data to scan for gaps, spikes, or other anomalies before deep backtesting.

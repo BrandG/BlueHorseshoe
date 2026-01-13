@@ -23,7 +23,7 @@ import os
 import concurrent.futures
 from functools import partial
 from dataclasses import dataclass
-from typing import Dict, Optional, List
+from typing import Dict, Optional, List, Any
 
 import pandas as pd
 from ta.volatility import AverageTrueRange
@@ -51,6 +51,7 @@ class StrategyContext:
     enabled_indicators: Optional[List[str]] = None
     aggregation: str = "sum"
     benchmark_df: Optional[pd.DataFrame] = None
+    market_health: Optional[Dict[str, Any]] = None
 
 class SwingTrader:
     """Main class for swing trading analysis."""
@@ -265,6 +266,10 @@ class SwingTrader:
 
     def _process_baseline(self, df: pd.DataFrame, symbol: str, yesterday: dict, ctx: StrategyContext) -> Optional[Dict]:
         """Process Baseline strategy logic."""
+        # Regime Filter: Skip momentum during bearish regimes
+        if ctx.market_health and ctx.market_health['status'] == 'Bearish':
+            return None
+
         is_uptrend = self.is_weekly_uptrend(df)
         if REQUIRE_WEEKLY_UPTREND and not is_uptrend:
             print(f"DEBUG: {symbol} - Baseline failed weekly uptrend")
@@ -512,7 +517,8 @@ class SwingTrader:
             target_date=target_date,
             enabled_indicators=enabled_indicators,
             aggregation=aggregation,
-            benchmark_df=benchmark_df
+            benchmark_df=benchmark_df,
+            market_health=market_health
         )
 
         # 3. Execute

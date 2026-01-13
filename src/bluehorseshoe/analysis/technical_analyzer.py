@@ -16,7 +16,8 @@ from bluehorseshoe.analysis.constants import (
     OVERSOLD_BB_REWARD, OVERSOLD_BB_POSITION_THRESHOLD,
     MR_OVERSOLD_RSI_REWARD_EXTREME, MR_OVERSOLD_RSI_REWARD_MODERATE,
     MR_OVERSOLD_BB_REWARD, MR_BELLOW_LOW_BB_BONUS,
-    PENALTY_EMA_OVEREXTENSION,
+    PENALTY_EMA_OVEREXTENSION_MODERATE, PENALTY_EMA_OVEREXTENSION_EXTREME,
+    PENALTY_EMA_THRESHOLD_MODERATE, PENALTY_EMA_THRESHOLD_EXTREME,
     PENALTY_RSI_THRESHOLD_EXTREME, PENALTY_RSI_SCORE_EXTREME,
     PENALTY_RSI_THRESHOLD_MODERATE, PENALTY_RSI_SCORE_MODERATE,
     PENALTY_VOLUME_EXHAUSTION
@@ -141,9 +142,12 @@ class TechnicalAnalyzer:
         # EMA Overextension Penalty
         ema9 = days['close'].ewm(span=9).mean().iloc[-1]
         dist_ema9 = (last_row['close'] / ema9) - 1
-        if dist_ema9 > 0.10:
-            components["penalty_ema_overextension"] = PENALTY_EMA_OVEREXTENSION
-            score_adj += PENALTY_EMA_OVEREXTENSION
+        if dist_ema9 > PENALTY_EMA_THRESHOLD_EXTREME:
+            components["penalty_ema_overextension"] = PENALTY_EMA_OVEREXTENSION_EXTREME
+            score_adj += PENALTY_EMA_OVEREXTENSION_EXTREME
+        elif dist_ema9 > PENALTY_EMA_THRESHOLD_MODERATE:
+            components["penalty_ema_overextension"] = PENALTY_EMA_OVEREXTENSION_MODERATE
+            score_adj += PENALTY_EMA_OVEREXTENSION_MODERATE
 
         # RSI Checks
         rsi = last_row.get('rsi_14', 50)

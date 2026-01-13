@@ -59,27 +59,27 @@ def test_bb_oversold(base_data):
     assert scores['bonus_oversold_bb'] == -3.0
 
 def test_ema_overextension(base_data):
-    """Verify price > 10% above EMA9 gives a -5.0 penalty."""
+    """Verify price > 12% above EMA9 gives an extreme penalty."""
     data = base_data.copy()
-    # To make close > 1.1 * EMA9, we need to push the last close high
+    # To make close > 1.12 * EMA9, we need to push the last close high
     # Baseline is all 100. EMA9 will be ~100.
-    data.loc[data.index[-1], 'close'] = 115.0
+    data.loc[data.index[-1], 'close'] = 120.0 # ~20% above
     scores = TechnicalAnalyzer.calculate_technical_score(data)
-    assert scores['penalty_ema_overextension'] == -5.0
+    assert scores['penalty_ema_overextension'] == -7.0
 
 def test_rsi_overbought(base_data):
-    """Verify RSI > 75 gives a -3.0 penalty."""
+    """Verify RSI > 75 gives an extreme penalty."""
     data = base_data.copy()
     data.loc[data.index[-1], 'rsi_14'] = 80.0
     scores = TechnicalAnalyzer.calculate_technical_score(data)
-    assert scores['penalty_rsi'] == -3.0
+    assert scores['penalty_rsi'] == -5.0
 
 def test_volume_exhaustion(base_data):
-    """Verify volume > 3x average gives a -2.0 penalty."""
+    """Verify volume > 3x average gives a penalty."""
     data = base_data.copy()
     data.loc[data.index[-1], 'volume'] = 1000000 # 5x baseline 200,000
     scores = TechnicalAnalyzer.calculate_technical_score(data)
-    assert scores['penalty_volume_exhaustion'] == -2.0
+    assert scores['penalty_volume_exhaustion'] == -3.0
 
 def test_low_volume_early_exit(base_data):
     """Verify that low volume results in an early exit with 0.0 total."""

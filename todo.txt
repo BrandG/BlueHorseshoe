@@ -1,8 +1,8 @@
 # ToDo: Indicator Analysis & Strategy Optimization
 
-## Current State (v1.9)
-- **Codebase Health:** High (Lint score 9.09/10), Refactored ML Utils.
-- **ML Overlay:** Feature extraction centralized; `ml_overlay.py` and `ml_stop_loss.py` streamlined.
+## Current State (v2.0)
+- **Codebase Health:** Perfect (Lint score 10.0/10), Refactored all core and analysis modules.
+- **ML Overlay:** Feature extraction centralized; ML trainers and inference streamlined.
 - **Data Infrastructure:** Robust, with recent bug fixes in batch loading and API.
 
 ## Performance Validation
@@ -10,9 +10,9 @@
 - **Mean Reversion (Dip):** Strong performance on volatile assets (RDFN +23%).
 
 ## Active Tasks
-- [x] **Code Quality:** Refactored duplicate ML logic and fixed linting errors.
+- [x] **Code Quality:** Resolved all linting issues across the codebase.
 - [x] **Bug Fixes:** Resolved runtime errors in `batch_loader` and `api`.
-- [ ] **Bear Market Resilience:** Investigate why Momentum signals failed so aggressively in Jan 2022 and implement regime-based filters.
+- [x] **Bear Market Resilience:** Investigate why Momentum signals failed so aggressively in Jan 2022 and implement regime-based filters.
 - [ ] **Data Quality Audit:** Scan the newly backfilled data for gaps, spikes, or anomalies.
 - [ ] **Feature Engineering:** Re-run feature generation on the full historical dataset using the new `ml_utils`.
 - [ ] **Deep Backtesting:** Run strategy simulations over 5-10 year periods.

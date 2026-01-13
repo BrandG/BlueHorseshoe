@@ -3,3 +3,6 @@
 2026-01-10: Ran Chop Market Backtest (Jan 3, 2023). Result: 4/5 profitable (80% Win Rate), Avg PnL: +3.49%. Strong performance from BA and SHYF, but many high-scoring symbols resulted in 'no_entry', indicating entry logic might be too tight for volatile sideways markets.
 2026-01-11: Resuming historical backfill from symbol 'DLS' with optimized rate (2s sleep). Cleared stale lock file.
 2026-01-12: Performed extensive linting cleanup across core and data modules. Fixed unused imports, trailing whitespace, missing final newlines, and split long lines in symbols.py and service.py. Improved linting score to 8.97/10.
+2026-01-13 17:16:46: Resolved all linting issues across the codebase. Refactored core, data, analysis, and utility scripts to reduce complexity (too-many-locals, too-many-branches, etc.) and achieved 10/10 Pylint rating for all modified files.
+2026-01-13: Enhanced Bear Market Resilience. Improved MarketRegime with EMA 50/200 and Breadth checks. Implemented regime-based skipping for Momentum strategy. Tightened overextension penalties and enabled mandatory weekly uptrend for momentum signals. (Ref: todo.txt)
+2026-01-13 (Session Shutdown): Verified stability (linting and all tests passed). Synced progress to documentation and committed changes.
