@@ -31,7 +31,7 @@ from sklearn.exceptions import ConvergenceWarning
 from bluehorseshoe.reporting.report_generator import ReportSingleton
 from bluehorseshoe.core.globals import get_mongo_client
 from bluehorseshoe.core.database import db
-from bluehorseshoe.data.historical_data import build_all_symbols_history, check_market_status
+from bluehorseshoe.data.historical_data import build_all_symbols_history, check_market_status, BackfillConfig
 from bluehorseshoe.analysis.strategy import SwingTrader
 from bluehorseshoe.analysis.optimizer import WeightOptimizer
 
@@ -100,7 +100,7 @@ if __name__ == "__main__":
             logging.info("Market data not ready. Waiting 1 hour...")
             time.sleep(3600)
 
-        build_all_symbols_history(recent=True)
+        build_all_symbols_history(BackfillConfig(recent=True))
         logging.info("Recent historical data updated.")
     elif "-b" in sys.argv:
         resume = "--resume" in sys.argv
@@ -110,7 +110,7 @@ if __name__ == "__main__":
                 limit = int(sys.argv[sys.argv.index("--limit") + 1])
             except (ValueError, IndexError):
                 pass
-        build_all_symbols_history(recent=False, resume=resume, limit=limit)
+        build_all_symbols_history(BackfillConfig(recent=False, resume=resume, limit=limit))
         logging.info("Full historical data updated.")
     elif "-p" in sys.argv:
         logging.info('Predicting next midpoints...')

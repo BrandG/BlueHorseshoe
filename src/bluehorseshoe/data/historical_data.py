@@ -19,6 +19,8 @@ Functions:
 import logging
 import os
 import json
+from dataclasses import dataclass
+from typing import List, Optional
 import pandas as pd
 import requests
 from ratelimit import limits, sleep_and_retry #pylint: disable=import-error
@@ -85,7 +87,7 @@ def check_market_status(symbol='SPY'):
         # Determine expected date (Today in NY, or last Friday if Weekend)
         try:
             now_ny = pd.Timestamp.now(tz='US/Eastern')
-        except Exception:
+        except Exception:  # pylint: disable=broad-exception-caught
              # Fallback to local if TZ fails
             now_ny = pd.Timestamp.now()
 
@@ -113,7 +115,7 @@ def check_market_status(symbol='SPY'):
         logging.warning("Bellwether check failed: Expected %s, found %s for %s", expected_date, last_market_date, symbol)
         return False
 
-    except Exception as e:
+    except Exception as e:  # pylint: disable=broad-exception-caught
         logging.error("Market status check exception: %s", e)
         return False
 
@@ -178,16 +180,30 @@ def set_backfill_checkpoint(symbol):
     except PyMongoError as e:
         logging.error("Failed to set checkpoint: %s", e)
 
-def build_all_symbols_history(starting_at='', save_to_file=False, recent=False, symbols=None, resume=False, limit=None):
+@dataclass
+class BackfillConfig:
+    """Configuration for historical data backfill."""
+    starting_at: str = ''
+    save_to_file: bool = False
+    recent: bool = False
+    symbols: Optional[List] = None
+    resume: bool = False
+    limit: Optional[int] = None
+
+def build_all_symbols_history(config: Optional[BackfillConfig] = None):
     """
     Builds historical data for all stock symbols and saves them to MongoDB.
     """
-    if resume and not starting_at:
+    if config is None:
+        config = BackfillConfig()
+
+    starting_at = config.starting_at
+    if config.resume and not starting_at:
         starting_at = get_backfill_checkpoint()
         if starting_at:
             logging.info("Resuming backfill from symbol: %s", starting_at)
 
-    symbol_list = symbols if symbols is not None else get_symbol_list()
+    symbol_list = config.symbols if config.symbols is not None else get_symbol_list()
     if symbol_list is None:
         logging.error("Symbol list is None.")
         return
@@ -203,12 +219,12 @@ def build_all_symbols_history(starting_at='', save_to_file=False, recent=False, 
                 skip = False
             continue
 
-        process_symbol(row, index, total_symbols, save_to_file, recent)
+        process_symbol(row, index, total_symbols, config.save_to_file, config.recent)
         set_backfill_checkpoint(symbol)
         processed_count += 1
 
-        if limit and processed_count >= limit:
-            logging.info("Reached limit of %d symbols. Stopping.", limit)
+        if config.limit and processed_count >= config.limit:
+            logging.info("Reached limit of %d symbols. Stopping.", config.limit)
             break
 
 

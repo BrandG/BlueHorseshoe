@@ -10,7 +10,8 @@ from bluehorseshoe.data.historical_data import (
     save_historical_data_to_mongo,
     build_all_symbols_history,
     get_technical_indicators,
-    load_historical_data
+    load_historical_data,
+    BackfillConfig
 )
 
 @patch('bluehorseshoe.data.historical_data.requests.get')
@@ -133,7 +134,7 @@ def test_build_all_symbols_history(mock_save_historical_data_to_mongo, mock_load
         mock_load_historical_data_from_net (Mock): Mock for the load_historical_data_from_net function.
         mock_get_symbol_list (Mock): Mock for the get_symbol_list function.
     """
-    build_all_symbols_history()
+    build_all_symbols_history(BackfillConfig())
     mock_get_symbol_list.assert_called_once()
     mock_load_historical_data_from_net.assert_called_once_with(stock_symbol='AAPL', recent=False)
     mock_save_historical_data_to_mongo.assert_called_once()

@@ -11,7 +11,7 @@ import argparse
 sys.path.append(os.path.join(os.getcwd(), 'src'))
 
 # pylint: disable=wrong-import-position
-from bluehorseshoe.data.historical_data import build_all_symbols_history
+from bluehorseshoe.data.historical_data import build_all_symbols_history, BackfillConfig
 
 def main():
     """
@@ -56,7 +56,7 @@ def main():
 
     # Run backfill
     # We set recent=False to force 'full' outputsize
-    build_all_symbols_history(symbols=batch, recent=False)
+    build_all_symbols_history(BackfillConfig(symbols=batch, recent=False))
 
     logging.info("Batch complete.")
 
