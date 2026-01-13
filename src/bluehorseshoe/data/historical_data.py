@@ -76,6 +76,48 @@ def load_historical_data_from_net(stock_symbol, recent=False):
     return symbol
 
 
+def check_market_status(symbol='SPY'):
+    """
+    Verifies if the market data for a bellwether symbol is up-to-date.
+    Returns True if the latest data point matches the expected trading day.
+    """
+    try:
+        # Determine expected date (Today in NY, or last Friday if Weekend)
+        try:
+            now_ny = pd.Timestamp.now(tz='US/Eastern')
+        except Exception:
+             # Fallback to local if TZ fails
+            now_ny = pd.Timestamp.now()
+            
+        expected_date = now_ny.date()
+        
+        if now_ny.weekday() == 5: # Saturday
+            expected_date -= pd.Timedelta(days=1)
+        elif now_ny.weekday() == 6: # Sunday
+            expected_date -= pd.Timedelta(days=2)
+            
+        net_data = load_historical_data_from_net(symbol, recent=True)
+        if not net_data or 'days' not in net_data:
+            return False
+            
+        dates = [d['date'] for d in net_data['days']]
+        if not dates:
+            return False
+            
+        last_market_date = max(dates) # String 'YYYY-MM-DD'
+        
+        if str(expected_date) <= last_market_date:
+            logging.info("Bellwether check passed: %s data available for %s", last_market_date, symbol)
+            return True
+        
+        logging.warning("Bellwether check failed: Expected %s, found %s for %s", expected_date, last_market_date, symbol)
+        return False
+        
+    except Exception as e:
+        logging.error("Market status check exception: %s", e)
+        return False
+
+
 def load_historical_data_from_mongo(symbol, db_instance):
     """
     Loads historical stock price data from MongoDB for a given symbol.

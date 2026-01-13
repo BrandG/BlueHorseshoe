@@ -31,7 +31,7 @@ from sklearn.exceptions import ConvergenceWarning
 from bluehorseshoe.reporting.report_generator import ReportSingleton
 from bluehorseshoe.core.globals import get_mongo_client
 from bluehorseshoe.core.database import db
-from bluehorseshoe.data.historical_data import build_all_symbols_history
+from bluehorseshoe.data.historical_data import build_all_symbols_history, check_market_status
 from bluehorseshoe.analysis.strategy import SwingTrader
 from bluehorseshoe.analysis.optimizer import WeightOptimizer
 
@@ -86,6 +86,20 @@ if __name__ == "__main__":
             logging.error('Failed to delete. Reason: %s', e)
 
     if "-u" in sys.argv:
+        logging.info("Performing bellwether check...")
+        while True:
+            if check_market_status():
+                break
+
+            # Stop retrying at 3 AM
+            if time.localtime().tm_hour == 3:
+                logging.warning("Bellwether check failed. Time limit reached (3 AM). Aborting update.")
+                print("Bellwether check failed. Time limit reached (3 AM). Aborting update.")
+                sys.exit(0)
+
+            logging.info("Market data not ready. Waiting 1 hour...")
+            time.sleep(3600)
+
         build_all_symbols_history(recent=True)
         logging.info("Recent historical data updated.")
     elif "-b" in sys.argv:
