@@ -11,6 +11,26 @@ except ImportError:
     print("Error: 'yfinance' is not installed. Please run 'pip install yfinance' inside the container.")
     sys.exit(1)
 
+def _find_fill(df, entry_price):
+    """Finds the first occurrence where the entry price was touched."""
+    for idx, row in df.iterrows():
+        if row['Low'] <= entry_price <= row['High']:
+            return idx
+    return None
+
+def _evaluate_outcome(post_fill_df, entry_price, stop_loss, take_profit, current_price):
+    """Determines if the trade hit stop loss or take profit."""
+    outcome = "OPEN"
+    pnl = (current_price - entry_price) / entry_price * 100
+
+    for _, row in post_fill_df.iterrows():
+        if row['Low'] <= stop_loss:
+            return "STOPPED OUT 🛑", (stop_loss - entry_price) / entry_price * 100
+        if row['High'] >= take_profit:
+            return "TARGET HIT 🎯", (take_profit - entry_price) / entry_price * 100
+
+    return outcome, pnl
+
 def check_intraday(symbol: str, entry_price: float, stop_loss: float, take_profit: float):
     """
     Fetches the current day's data for the symbol and checks if levels were hit.
@@ -18,73 +38,33 @@ def check_intraday(symbol: str, entry_price: float, stop_loss: float, take_profi
     print(f"\n--- Intraday Check for {symbol} ---")
     print(f"Plan: Entry {entry_price:.2f} | Stop {stop_loss:.2f} | Target {take_profit:.2f}")
 
-    # Fetch 1 day of intraday data (default interval is usually adequate, but we can be explicit)
-    # yfinance '1d' period gives 1m/2m/5m/etc. depending on provider availability.
-    # '1d' usually returns 1-minute or 5-minute bars if available, or daily if market closed.
     ticker = yf.Ticker(symbol)
-
-    # Attempt to get intraday data
-    # period="1d" often gets the most recent trading session
     df = ticker.history(period="1d", interval="5m")
 
     if df.empty:
         print("No intraday data returned. Market might be closed or symbol invalid.")
         return
 
-    # Basic stats
-    day_open = df.iloc[0]['Open']
-    day_high = df['High'].max()
-    day_low = df['Low'].min()
-    current_price = df.iloc[-1]['Close']
     last_time = df.index[-1]
+    current_price = df.iloc[-1]['Close']
 
     print(f"Data Date: {last_time.date()}")
     print(f"Last Update: {last_time.time()}")
-    print(f"Session: Open {day_open:.2f} | High {day_high:.2f} | Low {day_low:.2f} | Current {current_price:.2f}")
+    print(f"Session: Open {df.iloc[0]['Open']:.2f} | High {df['High'].max():.2f} | "
+          f"Low {df['Low'].min():.2f} | Current {current_price:.2f}")
 
-    # Analysis
-    # 1. Did we trigger entry?
-    # Assuming 'LIMIT' buy order at Entry Price.
-    # If High >= Entry and Low <= Entry (and Open was not well below?), we likely filled.
-    # Logic:
-    #   - If we opened BELOW entry, and High >= Entry -> Filled.
-    #   - If we opened ABOVE entry, and Low <= Entry -> Filled (Pullback).
+    fill_time = _find_fill(df, entry_price)
 
-    filled = False
-    fill_time = None
-
-    # Iterate to find first fill
-    for idx, row in df.iterrows():
-        if row['Low'] <= entry_price <= row['High']:
-            filled = True
-            fill_time = idx
-            break
-
-    if not filled:
-        # Check if we opened below entry and stayed below (GAP DOWN scenario - technically filled if limit, but context dependent)
-        # Assuming simple Pullback logic: We want to buy at X.
-        # If price drops to X, we buy.
+    if not fill_time:
         print("Status: ❌ NO FILL (Price did not touch entry level)")
         return
 
     print(f"Status: ✅ FILLED at approx {fill_time.time()}")
 
     # 2. After fill, did we hit Stop or Target?
-    # Scan from fill_time onwards
-    post_fill_df = df.loc[fill_time:]
-
-    outcome = "OPEN"
-    pnl = (current_price - entry_price) / entry_price * 100
-
-    for idx, row in post_fill_df.iterrows():
-        if row['Low'] <= stop_loss:
-            outcome = "STOPPED OUT 🛑"
-            pnl = (stop_loss - entry_price) / entry_price * 100
-            break
-        if row['High'] >= take_profit:
-            outcome = "TARGET HIT 🎯"
-            pnl = (take_profit - entry_price) / entry_price * 100
-            break
+    outcome, pnl = _evaluate_outcome(
+        df.loc[fill_time:], entry_price, stop_loss, take_profit, current_price
+    )
 
     print(f"Outcome: {outcome}")
     print(f"Unrealized PnL: {pnl:.2f}%")
