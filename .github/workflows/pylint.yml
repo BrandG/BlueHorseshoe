@@ -20,7 +20,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install pylint numpy scipy requests matplotlib ratelimit pymongo pandas scikit-learn keras statsmodels ta pytest
+          pip install pylint==4.0.4 numpy scipy requests matplotlib ratelimit pymongo pandas scikit-learn keras statsmodels ta pytest
 
       - name: Analysing the code with pylint
         run: pylint $(git ls-files '*.py')
