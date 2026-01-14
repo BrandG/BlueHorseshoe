@@ -63,4 +63,4 @@ The system implements two primary scoring strategies in `TechnicalAnalyzer`:
 - **Validation:** When adding new technical scoring logic, ensure column presence checks use `Series.index` to avoid value-based subsetting errors.
 - **Logging:** Always update `actions.txt` with key decisions and validation results.
 
-- **Next Task:** Perform a data quality audit on the historical data to scan for gaps, spikes, or other anomalies before deep backtesting.
+- **Next Task:** Implement async background task processing (Celery/Redis) to resolve critical blocking issues on the new FastAPI /predict endpoint.
