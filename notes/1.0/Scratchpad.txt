@@ -1,0 +1,1167 @@
+2025-02-04
+    I've now set up an EC2 instance that is tied to a DynamoDB instance. I can read and write to it, so the next step is for me to go
+through all the entries in mongoDB and transcribe it to DynamoDB. Those code snippets are in the ec2 instance. Here's my next step:
+
+From ChatGPT: 
+    "For your scenario—thousands of daily calls at a fixed rate, taking potentially hours—the sweet spot is to containerize your code and 
+    run it as a Fargate task:
+
+    1) Build a Docker Container that:
+        a) Has Python + dependencies.
+        b) Contains your script that loops over all needed requests, sleeps 1 second between calls, then updates the DB.
+    2) Push the Image to ECR (Amazon Elastic Container Registry).
+    3) Create an ECS Fargate Task Definition:
+        a) Points to your ECR image.
+        b) Give it enough CPU/memory.
+        c) Set environment variables or store config in SSM Parameter Store/Secrets Manager for credentials (if needed).
+    4) Schedule via EventBridge:
+        a) In the AWS Console under EventBridge → Rules, create a rule that triggers daily at, say, midnight UTC.
+        b) Target = “ECS Task” with the Fargate launch type.
+        c) Provide your cluster name and task definition.
+    5) Run & Forget:
+        a) Each day, your container starts, runs for several hours while making the calls, finishes, and stops.
+        b) You’re only billed for the Fargate runtime and minimal data transfer, with no persistent servers.
+    "
+
+    Now, it's worth noting that this only solves the stock updating problem. This does nothing for the retrieval/evaluation/prediction
+stuff. That is for another day.
+
+2025-01-17
+    I'm really tired today, so I'm kinda out of it. I tried something different today. I took a look at stocks that had a greater than average 
+volume (which I found using MarketWatch). One of the things I tried was tracking the RSI. Any time it's been going down for the last three one-minute
+bars, but then goes up on the latest bar, we buy. I don't know how valid that is, but the examples I've tried at work have made money. I'll set it up
+in the backchecking system at home, and see how it goes.
+    Based on the first one I tried, using the daily RSI over a month, it worked pretty well.
+    did not work with hourly bars over 10 days.
+2025-01-16
+    Today should basically be a redesign day, because the scenery has changed a bit. I'm learning more about day trading, and it seems like I 
+should be able to make the 1-2% profit every day if I follow a specific strategy. The best way to put this is to watch the beginning of the day
+and set that high as a resistance. Then, you can put a buy order slightly higher than that resistance, and the stock should blow past that within 
+the next half hour. If my stock selection is correct about picking ones that always go up, then this system should allow me to get out at 1-2%
+fairly consistently.
+    However, that is very different from the setup I have been using so far. So, I'm thinking about keeping the code that scores each stock, but
+shifting future development over to day trading. That means, I will need to be able to do the following:
+    Every minute, get live data for that minute.
+    As long as the high for that minute is greater than the previous high, set it as the new high.
+    Once the high is lower than the latest high value, set that latest high value to be our resistance level.
+    This means we can set a buy price slightly higher than the resistance level. (We'll need to work on what that "slightly higher" calculates to)
+    We post the buy order and wait for confirmation. Here are the equations I'll use to determine prices:
+        starting_cash = 500
+        local_high = 10
+        profit_percent = 2%
+        loss_percent = 3%
+        commission = 1
+        buy_price = local_high
+        buy_amount = starting_cash / buy_price
+        profit_price = ((starting_cash*(1+profit_percent)) + (2*commission)) / buy_amount
+        loss price = ((starting_cash*(1-loss_percent)) - (2*commission)) / buy_amount
+    Thinking about it some more, I'm wondering if I could use a system for finding curves, feed it the last few 1-minute bars, and tell whether it's 
+rising or falling, then use the relative volume to tell when to get in.
+    Here's some code to tell whether you are matching a curve:
+
+
+    import numpy as np
+
+def find_curve_in_timeseries(timeseries, curve_template):
+  """
+  Finds occurrences of a curve template in a time series using normalized cross-correlation.
+
+  Args:
+    timeseries: The time series data (a NumPy array).
+    curve_template: The curve template (a NumPy array).
+
+  Returns:
+    A list of indices where the correlation exceeds a threshold, indicating potential matches.
+  """
+  correlation = np.correlate(timeseries - np.mean(timeseries), curve_template - np.mean(curve_template), mode='valid')
+  correlation /= (np.std(timeseries) * np.std(curve_template) * len(curve_template)) # Normalize
+
+  threshold = 0.8  # Adjust this threshold based on your data and desired sensitivity
+  matches = np.where(correlation > threshold)[0]
+  return matches
+
+# Example Usage (replace with your actual data):
+timeseries = np.random.rand(1000)  # Example time series
+curve_template = np.array([0, 1, 2, 3, 2, 1, 0]) # Example curve
+
+match_indices = find_curve_in_timeseries(timeseries, curve_template)
+
+if match_indices.size > 0:
+    print(f"Curve found at indices: {match_indices}")
+else:
+    print("Curve not found in the time series.")
+
+Here's a new algorithm I want to try:
+    Over the last 3 bars, if the high is within X% of its average, But then the next step is outside that range, going up, with high relative volume, buy.
+    Do backchecking with several versions of X to see if it works.
+
+Okay, so back to the action items:
+    1) Get 1-minute realtime quotes from the internet
+    2) Implement whatever strategy seems to be working.
+        2A) Remember to add in other indicators, like high relative volume and an MACD that is arcing upward
+    3) Get the ability to send orders
+
+Oh, also, I want to start getting news when I get my top-10 stocks. I think that will help as an indiator, as well as telling how great the volatility is.
+
+2025-01-13
+    Well, I had a humiliating morning. I found out that the YouTuber I was following had been sued for 3 million dollars by the SEC, and was known for
+fraud. So (sigh), yeah. I'm still looking at ways of doing this, just not feeling as strong about it as I had. It seems to me that there are two main
+things I want to work on next. 1) Backtesting, and 2) Inter-day trading. I don't know how to do the inter-day trading while still being at work, so I'm kinda
+screwed there, so I'm going to work on backtesting for now.
+    Backtesting Design:
+        1. Come up with a way to apply a strategy to a date range. This should receive a days list, and return the buy point (if any), sell point,
+            and stop-loss point.
+        2. Get a way to compare that result to the following day's action, and return the profit (if any)
+        3. Get an aggregator to do this for all stocks over all days.
+
+2025-01-08
+    Here's a system that I got from YouTube. Worth checking because, if I'd been using it, I never would have got into the stock I bought this morning. :P
+
+    Anyway, You need these things (for long trades):
+    9-day EMA > 20-day EMA > 200-day EMA
+    Price > VWAP
+    MACD > Signal
+    Large buying volume
+    
+    Relative Volume > 5x the 50-day average
+
+
+    For the MACD distance, I found a way to normalize that value so that different stocks could be compared fairly. That function is histogram / price.
+    Now, it's possible I'm not storing the histogram, in which case, we can either build it dynamically, or use this formula instead: 
+    (MACD - Signal) / stdev(MACD).
+    
+2024-12-30
+    Well, I spent all day setting up swing indicators, and I'm halfway through the list. However, I had an idea today when I saw that there
+was a periodical that tells you when stocks are going to hit crossover situations. The idea was that I set up a list of crossover indicators,
+strong indicators, and do the search through all the stocks for those. Initially, this is just going to be obvious stuff like the 20-day
+EMA crossing the 50-day EMA or whatever, but once I get those, I'll add candlestick reading as well. The swing trade indicators stuff is
+already returning some good suggestions.
+    Here is the list of crossovers:
+
+### **1. Golden Cross**
+- **Description**: Occurs when a short-term moving average (e.g., 50-day) crosses above a long-term moving average (e.g., 200-day). It is considered a **bullish indicator**, signaling the potential for an upward trend.
+
+### **2. Death Cross**
+- **Description**: The opposite of the Golden Cross, it occurs when a short-term moving average (e.g., 50-day) crosses below a long-term moving average (e.g., 200-day). This is viewed as a **bearish indicator**, signaling potential downward momentum.
+
+### **3. EMA Cross**
+- **Description**: A crossover between two Exponential Moving Averages (EMAs), such as the 20-day EMA crossing over the 50-day EMA (bullish) or below it (bearish). EMAs give more weight to recent data, making them responsive to recent price changes.
+
+### **4. SMA Cross**
+- **Description**: A crossover between two Simple Moving Averages (SMAs), such as the 10-day SMA crossing above the 50-day SMA (bullish) or below it (bearish). SMAs smooth out price data but are slower to react than EMAs.
+
+### **5. MACD Line and Signal Line Crossover**
+- **Description**: A signal is generated when the MACD line (difference between two EMAs, e.g., 12-day and 26-day) crosses above the signal line (9-day EMA of the MACD). A **bullish crossover** occurs when the MACD line crosses above, and a **bearish crossover** when it crosses below.
+
+### **6. MACD and Zero Line Crossover**
+- **Description**: Occurs when the MACD line crosses the zero line. A **bullish crossover** happens when it moves above zero, and a **bearish crossover** when it falls below zero. This signals a potential shift in momentum.
+
+### **7. RSI and Signal Line Crossover**
+- **Description**: Involves the Relative Strength Index (RSI) crossing over a specific signal line, such as 30 (oversold) or 70 (overbought). A **bullish crossover** occurs when RSI moves above 30, and a **bearish crossover** when it drops below 70.
+
+### **8. Stochastic Oscillator Cross**
+- **Description**: Occurs when the %K line of the Stochastic Oscillator (fast line) crosses above the %D line (slow line). A **bullish signal** is when %K crosses above %D, and a **bearish signal** is when it crosses below.
+
+### **9. Bollinger Bands Middle Line Crossover**
+- **Description**: When the price crosses the middle line (20-day SMA by default) of Bollinger Bands. A **bullish signal** occurs when the price moves above the middle line, and a **bearish signal** occurs when it moves below.
+
+### **10. Parabolic SAR Crossover**
+- **Description**: Occurs when the price crosses the Parabolic SAR indicator dots. A **bullish crossover** happens when the price moves above the dots, and a **bearish crossover** when it falls below.
+
+### **11. Price and MA Crossover**
+- **Description**: A crossover between the price itself and a moving average (e.g., price crossing above the 50-day SMA). A **bullish signal** occurs when the price moves above the MA, and a **bearish signal** when it moves below.
+
+### **12. Moving Average Ribbon Crossover**
+- **Description**: Uses a series of multiple MAs with different periods (e.g., 10, 20, 50, 100-day). Crossovers between shorter-term and longer-term ribbons indicate bullish or bearish trends, depending on the direction.
+
+### **13. Ichimoku Cloud Crossover (Tenkan-Sen/Kijun-Sen)**
+- **Description**: A crossover between the Tenkan-Sen (short-term average) and Kijun-Sen (longer-term average) in the Ichimoku Cloud system. A **bullish crossover** occurs when Tenkan-Sen crosses above Kijun-Sen, and a **bearish crossover** occurs when it crosses below.
+
+### **14. DMI (Directional Movement Index) ADX Crossover**
+- **Description**: Occurs when the +DI (positive directional index) crosses above the -DI (negative directional index) or vice versa. A **bullish signal** occurs when +DI > -DI, and a **bearish signal** when -DI > +DI.
+
+### **15. Keltner Channel Middle Line Crossover**
+- **Description**: Similar to Bollinger Bands, this occurs when the price crosses the middle line of the Keltner Channel. A **bullish crossover** is when the price moves above the middle line, and a **bearish crossover** when it moves below.
+
+### **16. Williams %R Crossover**
+- **Description**: Occurs when Williams %R crosses above -80 (bullish, indicating oversold conditions) or below -20 (bearish, indicating overbought conditions).
+
+### **17. CCI (Commodity Channel Index) Zero Line Crossover**
+- **Description**: A crossover of the CCI line through the zero line. A **bullish signal** occurs when CCI crosses above zero, and a **bearish signal** when it crosses below.
+
+### **18. Pivot Point Crossover**
+- **Description**: When the price crosses a pivot point (a calculated level of support/resistance). A **bullish crossover** occurs when the price rises above the pivot, and a **bearish crossover** when it falls below.
+
+### **19. VWAP Crossover**
+- **Description**: Occurs when the price crosses the Volume-Weighted Average Price (VWAP). A **bullish crossover** happens when the price moves above VWAP, indicating buying momentum, and a **bearish crossover** when it moves below.
+
+
+Using this endpoint: https://www.alphavantage.co/query?function=OVERVIEW&symbol=IBM&apikey=demo
+We can get fundamental info like:
+- Company Details
+    "Symbol": "IBM",
+    "AssetType": "Common Stock",
+    "Name": "International Business Machines",
+    "Description": "International Business Machines Corporation (IBM) is an American multinational technology company headquartered in Armonk, New York, with operations in over 170 countries. The company began in 1911, founded in Endicott, New York, as the Computing-Tabulating-Recording Company (CTR) and was renamed International Business Machines in 1924. IBM is incorporated in New York. IBM produces and sells computer hardware, middleware and software, and provides hosting and consulting services in areas ranging from mainframe computers to nanotechnology. IBM is also a major research organization, holding the record for most annual U.S. patents generated by a business (as of 2020) for 28 consecutive years. Inventions by IBM include the automated teller machine (ATM), the floppy disk, the hard disk drive, the magnetic stripe card, the relational database, the SQL programming language, the UPC barcode, and dynamic random-access memory (DRAM). The IBM mainframe, exemplified by the System/360, was the dominant computing platform during the 1960s and 1970s.",
+    "Exchange": "NYSE",
+    "Sector": "TECHNOLOGY",
+    "Industry": "COMPUTER & OFFICE EQUIPMENT",
+- Analyst
+    "AnalystTargetPrice": "217.12",
+    "AnalystRatingStrongBuy": "2",
+    "AnalystRatingBuy": "5",
+    "AnalystRatingHold": "9",
+    "AnalystRatingSell": "3",
+    "AnalystRatingStrongSell": "1",
+- Indicators
+    "52WeekHigh": "239.35",
+    "52WeekLow": "152.38",
+    "50DayMovingAverage": "221.35",
+    "200DayMovingAverage": "197.07",
+
+
+Using this endpoint: https://www.alphavantage.co/query?function=NEWS_SENTIMENT&tickers=AAPL&apikey=demo
+We can get these:
+{
+    "items": "50",
+    "sentiment_score_definition": "x <= -0.35: Bearish; -0.35 < x <= -0.15: Somewhat-Bearish; -0.15 < x < 0.15: Neutral; 0.15 <= x < 0.35: Somewhat_Bullish; x >= 0.35: Bullish",
+    "relevance_score_definition": "0 < x <= 1, with a higher score indicating higher relevance.",
+    "feed": [
+        {
+            "title": "Dow Jones 2024 Scoreboard: Top 5 Winners, Losers - And How Amazon, Nvidia Could Reshape 2025 - SPDR Dow Jones Industrial Average ETF  ( ARCA:DIA ) ",
+            "url": "https://www.benzinga.com/etfs/broad-u-s-equity-etfs/24/12/42726598/dow-jones-2024-scoreboard-top-5-winners-losers-and-how-amazon-nvidia-could-reshape-202",
+            "summary": "The Dow Jones Industrial Average hit an all-time high of over 45,000 points in December, one of several stock market indexes to hit records after Donald Trump won the 2024 presidential election.",
+            "overall_sentiment_score": 0.076114,
+            "overall_sentiment_label": "Neutral",
+
+2024-12-27
+    I found out that I was reading the wrong dates for calculation, so that sucks. Anyway, I've been clarifying my situaton with scoring, using AIs. Now I have a few more
+possible tests to add. Here's the ChatGPT suggestion:
+
+Below are some commonly used **additional indicators** and **techniques** you might consider incorporating into your technical scoring system.
+Which ones make sense depends heavily on your **trading style**, **market context**, and **asset characteristics**. However, they can broaden
+your analysis by capturing signals that your current mix (DMI/ADX, EMA, MACD, Volume, RSI, Bollinger Bands, ROC) might not fully address.
+
+---
+
+## 1. Momentum & Trend Indicators
+
+#1. **Stochastic Oscillator**  
+#   - Measures the current price relative to its recent trading range (similar in spirit to RSI but with a slightly different formula and interpretation).  
+#   - Typical usage: a Stochastic %K line crossing above the %D line can be a bullish signal; crossing below can be bearish.
+
+#2. **Ichimoku Cloud**  
+#   - A more comprehensive trend and momentum indicator that includes multiple lines: Conversion Line, Base Line, Leading Spans A/B, and the Cloud.  
+#   - You could incorporate “price above/below the cloud,” or whether the Conversion Line is above the Base Line, etc.  
+#   - Many traders look for crossovers of these lines or a “thick” cloud indicating strong support/resistance.
+
+#3. **Parabolic SAR (Stop and Reverse)**  
+#   - Helps identify potential reversals in price direction.  
+#   - You could add or subtract points if the Parabolic SAR flips (i.e., goes from below price to above price, or vice versa).
+
+# 4. **Heiken Ashi (HA) Candles**  
+#   - A different way of calculating candle data to smooth out noise.  
+#   - You could look at whether the HA candles are showing consistent bullish/bearish color (trend).
+
+---
+
+## 2. Volume & Volatility Indicators
+
+# 1. **On-Balance Volume (OBV)**  
+#    - Tracks cumulative volume flow. A rising OBV can confirm upward price momentum.  
+#    - Could score the slope or recent changes in OBV.
+
+# 2. **Chaikin Money Flow (CMF)**  
+#   - Focuses on the volume-weighted average price for the day.  
+#   - Positive CMF might confirm buying pressure; negative CMF could indicate selling pressure.
+
+# 3. **ATR (Average True Range)**  
+#   - Measures volatility.  
+#   - You could adapt the Bollinger logic to ATR-based logic, e.g., checking if price is far above/below a moving average by a multiple of ATR.  
+#   - Could be used for adaptive stop-loss or trailing logic, or as a signal if volatility spikes.
+
+---
+
+## 3. Support & Resistance or Price-Based Signals
+
+# 1. **Pivot Points**  
+#   - Classic pivot point formulas generate potential support/resistance levels (R1, R2, S1, S2).  
+#   - You could score how price behaves near these levels: e.g., bouncing off a pivot line might be bullish.
+
+# 2. **52-Week High/Low**  
+#   - Checking how close price is to its 52-week high or low can signal momentum or risk.  
+#   - Near new highs often indicates strong momentum; near new lows might be a red flag or a contrarian buy signal, depending on your strategy.
+
+# 3. **Price Action Patterns**  
+#   - Candlestick patterns (e.g., bullish engulfing, hammer, doji) or chart patterns (e.g., breakout above a previous high).  
+#   - These are less trivial to incorporate in a purely vectorized approach, but pattern recognition can add unique signals that standard indicators may miss.
+
+---
+
+## 4. Additional Moving Averages & Crossovers
+
+# 1. **Multiple EMA/SMA Crosses**  
+#   - Many traders look for “Golden Cross” (50-day MA crossing above 200-day MA) or “Death Cross” (the reverse).  
+#   - Could add or subtract points if a fast MA crosses a slow MA.
+
+2. **Dynamic Weighted Moving Averages**  
+   - Sometimes Weighted Moving Averages (WMA) or Volume Weighted Moving Averages (VWMA) provide signals that differ from EMA/SMA.  
+   - You could check if price is above/below VWMA if volume is critical to your strategy.
+
+---
+
+## 5. Relative Performance & Market Breadth
+
+1. **Relative Strength vs. Index**  
+   - Compare the asset’s performance to a benchmark index (S&P 500, NASDAQ, etc.).  
+   - If the asset is outperforming the index by a certain margin, add points; if underperforming, subtract points.
+
+2. **Market Breadth Indicators**  
+   - E.g., the Advance-Decline line or McClellan Oscillator.  
+   - If breadth is strongly bullish, your asset’s bullish signals might be more reliable. You could add a global multiplier or an incremental score.
+
+---
+
+## 6. Fundamental / Alternative Data (If Relevant)
+
+Though not purely “technical,” some traders add fundamental or alternative metrics for a more holistic view:
+
+1. **Earnings / Fundamental Score**  
+   - If you have fundamental data like Earnings Per Share (EPS) growth, Price-to-Earnings (P/E) ratios, or sector performance, you can incorporate a 
+   small weighting into your overall score.
+
+2. **News Sentiment**  
+   - If you have access to sentiment analysis from news or social media feeds, it can act as a bullish/bearish overlay.
+
+3. **Seasonality**  
+   - Certain assets have recurring seasonal patterns (e.g., agricultural commodities). You could factor in a seasonality score or multiplier.
+
+---
+
+## 7. Combining Indicators Intelligently
+
+1. **Weighting**  
+   - Not all indicators should be weighed equally. If Bollinger Bands historically outperform Stochastic for your asset, it might deserve a higher weight.  
+   - You could also dynamically weight indicators based on market regime (trending vs. ranging).
+
+2. **Avoid Overfitting / Overlapping Indicators**  
+   - Many momentum oscillators (like RSI, Stochastic, and Williams %R) give similar signals. Having too many can lead to redundancy.  
+   - Focus on a balanced approach: trend indicators, momentum oscillators, volume measures, volatility measures, etc.
+
+3. **Backtesting & Parameter Tuning**  
+   - Before adding an indicator permanently, backtest or forward-test it on real/historical data to see if it improves your risk-adjusted returns.
+
+---
+
+## Putting It All Together
+
+**Choosing which indicators to add** depends on your strategy and the nature of the asset(s) you trade. A few “broadening” suggestions:
+
+- Add a **trend strength** measure like Ichimoku or additional moving average crossovers.  
+- Add a **volume flow** measure like OBV or Chaikin Money Flow for deeper volume insight.  
+- Add a **volatility-based** measure like ATR to detect sudden changes in risk.  
+- Consider a **Stochastic Oscillator** or **Heiken Ashi** for alternative momentum or smoothing.  
+- Incorporate **relative performance** to an index or sector if you want a sense of how your asset behaves in the broader market.
+
+In the end, **less can often be more**—you don’t want an overly complicated “score” that is hard to interpret or maintain. The best approach is to **experiment**, 
+**backtest**, and **deploy** indicators that best fit your time horizon, asset class, and trading philosophy.
+
+
+
+2024-12-26
+    I spent most of the day today trying to find good entry position calculations, but it was hard to find examples because, while my system did find almost all 
+winners today, the delta between today and right before Christmas was all messed up. Obviously, that's going to be a continuous problem. All I can do is try again
+tomorrow, when the numbers will presumably be more sane.
+
+2024-12-21
+    I've moved to a swing-trading system now, which means I gutted a lot of stuff to make more basic predictions. If I am
+ever going to do day-trading, I've got this system for getting real-time data.
+    https://www.alphavantage.co/query?function=TIME_SERIES_INTRADAY&symbol=IBM&interval=5min&entitlement=delayed&apikey=JFRQJ8YWSX8UK50X
+    The results of that look like this:
+
+{
+    "Meta Data": {
+        "1. Information": "Intraday (5min) open, high, low, close prices and volume - DATA DELAYED BY 15 MINUTES",
+        "2. Symbol": "IBM",
+        "3. Last Refreshed": "2024-12-20 19:55:00",
+        "4. Interval": "5min",
+        "5. Output Size": "Compact",
+        "6. Time Zone": "US/Eastern"
+    },
+    "Time Series (5min)": {
+        "2024-12-20 19:55:00": {
+            "1. open": "224.0000",
+            "2. high": "224.0000",
+            "3. low": "223.8000",
+            "4. close": "223.8000",
+            "5. volume": "50"
+        },
+        "2024-12-20 19:45:00": {
+            "1. open": "223.5000",
+            "2. high": "223.5000",
+            "3. low": "223.5000",
+            "4. close": "223.5000",
+            "5. volume": "7"
+        },
+
+This is 15-minute delayed data, but it's the best I've got for now.
+
+I could start rebuilding the day trading side of it based on that.
+
+2024-12-18
+    Well, I know it will take a while to implement all of the indicators, so I decided to ask the latest Gemini and ChatGPT which ones they would do when building a
+day-trading strategy. They both agreed that, since I only have inter-day data, I need to go with swing trading rather than day trading. So, I'll need to look that up.
+In the meantime, here are their strategy suggestions.
+
+---------------------------------------
+    Gemini 2.0
+---------------------------------------
+
+Since we're now focusing on swing trading with interday (daily) data, we need to select TA-Lib indicators that are more suited for identifying medium-term trends and potential turning points. Here's a selection of suitable indicators and why they are appropriate:
+
+**1. Trend Indicators:**
+
+*   **Moving Averages (MA):** Simple Moving Average (SMA), Exponential Moving Average (EMA). These are fundamental for identifying the overall trend. Crossovers of different moving averages (e.g., 50-day and 200-day) can signal trend changes.
+*   **MACD (Moving Average Convergence Divergence):** As mentioned before, on a daily chart, MACD is more useful for identifying medium-term trend changes and momentum shifts. Look for crossovers of the MACD line and signal line, as well as divergences between price and MACD.
+*   **ADX (Average Directional Index):** Measures the strength of a trend, regardless of its direction. High ADX values indicate a strong trend, while low values suggest a weak or sideways market. This helps you avoid trading in choppy conditions.
+
+**2. Momentum Indicators:**
+
+*   **RSI (Relative Strength Index):** While still useful, RSI is less sensitive on daily charts compared to intraday charts. Look for RSI readings above 70 (overbought) or below 30 (oversold) to identify potential reversals, but be aware that these signals can persist for longer periods in a strong trend.
+
+**3. Volatility Indicators:**
+
+*   **ATR (Average True Range):** Useful for determining appropriate stop-loss levels based on the average daily price range.
+
+**4. Volume Indicators:**
+
+*   **Volume:** Compare current volume to its average to confirm the strength of price movements. Increasing volume on breakouts or breakdowns can add validity to the signal.
+
+**Swing Trading Strategy Framework (using TA-Lib indicators):**
+
+1.  **Trend Identification:** Use moving averages (e.g., 50-day and 200-day EMA) to determine the overall trend. If the price is above both moving averages, the trend is considered bullish; if below, bearish.
+
+2.  **Entry Signals:**
+
+    *   **Long Entry (Uptrend):**
+        *   Price pulls back to a support level (e.g., a moving average or a previous high).
+        *   A bullish candlestick pattern forms at the support level.
+        *   MACD shows a bullish crossover or is rising.
+        *   RSI is not overbought (below 70).
+        *   Volume increases on the reversal.
+    *   **Short Entry (Downtrend):**
+        *   Price rallies to a resistance level (e.g., a moving average or a previous low).
+        *   A bearish candlestick pattern forms at the resistance level.
+        *   MACD shows a bearish crossover or is falling.
+        *   RSI is not oversold (above 30).
+        *   Volume increases on the reversal.
+
+3.  **Stop-Loss:** Place a stop-loss order below the recent swing low for long positions or above the recent swing high for short positions, using a multiple of the daily ATR to adjust for volatility.
+
+4.  **Profit Target:** Set a profit target based on a multiple of the ATR or use a trailing stop-loss to capture more of the move. Consider potential resistance/support levels as profit targets.
+
+5.  **ADX Confirmation:** Use ADX to confirm the strength of the trend. If ADX is above 25, it suggests a strong trend, making the signals more reliable. Avoid trading when ADX is below 20, indicating a weak or ranging market.
+
+**Example (Long Trade):**
+
+*   Stock XYZ is in an uptrend (price above 50-day and 200-day EMA).
+*   Price pulls back to the 50-day EMA.
+*   A bullish engulfing candlestick pattern forms.
+*   MACD is rising.
+*   RSI is around 50.
+*   Volume increases on the day of the engulfing pattern.
+*   Daily ATR is $3.
+*   You enter a long position at $150.
+*   Stop-loss: $150 - (1.5 * $3) = $145.50
+*   Profit target: $150 + (2 * $3) = $156 (or use a trailing stop).
+
+**Key Improvements for Swing Trading:**
+
+*   **Focus on Trend:** The strategy emphasizes identifying and trading within the prevailing trend.
+*   **Confirmation:** Using multiple indicators (MACD, RSI, volume, ADX) helps to filter out false signals.
+*   **Price Action:** Incorporating candlestick patterns adds another layer of confirmation.
+*   **Wider Stops and Targets:** The stop-loss and profit targets are wider to accommodate the larger price swings on the daily timeframe.
+
+Remember that this is a hypothetical framework. Backtesting, paper trading, and ongoing optimization are essential for successful swing trading. Always manage your risk appropriately and never invest more than you can afford to lose.
+
+-----------------------------------------------
+        ChatGPT
+-----------------------------------------------
+
+There’s no single “best” swing trading strategy that fits all traders and markets, as effectiveness can vary depending on the asset, timeframe, and market conditions. However, you can craft a robust, systematic swing trading approach by combining a select set of TA-Lib indicators and methods that are well-suited for multi-day to multi-week trading horizons. Below is a framework rather than a rigid set of rules. You can adjust parameters and fine-tune the approach for your specific goals and risk tolerance.
+
+---
+
+### Key Principles for a Swing Trading Strategy
+
+1. **Focus on the Intermediate Term:**  
+   Swing traders aim to capture price moves over several days to a few weeks. Indicators and parameters should be calibrated for this timeframe—typically using daily data and lookback periods that smooth out intraday noise but are still sensitive enough to identify medium-term trends.
+
+2. **Combine Trend, Momentum, and Volatility Indicators:**  
+   - **Trend indicators** help you align with the market’s underlying direction.  
+   - **Momentum indicators** help confirm if a price move has strength.  
+   - **Volatility indicators** inform position sizing and risk management.
+
+3. **Use Multiple Confirmation Signals:**  
+   Relying on one indicator often leads to false signals. Combine different types of indicators to improve the probability of success.
+
+---
+
+### Suggested Indicator Set and Their Roles
+
+**1. Trend-Following Foundation**  
+- **Moving Averages (e.g., EMA or KAMA):**  
+  Use a mid-length exponential moving average (e.g., 20-day EMA) to identify the current trend. If the price is above the 20-day EMA, you’re looking for long entries; if below, consider shorts or stay out.
+  
+- **MACD (Moving Average Convergence Divergence):**  
+  A popular momentum-trend tool. A MACD line above the signal line and above zero supports a bullish trend. A bearish trend is signaled by the MACD line below the signal line and below zero.
+
+- **ADX/DMI (Average Directional Index & Directional Movement Indicators):**  
+  Use ADX to measure trend strength. An ADX reading above 20 or 25 suggests a notable trend. +DMI > -DMI indicates bullish conditions; -DMI > +DMI indicates bearish conditions.
+
+**2. Momentum Confirmation**  
+- **RSI (Relative Strength Index)** or **Stochastic Oscillator:**  
+  Use RSI (14-period) to spot if conditions are overextended. In a confirmed uptrend, look for RSI pullbacks near 40-50 as potential entry points rather than waiting for deeply oversold conditions. In a downtrend, look for RSI near 50-60 as a potential short entry zone.  
+  Alternatively, use Stochastics to identify when momentum may be turning within the trend.
+
+- **CCI (Commodity Channel Index)** or **ROC (Rate of Change):**  
+  These can provide additional momentum confirmation. For instance, a rising CCI or ROC above zero supports a bullish stance. If the CCI or ROC falls below zero, it may confirm a weakening bullish move.
+
+**3. Volatility and Range Tools**  
+- **ATR (Average True Range):**  
+  Use ATR to set stop losses and profit targets. For example, place stop losses 1.5-2x ATR away from your entry to allow room for natural price fluctuations. Adjust position size based on ATR to maintain consistent risk.
+
+- **Bollinger Bands:**  
+  Bollinger Bands can help identify contraction and expansion phases. After a period of low volatility (bands contracting), a breakout from the bands can signal the start of a new swing. Entering trades on pullbacks toward the middle band (often a 20-day moving average) within a trend can also be effective.
+
+**4. Volume and Confirmation**  
+- **On Balance Volume (OBV)** or **Money Flow Index (MFI):**  
+  Confirm that volume supports the trend. For a long setup, you want OBV or MFI trending upward, indicating that money is flowing into the asset. Weak volume confirmation might mean a trend is less reliable.
+
+- **VWAP (Volume Weighted Average Price)** is more intraday-focused, but if your platform supports daily calculations or anchored VWAP (e.g., from a swing low), it can give a reference “fair value” level for swing entries/exits.
+
+**5. Candlestick Patterns for Entry/Exit Refinement**  
+- **Selective Candlestick Patterns (e.g., Engulfing, Hammer/Hanging Man, Doji):**  
+  While not as critical for a swing framework as for day trading, candlestick patterns can help refine entries or exits. For example, a hammer forming near the 20-day EMA in an uptrend and supported by bullish momentum and rising volume can be an excellent entry trigger.
+
+---
+
+### Example Swing Trading Process
+
+1. **Trend Filter:**  
+   Check if price is above the 20-day EMA and MACD > 0. Also, ensure ADX > 20 to confirm a trending environment.
+
+2. **Setup Identification:**  
+   The market pulls back toward the 20-day EMA in an uptrend. RSI drops to around 40. Bollinger Bands show normal volatility, and OBV remains stable or rising.
+
+3. **Entry Trigger:**  
+   A bullish candlestick pattern (e.g., bullish engulfing or a hammer) forms at or near a support area (20-day EMA or middle Bollinger Band). RSI turns upward from the 40-50 zone. MACD histogram starts ticking up again, and volume on the bounce day is higher than the previous day, confirming buying interest.
+
+4. **Stop Loss & Take Profit:**  
+   Place a stop loss 1.5-2x ATR below the entry to account for daily volatility.  
+   Use the upper Bollinger Band or a recent swing high as an initial profit target, or consider a trailing stop based on the ATR to ride the trend longer.
+
+5. **Confirmation and Exit:**  
+   If momentum indicators weaken (e.g., MACD rolls over, RSI enters overbought territory and starts to decline, OBV flattens), consider taking profits. If price breaks below the moving average and ADX drops, signaling trend weakness, exit the trade.
+
+---
+
+### Fine-Tuning and Experimentation
+
+- **Adjust Periods:**  
+  You might use a 20-day EMA for shorter swings or a 50-day EMA for slightly longer holds.  
+  RSI(14) is standard, but some traders use RSI(10) or RSI(21) to fit their style.
+
+- **Combine Indicators Judiciously:**  
+  Don’t overload your chart with too many indicators. Select a core set:  
+  - Trend: EMA + MACD + ADX  
+  - Momentum: RSI (or Stochastics/CCI)  
+  - Volatility: ATR + Bollinger Bands  
+  - Volume Confirmation: OBV or MFI
+
+- **Backtesting and Paper Trading:**  
+  Before going live, thoroughly test your chosen indicators and parameters on historical data. Paper trade the strategy to ensure it aligns with your risk tolerance and style.
+
+---
+
+### Conclusion
+
+There is no one-size-fits-all “best” swing trading strategy. However, combining trend-following indicators (EMA, MACD, ADX), momentum oscillators (RSI, Stochastics), volatility measures (ATR, Bollinger Bands), and volume confirmation (OBV, MFI) provides a robust framework. By refining these indicators, adjusting their parameters, and layering candlestick analysis for entry/exit timing, you can develop a versatile, data-driven swing trading strategy using TA-Lib’s tools.
+
+
+---------------------------------------------------------------
+    Combined
+---------------------------------------------------------------
+
+So, here's the strategy I'm trying now.
+
+---- Determine the trend
+    Use KAMA or a 20-day EMA to determine the current trend. If the price is above that, look for long entries; if below, consider shorting.
+    MACD - MACD line above the signal line and above zero indicates a bullish trend. Bearish is if the MACD line below the signal line and below 0.
+    ADX/DMI - Use ADX to measure trend strength. ADX > 20 or 25 indicates a notable trend. +DMI > -DMI = bullish. -DMI > +DMI = bearish.
+
+------------------- ChatGPT
+
+df['trend_condition'] = (df['Close'] > df['ema_20']) & (df['macd_line'] > df['signal_line']) & (df['adx'] > 20)
+
+def is_bullish_candlestick_pattern(row):
+    # Example: bullish engulfing pattern
+    # You'd need access to previous day's OHLC:
+    # This function signature might need previous row as well.
+    # For now, assume we just check today's candle shape.
+    candle_body = row['Close'] - row['Open']
+    candle_range = row['High'] - row['Low']
+    # simplistic condition for a bullish engulfing would require comparison to previous day, so this is a stub:
+    return candle_body > 0 and (candle_body / candle_range) > 0.5
+
+ChatGPT code to find entry points:
+for i in range(20, len(df)):
+    # Check if current trend is bullish
+    if df.loc[i, 'trend_condition']:
+        # Price close is near or slightly above the EMA support
+        # For example, ensure Close is within 1% of EMA:
+        if abs(df.loc[i, 'Close'] - df.loc[i, 'ema_20']) / df.loc[i, 'ema_20'] < 0.01:
+            # RSI reset: Check if RSI is around 40-50 range
+            if 40 <= df.loc[i, 'rsi_14'] <= 50:
+                # Check for a bullish candlestick pattern on today's bar
+                if is_bullish_candlestick_pattern(df.iloc[i]):
+                    # Determine entry price
+                    # For example, place a buy stop a fraction of ATR above today's high or yesterday's high
+                    yesterday_high = df.loc[i-1, 'High']
+                    atr = df.loc[i, 'atr_14']
+                    entry_price = max(df.loc[i, 'High'], yesterday_high) + 0.2 * atr
+
+                    # Now you have an entry condition
+                    print(f"Date: {df.loc[i, 'Date']} - Potential Entry at: {entry_price}")
+
+--------------------- Gemini 2.0
+
+import pandas as pd
+import numpy as np
+import talib
+
+def find_swing_trade_entries(df, period_ma=50, atr_multiplier_stop=1.5):
+    """
+    Finds potential swing trade entry points based on pullbacks to a moving average
+    and candlestick patterns.
+
+    Args:
+        df: Pandas DataFrame with OHLCV data (Open, High, Low, Close, Volume).
+        period_ma: Period for the moving average (default: 50).
+        atr_multiplier_stop: Multiplier for ATR to calculate stop-loss (default: 1.5).
+
+    Returns:
+        Pandas DataFrame with entry signals (1 for long, -1 for short, 0 for no signal).
+        Returns original dataframe with added columns for calculations.
+    """
+
+    df['MA'] = talib.EMA(df['Close'], timeperiod=period_ma)
+    df['ATR'] = talib.ATR(df['High'], df['Low'], df['Close'], timeperiod=14) #standard 14 period ATR
+    df['Signal'] = 0
+
+    for i in range(2, len(df)): #start at 2 to avoid index errors
+        current = df.iloc[i]
+        previous = df.iloc[i-1]
+        prev_prev = df.iloc[i-2]
+
+        #Pullback to MA (Long Entry)
+        if (current['Close'] > current['MA'] and
+            previous['Close'] <= previous['MA'] and
+            current['Low'] <= current['MA']):
+            #Bullish Candlestick Pattern (Example: Hammer)
+            if(current['Low'] == current['Close'] and
+               (current['High'] - current['Low']) > 2 * (current['Open'] - current['Low'])):
+                df.loc[df.index[i], 'Signal'] = 1
+                df.loc[df.index[i], 'StopLoss'] = current['Low'] - (current['ATR'] * atr_multiplier_stop)
+
+        #Pullback to MA (Short Entry)
+        if (current['Close'] < current['MA'] and
+            previous['Close'] >= previous['MA'] and
+            current['High'] >= current['MA']):
+            #Bearish Candlestick Pattern (Example: Shooting Star)
+            if (current['High'] == current['Close'] and
+                (current['High'] - current['Low']) > 2 * (current['High'] - current['Open'])):
+                df.loc[df.index[i], 'Signal'] = -1
+                df.loc[df.index[i], 'StopLoss'] = current['High'] + (current['ATR'] * atr_multiplier_stop)
+    return df
+
+
+# Example Usage (replace with your actual data):
+data = {'Open': [10, 12, 11, 13, 14, 13.5, 15, 14, 16, 15],
+        'High': [13, 14, 12, 15, 16, 15, 17, 15.5, 17, 16],
+        'Low': [9, 11, 10, 12, 13, 13, 14, 13.5, 15, 14],
+        'Close': [12, 11, 13, 14, 13.5, 15, 14, 16, 15, 15.5],
+        'Volume': [1000, 1200, 1100, 1300, 1400, 1350, 1500, 1400, 1600, 1550]}
+df = pd.DataFrame(data)
+
+df = find_swing_trade_entries(df)
+print(df)
+
+
+#Improved Example with more realistic data and more comprehensive candlestick checks
+import yfinance as yf
+
+ticker = "AAPL"
+df = yf.download(ticker, period="200d")
+
+def is_hammer(df, i):
+    current = df.iloc[i]
+    if current['Low'] == current['Close'] and (current['High'] - current['Low']) > 2 * abs(current['Open'] - current['Low']):
+        return True
+    return False
+
+def is_shooting_star(df, i):
+    current = df.iloc[i]
+    if current['High'] == current['Close'] and (current['High'] - current['Low']) > 2 * abs(current['High'] - current['Open']):
+        return True
+    return False
+    
+df = find_swing_trade_entries(df)
+
+print(df[df['Signal']!=0]) #show only rows with signals
+
+
+-------------------------------- Claude AI
+
+Here's the code suggested by Claude AI:
+
+import numpy as np
+import pandas as pd
+import talib
+
+def find_swing_trading_entry_points(close_prices, high_prices, low_prices):
+    """
+    Determine potential entry points for swing trading using multiple indicators.
+    
+    Parameters:
+    - close_prices: Numpy array of closing prices
+    - high_prices: Numpy array of high prices
+    - low_prices: Numpy array of low prices
+    
+    Returns:
+    - DataFrame with entry point signals and indicator details
+    """
+    # Convert input to numpy arrays if not already
+    close = np.array(close_prices)
+    high = np.array(high_prices)
+    low = np.array(low_prices)
+    
+    # Calculate key technical indicators
+    
+    # 1. RSI (Relative Strength Index)
+    rsi = talib.RSI(close, timeperiod=14)
+    
+    # 2. MACD (Moving Average Convergence Divergence)
+    macd, macd_signal, macd_hist = talib.MACD(close, fastperiod=12, slowperiod=26, signalperiod=9)
+    
+    # 3. Stochastic Oscillator
+    stoch_k, stoch_d = talib.STOCH(high, low, close, 
+                                   fastk_period=14, 
+                                   slowk_period=3, 
+                                   slowk_matype=0, 
+                                   slowd_period=3, 
+                                   slowd_matype=0)
+    
+    # 4. Bollinger Bands
+    upper, middle, lower = talib.BBANDS(close, timeperiod=20, nbdevup=2, nbdevdn=2, matype=0)
+    
+    # 5. ADX (Average Directional Index)
+    adx = talib.ADX(high, low, close, timeperiod=14)
+    
+    # Create a DataFrame to store results
+    results = pd.DataFrame({
+        'Close': close,
+        'RSI': rsi,
+        'MACD': macd,
+        'MACD_Signal': macd_signal,
+        'MACD_Hist': macd_hist,
+        'Stoch_K': stoch_k,
+        'Stoch_D': stoch_d,
+        'Bollinger_Upper': upper,
+        'Bollinger_Middle': middle,
+        'Bollinger_Lower': lower,
+        'ADX': adx
+    })
+    
+    # Define entry point criteria
+    results['Long_Entry'] = (
+        # RSI is oversold (below 30)
+        (results['RSI'] < 30) & 
+        # MACD is bullish (histogram turning positive)
+        (results['MACD_Hist'] > 0) & 
+        # Stochastic is oversold and crossing up
+        (results['Stoch_K'] < 20) & 
+        (results['Stoch_K'] > results['Stoch_D']) &
+        # Price is near lower Bollinger Band
+        (results['Close'] <= results['Bollinger_Lower']) &
+        # ADX indicates trend strength
+        (results['ADX'] > 20)
+    )
+    
+    results['Short_Entry'] = (
+        # RSI is overbought (above 70)
+        (results['RSI'] > 70) & 
+        # MACD is bearish (histogram turning negative)
+        (results['MACD_Hist'] < 0) & 
+        # Stochastic is overbought and crossing down
+        (results['Stoch_K'] > 80) & 
+        (results['Stoch_K'] < results['Stoch_D']) &
+        # Price is near upper Bollinger Band
+        (results['Close'] >= results['Bollinger_Upper']) &
+        # ADX indicates trend strength
+        (results['ADX'] > 20)
+    )
+    
+    return results
+
+# Example usage
+def main():
+    # Sample price data (replace with your actual price data)
+    sample_close = np.random.random(100) * 100  # Random prices for demonstration
+    sample_high = sample_close + np.random.random(100) * 5
+    sample_low = sample_close - np.random.random(100) * 5
+    
+    # Find entry points
+    entry_points = find_swing_trading_entry_points(sample_close, sample_high, sample_low)
+    
+    # Print out entry point details
+    long_entries = entry_points[entry_points['Long_Entry']]
+    short_entries = entry_points[entry_points['Short_Entry']]
+    
+    print("Long Entry Points:")
+    print(long_entries[['Close', 'RSI', 'MACD_Hist', 'Stoch_K', 'Bollinger_Lower']])
+    
+    print("\nShort Entry Points:")
+    print(short_entries[['Close', 'RSI', 'MACD_Hist', 'Stoch_K', 'Bollinger_Upper']])
+
+if __name__ == "__main__":
+    main()
+
+--------------------------------------------------------------------
+    Combination
+--------------------------------------------------------------------
+
+We need to take the standard date, open, close, high, low values
+    Get ema_20
+    get macd_line, macd_signal, macd_hist
+    get adx (also range of 20, I think)
+    get rsi_14
+    get atr_14
+    get bb_upper, bb_middle, bb_lower
+    get stoch_k, stoch_d using Stochastics (CCI?)
+    get OBV
+    get MFI
+
+Add all of these to the data when writing it out to the DB.
+
+//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--
+
+2024-12-16
+
+The Ichimoku code seems to work. At least, it gave me an Indicator that looks promising. Of course, I say that at 8:45, before it has even started trading. (shrug)
+
+I've started working on the TA-Lib functions now. Here's a list of ones that I think will work. (Note: There's 14 indicators in this list, which should just about double the number of indicators involved. We're going to need to start weighting these soon.)
+
+CMO(real, timeperiod=-2147483648)
+    CMO(real[, timeperiod=?])
+    
+    Chande Momentum Oscillator (Momentum Indicators)
+    
+    Inputs:
+        real: (any ndarray)
+    Parameters:
+        timeperiod: 14
+    Outputs:
+        real
+		
+DX(high, low, close, timeperiod=-2147483648)
+    DX(high, low, close[, timeperiod=?])
+    
+    Directional Movement Index (Momentum Indicators)
+    
+    Inputs:
+        prices: ['high', 'low', 'close']
+    Parameters:
+        timeperiod: 14
+    Outputs:
+        real
+		
+
+		'ROC', 'ROCP', 'ROCR', 'ROCR100' - A rising ROC above zero typically confirms an uptrend while a falling ROC below zero indicates a downtrend.
+		TRIX - When TRIX(15) crosses over EMA(Trix(15),9), trend is bullish. When it crosses under, trend is bearish.
+		ULTOSC - The Ultimate Oscillator is a range-bound indicator with a value that fluctuates between 0 and 100. Levels below 30 are deemed to be oversold and levels above 70 are deemed to be overbought, 
+		WILLR - Williams %R moves between zero and -100. A reading above -20 is overbought. A reading below -80 is oversold.
+
+	DEMA(real, timeperiod=-2147483648)
+		DEMA(real[, timeperiod=?])
+		
+		Double Exponential Moving Average (Overlap Studies)
+		
+		Inputs:
+			real: (any ndarray)
+		Parameters:
+			timeperiod: 30
+		Outputs:
+			real
+
+	KAMA(real, timeperiod=-2147483648)
+    KAMA(real[, timeperiod=?])
+    
+    Kaufman Adaptive Moving Average (Overlap Studies)
+	When price is greater than KAMA and Kama is heading upward, buy.
+	When price is less than KAMA and kama is heading downward, sell.
+    
+    Inputs:
+        real: (any ndarray)
+    Parameters:
+        timeperiod: 30
+    Outputs:
+        real
+
+
+SAR(high, low, acceleration=0.02, maximum=0.2)
+    SAR(high, low[, acceleration=?, maximum=?])
+    
+    Parabolic SAR (Overlap Studies)
+		a buy signal occurs when the dots move from above the price to below the price, while a sell signal occurs when the dots move from below the price to above the price.
+		Traders also use the PSAR dots to set trailing stop loss orders. For example, if the price is rising, and the PSAR is also rising, the PSAR can be used as a possible exit if long. If the price drops below the PSAR, exit the long trade.
+    
+    Inputs:
+        prices: ['high', 'low']
+    Parameters:
+        acceleration: 0.02
+        maximum: 0.2
+    Outputs:
+        real
+		
+T3(real, timeperiod=-2147483648, vfactor=-4e+37)
+    T3(real[, timeperiod=?, vfactor=?])
+    
+    Triple Exponential Moving Average (T3) (Overlap Studies)
+	Generally, when the price is above the TEMA it helps confirm the price is rising for that lookback period. When the price is below the TEMA, it helps confirm the price is falling for that lookback period.
+    
+    Inputs:
+        real: (any ndarray)
+    Parameters:
+        timeperiod: 5
+        vfactor: 0.7
+    Outputs:
+        real
+
+These are the ones I haven't looked into:
+Pattern Recognition: ['CDL2CROWS', 'CDL3BLACKCROWS', 'CDL3INSIDE', 'CDL3LINESTRIKE', 'CDL3OUTSIDE', 'CDL3STARSINSOUTH', 'CDL3WHITESOLDIERS', 'CDLABANDONEDBABY', 'CDLADVANCEBLOCK', 'CDLBELTHOLD', 'CDLBREAKAWAY', 'CDLCLOSINGMARUBOZU', 'CDLCONCEALBABYSWALL', 'CDLCOUNTERATTACK', 'CDLDARKCLOUDCOVER', 'CDLDOJI', 'CDLDOJISTAR', 'CDLDRAGONFLYDOJI', 'CDLENGULFING', 'CDLEVENINGDOJISTAR', 'CDLEVENINGSTAR', 'CDLGAPSIDESIDEWHITE', 'CDLGRAVESTONEDOJI', 'CDLHAMMER', 'CDLHANGINGMAN', 'CDLHARAMI', 'CDLHARAMICROSS', 'CDLHIGHWAVE', 'CDLHIKKAKE', 'CDLHIKKAKEMOD', 'CDLHOMINGPIGEON', 'CDLIDENTICAL3CROWS', 'CDLINNECK', 'CDLINVERTEDHAMMER', 'CDLKICKING', 'CDLKICKINGBYLENGTH', 'CDLLADDERBOTTOM', 'CDLLONGLEGGEDDOJI', 'CDLLONGLINE', 'CDLMARUBOZU', 'CDLMATCHINGLOW', 'CDLMATHOLD', 'CDLMORNINGDOJISTAR', 'CDLMORNINGSTAR', 'CDLONNECK', 'CDLPIERCING', 'CDLRICKSHAWMAN', 'CDLRISEFALL3METHODS', 'CDLSEPARATINGLINES', 'CDLSHOOTINGSTAR', 'CDLSHORTLINE', 'CDLSPINNINGTOP', 'CDLSTALLEDPATTERN', 'CDLSTICKSANDWICH', 'CDLTAKURI', 'CDLTASUKIGAP', 'CDLTHRUSTING', 'CDLTRISTAR', 'CDLUNIQUE3RIVER', 'CDLUPSIDEGAP2CROWS', 'CDLXSIDEGAP3METHODS']
+Price Transform: ['AVGPRICE', 'MEDPRICE', 'TYPPRICE', 'WCLPRICE']
+Statistic Functions: ['BETA', 'CORREL', 'LINEARREG', 'LINEARREG_ANGLE', 'LINEARREG_INTERCEPT', 'LINEARREG_SLOPE', 'STDDEV', 'TSF', 'VAR']
+Volatility Indicators: ['ATR', 'NATR', 'TRANGE']
+Volume Indicators: ['AD', 'ADOSC']
+
+2024-12-13
+
+I bought in yesterday with another $250 investment, and ended up selling it at the exact same price near the end of day. Fun fact, as soon as I sold, the price jumped a few more points, so I would have made money if I'd stayed. :)
+
+I took a bit of time yesterday to put together a buying predictor, which finds out how much a stock usually drops in a day, and sets a buy entry at half that drop from the previous close. I used it to make a buy order this morning, but the stock never dropped to that price, so no buy. I've been doing this for three days now, and have lost $4. So, could be worse, I guess.
+
+Today, I did some more reorganizing, separating all the indicators into their individual files, and added an indicator aggregator, so it's a little easier to read. I then started doing some more research into Ichimoku clouds. Here's the strategy, as far as I could tell:
+
+Ichimoku:
+
+Base Line: 26 periods
+Conversion Line: 9 periods
+Lagging Span: 26 periods
+These are used to draw the filled portion:
+	Faster Span A
+	Faster Span B 
+	
+
+Lines:
+	Conversion Line (tenkan sen)= (9-PH+9-PL)/2
+		tenkan_max = df['High'].rolling(window = 9, min_periods = 0).max()
+		tenkan_min = df['Low'].rolling(window = 9, min_periods = 0).min()
+		df['tenkan_avg'] = (tenkan_max + tenkan_min) / 2
+
+	​Base Line (kijun sen)= (26-PH + 26-PL)/2
+		kijun_max = df['High'].rolling(window = 26, min_periods = 0).max()
+		kijun_min = df['Low'].rolling(window = 26, min_periods = 0).min()
+		df['kijun_avg'] = (kijun_max + kijun_min) / 2
+
+	Leading Span A (senkou span A)= (CL + Base Line)/2
+		#(Kijun + Tenkan) / 2 Shifted ahead by 26 periods
+		df['senkou_a'] = ((df['kijun_avg'] + df['tenkan_avg']) / 2).shift(26)
+
+	​Leading Span B (senkou span B)= (52-PH + 52-PL)/2
+		#52 period High + Low / 2
+		senkou_b_max = df['High'].rolling(window = 52, min_periods = 0).max()
+		senkou_b_min = df['Low'].rolling(window = 52, min_periods = 0).min()
+		df['senkou_b'] = ((senkou_b_max + senkou_b_min) / 2).shift(52)
+
+	​Lagging Span (chikou span)=Close plotted 26 periods in the past
+		#Current close shifted -26
+		df['chikou'] = (df['Close']).shift(-26)
+
+where:
+	PH=Period high
+	PL=Period low
+	CL=Conversion line
+​
+
+We will call the space between Span A and Span B "Kumo"
+
+When Span A crosses Span B, this indicates a possible trend change.
+
+The top and bottom of the Span lines are support and resistence lines.
+
+The baseline is a STRONG support or resistence level.
+
+Uptrend:
+	Price > Kumo
+	(Price > Kumo) && Lagging Span crosses price upward (Strong)
+	Price > Conversion
+	Price > Baseline
+	Baseline & Conversion > Kumo
+	Kumo is thick and Span A > Span B
+	Conversion Line > Baseline above the Kumo.
+    Lagging Span > Kumo
+    Lagging Span > price
+	Lagging Span > Baseline
+
+No Trend:
+    price in Kumo
+    Lagging Span inside Kumo
+
+Downtrend:
+	Price < Kumo
+	(Price < Kumo) && Lagging Span crosses price downward (Strong)
+	Price < conversion
+	Price < baseline
+	Baseline & Conversion < Kumo
+	Kumo is thick and Span B > Span A
+	Conversion line < Baseline below the Kumo
+    Lagging Span < Kumo
+    Lagging Span < price
+	Lagging Span < Baseline
+
+Strength:
+	price - conversion
+
+In a bullish trend:
+	The bottom of the Kumo cloud is the strongest level of support. Second strongest is the Top of the Kumo, third is the Baseline, and fourth is the Conversion line (weakest)
+
+In a bearish trend:
+	The top of the Kumo is the strongest level of resistance, followed by the bottom of the cloud, the baseline, and the conversion line.
+	
+
+
+2024-12-11
+
+Well, today I took the plunge (a little bit). I took the latest report, and bought $250 worth of the top-ranked stock. For posterity, that trade was
+2.1 shares of KEX at $119. It's 1PM now, and it seems to be doing okay. If I walk away at the end of the day with a 1% win, I'll be happy.
+
+I also added the Fibonacci Retracement calculation, so that's cool. I'm going to fix up the Ichimoku indicator next.
+
+I had an idea earlier. Right now, I can choose what data to send to the prediction machine. If that's the case, then I should be able to send it an arbitrary
+day's data, get the top ten list, and then check it against the answer given by the next day. If I do that, I can get a percentage of how many stocks
+succeeded based on those indicators. Now, here's where it gets interesting. Let's say I do that with the last 40 days of data (2 months). Say I store the
+"validity" of each day, and once I have the 40 "validity" scores, average them and say that the result is the effectiveness of my current indicators. After
+that, I can apply weights to each of the indicators and run it again. By changing the weights and getting the effectiveness values of each weight, I should
+be able to fine-tune the weights to fit reality. The cool thing is, I think that would take less than a day to run.
+
+I want to alter the docker containers so that I can make scripts that call "update data", "debug", and "make predictions" functions callable from outside of
+the container. Update: done 
+
+I've altered the code to update from NASDAQ and NYSE now, so we should have a significantly larger pool to draw from. Hopefully, that means better responses.
+
+It takes about two hours to grab the full history for all 6k symbols. 
+
+2024-12-10
+
+Okay, that was a lot harder than I expected. However, I now have the repository holding
+the code necessary to make a mongo container and a BlueHorseshoe container. I need to test
+it out at home, but for now, I'm getting back to indiators.
+
+* Average Directional Index (ADX)
+    +DI (Positive Directional Indicator) measures the strength of upward price movement.
+    −DI (Negative Directional Indicator) measures the strength of downward price movement.
+
+    Interpreting ADX Values:
+
+    Below 20:
+        Typically indicates a non-trending or weakly trending market. Price movement might 
+        be choppy, sideways, or lack a clear directional bias.
+    Around 20-25:
+        Often considered a threshold. Once ADX rises above 20 or 25, it may signal the 
+        beginning of a new trend or strengthening conditions.
+    Above 25:
+        Suggests a stronger, more established trend. The higher the ADX, the more dominant the trend.
+    Above 50:
+        Indicates a very strong trend, where prices are moving consistently in one direction.
+
+* Commodity Channel Index (CCI)
+
+    Interpretation of CCI Values:
+        Between -100 and +100: This is the normal range, indicating that prices are near their average.
+        Above +100: Signals that prices are significantly above their average, suggesting an overbought condition or a strong uptrend.
+        Below -100: Signals that prices are significantly below their average, suggesting an oversold condition or a strong downtrend.
+
+* Fibonacci Retracement
+    Identify the Swing High and Swing Low:
+        In an uptrend, the swing low is the lowest point before the trend starts rising, and the swing high is the peak.
+        In a downtrend, the swing high is the highest point before the trend starts falling, and the swing low is the trough
+
+
+2024-12-08
+
+So, I was thinking about how I recently had to rebuild my dev system,
+after trying unsuccessfully to get it to autoload the mongo server.
+
+I'm using enough libraries now (ta-lib, pymongo, requests, etc.) that I would really
+benefit from having either a universally-runnable VM (which kills my online access, but
+gets around all of the staging problems), or a docker container that I can move to
+whatever source I need (specifically, a new codespace, or a new home computer).
+
+For now, I want to work on getting a new Docker image set up. Rather, I would need
+one image for the MongoDB server, and another for the actual python development.
+
+What I'm thinking is, I should create a mongodb image in a new codespace, and once that's
+working, export it to wherever. Then, create the new Python image and install the packages
+needed. Next, get the code working on that image setup, and export it to wherever.
+Then, copy the data over to the new location.
+
+//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--//==\\--
+
+
+
+2024-11-27
+
+Okay, I've had mixed results from predictions so far, but I'm getting better at understanding it, so I'm starting over. 
+I asked Claude.AI what the best indicators for day trading were, and this is the results.
+
+
+For day trading, key technical indicators for stock predictability include:
+
+1. Volume-Based Indicators
+- Money Flow Index (MFI)
+- On-Balance Volume (OBV)
+- Volume Weighted Average Price (VWAP)
+
+2. Momentum Oscillators
+- Relative Strength Index (RSI)
+- Stochastic Oscillator
+- MACD (Moving Average Convergence Divergence)
+
+3. Volatility Indicators
+- Average True Range (ATR)
+- Bollinger Bands
+- Standard Deviation
+
+4. Short-Term Trend Indicators
+- 5/20 exponential moving averages
+- Ichimoku Cloud
+- Pivot Points
+
+5. Liquidity Measures
+- Bid-ask spread
+- Trading volume consistency
+- Intraday price range
+
+
+I'm going to take those indicators over the next week, and start implementing them.
