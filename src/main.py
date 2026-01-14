@@ -29,21 +29,15 @@ import os
 from sklearn.exceptions import ConvergenceWarning
 
 from bluehorseshoe.reporting.report_generator import ReportSingleton
+from bluehorseshoe.reporting.html_reporter import HTMLReporter
 from bluehorseshoe.core.globals import get_mongo_client
-from bluehorseshoe.core.database import db
+from bluehorseshoe.core.service import get_latest_market_date
 from bluehorseshoe.data.historical_data import build_all_symbols_history, check_market_status, BackfillConfig
 from bluehorseshoe.analysis.strategy import SwingTrader
 from bluehorseshoe.analysis.optimizer import WeightOptimizer
 
 DEBUG_SYMBOL = 'ABVC'
 DEBUG = False
-
-def get_latest_market_date():
-    """Find the most recent date available in historical_data."""
-    database = db.get_db()
-    latest = database.historical_prices.find_one({}, {'days.date': 1}, sort=[('days.date', -1)])
-    return latest['days'][-1]['date'] if latest else None
-
 
 def debug_test():
     """
@@ -134,7 +128,24 @@ if __name__ == "__main__":
         if "--aggregation" in sys.argv:
             aggregation = sys.argv[sys.argv.index("--aggregation") + 1]
 
-        SwingTrader().swing_predict(target_date=target_date, enabled_indicators=enabled_indicators, aggregation=aggregation)
+        report_data = SwingTrader().swing_predict(
+            target_date=target_date,
+            enabled_indicators=enabled_indicators,
+            aggregation=aggregation
+        )
+
+        # Generate HTML Report
+        if report_data:
+            reporter = HTMLReporter()
+            html_content = reporter.generate_report(
+                date=target_date,
+                regime=report_data.get('regime', {}),
+                candidates=report_data.get('candidates', []),
+                charts=report_data.get('charts', [])
+            )
+            saved_path = reporter.save(html_content, filename=f"report_{target_date}.html")
+            logging.info("HTML Report saved to %s", saved_path)
+            print(f"HTML Report generated: {saved_path}")
     elif "-t" in sys.argv:
         try:
             test_idx = sys.argv.index("-t")

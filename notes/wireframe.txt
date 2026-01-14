@@ -1,0 +1,59 @@
+### View 1: The "Daily Briefing" Dashboard
+
+*Goal:* The screen the user sees immediately after clicking the link in their email.
+
+**1. Header Area**
+
+* **Title:** BlueHorseshoe Intelligence
+* **Status Badge:** "Market Status: OPEN" (Derived from your Bellwether check in `historical_data.py`).
+* **Date:** "Report for: 2025-10-27" (Source: `report_date` from `DailyReport` model in `service.py`).
+
+**2. "Top Picks" Summary Cards (The Hero Section)**
+
+* *Layout:* 3 large cards side-by-side for the top-rated stocks.
+* *Data Mapping (from `Candidate` object in `service.py`):*
+* **Symbol:** e.g., "TSLA"
+* **Action:** "BUY @ 215.50" (Source: `baseline_setup['entry_price']`)
+* **Confidence:** "87% Win Probability" (Source: `ml_win_prob`)
+* **Visual:** A mini sparkline chart (Source: `days` data from `PriceData` model).
+
+
+
+**3. The "Full Candidate List" Data Table**
+
+* *Layout:* A sortable table below the cards.
+* *Columns:*
+* **Symbol**
+* **Strategy** (Baseline vs. Mean Reversion)
+* **Score** (Source: `score` from `DailyReport`)
+* **Stability** (Source: `stability` metric from `run_daily` calculation).
+* **Risk/Reward** (Source: `baseline_setup['rr_ratio']` from `strategy.py`).
+
+
+
+---
+
+### View 2: The "Signal Detail" Modal
+
+*Goal:* What happens when the user clicks on a row in the table. This replaces your static `report.txt`.
+
+**1. The Chart (Left Column)**
+
+* **Component:** An interactive candlestick chart.
+* **Source:** Currently, you generate static PNGs in `report_generator.py`. For the wireframe, this would be a placeholder for a JavaScript charting library (like TradingView or Highcharts) that consumes your OHLCV JSON data.
+
+**2. Trade Plan (Right Column)**
+
+* **Header:** "Execution Setup"
+* **Entry Zone:** Green box showing `entry_price`  0.5%.
+* **Stop Loss:** Red text showing `stop_loss` (Source: `metadata['stop_loss']` from `strategy.py`).
+* **Targets:**
+* Target 1: `take_profit`
+* Target 2: `take_profit` * 1.5
+
+
+
+**3. The "Why?" Section (ML Explainability)**
+
+* **Text:** "This signal passed the ML filter because..."
+* **Data:** List the `components` dictionary (e.g., "RSI < 30", "Vol > Avg") that contributed to the score.

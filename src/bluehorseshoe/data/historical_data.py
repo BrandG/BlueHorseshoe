@@ -46,7 +46,7 @@ def load_historical_data_from_net(stock_symbol, recent=False):
     symbol = {'name': stock_symbol}
 
     outputsize = 'full' if not recent else 'compact'
-    url = f"https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&outputsize={outputsize}" + \
+    url = f"https://www.alphavantage.co/query?function=TIME_SERIES_DAILY_ADJUSTED&outputsize={outputsize}" + \
         f"&symbol={stock_symbol}&apikey={ALPHAVANTAGE_KEY}"
 
     response = requests.get(url, timeout=10)
@@ -59,13 +59,20 @@ def load_historical_data_from_net(stock_symbol, recent=False):
         symbol['days'] = []
 
         for date, daily_record in time_series.items():
+            # Handle Adjustments (Splits/Dividends)
+            raw_close = float(daily_record.get('4. close', 0))
+            adj_close = float(daily_record.get('5. adjusted close', 0))
+
+            # Calculate adjustment factor
+            factor = adj_close / raw_close if raw_close != 0 else 1.0
+
             daily_data = {
                 'date': date,
-                'open': round(float(daily_record['1. open']), 4),
-                'high': round(float(daily_record['2. high']), 4),
-                'low': round(float(daily_record['3. low']), 4),
-                'close': round(float(daily_record['4. close']), 4),
-                'volume': int(daily_record['5. volume']),
+                'open': round(float(daily_record.get('1. open', 0)) * factor, 4),
+                'high': round(float(daily_record.get('2. high', 0)) * factor, 4),
+                'low': round(float(daily_record.get('3. low', 0)) * factor, 4),
+                'close': round(adj_close, 4),
+                'volume': int(daily_record.get('6. volume', 0)),
             }
             daily_data['midpoint'] = round(
                 (daily_data['open'] + daily_data['close']) / 2, 4)

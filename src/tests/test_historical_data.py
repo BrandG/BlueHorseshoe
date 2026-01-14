@@ -42,7 +42,8 @@ def test_load_historical_data_from_net(mock_get):
                 '2. high': '110.0',
                 '3. low': '90.0',
                 '4. close': '105.0',
-                '5. volume': '1000'
+                '5. adjusted close': '105.0',
+                '6. volume': '1000'
             }
         }
     }

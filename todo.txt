@@ -1,31 +1,47 @@
-# ToDo: Indicator Analysis & Strategy Optimization
+# ToDo: BlueHorseshoe Roadmap
 
-## Current State (v2.0)
-- **Codebase Health:** Perfect (Lint score 10.0/10), Refactored all core and analysis modules.
-- **ML Overlay:** Feature extraction centralized; ML trainers and inference streamlined.
-- **Data Infrastructure:** Robust, with recent bug fixes in batch loading and API.
+## Current State (v2.1)
+- **Codebase Health:** Perfect (Lint score 10.0/10).
+- **Data Integrity:** FIXED (v2.1). Switched to Split-Adjusted Data. Backfill in progress.
+- **Reporting:** Enhanced with HTML output.
 
-## Performance Validation
-- **Baseline (Trend):** Validated on historical dates (Dec 8 2025, Mar 19 2024). Market Buy logic captures runaway trends (YPF +11%).
-- **Mean Reversion (Dip):** Strong performance on volatile assets (RDFN +23%).
+## Phase 3: Strategy Refinement (Immediate Priority)
+- [ ] **Formalize Mean Reversion:** Update `TechnicalAnalyzer` to explicitly reward oversold conditions (RSI < 30, Price < Lower BB).
+- [ ] **Optimize Entry Timing:** Investigate varying entry discount based on volatility (ATR) vs. fixed percentage.
+- [ ] **Comparative Backtest:** Run strict comparison: Baseline (Trend) vs. Mean Reversion over 6-month window.
 
-## Active Tasks
-- [x] **Code Quality:** Resolved all linting issues across the codebase.
-- [x] **Bug Fixes:** Resolved runtime errors in `batch_loader` and `api`.
-- [x] **Bear Market Resilience:** Investigate why Momentum signals failed so aggressively in Jan 2022 and implement regime-based filters.
-- [ ] **Data Quality Audit:** Scan the newly backfilled data for gaps, spikes, or anomalies.
-- [ ] **Feature Engineering:** Re-run feature generation on the full historical dataset using the new `ml_utils`.
-- [ ] **Deep Backtesting:** Run strategy simulations over 5-10 year periods.
+## Phase 4: SaaS Transformation & Automation
+- [x] **Web Interface:** Migrate from CLI-only to FastAPI/Uvicorn architecture.
+- [ ] **Async API Prediction:** Implement background task processing (Celery/Redis) to handle long-running predictions.
+- [ ] **Job Scheduler:** Implement Cron/Celery for automated daily pipeline (Fetch -> Predict -> Report).
+- [ ] **Notification Upgrade:** Transition to HTML emails with embedded "Top 10" tables and charts.
+- [ ] **JSON Reporting:** Refactor `ReportSingleton` to return JSON objects for API consumption.
 
-## Future Ideas / Next Phase
-- [ ] **ML Overlay v2.0:** Retrain models with deep history and new features.
-- [ ] **Portfolio Optimization:** Implement Kelly Criterion or similar for sizing.
+## Phase 5: UI/UX Development
+- [ ] **Daily Dashboard:** Build "Daily Briefing" view with Hero cards and sortable candidate list.
+- [ ] **Signal Detail View:** Create detailed modal with "Execution Setup" (Entry/Stop/Targets).
+- [ ] **ML Explainability:** Add UI section explaining *why* a signal passed (e.g., "RSI < 30", "Vol > Avg").
+- [ ] **Interactive Charts:** Replace static PNGs with JS-based charts (TradingView/Highcharts) or Base64 embeds.
+
+## Active Tasks (Maintenance/Data)
+- [/] **Full Backfill (v2):** In Progress. Started Jan 14. Logs: `src/logs/backfill_v2.log`.
+- [ ] **Feature Engineering:** Re-run feature generation after backfill completes.
+
+## Future Roadmap
+- [ ] **Portfolio Allocation:** Implement Kelly Criterion / Volatility Sizing.
+- [ ] **ML Overlay v2.0:** Retrain models with deep history once backfill is complete.
 
 ## Completed Tasks
+- [x] **Data Quality Audit:** Completed. Identified 1,200+ symbols with unadjusted split spikes.
+- [x] **Fix Data Source:** Switched to `TIME_SERIES_DAILY_ADJUSTED`.
+- [x] **HTML Reporting:** Implemented `HTMLReporter` and integrated into `main.py`.
+- [x] **Verify Report:** Run a prediction test (`-p`) to verify HTML generation.
 - [x] Implement Machine Learning Overlay.
 - [x] Integrated News Sentiment and Fundamentals.
 - [x] Implement a weekly automated retraining job.
 - [x] Implement ML-Driven Stop Loss.
 - [x] Implement Trailing Stops.
 - [x] Implement Intraday Verification Mechanism.
-- [x] Complete Full Historical Data Backfill.
+- [x] Complete Full Historical Data Backfill (v1 - Raw Data, Deprecated).
+- [x] Code Quality: Resolved all linting issues.
+- [x] Bear Market Resilience: Implemented regime-based filters.

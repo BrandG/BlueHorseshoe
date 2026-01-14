@@ -229,3 +229,9 @@ def load_universe_data(
     results = list(_db["historical_prices_recent"].aggregate(pipeline))
 
     return results
+
+def get_latest_market_date() -> Optional[str]:
+    """Find the most recent date available in historical_data."""
+    database = db.get_db()
+    latest = database.historical_prices.find_one({}, {'days.date': 1}, sort=[('days.date', -1)])
+    return latest['days'][-1]['date'] if latest else None

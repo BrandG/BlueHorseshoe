@@ -20,6 +20,6 @@ ENV PYTHONPATH=/workspaces/BlueHorseshoe/src
 
 EXPOSE 80
 
-CMD ["uvicorn", "bluehorseshoe.data.api:app", "--host", "0.0.0.0", "--port", "80", "--reload"]
+CMD ["uvicorn", "bluehorseshoe.api.main:app", "--host", "0.0.0.0", "--port", "80", "--reload"]
 #CMD ["tail", "-f", "/dev/null"]
 

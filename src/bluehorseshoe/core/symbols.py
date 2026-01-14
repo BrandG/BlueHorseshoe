@@ -39,7 +39,7 @@ CPS = int(os.environ.get("ALPHAVANTAGE_CPS", "2"))
 LISTING_STATUS_URL = "https://www.alphavantage.co/query?function=LISTING_STATUS&apikey={key}"
 DAILY_SERIES_URL = (
     "https://www.alphavantage.co/query"
-    "?function=TIME_SERIES_DAILY"
+    "?function=TIME_SERIES_DAILY_ADJUSTED"
     "&outputsize={outputsize}"
     "&symbol={symbol}"
     "&apikey={key}"
@@ -195,6 +195,26 @@ def get_symbol_name_list() -> List[str]:
 # Goal 3: Fetch historical OHLC for one symbol -> upsert to Mongo
 # ---------------------------------------------------------------------
 
+def _parse_adjusted_day(date_str: str, record: Dict[str, Any]) -> Dict[str, Any]:
+    """Helper to parse a single day record with split adjustments."""
+    raw_close = float(record.get("4. close", 0))
+    adj_close = float(record.get("5. adjusted close", 0))
+
+    factor = adj_close / raw_close if raw_close != 0 else 1.0
+
+    open_ = round(float(record.get("1. open", 0)) * factor, 4)
+    close_ = round(adj_close, 4)
+
+    return {
+        "date": date_str,
+        "open": open_,
+        "high": round(float(record.get("2. high", 0)) * factor, 4),
+        "low": round(float(record.get("3. low", 0)) * factor, 4),
+        "close": close_,
+        "volume": int(record.get("6. volume", 0)),
+        "midpoint": round((open_ + close_) / 2, 4),
+    }
+
 @sleep_and_retry
 @limits(calls=1, period=1.0/CPS)
 def fetch_daily_ohlc_from_net(symbol: str, recent: bool = False) -> Dict[str, Any]:
@@ -224,18 +244,7 @@ def fetch_daily_ohlc_from_net(symbol: str, recent: bool = False) -> Dict[str, An
     print(f"DEBUG: Fetched {len(series)} days for {sym} (outputsize={outputsize})")
     days: List[Dict[str, Any]] = []
     for d, rec in series.items():
-        open_ = round(float(rec["1. open"]), 4)
-        close_ = round(float(rec["4. close"]), 4)
-        day = {
-            "date": d,
-            "open": open_,
-            "high": round(float(rec["2. high"]), 4),
-            "low": round(float(rec["3. low"]), 4),
-            "close": close_,
-            "volume": int(rec["5. volume"]),
-            "midpoint": round((open_ + close_) / 2, 4),
-        }
-        days.append(day)
+        days.append(_parse_adjusted_day(d, rec))
 
     # Sort oldest-first
     days.sort(key=lambda x: x["date"])

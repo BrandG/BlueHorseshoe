@@ -501,7 +501,7 @@ class SwingTrader:
         enabled_indicators: Optional[list[str]] = None,
         aggregation: str = "sum",
         symbols: Optional[list[str]] = None
-    ) -> None:
+    ) -> Dict[str, Any]:
         """Main prediction function with parallel processing capability."""
 
         # 1. Market Context Filter
@@ -524,7 +524,8 @@ class SwingTrader:
         # 3. Execute
         valid_results = self._execute_prediction_batch(symbols, ctx)
 
-        # 4. Report
+        # 4. Report & Collect Data
+        # We print to console/txt via ReportSingleton inside these helpers
         self._report_top_candidates(valid_results, 'baseline_score', 'baseline_setup', 'Baseline (Trend)')
         self._report_top_candidates(valid_results, 'mr_score', 'mr_setup', 'Mean Reversion (Dip)')
 
@@ -533,3 +534,35 @@ class SwingTrader:
             score_data = self._prepare_scores_for_save(valid_results)
             score_manager.save_scores(score_data)
             logging.info("Saved %d scores (Baseline & Mean Reversion) to trade_scores", len(score_data))
+
+        # 6. Prepare Return Data for HTML Reporter
+        candidates = []
+        for r in valid_results:
+            # Flatten results for the reporter
+            if r['baseline_score'] > 0:
+                setup = r['baseline_setup']
+                candidates.append({
+                    "symbol": r["symbol"],
+                    "strategy": "Baseline",
+                    "score": r["baseline_score"],
+                    "close": setup.get("entry_price", 0), # Approx
+                    "reasons": [f"{k}={v:.1f}" for k, v in r['baseline_components'].items() if v != 0]
+                })
+            if r['mr_score'] > 0:
+                setup = r['mr_setup']
+                candidates.append({
+                    "symbol": r["symbol"],
+                    "strategy": "MeanRev",
+                    "score": r["mr_score"],
+                    "close": setup.get("entry_price", 0),
+                    "reasons": [f"{k}={v:.1f}" for k, v in r['mr_components'].items() if v != 0]
+                })
+
+        # Sort by score desc
+        candidates.sort(key=lambda x: x['score'], reverse=True)
+
+        return {
+            "regime": market_health,
+            "candidates": candidates[:50], # Top 50 for the report
+            "charts": [] # TODO: Add chart generation logic if needed
+        }
