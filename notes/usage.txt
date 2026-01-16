@@ -1,0 +1,130 @@
+# BlueHorseshoe Usage Guide
+
+## Web API
+Base URL: `http://localhost:8001` (Mapped to port 8001 on host)
+
+### 1. Trigger Prediction (Async)
+Triggers the full prediction pipeline (or just prediction logic).
+**Endpoint:** `POST /api/v1/predict`
+**Payload:**
+```json
+{
+  "target_date": "2026-01-16",  // Optional (defaults to latest) 
+  "indicators": ["momentum:rsi"], // Optional
+  "aggregation": "sum"          // Optional
+}
+```
+**Example:**
+```bash
+curl -X POST http://localhost:8001/api/v1/predict \
+     -H "Content-Type: application/json" \
+     -d '{}'
+```
+**Response:**
+```json
+{
+  "task_id": "a2bce0e7-...",
+  "status": "PENDING",
+  "message": "Prediction started for 2026-01-16"
+}
+```
+
+### 2. Check Task Status
+Poll this endpoint to check the progress of a prediction task.
+**Endpoint:** `GET /api/v1/tasks/{task_id}`
+**Example:**
+```bash
+curl http://localhost:8001/api/v1/tasks/a2bce0e7-bae1-4aa3-bdc9-8ff09b761545
+```
+**Response (In Progress):**
+```json
+{
+  "task_id": "...",
+  "status": "PROGRESS",
+  "progress": {
+    "current": 500,
+    "total": 10839,
+    "percent": 4.6,
+    "status": "Processing symbols... 4.6%"
+  }
+}
+```
+**Response (Success):**
+```json
+{
+  "task_id": "...",
+  "status": "SUCCESS",
+  "result": { ...prediction data... }
+}
+```
+
+### 3. List Reports
+Returns a list of dates for which HTML reports are available.
+**Endpoint:** `GET /api/v1/reports`
+**Example:**
+```bash
+curl http://localhost:8001/api/v1/reports
+```
+**Response:**
+```json
+["2026-01-16", "2024-01-05"]
+```
+
+### 4. Get Report
+Downloads or displays the HTML report for a specific date.
+**Endpoint:** `GET /api/v1/reports/{date}`
+**Example:**
+```bash
+# Open in browser
+http://localhost:8001/api/v1/reports/2026-01-16
+```
+
+---
+
+## CLI Usage (Docker)
+All CLI commands must be run inside the `bluehorseshoe` container.
+
+**Prefix:** `docker exec bluehorseshoe python ...`
+
+### 1. Update Historical Data
+Updates recent price data for all symbols.
+```bash
+docker exec bluehorseshoe python src/main.py -u
+```
+*Note: This runs synchronously and takes ~2-3 hours due to rate limits.*
+
+### 2. Run Backtest
+Backtests the strategy starting from a specific date.
+```bash
+docker exec bluehorseshoe python src/main.py -t 2025-12-01
+```
+Options:
+- `--end 2026-01-01`: End date
+- `--interval 7`: Trading interval (days)
+- `--strategy mean_reversion`: Strategy to test
+
+### 3. Check Intraday Status
+Checks if active trade targets/stops were hit using real-time data (Yahoo Finance).
+```bash
+docker exec bluehorseshoe python src/check_intraday_status.py SYMBOL ENTRY STOP TARGET
+```
+**Example:**
+```bash
+docker exec bluehorseshoe python src/check_intraday_status.py ACHC 11.91 10.46 13.72
+```
+
+### 4. Run Full Backfill
+Refreshes the entire historical dataset (slow).
+```bash
+docker exec bluehorseshoe python src/main.py -b
+```
+
+---
+
+## Automated Scheduler
+The system runs a daily pipeline automatically via Celery Beat.
+*   **Schedule:** Weekdays at 08:00 UTC (3:00 AM EST).
+*   **Pipeline:** Updates Data -> Runs Prediction -> Generates Report.
+*   **Logs:** Check `docker logs bluehorseshoe_worker` for progress.
+
+```
