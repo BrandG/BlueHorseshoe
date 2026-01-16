@@ -1,4 +1,7 @@
+import os
+import glob
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import FileResponse
 from celery.result import AsyncResult
 from bluehorseshoe.api.models import PredictionRequest, TaskSubmission, TaskStatus
 from bluehorseshoe.api.tasks import predict_task
@@ -8,6 +11,8 @@ import logging
 
 router = APIRouter()
 logger = logging.getLogger("bluehorseshoe.api")
+
+LOGS_DIR = "/workspaces/BlueHorseshoe/src/logs"
 
 @router.post("/predict", response_model=TaskSubmission, status_code=202)
 async def predict_candidates(request: PredictionRequest):
@@ -59,6 +64,34 @@ async def get_task_status(task_id: str):
         response.error = str(task_result.result)
     
     return response
+
+@router.get("/reports")
+async def list_reports():
+    """
+    List all available report dates.
+    """
+    pattern = os.path.join(LOGS_DIR, "report_*.html")
+    files = glob.glob(pattern)
+    
+    # Extract dates from filenames (e.g., report_2026-01-15.html -> 2026-01-15)
+    reports = []
+    for f in files:
+        basename = os.path.basename(f)
+        date_part = basename.replace("report_", "").replace(".html", "")
+        reports.append(date_part)
+    
+    return sorted(reports, reverse=True)
+
+@router.get("/reports/{date}")
+async def get_report(date: str):
+    """
+    Retrieve a specific HTML report by date (YYYY-MM-DD).
+    """
+    file_path = os.path.join(LOGS_DIR, f"report_{date}.html")
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail=f"Report for {date} not found")
+    
+    return FileResponse(file_path, media_type="text/html")
 
 @router.get("/health")
 async def health_check():
