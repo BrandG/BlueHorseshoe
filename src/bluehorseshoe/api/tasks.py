@@ -7,6 +7,7 @@ from bluehorseshoe.analysis.strategy import SwingTrader
 from bluehorseshoe.core.globals import get_mongo_client
 from bluehorseshoe.data.historical_data import build_all_symbols_history, BackfillConfig
 from bluehorseshoe.reporting.html_reporter import HTMLReporter
+from bluehorseshoe.core.email_service import EmailService
 
 logger = logging.getLogger(__name__)
 
@@ -126,17 +127,44 @@ def generate_report_task(self, report_data: dict):
         logger.error(f"Report generation failed: {e}", exc_info=True)
         raise e
 
+@celery_app.task(bind=True)
+def send_email_task(self, report_info: dict):
+    """
+    Sends the generated report via email.
+    """
+    logger.info(f"Task {self.request.id}: Sending email report...")
+    try:
+        report_path = report_info.get("path")
+        if not report_path:
+             logger.warning("No report path provided to email task.")
+             return "No Report Path"
+        
+        email_service = EmailService()
+        success = email_service.send_report(report_path)
+        
+        if success:
+            logger.info("Email sent successfully.")
+            return "Email Sent"
+        else:
+            logger.warning("Email sending failed (check logs).")
+            return "Email Failed"
+    except Exception as e:
+        logger.error(f"Email task failed: {e}", exc_info=True)
+        # We don't raise here to avoid failing the whole chain if just email fails
+        return f"Email Error: {e}"
+
 @celery_app.task
 def run_daily_pipeline():
     """
-    Orchestrator task that chains Update -> Predict -> Report.
+    Orchestrator task that chains Update -> Predict -> Report -> Email.
     """
     # We leave target_date as None so it picks the latest data (which we just updated)
     # Use .si() (immutable) for predict_task so it doesn't receive "Data Updated" as an arg
     workflow = chain(
         update_market_data_task.s(),
         predict_task.si(target_date=None),
-        generate_report_task.s()
+        generate_report_task.s(),
+        send_email_task.s()
     )
     workflow.apply_async()
     logger.info("Daily pipeline triggered.")

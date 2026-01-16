@@ -54,8 +54,9 @@ The system implements two primary scoring strategies in `TechnicalAnalyzer`:
 - **Market Regime Filter (Jan 2026):** Implemented a robust market health check (`MarketRegime`) using SPY/QQQ price action against key EMAs (20, 50, 200) and market breadth.
     - **Update (Jan 16):** The regime filter is now advisory. Baseline (Trend) signals are generated even in Bearish regimes (if they meet strict trend criteria) to capture potential reversals or outliers.
 - **Mean Reversion:**
-    - **Status:** Highly effective on volatile names (RDFN +23%).
-    - **Scoring:** Rewards extreme oversold conditions (RSI < 30) with significant mean reversion potential.
+    - **Status:** Validated (Jan 2026).
+    - **Performance:** 53% Win Rate, +6.5% PnL in Bear/Chop markets.
+    - **Scoring:** Rewards extreme oversold conditions (RSI < 30) with significant mean reversion potential. Effective on volatile names.
 
 - **Async Architecture (Jan 2026):** Transitioned heavy analysis workloads to Celery/Redis background tasks. The API now returns a `task_id` for long-running predictions, and a `/tasks/{task_id}` endpoint provides real-time progress updates.
 
@@ -66,4 +67,4 @@ The system implements two primary scoring strategies in `TechnicalAnalyzer`:
 - **Validation:** When adding new technical scoring logic, ensure column presence checks use `Series.index` to avoid value-based subsetting errors.
 - **Logging:** Always update `actions.txt` with key decisions and validation results.
 
-- **Next Task:** Implement an automated daily job scheduler (Phase 4) using Cron or Celery Beat to orchestrate the data fetch, prediction, and reporting pipeline.
+- **Next Task:** Refactor `ReportSingleton` to output structured JSON data for the API and Dashboard.

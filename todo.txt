@@ -6,9 +6,9 @@
 - **Reporting:** Enhanced with HTML output.
 
 ## Phase 3: Strategy Refinement (Immediate Priority)
-- [ ] **Formalize Mean Reversion:** Update `TechnicalAnalyzer` to explicitly reward oversold conditions (RSI < 30, Price < Lower BB).
+- [x] **Formalize Mean Reversion:** Update `TechnicalAnalyzer` to explicitly reward oversold conditions (RSI < 30, Price < Lower BB).
 - [ ] **Optimize Entry Timing:** Investigate varying entry discount based on volatility (ATR) vs. fixed percentage.
-- [ ] **Comparative Backtest:** Run strict comparison: Baseline (Trend) vs. Mean Reversion over 6-month window.
+- [x] **Comparative Backtest:** Run strict comparison: Baseline (Trend) vs. Mean Reversion over 6-month window.
 
 ## Phase 4: SaaS Transformation & Automation
 - [x] **Web Interface:** Migrate from CLI-only to FastAPI/Uvicorn architecture.

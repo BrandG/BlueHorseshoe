@@ -35,7 +35,7 @@ DEFAULT_WEIGHTS = {
         'BELT_HOLD_MULTIPLIER': 1.0
     },
     'mean_reversion': {
-        'RSI_MULTIPLIER': 0.0,
+        'RSI_MULTIPLIER': 1.0,
         'BB_MULTIPLIER': 1.0,
         'MA_DIST_MULTIPLIER': 1.0,
         'CANDLESTICK_MULTIPLIER': 1.0

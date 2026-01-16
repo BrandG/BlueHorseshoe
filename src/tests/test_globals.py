@@ -134,8 +134,10 @@ def test_get_symbol_list_from_net(mock_get):
     # Need to mock ALPHAVANTAGE_KEY
     with patch('bluehorseshoe.core.symbols.ALPHAVANTAGE_KEY', 'test_key'):
         symbols = get_symbol_list_from_net()
-    assert symbols == [{"symbol": "AAPL", "name": "Apple Inc"}, {"symbol": "GOOGL", "name": "Alphabet Inc"}]
-
+    assert symbols == [
+        {"symbol": "AAPL", "name": "Apple Inc", "exchange": "NYSE"},
+        {"symbol": "GOOGL", "name": "Alphabet Inc", "exchange": "NASDAQ"}
+    ]
 @patch("bluehorseshoe.core.symbols.fetch_symbol_list_from_net")
 @patch("bluehorseshoe.core.symbols.get_symbols_from_mongo")
 def test_get_symbol_list(mock_get_symbols_from_mongo, mock_fetch_symbol_list_from_net):

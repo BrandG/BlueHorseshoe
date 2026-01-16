@@ -15,7 +15,7 @@ from bluehorseshoe.analysis.constants import (
     OVERSOLD_RSI_THRESHOLD_MODERATE, OVERSOLD_RSI_REWARD_MODERATE,
     OVERSOLD_BB_REWARD, OVERSOLD_BB_POSITION_THRESHOLD,
     MR_OVERSOLD_RSI_REWARD_EXTREME, MR_OVERSOLD_RSI_REWARD_MODERATE,
-    MR_OVERSOLD_BB_REWARD, MR_BELLOW_LOW_BB_BONUS,
+    MR_OVERSOLD_BB_REWARD, MR_BELLOW_LOW_BB_BONUS, MR_CONFLUENCE_BONUS,
     PENALTY_EMA_OVEREXTENSION_MODERATE, PENALTY_EMA_OVEREXTENSION_EXTREME,
     PENALTY_EMA_THRESHOLD_MODERATE, PENALTY_EMA_THRESHOLD_EXTREME,
     PENALTY_RSI_THRESHOLD_EXTREME, PENALTY_RSI_SCORE_EXTREME,
@@ -352,6 +352,10 @@ class TechnicalAnalyzer:
             cs_score *= weights.get('CANDLESTICK_MULTIPLIER', 1.0)
             if cs_score > 0 or enabled_indicators:
                 results["candlestick"] = float(cs_score)
+
+        # 5. Confluence Bonus (RSI + BB)
+        if results.get("bonus_oversold_rsi", 0) > 0 and results.get("bonus_oversold_bb", 0) > 0:
+            results["bonus_confluence"] = float(MR_CONFLUENCE_BONUS)
 
         return results
 
