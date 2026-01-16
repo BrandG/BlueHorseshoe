@@ -18,27 +18,28 @@ class PredictionRequest(BaseModel):
         description="Method to aggregate scores ('sum' or 'product')."
     )
 
-class Candidate(BaseModel):
+class TaskSubmission(BaseModel):
     """
-    Schema for a single trading candidate.
+    Response when a long-running task is submitted.
     """
-    symbol: str
-    score: float
-    reason: List[str]
-    setup: Optional[Dict[str, Any]] = None
-
-class Regime(BaseModel):
-    """
-    Schema for market regime information.
-    """
+    task_id: str
     status: str
-    details: Optional[Dict[str, Any]] = None
+    message: str
 
-class PredictionResponse(BaseModel):
+class TaskStatus(BaseModel):
+
     """
-    Schema for the prediction response.
+
+    Response for polling task status.
+
     """
-    date: str
-    regime: Regime
-    candidates: List[Candidate]
-    # We can add more fields here as needed (e.g., charts URL in the future)
+
+    task_id: str
+
+    status: str
+
+    progress: Optional[Dict[str, Any]] = None
+
+    result: Optional[Dict[str, Any]] = None
+
+    error: Optional[str] = None

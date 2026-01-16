@@ -407,7 +407,7 @@ class SwingTrader:
             return df
         return None
 
-    def _execute_prediction_batch(self, symbols: List[str], ctx: StrategyContext) -> List[Dict]:
+    def _execute_prediction_batch(self, symbols: List[str], ctx: StrategyContext, progress_callback=None) -> List[Dict]:
         """Execute parallel prediction for a batch of symbols."""
         max_workers = min(8, os.cpu_count() or 4)
 
@@ -440,6 +440,8 @@ class SwingTrader:
                     pct = (i / total) * 100
                     logging.info("Progress: %d/%d symbols processed (%.1f%%)", i, total, pct)
                     print(f"Progress: {i}/{total} symbols processed ({pct:.1f}%)", flush=True)
+                    if progress_callback:
+                        progress_callback(i, total, pct)
 
         return [r for r in results if r is not None]
 
@@ -500,7 +502,8 @@ class SwingTrader:
         target_date: Optional[str] = None,
         enabled_indicators: Optional[list[str]] = None,
         aggregation: str = "sum",
-        symbols: Optional[list[str]] = None
+        symbols: Optional[list[str]] = None,
+        progress_callback=None
     ) -> Dict[str, Any]:
         """Main prediction function with parallel processing capability."""
 
@@ -522,7 +525,7 @@ class SwingTrader:
         )
 
         # 3. Execute
-        valid_results = self._execute_prediction_batch(symbols, ctx)
+        valid_results = self._execute_prediction_batch(symbols, ctx, progress_callback=progress_callback)
 
         # 4. Report & Collect Data
         # We print to console/txt via ReportSingleton inside these helpers

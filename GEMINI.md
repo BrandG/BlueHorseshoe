@@ -56,6 +56,8 @@ The system implements two primary scoring strategies in `TechnicalAnalyzer`:
     - **Status:** Highly effective on volatile names (RDFN +23%).
     - **Scoring:** Rewards extreme oversold conditions (RSI < 30) with significant mean reversion potential.
 
+- **Async Architecture (Jan 2026):** Transitioned heavy analysis workloads to Celery/Redis background tasks. The API now returns a `task_id` for long-running predictions, and a `/tasks/{task_id}` endpoint provides real-time progress updates.
+
 ## Developer Notes
 
 - **Testing:** Ensure `base_data` fixtures in tests include price volatility to bypass the "Dead Stock" filter.
@@ -63,4 +65,4 @@ The system implements two primary scoring strategies in `TechnicalAnalyzer`:
 - **Validation:** When adding new technical scoring logic, ensure column presence checks use `Series.index` to avoid value-based subsetting errors.
 - **Logging:** Always update `actions.txt` with key decisions and validation results.
 
-- **Next Task:** Implement async background task processing (Celery/Redis) to resolve critical blocking issues on the new FastAPI /predict endpoint.
+- **Next Task:** Implement an automated daily job scheduler (Phase 4) using Cron or Celery Beat to orchestrate the data fetch, prediction, and reporting pipeline.

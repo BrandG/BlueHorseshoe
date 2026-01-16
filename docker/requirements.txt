@@ -12,6 +12,8 @@ pytest-mock>=3.14.0
 mplfinance>=0.12.10b0
 fastapi
 uvicorn[standard]
+celery
+redis
 ta-lib
 pandas_ta
 pylint

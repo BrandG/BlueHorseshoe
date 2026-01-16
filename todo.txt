@@ -12,7 +12,7 @@
 
 ## Phase 4: SaaS Transformation & Automation
 - [x] **Web Interface:** Migrate from CLI-only to FastAPI/Uvicorn architecture.
-- [ ] **Async API Prediction:** Implement background task processing (Celery/Redis) to handle long-running predictions.
+- [x] **Async API Prediction:** Implement background task processing (Celery/Redis) to handle long-running predictions.
 - [ ] **Job Scheduler:** Implement Cron/Celery for automated daily pipeline (Fetch -> Predict -> Report).
 - [ ] **Notification Upgrade:** Transition to HTML emails with embedded "Top 10" tables and charts.
 - [ ] **JSON Reporting:** Refactor `ReportSingleton` to return JSON objects for API consumption.
@@ -24,7 +24,6 @@
 - [ ] **Interactive Charts:** Replace static PNGs with JS-based charts (TradingView/Highcharts) or Base64 embeds.
 
 ## Active Tasks (Maintenance/Data)
-- [/] **Full Backfill (v2):** In Progress. Started Jan 14. Logs: `src/logs/backfill_v2.log`.
 - [ ] **Feature Engineering:** Re-run feature generation after backfill completes.
 
 ## Future Roadmap
@@ -32,6 +31,7 @@
 - [ ] **ML Overlay v2.0:** Retrain models with deep history once backfill is complete.
 
 ## Completed Tasks
+- [x] **Full Backfill (v2):** Completed Jan 14. 10,839 symbols loaded.
 - [x] **Data Quality Audit:** Completed. Identified 1,200+ symbols with unadjusted split spikes.
 - [x] **Fix Data Source:** Switched to `TIME_SERIES_DAILY_ADJUSTED`.
 - [x] **HTML Reporting:** Implemented `HTMLReporter` and integrated into `main.py`.
