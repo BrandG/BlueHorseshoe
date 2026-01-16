@@ -1,8 +1,12 @@
 import logging
+import datetime
 import numpy as np
+from celery import chain
 from bluehorseshoe.api.celery_app import celery_app
 from bluehorseshoe.analysis.strategy import SwingTrader
 from bluehorseshoe.core.globals import get_mongo_client
+from bluehorseshoe.data.historical_data import build_all_symbols_history, BackfillConfig
+from bluehorseshoe.reporting.html_reporter import HTMLReporter
 
 logger = logging.getLogger(__name__)
 
@@ -23,11 +27,32 @@ def convert_numpy(obj):
     return obj
 
 @celery_app.task(bind=True)
-def predict_task(self, target_date: str, indicators: list = None, aggregation: str = "sum"):
+def update_market_data_task(self):
+    """
+    Task to update recent historical data for all symbols.
+    """
+    logger.info(f"Task {self.request.id}: Starting market data update...")
+    try:
+        if get_mongo_client() is None:
+             raise RuntimeError("Could not connect to MongoDB")
+        
+        # Run update for recent data (compact mode)
+        build_all_symbols_history(BackfillConfig(recent=True))
+        logger.info("Market data update completed.")
+        return "Data Updated"
+    except Exception as e:
+        logger.error(f"Market update failed: {e}", exc_info=True)
+        raise e
+
+@celery_app.task(bind=True)
+def predict_task(self, target_date: str = None, indicators: list = None, aggregation: str = "sum", previous_result=None):
     """
     Background task to run SwingTrader prediction.
+    Accepts `previous_result` to allow chaining, though it ignores it.
+    If target_date is None, defaults to latest available.
     """
-    logger.info(f"Task {self.request.id}: Starting prediction for {target_date}")
+    # If chained from update_task, previous_result might be "Data Updated"
+    logger.info(f"Task {self.request.id}: Starting prediction for {target_date or 'latest'}")
     
     def progress_callback(current, total, percent):
         self.update_state(
@@ -41,11 +66,12 @@ def predict_task(self, target_date: str, indicators: list = None, aggregation: s
         )
 
     try:
-        # Ensure DB connection in worker process
         if get_mongo_client() is None:
-            raise RuntimeError("Could not connect to MongoDB in worker")
+            raise RuntimeError("Could not connect to MongoDB")
 
         trader = SwingTrader()
+        
+        # Note: SwingTrader automatically handles target_date=None by finding latest
         report_data = trader.swing_predict(
             target_date=target_date,
             enabled_indicators=indicators,
@@ -53,13 +79,63 @@ def predict_task(self, target_date: str, indicators: list = None, aggregation: s
             progress_callback=progress_callback
         )
         
-        # Convert numpy types to ensure JSON serialization compatibility
         clean_data = convert_numpy(report_data)
         
+        # Inject the date into the result if not present, for the reporter
+        if target_date:
+            clean_data['date'] = target_date
+        elif not clean_data.get('date'):
+             # Try to extract from regime or candidates if possible, or use today
+             clean_data['date'] = str(datetime.date.today())
+
         logger.info(f"Task {self.request.id}: Prediction completed successfully.")
         return clean_data
 
     except Exception as e:
-        logger.error(f"Task {self.request.id} failed: {e}", exc_info=True)
-        # Re-raise to mark task as failed in Celery
+        logger.error(f"Prediction failed: {e}", exc_info=True)
         raise e
+
+@celery_app.task(bind=True)
+def generate_report_task(self, report_data: dict):
+    """
+    Generates HTML report from prediction results.
+    """
+    logger.info(f"Task {self.request.id}: Generating HTML report...")
+    try:
+        reporter = HTMLReporter()
+        
+        # Extract data
+        date = report_data.get('date', str(datetime.date.today()))
+        regime = report_data.get('regime', {})
+        candidates = report_data.get('candidates', [])
+        charts = report_data.get('charts', [])
+        
+        html_content = reporter.generate_report(
+            date=date,
+            regime=regime,
+            candidates=candidates,
+            charts=charts
+        )
+        
+        filename = f"report_{date}.html"
+        saved_path = reporter.save(html_content, filename=filename)
+        
+        logger.info(f"Report generated: {saved_path}")
+        return {"status": "Report Generated", "path": saved_path}
+    except Exception as e:
+        logger.error(f"Report generation failed: {e}", exc_info=True)
+        raise e
+
+@celery_app.task
+def run_daily_pipeline():
+    """
+    Orchestrator task that chains Update -> Predict -> Report.
+    """
+    # We leave target_date as None so it picks the latest data (which we just updated)
+    workflow = chain(
+        update_market_data_task.s(),
+        predict_task.s(target_date=None),
+        generate_report_task.s()
+    )
+    workflow.apply_async()
+    logger.info("Daily pipeline triggered.")

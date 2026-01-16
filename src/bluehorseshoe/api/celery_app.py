@@ -1,5 +1,6 @@
 import os
 from celery import Celery
+from celery.schedules import crontab
 
 # Get configuration from environment variables
 BROKER_URL = os.environ.get("CELERY_BROKER_URL", "redis://redis:6379/0")
@@ -19,6 +20,14 @@ celery_app.conf.update(
     result_serializer="json",
     timezone="UTC",
     enable_utc=True,
-    # 1 hour hard limit for tasks (prediction can be long)
-    task_time_limit=3600, 
+    # 2 hour hard limit for pipeline
+    task_time_limit=7200, 
 )
+
+# Schedule
+celery_app.conf.beat_schedule = {
+    "daily-pipeline-weekday-morning": {
+        "task": "bluehorseshoe.api.tasks.run_daily_pipeline",
+        "schedule": crontab(hour=9, minute=0, day_of_week='1-5'),
+    },
+}

@@ -60,6 +60,27 @@ services:
     volumes:
       - ..:/workspaces/BlueHorseshoe
 
+  beat:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.bluehorseshoe
+    container_name: bluehorseshoe_beat
+    command: celery -A bluehorseshoe.api.celery_app beat --loglevel=info
+    environment:
+      MONGO_URI: "mongodb://mongo:27017"
+      CELERY_BROKER_URL: "redis://redis:6379/0"
+      CELERY_RESULT_BACKEND: "redis://redis:6379/0"
+      ALPHAVANTAGE_KEY: ${ALPHAVANTAGE_KEY}
+      ALPHAVANTAGE_CPS: ${ALPHAVANTAGE_CPS:-5}
+      PYTHONPATH: /workspaces/BlueHorseshoe/src
+    depends_on:
+      - mongo
+      - redis
+    networks:
+      - app_net
+    volumes:
+      - ..:/workspaces/BlueHorseshoe
+
 networks:
   app_net:
 
