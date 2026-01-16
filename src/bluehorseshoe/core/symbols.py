@@ -107,7 +107,11 @@ def fetch_symbol_list_from_net() -> List[Dict[str, Any]]:
         is_valid_sym = sym and "-" not in sym and sym.upper() not in invalid_symbols
 
         if is_active and is_correct_exchange and is_correct_asset and is_valid_sym:
-            symbols.append({"symbol": sym, "name": row.get("name", "")})
+            symbols.append({
+                "symbol": sym, 
+                "name": row.get("name", ""),
+                "exchange": row.get("exchange", "Unknown")
+            })
 
     return symbols
 

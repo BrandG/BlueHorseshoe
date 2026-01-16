@@ -132,9 +132,10 @@ def run_daily_pipeline():
     Orchestrator task that chains Update -> Predict -> Report.
     """
     # We leave target_date as None so it picks the latest data (which we just updated)
+    # Use .si() (immutable) for predict_task so it doesn't receive "Data Updated" as an arg
     workflow = chain(
         update_market_data_task.s(),
-        predict_task.s(target_date=None),
+        predict_task.si(target_date=None),
         generate_report_task.s()
     )
     workflow.apply_async()

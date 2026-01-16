@@ -79,7 +79,7 @@ class HTMLReporter:
             # Candidates Section
             f"<h2>Top Candidates ({len(candidates)})</h2>",
             "<table>",
-            "<tr><th>Symbol</th><th>Strategy</th><th>Score</th><th>Close Price</th><th>Indicators</th></tr>"
+            "<tr><th>Symbol</th><th>Exchange</th><th>Strategy</th><th>Score</th><th>Close Price</th><th>Indicators</th></tr>"
         ]
 
         for cand in candidates:
@@ -89,6 +89,7 @@ class HTMLReporter:
 
             html.append(f"<tr>")
             html.append(f"<td><strong>{cand['symbol']}</strong></td>")
+            html.append(f"<td><small>{cand.get('exchange', 'Unknown')}</small></td>")
             html.append(f"<td>{cand.get('strategy', 'N/A')}</td>")
             html.append(f"<td class='{score_cls}'>{score:.2f}</td>")
             html.append(f"<td>{cand.get('close', 'N/A')}</td>")

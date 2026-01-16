@@ -40,7 +40,7 @@ from bluehorseshoe.analysis.ml_stop_loss import StopLossInference
 from bluehorseshoe.analysis.technical_analyzer import TechnicalAnalyzer
 from bluehorseshoe.core.globals import GlobalData
 from bluehorseshoe.core.scores import score_manager
-from bluehorseshoe.core.symbols import get_symbol_name_list
+from bluehorseshoe.core.symbols import get_symbol_name_list, get_symbols_from_mongo
 from bluehorseshoe.data.historical_data import load_historical_data
 from bluehorseshoe.reporting.report_generator import ReportSingleton
 
@@ -52,6 +52,7 @@ class StrategyContext:
     aggregation: str = "sum"
     benchmark_df: Optional[pd.DataFrame] = None
     market_health: Optional[Dict[str, Any]] = None
+    symbol_map: Optional[Dict[str, str]] = None
 
 class SwingTrader:
     """Main class for swing trading analysis."""
@@ -267,8 +268,9 @@ class SwingTrader:
     def _process_baseline(self, df: pd.DataFrame, symbol: str, yesterday: dict, ctx: StrategyContext) -> Optional[Dict]:
         """Process Baseline strategy logic."""
         # Regime Filter: Skip momentum during bearish regimes
-        if ctx.market_health and ctx.market_health['status'] == 'Bearish':
-            return None
+        # UPDATED (Jan 2026): User requested to bypass this hard filter.
+        # if ctx.market_health and ctx.market_health['status'] == 'Bearish':
+        #    return None
 
         is_uptrend = self.is_weekly_uptrend(df)
         if REQUIRE_WEEKLY_UPTREND and not is_uptrend:
@@ -384,6 +386,7 @@ class SwingTrader:
         ret_val = {
             'symbol': symbol,
             'name': price_data.get('full_name', symbol),
+            'exchange': ctx.symbol_map.get(symbol, 'Unknown') if ctx.symbol_map else 'Unknown',
             'date': str(yesterday['date']),
             'rs_ratio': rs_ratio,
             'baseline_score': baseline_data['score'] if baseline_data else 0.0,
@@ -516,12 +519,17 @@ class SwingTrader:
         if symbols is None:
             symbols = get_symbol_name_list()
 
+        # Build symbol metadata map
+        all_symbols = get_symbols_from_mongo()
+        symbol_map = {s['symbol']: s.get('exchange', 'Unknown') for s in all_symbols}
+
         ctx = StrategyContext(
             target_date=target_date,
             enabled_indicators=enabled_indicators,
             aggregation=aggregation,
             benchmark_df=benchmark_df,
-            market_health=market_health
+            market_health=market_health,
+            symbol_map=symbol_map
         )
 
         # 3. Execute
@@ -546,6 +554,7 @@ class SwingTrader:
                 setup = r['baseline_setup']
                 candidates.append({
                     "symbol": r["symbol"],
+                    "exchange": r.get("exchange", "Unknown"),
                     "strategy": "Baseline",
                     "score": r["baseline_score"],
                     "close": setup.get("entry_price", 0), # Approx
@@ -555,6 +564,7 @@ class SwingTrader:
                 setup = r['mr_setup']
                 candidates.append({
                     "symbol": r["symbol"],
+                    "exchange": r.get("exchange", "Unknown"),
                     "strategy": "MeanRev",
                     "score": r["mr_score"],
                     "close": setup.get("entry_price", 0),

@@ -51,7 +51,8 @@ The system implements two primary scoring strategies in `TechnicalAnalyzer`:
 
 ## Analysis & Scoring Notes
 
-- **Market Regime Filter (Jan 2026):** Implemented a robust market health check (`MarketRegime`) using SPY/QQQ price action against key EMAs (20, 50, 200) and market breadth. Momentum signals are now automatically disabled during 'Bearish' regimes to prevent aggressive entries at market tops.
+- **Market Regime Filter (Jan 2026):** Implemented a robust market health check (`MarketRegime`) using SPY/QQQ price action against key EMAs (20, 50, 200) and market breadth.
+    - **Update (Jan 16):** The regime filter is now advisory. Baseline (Trend) signals are generated even in Bearish regimes (if they meet strict trend criteria) to capture potential reversals or outliers.
 - **Mean Reversion:**
     - **Status:** Highly effective on volatile names (RDFN +23%).
     - **Scoring:** Rewards extreme oversold conditions (RSI < 30) with significant mean reversion potential.
