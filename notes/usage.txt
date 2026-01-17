@@ -3,8 +3,24 @@
 ## Web API
 Base URL: `http://localhost:8001` (Mapped to port 8001 on host)
 
-### 1. Trigger Prediction (Async)
-Triggers the full prediction pipeline (or just prediction logic).
+### 1. Trigger Full Pipeline (Manual)
+Triggers the complete daily workflow: Update Data -> Predict -> Generate Report -> Email.
+**Endpoint:** `POST /api/v1/pipeline/run`
+**Example:**
+```bash
+curl -X POST http://localhost:8001/api/v1/pipeline/run
+```
+**Response:**
+```json
+{
+  "task_id": "01a778eb-...",
+  "status": "PENDING",
+  "message": "Daily pipeline triggered manually."
+}
+```
+
+### 2. Trigger Prediction (Async)
+Triggers the prediction logic based on data already in the database. Does NOT update historical data first.
 **Endpoint:** `POST /api/v1/predict`
 **Payload:**
 ```json
@@ -29,7 +45,7 @@ curl -X POST http://localhost:8001/api/v1/predict \
 }
 ```
 
-### 2. Check Task Status
+### 3. Check Task Status
 Poll this endpoint to check the progress of a prediction task.
 **Endpoint:** `GET /api/v1/tasks/{task_id}`
 **Example:**
@@ -124,7 +140,8 @@ docker exec bluehorseshoe python src/main.py -b
 ## Automated Scheduler
 The system runs a daily pipeline automatically via Celery Beat.
 *   **Schedule:** Weekdays at 08:00 UTC (3:00 AM EST).
-*   **Pipeline:** Updates Data -> Runs Prediction -> Generates Report.
+*   **Pipeline:** Updates Data -> Runs Prediction -> Generates Report -> Sends Email.
+*   **Manual Trigger:** Use `POST /api/v1/pipeline/run` to trigger this full chain on-demand.
 *   **Logs:** Check `docker logs bluehorseshoe_worker` for progress.
 
 ```

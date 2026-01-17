@@ -4,7 +4,7 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse
 from celery.result import AsyncResult
 from bluehorseshoe.api.models import PredictionRequest, TaskSubmission, TaskStatus
-from bluehorseshoe.api.tasks import predict_task
+from bluehorseshoe.api.tasks import predict_task, run_daily_pipeline
 from bluehorseshoe.core.globals import get_mongo_client
 from bluehorseshoe.core.service import get_latest_market_date
 import logging
@@ -13,6 +13,20 @@ router = APIRouter()
 logger = logging.getLogger("bluehorseshoe.api")
 
 LOGS_DIR = "/workspaces/BlueHorseshoe/src/logs"
+
+@router.post("/pipeline/run", response_model=TaskSubmission, status_code=202)
+async def trigger_daily_pipeline():
+    """
+    Manually triggers the full daily pipeline (Update -> Predict -> Report -> Email).
+    """
+    logger.info("Manually triggering daily pipeline.")
+    task = run_daily_pipeline.delay()
+    
+    return TaskSubmission(
+        task_id=task.id,
+        status="PENDING",
+        message="Daily pipeline triggered manually."
+    )
 
 @router.post("/predict", response_model=TaskSubmission, status_code=202)
 async def predict_candidates(request: PredictionRequest):

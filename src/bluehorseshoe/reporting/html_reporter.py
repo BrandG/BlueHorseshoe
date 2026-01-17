@@ -14,25 +14,92 @@ class HTMLReporter:
         self.output_dir = output_dir
         self.css = """
         <style>
-            body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f4f9; color: #333; margin: 0; padding: 20px; }
-            .container { max-width: 1200px; margin: 0 auto; background: #fff; padding: 20px; box-shadow: 0 0 10px rgba(0,0,0,0.1); border-radius: 8px; }
-            h1, h2, h3 { color: #2c3e50; border-bottom: 2px solid #eee; padding-bottom: 10px; }
+            :root {
+                --bg-color: #f4f4f9;
+                --container-bg: #fff;
+                --text-color: #333;
+                --heading-color: #2c3e50;
+                --border-color: #eee;
+                --table-header-bg: #34495e;
+                --table-header-text: #fff;
+                --table-row-hover: #f5f5f5;
+                --table-border: #ddd;
+                --card-shadow: rgba(0,0,0,0.1);
+                --badge-bull: #27ae60;
+                --badge-bear: #c0392b;
+                --badge-neutral: #f39c12;
+                --link-color: #2c3e50;
+                --link-hover: #3498db;
+                --secondary-text: #777;
+            }
+            [data-theme="dark"] {
+                --bg-color: #1a1a1a;
+                --container-bg: #2d2d2d;
+                --text-color: #e0e0e0;
+                --heading-color: #ecf0f1;
+                --border-color: #444;
+                --table-header-bg: #2c3e50;
+                --table-header-text: #ecf0f1;
+                --table-row-hover: #3d3d3d;
+                --table-border: #444;
+                --card-shadow: rgba(0,0,0,0.5);
+                --badge-bull: #2ecc71;
+                --badge-bear: #e74c3c;
+                --badge-neutral: #f1c40f;
+                --link-color: #bdc3c7;
+                --link-hover: #3498db;
+                --secondary-text: #aaa;
+            }
+
+            body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: var(--bg-color); color: var(--text-color); margin: 0; padding: 20px; transition: background-color 0.3s, color 0.3s; }
+            .container { max-width: 1200px; margin: 0 auto; background: var(--container-bg); padding: 20px; box-shadow: 0 0 10px var(--card-shadow); border-radius: 8px; transition: background-color 0.3s; }
+            h1, h2, h3 { color: var(--heading-color); border-bottom: 2px solid var(--border-color); padding-bottom: 10px; }
             table { width: 100%; border-collapse: collapse; margin: 20px 0; }
-            th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
-            th { background-color: #34495e; color: #fff; }
-            tr:hover { background-color: #f5f5f5; }
+            th, td { padding: 12px; text-align: left; border-bottom: 1px solid var(--table-border); }
+            th { background-color: var(--table-header-bg); color: var(--table-header-text); }
+            tr:hover { background-color: var(--table-row-hover); }
             .badge { padding: 5px 10px; border-radius: 4px; color: #fff; font-weight: bold; font-size: 0.9em; }
-            .badge-bull { background-color: #27ae60; }
-            .badge-bear { background-color: #c0392b; }
-            .badge-neutral { background-color: #f39c12; }
-            .score-high { color: #27ae60; font-weight: bold; }
-            .score-med { color: #f39c12; font-weight: bold; }
-            .score-low { color: #c0392b; font-weight: bold; }
-            .footer { margin-top: 40px; font-size: 0.8em; color: #777; text-align: center; }
+            .badge-bull { background-color: var(--badge-bull); }
+            .badge-bear { background-color: var(--badge-bear); }
+            .badge-neutral { background-color: var(--badge-neutral); }
+            .score-high { color: var(--badge-bull); font-weight: bold; }
+            .score-med { color: var(--badge-neutral); font-weight: bold; }
+            .score-low { color: var(--badge-bear); font-weight: bold; }
+            .footer { margin-top: 40px; font-size: 0.8em; color: var(--secondary-text); text-align: center; }
             .chart-container { display: flex; flex-wrap: wrap; gap: 20px; justify-content: center; }
-            .chart-box { border: 1px solid #ddd; padding: 10px; border-radius: 4px; background: #fff; }
+            .chart-box { border: 1px solid var(--border-color); padding: 10px; border-radius: 4px; background: var(--container-bg); }
             img { max-width: 100%; height: auto; }
+            .top-lists-wrapper { display: flex; gap: 20px; margin: 20px 0; }
+            .top-list { flex: 1; background: var(--container-bg); border: 1px solid var(--border-color); border-radius: 8px; padding: 15px; box-shadow: 0 2px 4px var(--card-shadow); }
+            .top-list h3 { border-bottom: 2px solid var(--border-color); margin-top: 0; padding-bottom: 10px; color: var(--heading-color); font-size: 1.2em; }
+            .top-list ul { list-style: none; padding: 0; margin: 0; }
+            .top-list li { padding: 8px 0; border-bottom: 1px solid var(--border-color); font-family: 'Consolas', 'Monaco', monospace; font-size: 0.95em; display: flex; justify-content: space-between; }
+            .top-list li:last-child { border-bottom: none; }
+            .top-list-header { font-weight: bold; color: var(--secondary-text); font-size: 0.8em; text-transform: uppercase; border-bottom: 2px solid var(--border-color) !important; padding-bottom: 5px !important; margin-bottom: 5px; }
+            .symbol-link { text-decoration: none; color: var(--link-color); transition: color 0.2s; }
+            .symbol-link:hover { color: var(--link-hover); text-decoration: underline; }
+            
+            /* Toggle Button */
+            .theme-toggle { position: fixed; top: 20px; right: 20px; padding: 10px 15px; background: var(--table-header-bg); color: var(--table-header-text); border: none; border-radius: 5px; cursor: pointer; font-weight: bold; box-shadow: 0 2px 5px rgba(0,0,0,0.2); z-index: 1000; }
+            .theme-toggle:hover { opacity: 0.9; }
         </style>
+        <script>
+            function toggleTheme() {
+                const body = document.body;
+                const currentTheme = body.getAttribute('data-theme');
+                const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+                body.setAttribute('data-theme', newTheme);
+                localStorage.setItem('theme', newTheme);
+            }
+            
+            // Apply saved theme on load
+            window.onload = function() {
+                const savedTheme = localStorage.getItem('theme');
+                if (savedTheme) {
+                    document.body.setAttribute('data-theme', savedTheme);
+                }
+            }
+        </script>
         """
 
     def _get_regime_badge(self, status: str) -> str:
@@ -49,11 +116,26 @@ class HTMLReporter:
         if score >= 50:
             return "score-med"
         return "score-low"
+    
+    def _format_top_list_item(self, c: Dict[str, Any]) -> str:
+        # Format: <<SYMBOL>>:<<EXCHANGE>> <<TECH SCORE>> <<ML ATTITUDE>> <<ENTRY PRICE>>
+        # ML Attitude derived from probability
+        prob = c.get('ml_prob', 0.0)
+        attitude = f"ML:{prob*100:.0f}%"
+        
+        symbol = c['symbol']
+        url = f"https://finance.yahoo.com/quote/{symbol}"
+        
+        return f"<span><a href='{url}' target='_blank' class='symbol-link'><b>{symbol}</b></a>:<small>{c.get('exchange','UNK')}</small></span> <span><b>{c['score']:.1f}</b> <span style='color:#777'>{attitude}</span> <b>${c['close']:.2f}</b></span>"
 
     def generate_report(self, date: str, regime: Dict[str, Any], candidates: List[Dict[str, Any]], charts: List[str]) -> str:
         """
         Builds the complete HTML string.
         """
+        # Filter Top 5 for each strategy
+        baseline_top5 = sorted([c for c in candidates if c.get('strategy') == 'Baseline'], key=lambda x: x.get('score', 0), reverse=True)[:5]
+        meanrev_top5 = sorted([c for c in candidates if c.get('strategy') == 'MeanRev'], key=lambda x: x.get('score', 0), reverse=True)[:5]
+
         html = [
             "<!DOCTYPE html>",
             "<html>",
@@ -62,12 +144,14 @@ class HTMLReporter:
             self.css,
             "</head>",
             "<body>",
+            "<button class='theme-toggle' onclick='toggleTheme()'>Toggle Dark Mode</button>",
             "<div class='container'>",
             f"<h1>BlueHorseshoe Daily Report <small style='font-size:0.5em; color:#777'>{date}</small></h1>",
 
             # Market Regime Section
             "<details>",
-            f"<summary style='cursor:pointer'><h2>Market Regime: {self._get_regime_badge(regime.get('status', 'Unknown'))}</h2></summary>",
+            f"<summary style='cursor:pointer; font-size: 1.5em; font-weight: bold; color: var(--heading-color); padding-bottom: 10px;'>Market Regime: {self._get_regime_badge(regime.get('status', 'Unknown'))}</summary>",
+            "<hr style='border: 0; border-bottom: 2px solid var(--border-color); margin: 0 0 20px 0;'>",
             "<table>",
             "<tr><th>Status</th><th>SPY Price</th><th>SPY MA50</th><th>SPY MA200</th></tr>",
             f"<tr><td>{self._get_regime_badge(regime.get('status', 'Unknown'))}</td>",
@@ -78,19 +162,54 @@ class HTMLReporter:
             f"<p><strong>Commentary:</strong> {regime.get('commentary', 'No commentary available.')}</p>",
             "</details>",
 
-            # Candidates Section
-            f"<h2>Top Candidates ({len(candidates)})</h2>",
-            "<table>",
-            "<tr><th>Symbol</th><th>Exchange</th><th>Strategy</th><th>Score</th><th>Close Price</th><th>Indicators</th></tr>"
+            # Top 5 Lists (Side-by-Side)
+            "<div class='top-lists-wrapper'>",
+            
+            # Baseline Column
+            "<div class='top-list'>",
+            "<h3>Top 5 Baseline (Trend)</h3>",
+            "<ul>",
+            "<li class='top-list-header'><span>Symbol</span> <span>Score / ML / Entry</span></li>"
         ]
+        
+        if baseline_top5:
+            for c in baseline_top5:
+                html.append(f"<li>{self._format_top_list_item(c)}</li>")
+        else:
+            html.append("<li>No candidates found.</li>")
+        
+        html.append("</ul></div>")
+
+        # Mean Rev Column
+        html.append("<div class='top-list'>")
+        html.append("<h3>Top 5 Mean Reversion</h3>")
+        html.append("<ul>")
+        html.append("<li class='top-list-header'><span>Symbol</span> <span>Score / ML / Entry</span></li>")
+
+        if meanrev_top5:
+            for c in meanrev_top5:
+                html.append(f"<li>{self._format_top_list_item(c)}</li>")
+        else:
+            html.append("<li>No candidates found.</li>")
+
+        html.append("</ul></div></div>")
+
+        # Candidates Section
+        html.append(f"<h2>Top Candidates ({len(candidates)})</h2>")
+        html.append("<table>")
+        html.append("<tr><th>Symbol</th><th>Exchange</th><th>Strategy</th><th>Score</th><th>Close Price</th><th>Indicators</th></tr>")
+
 
         for cand in candidates:
             score = cand.get('score', 0)
             score_cls = self._get_score_class(score)
             indicators = ", ".join(cand.get('reasons', []))
+            
+            symbol = cand['symbol']
+            url = f"https://finance.yahoo.com/quote/{symbol}"
 
             html.append(f"<tr>")
-            html.append(f"<td><strong>{cand['symbol']}</strong></td>")
+            html.append(f"<td><a href='{url}' target='_blank' class='symbol-link'><strong>{symbol}</strong></a></td>")
             html.append(f"<td><small>{cand.get('exchange', 'Unknown')}</small></td>")
             html.append(f"<td>{cand.get('strategy', 'N/A')}</td>")
             html.append(f"<td class='{score_cls}'>{score:.2f}</td>")
