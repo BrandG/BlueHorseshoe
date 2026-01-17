@@ -47,8 +47,15 @@ def debug_test():
     pass    # pylint: disable=unnecessary-pass
 
 if __name__ == "__main__":
-    logging.basicConfig(filename='/workspaces/BlueHorseshoe/src/logs/blueHorseshoe.log', filemode='w',
-                        level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
+    logging.basicConfig(
+        level=logging.DEBUG, 
+        format='%(asctime)s - %(levelname)s - %(message)s',
+        handlers=[
+            logging.FileHandler('/workspaces/BlueHorseshoe/src/logs/blueHorseshoe.log', mode='w'),
+            logging.StreamHandler(sys.stdout)
+        ],
+        force=True
+    )
     logging.getLogger('pymongo').setLevel(logging.WARNING)
 
     logging.info('Starting BlueHorseshoe at %s...', time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()))
@@ -222,6 +229,7 @@ if __name__ == "__main__":
                 "strategy": "Baseline",
                 "score": s['score'],
                 "close": meta.get('entry_price', 0),
+                "ml_prob": meta.get('ml_win_prob', 0.0),
                 "reasons": [f"{k}={v:.1f}" for k, v in meta.get('components', {}).items() if v != 0]
             })
 
@@ -234,6 +242,7 @@ if __name__ == "__main__":
                 "strategy": "MeanRev",
                 "score": s['score'],
                 "close": meta.get('entry_price', 0),
+                "ml_prob": meta.get('ml_win_prob', 0.0),
                 "reasons": [f"{k}={v:.1f}" for k, v in meta.get('components', {}).items() if v != 0]
             })
 

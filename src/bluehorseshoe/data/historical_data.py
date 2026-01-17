@@ -245,6 +245,43 @@ def process_symbol(row, index, total_symbols, save_to_file, recent):
     name = row['name']
     percentage = round(index/total_symbols*100)
 
+    # OPTIMIZATION: Check if data is already up-to-date in MongoDB
+    try:
+        existing_data = load_historical_data_from_mongo(symbol, get_mongo_client())
+        if existing_data and 'days' in existing_data and existing_data['days']:
+            last_stored_date = existing_data['days'][-1]['date']
+            
+            # Calculate expected last trading day
+            now_ny = pd.Timestamp.now(tz='US/Eastern')
+            # If today is Monday(0)-Friday(4) and time < 16:30 ET, market might be open or closed, 
+            # but daily data usually settles after close. 
+            # Safe bet: If it's before 6 PM ET, expect yesterday's data. If after, expect today's.
+            # Simplified: Just check against the latest "business day" that isn't today if market is open
+            
+            # Using a simpler heuristic:
+            # If today is weekend, last trade day was Friday.
+            # If today is weekday and time < 22:00 UTC (approx market close + buffer), expect yesterday.
+            
+            # Robust logic:
+            today = now_ny.date()
+            if now_ny.hour < 18: # Before 6PM ET, expect previous day
+                target_date = today - pd.Timedelta(days=1)
+            else:
+                target_date = today
+
+            # Adjust for weekends
+            if target_date.weekday() == 5: # Saturday -> Friday
+                target_date -= pd.Timedelta(days=1)
+            elif target_date.weekday() == 6: # Sunday -> Friday
+                target_date -= pd.Timedelta(days=2)
+                
+            if str(target_date) <= last_stored_date:
+                logging.info("Skipping %s: Data up to date (%s)", symbol, last_stored_date)
+                return
+
+    except Exception as e:
+        logging.warning("Optimization check failed for %s: %s. Proceeding to fetch.", symbol, e)
+
     try:
         net_data = load_historical_data_from_net(stock_symbol=symbol, recent=recent)
         if not validate_net_data(net_data, symbol, name):
