@@ -23,6 +23,7 @@ BlueHorseshoe is a quantitative trading and analysis system built in Python. It 
 | `-u` | Update recent historical data (recent symbols). |
 | `-b` | Build/Backfill full historical data for all symbols. |
 | `-p` | Predict potential entry/exit points for the next trading day. |
+| `-r` | Regenerate a report from a specific date's saved scores. |
 | `-t` | Run backtest (requires date: `-t 2025-12-01`). |
 | `-o` | Optimize indicator weights based on historical performance. |
 | `-i` | Check intraday status of a trade (requires yfinance): `-i SYMBOL ENTRY STOP TARGET`. |
@@ -62,6 +63,7 @@ The system implements two primary scoring strategies in `TechnicalAnalyzer`:
 
 ## Developer Notes
 
+- **Data Integrity:** Index ETFs (SPY, QQQ) require a full backfill (`-b --symbols SPY`) to ensure enough data (>200 days) for market regime analysis. The standard update (`-u`) only fetches the most recent 100 data points.
 - **Testing:** Ensure `base_data` fixtures in tests include price volatility to bypass the "Dead Stock" filter.
 - **Reporting:** `ReportSingleton` now prints to console and writes to `src/logs/report.txt`.
 - **Validation:** When adding new technical scoring logic, ensure column presence checks use `Series.index` to avoid value-based subsetting errors.

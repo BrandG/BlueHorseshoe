@@ -66,7 +66,8 @@ class HTMLReporter:
             f"<h1>BlueHorseshoe Daily Report <small style='font-size:0.5em; color:#777'>{date}</small></h1>",
 
             # Market Regime Section
-            "<h2>Market Regime</h2>",
+            "<details>",
+            f"<summary style='cursor:pointer'><h2>Market Regime: {self._get_regime_badge(regime.get('status', 'Unknown'))}</h2></summary>",
             "<table>",
             "<tr><th>Status</th><th>SPY Price</th><th>SPY MA50</th><th>SPY MA200</th></tr>",
             f"<tr><td>{self._get_regime_badge(regime.get('status', 'Unknown'))}</td>",
@@ -75,6 +76,7 @@ class HTMLReporter:
             f"<td>{regime.get('spy_ma200', 'N/A')}</td></tr>",
             "</table>",
             f"<p><strong>Commentary:</strong> {regime.get('commentary', 'No commentary available.')}</p>",
+            "</details>",
 
             # Candidates Section
             f"<h2>Top Candidates ({len(candidates)})</h2>",

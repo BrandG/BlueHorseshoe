@@ -94,7 +94,16 @@ if __name__ == "__main__":
             logging.info("Market data not ready. Waiting 1 hour...")
             time.sleep(3600)
 
-        build_all_symbols_history(BackfillConfig(recent=True))
+        symbols_filter = None
+        if "--symbols" in sys.argv:
+            try:
+                symbols_str = sys.argv[sys.argv.index("--symbols") + 1]
+                # The symbol list needs to be in the format [{'symbol': 'SPY', 'name': 'SPDR S&P 500 ETF Trust'}, ...]
+                symbols_filter = [{'symbol': s.strip(), 'name': ''} for s in symbols_str.split(',')]
+            except (ValueError, IndexError):
+                pass # Will default to all symbols
+
+        build_all_symbols_history(BackfillConfig(recent=True, symbols=symbols_filter))
         logging.info("Recent historical data updated.")
     elif "-b" in sys.argv:
         resume = "--resume" in sys.argv
@@ -104,7 +113,15 @@ if __name__ == "__main__":
                 limit = int(sys.argv[sys.argv.index("--limit") + 1])
             except (ValueError, IndexError):
                 pass
-        build_all_symbols_history(BackfillConfig(recent=False, resume=resume, limit=limit))
+        symbols_filter = None
+        if "--symbols" in sys.argv:
+            try:
+                symbols_str = sys.argv[sys.argv.index("--symbols") + 1]
+                symbols_filter = [{'symbol': s.strip(), 'name': ''} for s in symbols_str.split(',')]
+            except (ValueError, IndexError):
+                pass
+        
+        build_all_symbols_history(BackfillConfig(recent=False, resume=resume, limit=limit, symbols=symbols_filter))
         logging.info("Full historical data updated.")
     elif "-p" in sys.argv:
         logging.info('Predicting next midpoints...')
@@ -136,16 +153,105 @@ if __name__ == "__main__":
 
         # Generate HTML Report
         if report_data:
+            # Flatten the regime data for the reporter
+            regime_for_html = report_data.get('regime', {})
+            spy_details = regime_for_html.get('details', {}).get('SPY', {})
+            regime_for_html['spy_price'] = spy_details.get('close', 'N/A')
+            regime_for_html['spy_ma50'] = spy_details.get('ema50', 'N/A')
+            regime_for_html['spy_ma200'] = spy_details.get('ema200', 'N/A')
+            
             reporter = HTMLReporter()
             html_content = reporter.generate_report(
                 date=target_date,
-                regime=report_data.get('regime', {}),
+                regime=regime_for_html,
                 candidates=report_data.get('candidates', []),
                 charts=report_data.get('charts', [])
             )
             saved_path = reporter.save(html_content, filename=f"report_{target_date}.html")
             logging.info("HTML Report saved to %s", saved_path)
             print(f"HTML Report generated: {saved_path}")
+    elif "-r" in sys.argv:
+        # Generate Report from saved scores
+        target_date = None
+        try:
+            r_idx = sys.argv.index("-r")
+            if len(sys.argv) > r_idx + 1 and not sys.argv[r_idx+1].startswith("-"):
+                target_date = sys.argv[r_idx + 1]
+        except (ValueError, IndexError):
+            pass
+
+        if not target_date:
+            target_date = get_latest_market_date()
+            logging.info("No date provided for -r, defaulting to latest: %s", target_date)
+
+        logging.info("Regenerating report for %s...", target_date)
+
+        # 1. Market Regime
+        from bluehorseshoe.analysis.market_regime import MarketRegime
+        market_health = MarketRegime.get_market_health(target_date=target_date)
+        
+        # Flatten the regime details for the reporter
+        spy_details = market_health.get('details', {}).get('SPY', {})
+        market_health['spy_price'] = spy_details.get('close', 'N/A')
+        market_health['spy_ma50'] = spy_details.get('ema50', 'N/A')
+        market_health['spy_ma200'] = spy_details.get('ema200', 'N/A')
+
+        # 2. Fetch Scores
+        from bluehorseshoe.core.scores import score_manager
+        baseline_scores = score_manager.get_scores(target_date, strategy="baseline")
+        mr_scores = score_manager.get_scores(target_date, strategy="mean_reversion")
+
+        if not baseline_scores and not mr_scores:
+            print(f"No scores found for {target_date}. Please run prediction first (-p).")
+            sys.exit(0)
+
+        # 3. Build Symbol Map (for exchange info)
+        from bluehorseshoe.core.symbols import get_symbols_from_mongo
+        all_symbols = get_symbols_from_mongo()
+        symbol_map = {s['symbol']: s.get('exchange', 'Unknown') for s in all_symbols}
+
+        # 4. Construct Candidates
+        candidates = []
+
+        # Process Baseline
+        for s in baseline_scores:
+            meta = s.get('metadata', {})
+            candidates.append({
+                "symbol": s['symbol'],
+                "exchange": symbol_map.get(s['symbol'], 'Unknown'),
+                "strategy": "Baseline",
+                "score": s['score'],
+                "close": meta.get('entry_price', 0),
+                "reasons": [f"{k}={v:.1f}" for k, v in meta.get('components', {}).items() if v != 0]
+            })
+
+        # Process Mean Reversion
+        for s in mr_scores:
+            meta = s.get('metadata', {})
+            candidates.append({
+                "symbol": s['symbol'],
+                "exchange": symbol_map.get(s['symbol'], 'Unknown'),
+                "strategy": "MeanRev",
+                "score": s['score'],
+                "close": meta.get('entry_price', 0),
+                "reasons": [f"{k}={v:.1f}" for k, v in meta.get('components', {}).items() if v != 0]
+            })
+
+        # Sort and Limit
+        candidates.sort(key=lambda x: x['score'], reverse=True)
+        top_candidates = candidates[:50]
+
+        # 5. Generate Report
+        reporter = HTMLReporter()
+        html_content = reporter.generate_report(
+            date=target_date,
+            regime=market_health,
+            candidates=top_candidates,
+            charts=[]
+        )
+        saved_path = reporter.save(html_content, filename=f"report_{target_date}.html")
+        logging.info("HTML Report regenerated at %s", saved_path)
+        print(f"HTML Report regenerated: {saved_path}")
     elif "-t" in sys.argv:
         try:
             test_idx = sys.argv.index("-t")

@@ -16,4 +16,5 @@
 2026-01-16: Verified logging configuration. Confirmed src/logs/blueHorseshoe.log is writable and cleared stale content. Daily Scheduler is ready to take over data updates.
 2026-01-16: Relaxed Market Regime constraint. Modified `SwingTrader` to allow "Baseline" (Trend) candidates even in Bearish markets, treating regime as a warning rather than a blocker. Verified with new test case.
 2026-01-16: Validated Mean Reversion Strategy. Backtest (Oct 2025 - Jan 2026) showed 53% win rate and +6.57% Avg PnL (vs 0 trades for baseline). Confirmed efficacy in volatile/choppy markets.
-2026-01-16 (Session Shutdown): Verified stability (All tests passed). Synced progress.
+2026-01-16: Updated HTML Report Layout. Made "Market Regime" section collapsible with dynamic status header to improve report readability.
+2026-01-17 (Session Shutdown): Enhanced HTML report with collapsible Market Regime section (defaulting to closed). Implemented `-r` flag to regenerate reports from stored scores, decoupling reporting from prediction. Fixed a critical data bug where insufficient SPY/QQQ history (100 days) caused market regime analysis to fail; implemented targeted full backfill (`-b --symbols`) and corrected CLI argument parsing. Verified stability (all tests pass, linting clean).
