@@ -118,7 +118,7 @@ class Backtester:
             return
 
         # Time Exit
-        days_in_trade = (row['date'] - future_data.iloc[state.entry_idx]['date']).days
+        days_in_trade = i - state.entry_idx
         if days_in_trade >= self.hold_days:
             state.status = 'time_exit'
             state.exit_price = row['close']
@@ -190,7 +190,7 @@ class Backtester:
             'entry': state.actual_entry,
             'exit_price': state.exit_price,
             'exit_date': state.exit_date,
-            'days_held': (state.exit_date - future_data.iloc[state.entry_idx]['date']).days if state.exit_date and state.entry_idx != -1 else 0
+            'days_held': (i - state.entry_idx) if state.entry_idx != -1 else 0
         }
 
     def _print_backtest_header(self, target_date: str, options: BacktestOptions) -> None:
