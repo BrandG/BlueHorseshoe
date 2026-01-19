@@ -198,6 +198,7 @@ class MomentumIndicator(Indicator):
             float:
             • 2 if Williams %R < -80 (Oversold)
             • 1 if Williams %R < -50
+            • -1 if Williams %R > -20 (Overbought)
             • 0 otherwise
         """
         if len(self.days) < 14:
@@ -220,8 +221,8 @@ class MomentumIndicator(Indicator):
              return 0.0
 
         return np.select(
-            [wr_val < -80, wr_val < -50],
-            [2, 1],
+            [wr_val < -80, wr_val < -50, wr_val > -20],
+            [2, 1, -1],
             default=0
         ).item()
 
