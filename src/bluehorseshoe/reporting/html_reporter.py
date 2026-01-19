@@ -3,8 +3,13 @@ HTML Reporter module for BlueHorseshoe.
 Generates a styled HTML report from trading signals and market data.
 """
 import os
+import io
+import base64
+import pandas as pd
+import mplfinance as mpf
 from datetime import datetime
 from typing import List, Dict, Any
+from bluehorseshoe.data.historical_data import load_historical_data
 
 class HTMLReporter:
     """
@@ -73,15 +78,22 @@ class HTMLReporter:
             .top-list { flex: 1; background: var(--container-bg); border: 1px solid var(--border-color); border-radius: 8px; padding: 15px; box-shadow: 0 2px 4px var(--card-shadow); }
             .top-list h3 { border-bottom: 2px solid var(--border-color); margin-top: 0; padding-bottom: 10px; color: var(--heading-color); font-size: 1.2em; }
             .top-list ul { list-style: none; padding: 0; margin: 0; }
-            .top-list li { padding: 8px 0; border-bottom: 1px solid var(--border-color); font-family: 'Consolas', 'Monaco', monospace; font-size: 0.95em; display: flex; justify-content: space-between; }
+            .top-list li { padding: 8px 0; border-bottom: 1px solid var(--border-color); font-family: 'Consolas', 'Monaco', monospace; font-size: 0.95em; }
             .top-list li:last-child { border-bottom: none; }
-            .top-list-header { font-weight: bold; color: var(--secondary-text); font-size: 0.8em; text-transform: uppercase; border-bottom: 2px solid var(--border-color) !important; padding-bottom: 5px !important; margin-bottom: 5px; }
+            .top-list-header { font-weight: bold; color: var(--secondary-text); font-size: 0.8em; text-transform: uppercase; border-bottom: 2px solid var(--border-color) !important; padding-bottom: 5px !important; margin-bottom: 5px; display: flex; justify-content: space-between; }
             .symbol-link { text-decoration: none; color: var(--link-color); transition: color 0.2s; }
             .symbol-link:hover { color: var(--link-hover); text-decoration: underline; }
             
             /* Toggle Button */
             .theme-toggle { position: fixed; top: 20px; right: 20px; padding: 10px 15px; background: var(--table-header-bg); color: var(--table-header-text); border: none; border-radius: 5px; cursor: pointer; font-weight: bold; box-shadow: 0 2px 5px rgba(0,0,0,0.2); z-index: 1000; }
             .theme-toggle:hover { opacity: 0.9; }
+
+            /* Collapsible Styles */
+            details { width: 100%; }
+            summary { cursor: pointer; display: flex; justify-content: space-between; outline: none; list-style: none; }
+            summary::-webkit-details-marker { display: none; }
+            .summary-content { display: flex; justify-content: space-between; width: 100%; align-items: center; }
+            .sparkline-container { text-align: center; padding: 10px; background: var(--bg-color); margin-top: 5px; border-radius: 4px; }
         </style>
         <script>
             function toggleTheme() {
@@ -117,6 +129,41 @@ class HTMLReporter:
             return "score-med"
         return "score-low"
     
+    def _generate_sparkline(self, symbol: str) -> str:
+        """
+        Generates a base64 encoded candlestick chart for the last 10 trading days.
+        """
+        try:
+            data = load_historical_data(symbol)
+            if not data or 'days' not in data:
+                return ""
+            
+            df = pd.DataFrame(data['days'])
+            if df.empty:
+                return ""
+                
+            df['date'] = pd.to_datetime(df['date'])
+            df = df.set_index('date')
+            df = df.tail(10) # Last 10 days
+            
+            # Create buffer
+            buf = io.BytesIO()
+            
+            # Plot
+            # Minimalist style
+            s = mpf.make_mpf_style(base_mpf_style='charles', rc={'font.size': 8})
+            
+            mpf.plot(df, type='candle', style=s, volume=False, 
+                     savefig=dict(fname=buf, dpi=72, bbox_inches='tight', pad_inches=0.1),
+                     figsize=(4, 2), axisoff=True)
+            
+            buf.seek(0)
+            img_str = base64.b64encode(buf.read()).decode('utf-8')
+            return f"data:image/png;base64,{img_str}"
+        except Exception as e:
+            print(f"Error generating chart for {symbol}: {e}")
+            return ""
+
     def _format_top_list_item(self, c: Dict[str, Any]) -> str:
         # Format: <<SYMBOL>>:<<EXCHANGE>> <<TECH SCORE>> <<ML ATTITUDE>> <<ENTRY PRICE>>
         # ML Attitude derived from probability
@@ -126,7 +173,14 @@ class HTMLReporter:
         symbol = c['symbol']
         url = f"https://finance.yahoo.com/quote/{symbol}"
         
-        return f"<span><a href='{url}' target='_blank' class='symbol-link'><b>{symbol}</b></a>:<small>{c.get('exchange','UNK')}</small></span> <span><b>{c['score']:.1f}</b> <span style='color:#777'>{attitude}</span> <b>${c['close']:.2f}</b></span>"
+        summary_html = f"<div class='summary-content'><span><a href='{url}' target='_blank' class='symbol-link'><b>{symbol}</b></a>:<small>{c.get('exchange','UNK')}</small></span> <span><b>{c['score']:.1f}</b> <span style='color:#777'>{attitude}</span> <b>${c['close']:.2f}</b></span></div>"
+        
+        chart_html = ""
+        if 'chart_b64' in c and c['chart_b64']:
+            chart_html = f"<div class='sparkline-container'><img src='{c['chart_b64']}' alt='{symbol} chart' /></div>"
+            
+        return f"<details><summary>{summary_html}</summary>{chart_html}</details>"
+
 
     def generate_report(self, date: str, regime: Dict[str, Any], candidates: List[Dict[str, Any]], charts: List[str]) -> str:
         """
@@ -135,6 +189,13 @@ class HTMLReporter:
         # Filter Top 5 for each strategy
         baseline_top5 = sorted([c for c in candidates if c.get('strategy') == 'Baseline'], key=lambda x: x.get('score', 0), reverse=True)[:5]
         meanrev_top5 = sorted([c for c in candidates if c.get('strategy') == 'MeanRev'], key=lambda x: x.get('score', 0), reverse=True)[:5]
+
+        # Generate Sparklines
+        for c in baseline_top5:
+            c['chart_b64'] = self._generate_sparkline(c['symbol'])
+            
+        for c in meanrev_top5:
+            c['chart_b64'] = self._generate_sparkline(c['symbol'])
 
         html = [
             "<!DOCTYPE html>",

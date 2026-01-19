@@ -31,7 +31,9 @@ from ta.volatility import AverageTrueRange
 from bluehorseshoe.analysis.constants import (
     MIN_STOCK_PRICE, MAX_STOCK_PRICE,
     ATR_WINDOW,
-    MIN_RR_RATIO, REQUIRE_WEEKLY_UPTREND
+    MIN_RR_RATIO_BASELINE, MIN_RR_RATIO_MEAN_REVERSION,
+    MAX_RISK_PERCENT,
+    REQUIRE_WEEKLY_UPTREND
 )
 
 from bluehorseshoe.analysis.market_regime import MarketRegime
@@ -151,12 +153,12 @@ class SwingTrader:
         rr_ratio = reward / risk if risk > 0 else 0
 
         # Smart Stop Logic: If structural stop is too wide (killing RR), try ATR stop
-        if rr_ratio < MIN_RR_RATIO and stop_loss == swing_stop:
+        if rr_ratio < MIN_RR_RATIO_BASELINE and stop_loss == swing_stop:
             # Check if tightening to ATR stop saves the trade
             risk_atr = entry_price - atr_stop
             rr_atr = reward / risk_atr if risk_atr > 0 else 0
             
-            if rr_atr >= MIN_RR_RATIO:
+            if rr_atr >= MIN_RR_RATIO_BASELINE:
                 stop_loss = atr_stop
                 rr_ratio = rr_atr
                 # print(f"DEBUG: {last_row.get('symbol')} Tightened stop to ATR to save RR ({rr_ratio:.2f})")
@@ -171,6 +173,7 @@ class SwingTrader:
 
         # 6. Quality Check & Return
         avg_volume = last_row.get('avg_volume_20', 1)
+        risk_pct = (entry_price - stop_loss) / entry_price if entry_price > 0 else 0
 
         return {
             'entry_price': float(entry_price),
@@ -178,7 +181,7 @@ class SwingTrader:
             'take_profit': float(take_profit),
             'rr_ratio': float(rr_ratio),
             'vol_ratio': float(last_row['volume'] / avg_volume if avg_volume > 0 else 0),
-            'is_realistic': abs((last_close / entry_price) - 1) <= 0.15
+            'is_realistic': (abs((last_close / entry_price) - 1) <= 0.15) and (risk_pct <= MAX_RISK_PERCENT)
         }
 
     def calculate_mean_reversion_setup(self, df: pd.DataFrame, ml_stop_multiplier: float = 1.5) -> Dict[str, float]:
@@ -219,6 +222,7 @@ class SwingTrader:
         reward = take_profit - entry_price
         risk = entry_price - stop_loss
         rr_ratio = reward / risk if risk > 0 else 0
+        risk_pct = risk / entry_price if entry_price > 0 else 0
 
         return {
             'entry_price': float(entry_price),
@@ -226,7 +230,7 @@ class SwingTrader:
             'take_profit': float(take_profit),
             'rr_ratio': float(rr_ratio),
             'vol_ratio': last_row['volume'] / last_row.get('avg_volume_20', 1) if last_row.get('avg_volume_20', 0) > 0 else 0,
-            'is_realistic': True
+            'is_realistic': risk_pct <= MAX_RISK_PERCENT
         }
 
     def calculate_relative_strength(self, df: pd.DataFrame, benchmark_df: pd.DataFrame, lookback: int = 63) -> float:
@@ -286,9 +290,16 @@ class SwingTrader:
         # if ctx.market_health and ctx.market_health['status'] == 'Bearish':
         #    return None
 
+        # Dynamic Regime Filtering:
+        # In Bear/Neutral markets, we MUST have a Weekly Uptrend to avoid "bull traps".
+        # In strong Bull markets, we can relax this to capture early reversals or strong daily momentum.
+        should_enforce_weekly = REQUIRE_WEEKLY_UPTREND
+        if ctx.market_health and ctx.market_health['status'] == 'Bullish':
+            should_enforce_weekly = False
+
         is_uptrend = self.is_weekly_uptrend(df)
-        if REQUIRE_WEEKLY_UPTREND and not is_uptrend:
-            print(f"DEBUG: {symbol} - Baseline failed weekly uptrend")
+        if should_enforce_weekly and not is_uptrend:
+            # print(f"DEBUG: {symbol} - Baseline failed weekly uptrend")
             return None
 
         score_components = self.technical_analyzer.calculate_baseline_score(
@@ -300,7 +311,7 @@ class SwingTrader:
         ml_stop_multiplier = 2.0
         baseline_setup = self.calculate_baseline_setup(df, ml_stop_multiplier=ml_stop_multiplier)
 
-        if not baseline_setup['is_realistic'] or baseline_setup['rr_ratio'] < MIN_RR_RATIO:
+        if not baseline_setup['is_realistic'] or baseline_setup['rr_ratio'] < MIN_RR_RATIO_BASELINE:
             print(f"DEBUG: {symbol} - Baseline failed setup checks: realistic={baseline_setup['is_realistic']}, rr={baseline_setup['rr_ratio']}")
             return None
 
@@ -354,7 +365,7 @@ class SwingTrader:
         )
 
         mr_setup = self.calculate_mean_reversion_setup(df, ml_stop_multiplier=ml_stop_multiplier_mr)
-        if mr_setup['rr_ratio'] < MIN_RR_RATIO:
+        if not mr_setup['is_realistic'] or mr_setup['rr_ratio'] < MIN_RR_RATIO_MEAN_REVERSION:
             return None
 
         entry_price = mr_setup['entry_price']

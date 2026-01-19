@@ -17,3 +17,4 @@ src/logs/test.log
 src/logs/fail_script.log
 docker/.env
 src/logs/*.log
+src/logs/*.html

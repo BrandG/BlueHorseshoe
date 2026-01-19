@@ -5,8 +5,8 @@
         "ICHIMOKU_MULTIPLIER": 1.0,
         "PSAR_MULTIPLIER": 1.0,
         "HEIKEN_ASHI_MULTIPLIER": 0.5,
-        "DONCHIAN_MULTIPLIER": 1.0,
-        "SUPERTREND_MULTIPLIER": 1.0
+        "DONCHIAN_MULTIPLIER": 0.5,
+        "SUPERTREND_MULTIPLIER": 0.5
     },
     "momentum": {
         "RSI_MULTIPLIER": 0.0,
@@ -14,15 +14,15 @@
         "MACD_MULTIPLIER": 1.5,
         "MACD_SIGNAL_MULTIPLIER": 0.15,
         "BB_MULTIPLIER": 0.5,
-        "WILLIAMS_R_MULTIPLIER": 1.0,
-        "CCI_MULTIPLIER": 1.0
+        "WILLIAMS_R_MULTIPLIER": 0.5,
+        "CCI_MULTIPLIER": 0.5
     },
     "volume": {
         "OBV_MULTIPLIER": 1.0,
         "CMF_MULTIPLIER": 1.0,
         "ATR_BAND_MULTIPLIER": 0.5,
         "ATR_SPIKE_MULTIPLIER": 0.5,
-        "MFI_MULTIPLIER": 1.0
+        "MFI_MULTIPLIER": 0.5
     },
         "candlestick": {
             "RISE_FALL_3_METHODS_MULTIPLIER": 1.0,
