@@ -276,7 +276,7 @@ class Backtester:
 
             msg = f"{pred['symbol']} (Score: {score_val:.2f} | ML: {ml_prob*100:.1f}%): {eval_result['status']}"
             if eval_result.get('entry') is not None:
-                msg += f" | PnL: {pnl:.2f}% (Held: {eval_result['days_held']} days)"
+                msg += f" | PnL: {pnl:.2f}% (Entry: {eval_result['entry']:.2f}, Exit: {eval_result['exit_price']:.2f}, Held: {eval_result['days_held']} days)"
             ReportSingleton().write(msg)
         return results
 
