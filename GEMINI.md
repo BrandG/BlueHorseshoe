@@ -1,5 +1,11 @@
 # BlueHorseshoe - Project Guidelines
 
+## Agent Interaction & Behavioral Rules
+- **Proactive Suggestions:** Be bold and creative with technical suggestions and strategy improvements.
+- **No Unapproved Initiative:** Do not execute large-scale changes or start complex new implementations without explicit user approval. As the user says: "If I ask what time it is, do not start building a clock."
+- **Git Operations:** **CRITICAL:** Never perform Git actions (`add`, `commit`, `push`, etc.) without explicit user confirmation for each step.
+- **Communication:** Keep technical explanations concise and CLI-focused.
+
 ## Overview
 BlueHorseshoe is a quantitative trading and analysis system built in Python. It focuses on swing-trading strategies using technical indicators, backtesting historical data, and generating predictive reports.
 
