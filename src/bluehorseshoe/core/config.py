@@ -20,7 +20,8 @@ DEFAULT_WEIGHTS = {
         'ROC_MULTIPLIER': 1.0,
         'MACD_MULTIPLIER': 1.0,
         'MACD_SIGNAL_MULTIPLIER': 0.15,
-        'BB_MULTIPLIER': 1.0
+        'BB_MULTIPLIER': 1.0,
+        'WILLIAMS_R_MULTIPLIER': 1.0
     },
     'volume': {
         'OBV_MULTIPLIER': 1.0,

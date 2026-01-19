@@ -12,12 +12,14 @@ Constants:
     self.weights['MACD_MULTIPLIER'] (float): Multiplier for the MACD score.
     self.weights['MACD_SIGNAL_MULTIPLIER'] (float): Multiplier for the MACD signal score.
     self.weights['BB_MULTIPLIER'] (float): Multiplier for the Bollinger Bands position score.
+    self.weights['WILLIAMS_R_MULTIPLIER'] (float): Multiplier for the Williams %R score.
 Methods:
     __init__(data: pd.DataFrame):
     calculate_rsi() -> float:
     calculate_roc() -> float:
     calculate_macd() -> float:
     calculate_bb_position() -> float:
+    calculate_williams_r() -> float:
     get_score() -> IndicatorScore:
     graph():
 """
@@ -25,6 +27,7 @@ Methods:
 from typing import Optional
 import numpy as np
 import pandas as pd
+from ta.momentum import WilliamsRIndicator # pylint: disable=import-error
 
 from bluehorseshoe.analysis.indicators.indicator import Indicator, IndicatorScore
 from bluehorseshoe.core.config import weights_config
@@ -183,6 +186,45 @@ class MomentumIndicator(Indicator):
             ).item()
         return 0
 
+    def calculate_williams_r(self) -> float:
+        """
+        Calculate Williams %R score.
+
+        Williams %R ranges from -100 to 0.
+        • -80 to -100 is considered Oversold.
+        • -20 to 0 is considered Overbought.
+
+        Returns:
+            float:
+            • 2 if Williams %R < -80 (Oversold)
+            • 1 if Williams %R < -50
+            • 0 otherwise
+        """
+        if len(self.days) < 14:
+            return 0.0
+
+        wr = WilliamsRIndicator(
+            high=self.days['high'],
+            low=self.days['low'],
+            close=self.days['close'],
+            lbp=14
+        )
+        wr_values = wr.williams_r()
+        
+        if wr_values.empty:
+            return 0.0
+            
+        wr_val = wr_values.iloc[-1]
+        
+        if pd.isna(wr_val):
+             return 0.0
+
+        return np.select(
+            [wr_val < -80, wr_val < -50],
+            [2, 1],
+            default=0
+        ).item()
+
     def get_score(self, enabled_sub_indicators: Optional[list[str]] = None, aggregation: str = "sum") -> IndicatorScore:
         buy_score = 1.0 if aggregation == "product" else 0.0
         active_count = 0
@@ -192,7 +234,8 @@ class MomentumIndicator(Indicator):
             'macd': (self.calculate_macd, 'MACD_MULTIPLIER'),
             'roc': (self.calculate_roc, 'ROC_MULTIPLIER'),
             'rsi': (self.calculate_rsi, 'RSI_MULTIPLIER'),
-            'bb_position': (self.calculate_bb_position, 'BB_MULTIPLIER')
+            'bb_position': (self.calculate_bb_position, 'BB_MULTIPLIER'),
+            'williams_r': (self.calculate_williams_r, 'WILLIAMS_R_MULTIPLIER')
         }
 
         for name, (func, weight_key) in sub_map.items():
