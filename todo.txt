@@ -9,7 +9,12 @@
 - [x] **Formalize Mean Reversion:** Update `TechnicalAnalyzer` to explicitly reward oversold conditions (RSI < 30, Price < Lower BB).
 - [x] **Optimize Entry Timing:** COMPLETED. Implemented ATR-based limit entry (`Close - 0.2 * ATR`). Experiment showed ~4x PnL improvement over Market entry.
 - [x] **Comparative Backtest:** Run strict comparison: Baseline (Trend) vs. Mean Reversion over 6-month window.
-- [ ] **Indicator Expansion:** Implement Williams %R, MFI, CCI, Donchian Channels, and SuperTrend.
+- [ ] **Indicator Expansion:**
+    - [x] Williams %R
+    - [x] Money Flow Index (MFI)
+    - [x] Commodity Channel Index (CCI)
+    - [x] Donchian Channels
+    - [x] SuperTrend
 
 ## Phase 4: SaaS Transformation & Automation
 - [x] **Web Interface:** Migrate from CLI-only to FastAPI/Uvicorn architecture.

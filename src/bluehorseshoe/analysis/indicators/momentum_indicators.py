@@ -13,6 +13,7 @@ Constants:
     self.weights['MACD_SIGNAL_MULTIPLIER'] (float): Multiplier for the MACD signal score.
     self.weights['BB_MULTIPLIER'] (float): Multiplier for the Bollinger Bands position score.
     self.weights['WILLIAMS_R_MULTIPLIER'] (float): Multiplier for the Williams %R score.
+    self.weights['CCI_MULTIPLIER'] (float): Multiplier for the CCI score.
 Methods:
     __init__(data: pd.DataFrame):
     calculate_rsi() -> float:
@@ -20,6 +21,7 @@ Methods:
     calculate_macd() -> float:
     calculate_bb_position() -> float:
     calculate_williams_r() -> float:
+    calculate_cci() -> float:
     get_score() -> IndicatorScore:
     graph():
 """
@@ -28,6 +30,7 @@ from typing import Optional
 import numpy as np
 import pandas as pd
 from ta.momentum import WilliamsRIndicator # pylint: disable=import-error
+from ta.trend import CCIIndicator # pylint: disable=import-error
 
 from bluehorseshoe.analysis.indicators.indicator import Indicator, IndicatorScore
 from bluehorseshoe.core.config import weights_config
@@ -226,6 +229,46 @@ class MomentumIndicator(Indicator):
             default=0
         ).item()
 
+    def calculate_cci(self, window: int = 20) -> float:
+        """
+        Calculate Commodity Channel Index (CCI) score.
+        
+        • Oversold < -100 (Bullish)
+        • Overbought > 100 (Bearish)
+        
+        Returns:
+            float:
+            • 3 if CCI < -200 (Extreme Oversold)
+            • 2 if CCI < -100 (Oversold)
+            • -2 if CCI > 200 (Extreme Overbought)
+            • -1 if CCI > 100 (Overbought)
+            • 0 otherwise
+        """
+        if len(self.days) < window:
+             return 0.0
+
+        cci = CCIIndicator(
+            high=self.days['high'],
+            low=self.days['low'],
+            close=self.days['close'],
+            window=window
+        )
+        cci_values = cci.cci()
+        
+        if cci_values.empty:
+            return 0.0
+            
+        cci_val = cci_values.iloc[-1]
+        
+        if pd.isna(cci_val):
+            return 0.0
+            
+        return np.select(
+            [cci_val < -200, cci_val < -100, cci_val > 200, cci_val > 100],
+            [3, 2, -2, -1],
+            default=0
+        ).item()
+
     def get_score(self, enabled_sub_indicators: Optional[list[str]] = None, aggregation: str = "sum") -> IndicatorScore:
         buy_score = 1.0 if aggregation == "product" else 0.0
         active_count = 0
@@ -236,7 +279,8 @@ class MomentumIndicator(Indicator):
             'roc': (self.calculate_roc, 'ROC_MULTIPLIER'),
             'rsi': (self.calculate_rsi, 'RSI_MULTIPLIER'),
             'bb_position': (self.calculate_bb_position, 'BB_MULTIPLIER'),
-            'williams_r': (self.calculate_williams_r, 'WILLIAMS_R_MULTIPLIER')
+            'williams_r': (self.calculate_williams_r, 'WILLIAMS_R_MULTIPLIER'),
+            'cci': (self.calculate_cci, 'CCI_MULTIPLIER')
         }
 
         for name, (func, weight_key) in sub_map.items():

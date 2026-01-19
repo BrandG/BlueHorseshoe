@@ -9,6 +9,7 @@ Constants:
     self.weights['CMF_MULTIPLIER'] (float): Multiplier for the Chaikin Money Flow (CMF) score.
     self.weights['ATR_BAND_MULTIPLIER'] (float): Multiplier for the Average True Range (ATR) band score.
     self.weights['ATR_SPIKE_MULTIPLIER'] (float): Multiplier for the ATR spike score.
+    self.weights['MFI_MULTIPLIER'] (float): Multiplier for the Money Flow Index (MFI) score.
     DEFAULT_WINDOW (int): Default window size for calculations.
 
 Methods:
@@ -24,12 +25,14 @@ Methods:
 
     score_obv_trend(self, window: int = 5) -> float:
 
+    calculate_mfi(self, window: int = 14) -> float:
+
     calculate_score(self) -> float:
 """
 from typing import Optional
 import numpy as np
 import pandas as pd
-from ta.volume import OnBalanceVolumeIndicator, ChaikinMoneyFlowIndicator #pylint: disable=import-error
+from ta.volume import OnBalanceVolumeIndicator, ChaikinMoneyFlowIndicator, MFIIndicator #pylint: disable=import-error
 from ta.volatility import AverageTrueRange # pylint: disable=import-error
 
 from bluehorseshoe.analysis.indicators.indicator import Indicator, IndicatorScore
@@ -162,6 +165,45 @@ class VolumeIndicator(Indicator):
 
         return float(np.select([obv_diff > 0, obv_diff < 0], [1, -1], default=0))
 
+    def calculate_mfi(self, window: int = 14) -> float:
+        """
+        Calculate Money Flow Index (MFI) using the 'ta' library.
+        Oversold < 20 (Bullish).
+        Overbought > 80 (Bearish).
+
+        Returns:
+            float:
+            • 2 if MFI < 20 (Oversold)
+            • 1 if MFI < 30
+            • -1 if MFI > 80 (Overbought)
+            • 0 otherwise
+        """
+        if len(self.days) < window:
+             return 0.0
+             
+        mfi = MFIIndicator(
+            high=self.days['high'],
+            low=self.days['low'],
+            close=self.days['close'],
+            volume=self.days['volume'],
+            window=window
+        )
+        mfi_values = mfi.money_flow_index()
+        
+        if mfi_values.empty:
+            return 0.0
+            
+        mfi_val = mfi_values.iloc[-1]
+        
+        if pd.isna(mfi_val):
+            return 0.0
+            
+        return np.select(
+            [mfi_val < 20, mfi_val < 30, mfi_val > 80],
+            [2, 1, -1],
+            default=0
+        ).item()
+
     def get_score(self, enabled_sub_indicators: Optional[list[str]] = None, aggregation: str = "sum") -> IndicatorScore:
         """
         Returns a score based on the volume indicators.
@@ -174,7 +216,8 @@ class VolumeIndicator(Indicator):
             'cmf': (self.calculate_cmf_with_ta, 'CMF_MULTIPLIER'),
             'atr_band': (self.score_atr_band, 'ATR_BAND_MULTIPLIER'),
             'atr_spike': (self.score_atr_spike, 'ATR_SPIKE_MULTIPLIER'),
-            'avg_volume': (self.calculate_avg_volume, None)
+            'avg_volume': (self.calculate_avg_volume, None),
+            'mfi': (self.calculate_mfi, 'MFI_MULTIPLIER')
         }
 
         for name, (func, weight_key) in sub_map.items():

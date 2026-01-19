@@ -269,9 +269,14 @@ class Backtester:
                 pnl = ((eval_result['exit_price'] / eval_result['entry']) - 1) * 100
 
             score_val = pred.get(score_key, 0.0)
-            msg = f"{pred['symbol']} (Score: {score_val:.2f}): {eval_result['status']}"
+            
+            # Determine ML Probability key based on strategy
+            ml_prob_key = "baseline_ml_prob" if options.strategy == "baseline" else "mr_ml_prob"
+            ml_prob = pred.get(ml_prob_key, 0.0)
+
+            msg = f"{pred['symbol']} (Score: {score_val:.2f} | ML: {ml_prob*100:.1f}%): {eval_result['status']}"
             if eval_result.get('entry') is not None:
-                msg += f" | PnL: {pnl:.2f}%"
+                msg += f" | PnL: {pnl:.2f}% (Held: {eval_result['days_held']} days)"
             ReportSingleton().write(msg)
         return results
 

@@ -12,6 +12,9 @@ Constants:
     self.weights['ICHIMOKU_MULTIPLIER'] (float): Multiplier for the Ichimoku Cloud score.
     self.weights['PSAR_MULTIPLIER'] (float): Multiplier for the Parabolic SAR score.
     self.weights['HEIKEN_ASHI_MULTIPLIER'] (float): Multiplier for the Heiken Ashi score.
+    self.weights['ADX_MULTIPLIER'] (float): Multiplier for the ADX score.
+    self.weights['DONCHIAN_MULTIPLIER'] (float): Multiplier for the Donchian Channel score.
+    self.weights['SUPERTREND_MULTIPLIER'] (float): Multiplier for the SuperTrend score.
     REQUIRED_COLUMNS (set): Set of required columns in the input DataFrame.
 Methods:
     __init__(self, data: pd.DataFrame): Initializes the TrendIndicator with the given data.
@@ -20,6 +23,8 @@ Methods:
     calculate_ichimoku(df): Calculates Ichimoku indicator lines and adds them to the DataFrame.
     calculate_ichimoku_score(self, days: pd.DataFrame) -> float: Calculates the Ichimoku-based score.
     calculate_heiken_ashi(self, days) -> float: Computes Heiken Ashi candles and calculates the score.
+    calculate_donchian(self, window: int = 20) -> float: Calculates the Donchian Channel score.
+    calculate_supertrend(self, period: int = 10, multiplier: float = 3.0) -> float: Calculates the SuperTrend score.
     calculate_score(self): Calculates the overall trend score based on all indicators.
 """
 
@@ -27,6 +32,7 @@ from typing import Optional
 import numpy as np
 import pandas as pd
 from ta.trend import PSARIndicator # pylint: disable=import-error
+from ta.volatility import DonchianChannel, AverageTrueRange # pylint: disable=import-error
 
 from bluehorseshoe.analysis.indicators.indicator import Indicator, IndicatorScore
 from bluehorseshoe.core.config import weights_config
@@ -45,6 +51,8 @@ class TrendIndicator(Indicator):
     - Parabolic SAR
     - Heiken Ashi
     - ADX (Directional Movement Index)
+    - Donchian Channels
+    - SuperTrend
     """
 
     def __init__(self, data: pd.DataFrame):
@@ -251,6 +259,130 @@ class TrendIndicator(Indicator):
 
         return score
 
+    def calculate_donchian(self, window: int = 20) -> float:
+        """
+        Calculate Donchian Channel score.
+        Upper Channel = Max High over window.
+        Lower Channel = Min Low over window.
+        
+        Using shifted bands to detect breakout from previous N-day range.
+        
+        Returns:
+            float:
+            • 2 if Close > Upper Band (Shifted) - Breakout
+            • 1 if Close > Middle Band (Shifted) - Uptrend
+            • -2 if Close < Lower Band (Shifted) - Breakdown
+            • -1 if Close < Middle Band (Shifted) - Downtrend
+            • 0 otherwise
+        """
+        if len(self.days) < window:
+             return 0.0
+             
+        dc = DonchianChannel(
+            high=self.days['high'],
+            low=self.days['low'],
+            close=self.days['close'],
+            window=window
+        )
+        
+        # We shift by 1 to compare today's Close with the Channel of the PREVIOUS window
+        # If we didn't shift, Upper Band would always be >= Close (since it's Max(High)).
+        upper = dc.donchian_channel_hband().shift(1).iloc[-1]
+        lower = dc.donchian_channel_lband().shift(1).iloc[-1]
+        middle = dc.donchian_channel_mband().shift(1).iloc[-1]
+        close = self.days['close'].iloc[-1]
+        
+        if pd.isna(upper) or pd.isna(lower):
+            return 0.0
+            
+        if close > upper:
+            return 2.0
+        elif close < lower:
+            return -2.0
+        elif close > middle:
+            return 1.0
+        elif close < middle:
+            return -1.0
+            
+        return 0.0
+
+    def calculate_supertrend(self, period: int = 10, multiplier: float = 3.0) -> float:
+        """
+        Calculate SuperTrend score.
+        
+        SuperTrend is an ATR-based trailing stop indicator.
+        
+        Returns:
+        • 2 if Bullish Crossover (Trend flipped to Green today)
+        • 1 if Bullish (Green)
+        • -2 if Bearish Crossover (Trend flipped to Red today)
+        • -1 if Bearish (Red)
+        """
+        if len(self.days) < period + 1:
+             return 0.0
+
+        high = self.days['high']
+        low = self.days['low']
+        close = self.days['close']
+        
+        # Calculate ATR
+        atr_indicator = AverageTrueRange(high, low, close, window=period)
+        atr = atr_indicator.average_true_range()
+        
+        hl2 = (high + low) / 2
+        basic_upper = hl2 + (multiplier * atr)
+        basic_lower = hl2 - (multiplier * atr)
+        
+        # Initialize result arrays
+        # Note: Iterating in Python is slow, but for <500 days it's negligible.
+        final_upper = np.zeros(len(self.days))
+        final_lower = np.zeros(len(self.days))
+        trend = np.zeros(len(self.days)) # 1 Bull, -1 Bear
+        
+        # Iterative calculation
+        for i in range(1, len(self.days)):
+            # Final Upper
+            if basic_upper.iloc[i] < final_upper[i-1] or close.iloc[i-1] > final_upper[i-1]:
+                final_upper[i] = basic_upper.iloc[i]
+            else:
+                final_upper[i] = final_upper[i-1]
+                
+            # Final Lower
+            if basic_lower.iloc[i] > final_lower[i-1] or close.iloc[i-1] < final_lower[i-1]:
+                final_lower[i] = basic_lower.iloc[i]
+            else:
+                final_lower[i] = final_lower[i-1]
+                
+            # Trend
+            # Continuation
+            curr_trend = trend[i-1]
+            if curr_trend == 0: # Init logic
+                 curr_trend = 1 if close.iloc[i] > final_upper[i] else -1
+            
+            if curr_trend == 1:
+                if close.iloc[i] < final_lower[i]:
+                    curr_trend = -1
+            else:
+                if close.iloc[i] > final_upper[i]:
+                    curr_trend = 1
+            
+            trend[i] = curr_trend
+            
+        # Scoring
+        curr = trend[-1]
+        prev = trend[-2]
+        
+        if curr == 1 and prev == -1:
+            return 2.0
+        elif curr == -1 and prev == 1:
+            return -2.0
+        elif curr == 1:
+            return 1.0
+        elif curr == -1:
+            return -1.0
+            
+        return 0.0
+
     def get_score(self, enabled_sub_indicators: Optional[list[str]] = None, aggregation: str = "sum") -> IndicatorScore:
         """
         Calculate the trend score based on the following indicators:
@@ -259,6 +391,8 @@ class TrendIndicator(Indicator):
         - Parabolic SAR (psar)
         - Heiken Ashi (heiken_ashi)
         - ADX/DMI (adx)
+        - Donchian Channels (donchian)
+        - SuperTrend (supertrend)
 
         Returns a float score.
         """
@@ -280,7 +414,9 @@ class TrendIndicator(Indicator):
             'ichimoku': (self.calculate_ichimoku_score, 'ICHIMOKU_MULTIPLIER'),
             'psar': (self.calculate_psar_score, 'PSAR_MULTIPLIER'),
             'heiken_ashi': (self.calculate_heiken_ashi, 'HEIKEN_ASHI_MULTIPLIER'),
-            'adx': (self.calculate_dmi_adx, 'ADX_MULTIPLIER')
+            'adx': (self.calculate_dmi_adx, 'ADX_MULTIPLIER'),
+            'donchian': (self.calculate_donchian, 'DONCHIAN_MULTIPLIER'),
+            'supertrend': (self.calculate_supertrend, 'SUPERTREND_MULTIPLIER')
         }
 
         for name, (func, weight_key) in sub_map.items():

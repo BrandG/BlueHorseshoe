@@ -13,7 +13,9 @@ DEFAULT_WEIGHTS = {
         'STOCHASTIC_MULTIPLIER': 1.0,
         'ICHIMOKU_MULTIPLIER': 1.0,
         'PSAR_MULTIPLIER': 1.0,
-        'HEIKEN_ASHI_MULTIPLIER': 1.0
+        'HEIKEN_ASHI_MULTIPLIER': 1.0,
+        'DONCHIAN_MULTIPLIER': 1.0,
+        'SUPERTREND_MULTIPLIER': 1.0
     },
     'momentum': {
         'RSI_MULTIPLIER': 1.0,
@@ -21,13 +23,15 @@ DEFAULT_WEIGHTS = {
         'MACD_MULTIPLIER': 1.0,
         'MACD_SIGNAL_MULTIPLIER': 0.15,
         'BB_MULTIPLIER': 1.0,
-        'WILLIAMS_R_MULTIPLIER': 1.0
+        'WILLIAMS_R_MULTIPLIER': 1.0,
+        'CCI_MULTIPLIER': 1.0
     },
     'volume': {
         'OBV_MULTIPLIER': 1.0,
         'CMF_MULTIPLIER': 1.0,
         'ATR_BAND_MULTIPLIER': 1.0,
-        'ATR_SPIKE_MULTIPLIER': 1.0
+        'ATR_SPIKE_MULTIPLIER': 1.0,
+        'MFI_MULTIPLIER': 1.0
     },
     'candlestick': {
         'RISE_FALL_3_METHODS_MULTIPLIER': 1.0,

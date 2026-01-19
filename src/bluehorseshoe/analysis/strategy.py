@@ -102,22 +102,18 @@ class SwingTrader:
             return df.iloc[-1]['close'] * 0.02
         return atr
 
-    def _determine_baseline_entry(self, last_row: pd.Series, ema9: float) -> float:
-        """Helper to determine entry price based on momentum or pullback."""
+    def _determine_baseline_entry(self, last_row: pd.Series, ema9: float, atr: float) -> float:
+        """
+        Determine entry price using optimized ATR discount.
+        Method: Limit Buy at Close - (0.2 * ATR) to capture intraday noise.
+        """
         last_close = last_row['close']
-        is_bullish = last_close > last_row['open']
-
-        avg_volume = last_row.get('avg_volume_20', 1)
-        vol_ratio = last_row['volume'] / avg_volume if avg_volume > 0 else 0
-        has_decent_volume = vol_ratio >= 0.8
-
-        rsi = last_row.get('rsi_14', 50)
-        has_safe_rsi = rsi <= 70
-
-        if is_bullish and has_decent_volume and has_safe_rsi:
-            return last_close
-
-        return max(ema9, last_row['low'])
+        
+        # Optimized Entry: Close - 0.2 * ATR
+        # This has been backtested to outperform Market/EMA9 entries significantly (4x PnL).
+        entry_price = last_close - (0.2 * atr)
+        
+        return entry_price
 
     def calculate_baseline_setup(self, df: pd.DataFrame, ml_stop_multiplier: float = 2.0) -> Dict[str, float]:
         """
@@ -138,14 +134,32 @@ class SwingTrader:
         swing_high_20 = df['high'].rolling(window=20).max().iloc[-1]
 
         # 3. Entry Logic
-        entry_price = self._determine_baseline_entry(last_row, ema9)
+        entry_price = self._determine_baseline_entry(last_row, ema9, atr)
 
         # 4. Stop Loss & Take Profit
-        stop_loss = min(swing_low_5 * 0.985, entry_price - (ml_stop_multiplier * atr))
+        atr_stop = entry_price - (ml_stop_multiplier * atr)
+        swing_stop = swing_low_5 * 0.985
+        
+        # Default to safest stop (widest)
+        stop_loss = min(swing_stop, atr_stop)
+        
         take_profit = max(swing_high_20, entry_price + (3.0 * atr))
 
         # 5. Risk Calculation
-        rr_ratio = (take_profit - entry_price) / (entry_price - stop_loss) if (entry_price - stop_loss) > 0 else 0
+        risk = entry_price - stop_loss
+        reward = take_profit - entry_price
+        rr_ratio = reward / risk if risk > 0 else 0
+
+        # Smart Stop Logic: If structural stop is too wide (killing RR), try ATR stop
+        if rr_ratio < MIN_RR_RATIO and stop_loss == swing_stop:
+            # Check if tightening to ATR stop saves the trade
+            risk_atr = entry_price - atr_stop
+            rr_atr = reward / risk_atr if risk_atr > 0 else 0
+            
+            if rr_atr >= MIN_RR_RATIO:
+                stop_loss = atr_stop
+                rr_ratio = rr_atr
+                # print(f"DEBUG: {last_row.get('symbol')} Tightened stop to ATR to save RR ({rr_ratio:.2f})")
 
         # Debugging
         if rr_ratio < 0.5:
