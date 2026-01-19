@@ -97,7 +97,7 @@ class Backtester:
         elif i >= self.hold_days:
             state.status = 'limit_expired'
 
-    def _check_active_trade(self, row, state, future_data):
+    def _check_active_trade(self, row, current_idx, state, future_data):
         """Check for exit conditions in an active trade."""
         # Stop Loss
         if row['low'] <= state.current_stop:
@@ -118,7 +118,7 @@ class Backtester:
             return
 
         # Time Exit
-        days_in_trade = i - state.entry_idx
+        days_in_trade = current_idx - state.entry_idx
         if days_in_trade >= self.hold_days:
             state.status = 'time_exit'
             state.exit_price = row['close']
@@ -179,7 +179,7 @@ class Backtester:
                 self._check_entry(row, i, state)
             # If we are in a trade
             elif state.status == 'active':
-                self._check_active_trade(row, state, future_data)
+                self._check_active_trade(row, i, state, future_data)
 
             if state.status in ['stopped_out', 'success', 'limit_expired', 'time_exit', 'closed_profit', 'closed_loss']:
                 break
