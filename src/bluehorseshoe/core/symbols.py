@@ -260,6 +260,7 @@ def upsert_historical_to_mongo(symbol: str, days: List[Dict[str, Any]]) -> None:
     """
     Store full historical days in historical_prices,
     plus a recent slice in historical_prices_recent.
+    Merges with existing data to prevent truncation.
     """
     sym = symbol.upper().strip()
     if not sym:
@@ -271,12 +272,25 @@ def upsert_historical_to_mongo(symbol: str, days: List[Dict[str, Any]]) -> None:
 
     now = datetime.utcnow().isoformat()
 
+    # Load existing days to merge
+    existing_doc = _prices.find_one({"symbol": sym}, {"days": 1})
+    if existing_doc and "days" in existing_doc:
+        import pandas as pd
+        df_existing = pd.DataFrame(existing_doc["days"])
+        df_new = pd.DataFrame(days)
+        # Combine and drop duplicates based on date
+        df_merged = pd.concat([df_existing, df_new]).drop_duplicates(subset=['date'])
+        df_merged = df_merged.sort_values(by='date').reset_index(drop=True)
+        merged_days = df_merged.to_dict(orient='records')
+    else:
+        merged_days = days
+
     # Update Full History
-    full_doc = {"symbol": sym, "days": days, "last_updated": now}
+    full_doc = {"symbol": sym, "days": merged_days, "last_updated": now}
     _prices.update_one({"symbol": sym}, {"$set": full_doc}, upsert=True)
 
     # Update Recent History (Used for scanning)
-    recent_days = days[-RECENT_TRADING_DAYS:] if days else []
+    recent_days = merged_days[-RECENT_TRADING_DAYS:] if merged_days else []
     recent_doc = {"symbol": sym, "days": recent_days, "last_updated": now}
     _prices_recent.update_one({"symbol": sym}, {"$set": recent_doc}, upsert=True)
 

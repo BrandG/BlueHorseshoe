@@ -245,24 +245,15 @@ def process_symbol(row, index, total_symbols, save_to_file, recent):
     name = row['name']
     percentage = round(index/total_symbols*100)
 
-    # OPTIMIZATION: Check if data is already up-to-date in MongoDB
+    # Load existing data from MongoDB to merge with or check for updates
+    existing_data = {}
     try:
         existing_data = load_historical_data_from_mongo(symbol, get_mongo_client())
         if existing_data and 'days' in existing_data and existing_data['days']:
             last_stored_date = existing_data['days'][-1]['date']
             
-            # Calculate expected last trading day
+            # OPTIMIZATION: Check if data is already up-to-date
             now_ny = pd.Timestamp.now(tz='US/Eastern')
-            # If today is Monday(0)-Friday(4) and time < 16:30 ET, market might be open or closed, 
-            # but daily data usually settles after close. 
-            # Safe bet: If it's before 6 PM ET, expect yesterday's data. If after, expect today's.
-            # Simplified: Just check against the latest "business day" that isn't today if market is open
-            
-            # Using a simpler heuristic:
-            # If today is weekend, last trade day was Friday.
-            # If today is weekday and time < 22:00 UTC (approx market close + buffer), expect yesterday.
-            
-            # Robust logic:
             today = now_ny.date()
             if now_ny.hour < 18: # Before 6PM ET, expect previous day
                 target_date = today - pd.Timedelta(days=1)
@@ -288,24 +279,35 @@ def process_symbol(row, index, total_symbols, save_to_file, recent):
             return
 
         if net_data and 'days' in net_data:
-            df = pd.DataFrame(net_data['days'])
+            df_new = pd.DataFrame(net_data['days'])
         else:
             logging.error("No 'days' data found for %s.", symbol)
             return
+
+        # MERGE LOGIC: Combine existing history with new data
+        if existing_data and 'days' in existing_data:
+            df_existing = pd.DataFrame(existing_data['days'])
+            # Combine and drop duplicates based on date
+            df = pd.concat([df_existing, df_new]).drop_duplicates(subset=['date'])
+        else:
+            df = df_new
+
         if 'date' not in df.columns:
             logging.error("Column 'date' not found in DataFrame for %s.", symbol)
             return
 
         df = df.sort_values(by='date').reset_index(drop=True)
-        net_data['days'] = get_technical_indicators(df)
+        # Recalculate indicators on the FULL merged set to ensure continuity
+        merged_days = get_technical_indicators(df)
+        net_data['days'] = merged_days
 
         # Calculate and save score for the latest day
         try:
             # We need the full DF with indicators to calculate the score
-            full_df = pd.DataFrame(net_data['days'])
+            full_df = pd.DataFrame(merged_days)
             score_components = TechnicalAnalyzer.calculate_technical_score(full_df)
             total_score = score_components.pop("total", 0.0)
-            last_date = net_data['days'][-1]['date']
+            last_date = merged_days[-1]['date']
 
             score_manager.save_scores([{
                 "symbol": symbol,

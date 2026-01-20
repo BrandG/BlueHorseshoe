@@ -13,7 +13,7 @@ echo "$(date -Is) starting BH full backfill loop"
 
 # Tune these for your plan
 export BH_BATCH_LIMIT=${BH_BATCH_LIMIT:-50}
-export BH_SLEEP_SECONDS=${BH_SLEEP_SECONDS:-1.2}
+export BH_SLEEP_SECONDS=${BH_SLEEP_SECONDS:-2.5}
 
 while true; do
   OUT=$(python3 - <<'PY'

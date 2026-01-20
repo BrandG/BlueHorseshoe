@@ -76,4 +76,4 @@ The system implements two primary scoring strategies in `TechnicalAnalyzer`:
 - **Validation:** When adding new technical scoring logic, ensure column presence checks use `Series.index` to avoid value-based subsetting errors.
 - **Logging:** Always update `actions.txt` with key decisions and validation results.
 
-- **Next Task:** Implement Job Scheduler for automated daily pipeline & JSON Reporting for API.
+- **Next Task:** Monitor background backfill completion. Once data is restored, resume "Phase 3: Strategy Refinement" and run the indicator analysis script.
