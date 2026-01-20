@@ -63,15 +63,22 @@
             .top-list { flex: 1; background: var(--container-bg); border: 1px solid var(--border-color); border-radius: 8px; padding: 15px; box-shadow: 0 2px 4px var(--card-shadow); }
             .top-list h3 { border-bottom: 2px solid var(--border-color); margin-top: 0; padding-bottom: 10px; color: var(--heading-color); font-size: 1.2em; }
             .top-list ul { list-style: none; padding: 0; margin: 0; }
-            .top-list li { padding: 8px 0; border-bottom: 1px solid var(--border-color); font-family: 'Consolas', 'Monaco', monospace; font-size: 0.95em; display: flex; justify-content: space-between; }
+            .top-list li { padding: 8px 0; border-bottom: 1px solid var(--border-color); font-family: 'Consolas', 'Monaco', monospace; font-size: 0.95em; }
             .top-list li:last-child { border-bottom: none; }
-            .top-list-header { font-weight: bold; color: var(--secondary-text); font-size: 0.8em; text-transform: uppercase; border-bottom: 2px solid var(--border-color) !important; padding-bottom: 5px !important; margin-bottom: 5px; }
+            .top-list-header { font-weight: bold; color: var(--secondary-text); font-size: 0.8em; text-transform: uppercase; border-bottom: 2px solid var(--border-color) !important; padding-bottom: 5px !important; margin-bottom: 5px; display: flex; justify-content: space-between; }
             .symbol-link { text-decoration: none; color: var(--link-color); transition: color 0.2s; }
             .symbol-link:hover { color: var(--link-hover); text-decoration: underline; }
             
             /* Toggle Button */
             .theme-toggle { position: fixed; top: 20px; right: 20px; padding: 10px 15px; background: var(--table-header-bg); color: var(--table-header-text); border: none; border-radius: 5px; cursor: pointer; font-weight: bold; box-shadow: 0 2px 5px rgba(0,0,0,0.2); z-index: 1000; }
             .theme-toggle:hover { opacity: 0.9; }
+
+            /* Collapsible Styles */
+            details { width: 100%; }
+            summary { cursor: pointer; display: flex; justify-content: space-between; outline: none; list-style: none; }
+            summary::-webkit-details-marker { display: none; }
+            .summary-content { display: flex; justify-content: space-between; width: 100%; align-items: center; }
+            .sparkline-container { text-align: center; padding: 10px; background: var(--bg-color); margin-top: 5px; border-radius: 4px; }
         </style>
         <script>
             function toggleTheme() {
@@ -113,11 +120,11 @@
 <h3>Top 5 Baseline (Trend)</h3>
 <ul>
 <li class='top-list-header'><span>Symbol</span> <span>Score / ML / Entry</span></li>
-<li><span><a href='https://finance.yahoo.com/quote/NLY' target='_blank' class='symbol-link'><b>NLY</b></a>:<small>NYSE</small></span> <span><b>23.0</b> <span style='color:#777'>ML:0%</span> <b>$0.00</b></span></li>
-<li><span><a href='https://finance.yahoo.com/quote/AD' target='_blank' class='symbol-link'><b>AD</b></a>:<small>NYSE</small></span> <span><b>21.5</b> <span style='color:#777'>ML:0%</span> <b>$0.00</b></span></li>
-<li><span><a href='https://finance.yahoo.com/quote/AGNC' target='_blank' class='symbol-link'><b>AGNC</b></a>:<small>NASDAQ</small></span> <span><b>21.5</b> <span style='color:#777'>ML:0%</span> <b>$0.00</b></span></li>
-<li><span><a href='https://finance.yahoo.com/quote/CDP' target='_blank' class='symbol-link'><b>CDP</b></a>:<small>NYSE</small></span> <span><b>21.5</b> <span style='color:#777'>ML:0%</span> <b>$0.00</b></span></li>
-<li><span><a href='https://finance.yahoo.com/quote/EFC' target='_blank' class='symbol-link'><b>EFC</b></a>:<small>NYSE</small></span> <span><b>21.5</b> <span style='color:#777'>ML:0%</span> <b>$0.00</b></span></li>
+<li><details><summary><div class='summary-content'><span><a href='https://finance.yahoo.com/quote/NLY' target='_blank' class='symbol-link'><b>NLY</b></a>:<small>NYSE</small></span> <span><b>28.5</b> <span style='color:#777'>ML:75%</span> <b>$24.31</b></span></div></summary><div class='sparkline-container'><img src='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAN0AAABzCAYAAAAc0geEAAAAOnRFWHRTb2Z0d2FyZQBNYXRwbG90bGliIHZlcnNpb24zLjEwLjgsIGh0dHBzOi8vbWF0cGxvdGxpYi5vcmcvwVt1zgAAAAlwSFlzAAALEwAACxMBAJqcGAAAA4JJREFUeJzt3T9uFUcAx/F15MLykzkEHQVKilyAOoo4QAoo6IKi3CDmBhYyXQpc5AAIpeYCFEYUdBwiCEQRaVOQgj/7rLd+s7/Znf18Otsre4r9evbN25130Pd93wEx39UeAKyN6CBMdBAmOggTHYSJDsJEB2GigzDRQZjoIEx0EHZYewAwpRsPf+reffyw07EnR8fdP+d/TzwiMx2N2zW4scfuQ3QQJjoIEx2EiQ7CRAdhooMw0UGY6CBMdBAmOggTHYSJDsJEB2GigzDRQZjoIEx0ECY6CBMdhIlupi7PzmsPgYmIbqZePX5SewhMRHQQJjoIEx2E2eGZWRqzM3PX5XZnLsFMxyyN3W152/EnR8c7/44xx+7DTEfThma/02dPu9O79/OD+Z+ZjtWpGVzXiQ7iRAdhooMwCymV/XX7x+7f9+8Hf3Zx89Y33zvcbLpfXr+celhMyExX2bbgSh3P/IgOwkQHYaKbwOmzp7WHwIyJbgKPnl/UHgIzJjoIEx2EiQ7CRAdhoiPGqu4noiPGqu4nooMw0UGY6JilsfuVpPY3KcGjPY2rvR/IdW3b2evgwZ2u//NFeDRlNRNdiZPr8uy8++H3h2UGNBOPnl/Eo7tq+7yDB3e++HpJW+eV0kx0Y0+ubQ+PDn2GwJQPjh5uNqOekTvcbCYZx1XG/jMas33e2K32WtBMdGONOdGnfHB0W8xzmnVfPX4ym7G0YLXRlTDlZZSTfNgfP9+rPYS9iW4PrV1GLWG/liUuCn1tcdF5kT4d+7VkLO59utZmF9ZncTMdw0pcASxhJbUFomtEiSuAba/PLm7e6u69fbPz7z85Ot55PEu6k6QU0VFcy3eTlLC413QMm+PnsDHMTNcIs8tymOkgTHQQttroxix3r31p/Pvffq09hKYs7jVdqeXooeXxsUvja1HqPtAW7pssYXHRWTAYZ04negv3TZaw2svLtXCiz4/o9uC9Ma5jcZeXc+IJBq7DTPcZq3QkiO4zntYmoXp0l2fntYcAUdWjG9p96zrmtDQOV6keXSmWxlmKg77v+9Qfu2rjm6/V2PQGEpqZ6WApojPdEPc7sjZmOggTHYSJDsJEB2GigzDRQZjoIEx0ECY6CBMdhIkOwkQHYaKDMNFBWPXo7MDF2lR/ng7WpvpMB2sjOggTHYSJDsJEB2GigzDRQZjoIEx0ECY6CPsP6I34QNq2GX4AAAAASUVORK5CYII=' alt='NLY chart' /></div></details></li>
+<li><details><summary><div class='summary-content'><span><a href='https://finance.yahoo.com/quote/AGNC' target='_blank' class='symbol-link'><b>AGNC</b></a>:<small>NASDAQ</small></span> <span><b>27.0</b> <span style='color:#777'>ML:72%</span> <b>$11.89</b></span></div></summary><div class='sparkline-container'><img src='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAN0AAABzCAYAAAAc0geEAAAAOnRFWHRTb2Z0d2FyZQBNYXRwbG90bGliIHZlcnNpb24zLjEwLjgsIGh0dHBzOi8vbWF0cGxvdGxpYi5vcmcvwVt1zgAAAAlwSFlzAAALEwAACxMBAJqcGAAAA5ZJREFUeJzt3T9qFFEcwPFZSRGyxEOkSyFaeIHUIh7AIhbpFPEGxhtISDoLU3gAEWsvYGGwsPMQimIhrIUgUXc2meyb3/szn0+XdSCP4Jf3dv68mS0Wi0UHhLmWewAwNaKDYKKDYKKDYKKDYKKDYKKDYKKDYKKDYKKDYKKDYBu5BwBjuv7oTvf1x/dLHbu9udV9OX478ojMdDTussENPXYdooNgooNgooNgooNgooNgooNgooNgooNgooNgooNgooNgooNgooNgooNgooNgooNgoqMqh69f5h7C2kRHVZ69Oc09hLWJjqZtb26Ncuw6bExE05ZtNDQ72OsWL95lGM1voqNIq3bxmh3s/ffZkJ28nt7dX2ts65p5/TElWhbWRXLOXkP4TgfBRAfBRFeoD8+Pcw+BkYiuUGdHJ7mHwEhEB8FEB8FER5gW7ptMQXSEGXLf5NBbsqJu4UrBxfFCne7sdvufP+UexpWM+U643LdwpWCmI7kS3wlXEtFBMNFBMNFBMNFBMNFRldzPwqUgOqpyeO9B7iGszZPjmb26cbv7+e3b0n873dn977ON+by7//H92MNiRGa6zPqCS3U85REdBBMdBBNd4zyBXh7RNS7FE+jCTcvZy8w25vNBJ0c25vOlnw85Czr0DOjZ0Ul368mjSx/PaqLLrO8//9BHe4aE23esyxcxLC/5w+WLGKJrRN+yc91jSc/yshGplqmMz0wHwURXqJuPH4b/zqHLTsvUq7G8LFSOU/SWqDHMdBBMdI3LsUxlNdGNoKSdjHMsU0t8z3dJbDY7ghY2RD0v1Xe61v4uV2Wmg2Ci40K+F6YlOi6U6nthCzt5pSC6czw3Nq4WdvJKQXTneOUwEZqJrqTT9LBKM9ENeeEg5NRMdFCLZi6OD73wumprgn/1bUsw5htHaddkZ7oUe4p44yhXMdnoIJfqnqdbtaSbHez99bMlHSWqbqazpKN21UUHtcsenYvaTE326FzUZmqyRwdTIzoIJjoIFnqdru8a27/X17rONTbaFTrTlXSNzQs3yKW6O1JSWXYD89Bdr7Y3twbd8AxdN+Holhm6AU/f8vfw9UtbE9DLiZRzUm3AIzhWqS46uwdTu+qWl5Z01K66ma6P4KhFM9FBLUQHwUQHwUQHwUKjc7ofCtj30osCmZrsy0uvT2Jqss90MDXZZzqYGtFBMNFBMNFBMNFBMNFBMNFBMNFBMNFBMNFBsF+4xggeIsg0AgAAAABJRU5ErkJggg==' alt='AGNC chart' /></div></details></li>
+<li><details><summary><div class='summary-content'><span><a href='https://finance.yahoo.com/quote/BNS' target='_blank' class='symbol-link'><b>BNS</b></a>:<small>NYSE</small></span> <span><b>27.0</b> <span style='color:#777'>ML:72%</span> <b>$73.30</b></span></div></summary><div class='sparkline-container'><img src='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAN0AAABzCAYAAAAc0geEAAAAOnRFWHRTb2Z0d2FyZQBNYXRwbG90bGliIHZlcnNpb24zLjEwLjgsIGh0dHBzOi8vbWF0cGxvdGxpYi5vcmcvwVt1zgAAAAlwSFlzAAALEwAACxMBAJqcGAAAA65JREFUeJzt3T+OG2Ucx+ExcrFaaznEdlugUHCB1AjlABShSJco4gYsN4iiTUeRLXKACFFzAYpEFHQcAhREgWSKVdDCeowntr/vvO/7POVqJA8oH80fv/69i/V6vR6AmI9KnwD0RnQQJjoIEx2EiQ7CRAdhooMw0UGY6CBMdBAmOggrHt3l65elTwGiikf37ffXpU8BoopHB70RHYSJDsKaie7Ns6vSpwA7aSa6t89flD4F2Ekz0UEtRAdhy+SHffzk8+H3P/+48/fFo/t3/nZ2cjr8dvVD4rQgKnql2xTcIY6Fmri9hDDRQZjoIEx0dKf0QgrR0Z3SCymi0Z2dnB7lWKjJovQGIotH94f1dz/ufPyrTz4b/nr3bqdjl6vV8OXPP33oqdGo6/OL4eGvvxT7/OpuL3cNbuqxkFJddFA70UFYdO0l7Gpsne6YsbW6Y+8Ars8v7vwt9Q7AlY5Zmrr2duz4Ob4DEB2EiY6mLVeroxy7D890NG3TM5rv6aAzooMw0UGY6CBMdBAmOrpz7+njop8vOrrz6ddPin6+6CBMdMTYdfeG6Iix6+4N0UGY6CBMdBAmOggrHt03XzwsfQoH5y0d2xSfeznVptkW25T43dTUWZ6tmTLfZGy2yaY9C/9PLf/Pi1/p2Kz0vP192IdwO9HNVOl5+xyP6CDMjJQ9bHt2+e8zSc17qF++fjlcPviq9Gk0w5VuD708u1i+dViigzDRQZjomKWpm4LWtImoFymFbdvksuQmF6XV+tJpF650hU3dtMJGl/UTHYS5vbzlzbOr4kNrSpryveMwjH/3eHZyOmntZW9Ed8vb5y+6ju5Qe8KNPY/1vhD8PbeXECY6CBMdhImucX7FPj+ia5zFyvMjOggTHYSJDsJEB2GigzDLwBrRy7yWFrjSNaKXeS0tEF1hy9XqqMfPSYsj9D+E28vCxn4Ffn1+UWQk/DEZ43fDlY5/tDyXZE6qu9ItV6udRxbUfCt27+nj+Gd6uZJRXXRjt2Ot/eq7pf8W/q2Z20v/SKlFM9FBLaq7vTyUsXmTtc6aNAyoHt1GN2V+ZA2zJg0DqofbSwjrNropXyfU/NUD89Pt7eWmZ7QWV4EwP91e6aAU0UGY6CBMdBAmOggTHYSJbg9TllNZesV73X5Pdwg1LL0yImF+XOluKfHD0WMzImF+RHeL3+SRIDoIEx2Eie4IvLxgm8V6vV6XPgnoiSsdhIkOwkQHYaKDMNFBmOggTHQQJjoIEx2EiQ7C/gZ/4P+2mVvNAgAAAABJRU5ErkJggg==' alt='BNS chart' /></div></details></li>
+<li><details><summary><div class='summary-content'><span><a href='https://finance.yahoo.com/quote/PAA' target='_blank' class='symbol-link'><b>PAA</b></a>:<small>NASDAQ</small></span> <span><b>26.5</b> <span style='color:#777'>ML:78%</span> <b>$19.34</b></span></div></summary><div class='sparkline-container'><img src='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAN0AAABzCAYAAAAc0geEAAAAOnRFWHRTb2Z0d2FyZQBNYXRwbG90bGliIHZlcnNpb24zLjEwLjgsIGh0dHBzOi8vbWF0cGxvdGxpYi5vcmcvwVt1zgAAAAlwSFlzAAALEwAACxMBAJqcGAAAA35JREFUeJzt3TFu3EYAhlFuoEKQoBxCnYrALnIB10GQA6RQCncWDN8g8g0EQ+5SeIscwDBS+wIuZKRw50PYcJAiAFNFUCTuSrTIf8jhe51WBHaaD8MdksNV27ZtA8R8U3oAsDSigzDRQZjoIEx0ECY6CBMdhIkOwkQHYaKDMNFBmOhYnNPXr4p+/8oNz9Ts25Mfms9//3WnYw9295pP53+MPCIzHZW7a3B9j70P0UGY6CBMdBAmOggTHYSJDsJEB2GigzDRQZjoIEx0xFycnZcewiSIjpj3L16WHsIkiA7CRAdhO6UHQH1+/+775p8vXzr/tz48+t/fO/v7zc9/vksMazLMdAxuU3D3PbZp+j/1fbC7N8qx9+HJcQZ3fTa7zfHHD3c+dvX4UdP+9rbvkCbFTMetSu8pUhszHbfqO7ts+0133abfdH32Nmma3P4mQ7CQwuA2LYysD4/ufCrZd7+S1P4mQ3B6CWFmOi5tO6VbPX5047MxT+kOdvd6n17Ohei4NKVTuk0xW70EehMdhImOmAdPn5QewiSIjpiHz05KD2ESRMelviuAJVYMf/3xOP6dQ3NHCreqYcVwSsx0lXPf5PSIrnLP36xLD4FrRAdhooMw0UGYey8r0edm5b43KtewTD8lLhlUouspgG1cAijH6SWEiQ7CRAdhooMw0UGY6CoxxZ2M6eaSQeVOX79qTn/6pfQwuEJ0EOaOlMJq3smYbn7TFTalbe/IEB2EiQ7CRAdhxaO7ODsvPQSIiq5ebnpv2fsXL298tpR3Udf8ogy6RaMb813Uc7Vp+d9F7XoVP72km+DqJboR2GuSbWZ3R8oQ77Me2/M3azMVG81upvO7kLmb3Uw3JWPuwEW9ZjfTTUmfpX73TPIf0UGY6CBMdBAmOgiLRrezvz/KsTAn0UsGXReq14dHzfHHD8lhQFFOLyFMdBAmuis8UEuC6K7oepgWhiY6CBMdhC32KYNNz+WtD49ufLaU/VrIWOxM57k8SllsdFCK6CBMdBAmOgibXXRTelLBK4f5GrO7ZDClpXu7M/M1ZjfTDWXMGVNwbDO7mW4oXTPmxdl58/DZSYHRsCSLnem6CI4E0UGY6CBMdBAmOggTHYSJDsJEB2HFo3vw9EnpIUDUqm3btvQgYEmKz3SwNKKDMNFBmOggTHQQJjoIEx2EiQ7CRAdhooOwfwE1yPuTCdPipgAAAABJRU5ErkJggg==' alt='PAA chart' /></div></details></li>
+<li><details><summary><div class='summary-content'><span><a href='https://finance.yahoo.com/quote/AD' target='_blank' class='symbol-link'><b>AD</b></a>:<small>NYSE</small></span> <span><b>26.0</b> <span style='color:#777'>ML:80%</span> <b>$57.45</b></span></div></summary><div class='sparkline-container'><img src='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAN0AAABzCAYAAAAc0geEAAAAOnRFWHRTb2Z0d2FyZQBNYXRwbG90bGliIHZlcnNpb24zLjEwLjgsIGh0dHBzOi8vbWF0cGxvdGxpYi5vcmcvwVt1zgAAAAlwSFlzAAALEwAACxMBAJqcGAAAA6ZJREFUeJzt3TFuXEUAx+Fd5MLyyjmEOxcICi7gOkIcgCIp3GEhboB9gyhyOgpvwQEsi5oLUCRKkS6HAAVRIC0VESG7Gz/vvP/Mm/2+zvbTagr/NPP0ZufNV6vVagbEfFZ7ALBvRAdhooMw0UGY6CBMdBAmOggTHYSJDsJEB2GigzDREXN5e1N7CE0QHTFXd8vaQ2iC6CBMdBAmOgg7qD0AGNOji8ezP/76817XHh8ezX6//mXkEZnp6Nx9gxt67S5EB2GigzDRQZjoIEx0TMrLZ9e1h7Az0TEpr56/qD2EnXlOR5N+/vyr2d/v3q392/Lk9KPfHSwWs29f/zb2sIoQHcVteyA9Pz/74OdND6Q3BbfJ0OtrsrykuBYfSLdEdBAmOggTHYSJDsJEB2GigzDRQZjoIEx0ECY6CBMdhImO4o4Pj0a5the+ZUBxm46xm5+fzVY//RoeTXvMdMT8+PWT2kNoguiIufzmae0hNEF0dK3F+0v3dHRt3f1l7XtLMx1NOlgsRr2+JjMdTdp0yNDy5HT25O2b8GjKMtNBmOggTHQQJjoIEx2EiQ7CRAdhohtBD69zYjyiG0EPr3Nq1Rfff7fzZ9T+toPo/sMM1b4vf7jY+TNqf9thb7eBbXr/2bpZakrvPqN9ezvTDXmf2ZTefUb79jY6qEV0EFb9nu7y9mbQje22d1H/37Z7sYPFYtDnQCnVo7u6Ww6KrtS92LoYe/iuFu2zvISw6Ez36OLx2he7z8/PPvrd8eHRxvMTW7Ftqbs8Of3gZ48d+Fd0plsXXIlra/HYgYewvIQw0UGY6CBMdBAmOgiLRtfiufKQFn1O1+K58nza0K16bGd52ajL25vaQ3jv6m5ZewhdmVx0QzYfT3mjsn/0flXf8DxUzy+WGMPLZ9dFjjignOrR1T4kpnevnr+4d3Sb9sbOZtPdH9ui6svLUjfoJU6JKvEZUzZ0v+sU9se2qHp0pZRYQlmGkdBNdDAVooMw0UGY6CBMdBAmOt4busncpvSHqf5wnHZsetBtU3pZouuEk8mmw/KyE04mmw7RQZjoOrEvX3nqgXu6ykrt7PeVp+kw01VmZ//+ER2EiQ7CRAdhouOTHKlRlugqm8J+R2deluWRQWX2O+4fM12jLOn6JbodjLkLxJKuX5aXO7ALhIcw041g38/PZDvRjcD5mWwjus6ZddszX61Wq9qDgH1ipoMw0UGY6CBMdBAmOggTHYSJDsJEB2GigzDRQdg/LZr1U/uKGEcAAAAASUVORK5CYII=' alt='AD chart' /></div></details></li>
 </ul></div>
 <div class='top-list'>
 <h3>Top 5 Mean Reversion</h3>
@@ -132,402 +139,402 @@
 <td><a href='https://finance.yahoo.com/quote/NLY' target='_blank' class='symbol-link'><strong>NLY</strong></a></td>
 <td><small>NYSE</small></td>
 <td>Baseline</td>
-<td class='score-low'>23.00</td>
-<td>0</td>
-<td><small>trend=12.5, volume=3.5, limit=2.0, candlestick=2.5, moving_average=3.0, momentum=4.5, penalty_rsi=-5.0</small></td>
-</tr>
-<tr>
-<td><a href='https://finance.yahoo.com/quote/AD' target='_blank' class='symbol-link'><strong>AD</strong></a></td>
-<td><small>NYSE</small></td>
-<td>Baseline</td>
-<td class='score-low'>21.50</td>
-<td>0</td>
-<td><small>trend=9.5, volume=3.5, limit=1.0, moving_average=3.0, momentum=4.5</small></td>
+<td class='score-low'>28.50</td>
+<td>24.31314018023679</td>
+<td><small>trend=14.0, volume=3.5, limit=2.0, candlestick=2.5, moving_average=3.0, momentum=3.5, penalty_rsi=-5.0, rs_index=5.0</small></td>
 </tr>
 <tr>
 <td><a href='https://finance.yahoo.com/quote/AGNC' target='_blank' class='symbol-link'><strong>AGNC</strong></a></td>
 <td><small>NASDAQ</small></td>
 <td>Baseline</td>
-<td class='score-low'>21.50</td>
-<td>0</td>
-<td><small>trend=10.0, volume=3.5, limit=3.0, candlestick=2.5, moving_average=3.0, momentum=4.5, penalty_rsi=-5.0</small></td>
-</tr>
-<tr>
-<td><a href='https://finance.yahoo.com/quote/CDP' target='_blank' class='symbol-link'><strong>CDP</strong></a></td>
-<td><small>NYSE</small></td>
-<td>Baseline</td>
-<td class='score-low'>21.50</td>
-<td>0</td>
-<td><small>trend=8.0, volume=3.5, limit=3.0, candlestick=2.5, moving_average=3.0, momentum=3.5, penalty_rsi=-2.0</small></td>
-</tr>
-<tr>
-<td><a href='https://finance.yahoo.com/quote/EFC' target='_blank' class='symbol-link'><strong>EFC</strong></a></td>
-<td><small>NYSE</small></td>
-<td>Baseline</td>
-<td class='score-low'>21.50</td>
-<td>0</td>
-<td><small>trend=5.5, volume=4.0, limit=3.0, candlestick=2.5, moving_average=3.0, momentum=3.5</small></td>
-</tr>
-<tr>
-<td><a href='https://finance.yahoo.com/quote/FOSL' target='_blank' class='symbol-link'><strong>FOSL</strong></a></td>
-<td><small>NASDAQ</small></td>
-<td>Baseline</td>
-<td class='score-low'>21.50</td>
-<td>0</td>
-<td><small>trend=12.0, volume=4.0, limit=2.0, moving_average=3.0, momentum=0.5</small></td>
+<td class='score-low'>27.00</td>
+<td>11.88926549138776</td>
+<td><small>trend=11.5, volume=3.5, limit=3.0, candlestick=2.5, moving_average=3.0, momentum=3.5, penalty_rsi=-5.0, rs_index=5.0</small></td>
 </tr>
 <tr>
 <td><a href='https://finance.yahoo.com/quote/BNS' target='_blank' class='symbol-link'><strong>BNS</strong></a></td>
 <td><small>NYSE</small></td>
 <td>Baseline</td>
-<td class='score-low'>21.00</td>
-<td>0</td>
-<td><small>trend=12.0, volume=4.0, limit=1.0, moving_average=3.0, momentum=1.0</small></td>
-</tr>
-<tr>
-<td><a href='https://finance.yahoo.com/quote/EPRT' target='_blank' class='symbol-link'><strong>EPRT</strong></a></td>
-<td><small>NYSE</small></td>
-<td>Baseline</td>
-<td class='score-low'>21.00</td>
-<td>0</td>
-<td><small>trend=6.0, volume=4.0, limit=2.0, candlestick=2.5, moving_average=2.0, momentum=4.5</small></td>
-</tr>
-<tr>
-<td><a href='https://finance.yahoo.com/quote/NCA' target='_blank' class='symbol-link'><strong>NCA</strong></a></td>
-<td><small>NYSE</small></td>
-<td>Baseline</td>
-<td class='score-low'>21.00</td>
-<td>0</td>
-<td><small>trend=10.0, volume=3.5, limit=1.0, moving_average=3.0, momentum=3.5</small></td>
+<td class='score-low'>27.00</td>
+<td>73.29720427804212</td>
+<td><small>trend=13.0, volume=4.0, limit=1.0, moving_average=3.0, momentum=1.0, rs_index=5.0</small></td>
 </tr>
 <tr>
 <td><a href='https://finance.yahoo.com/quote/PAA' target='_blank' class='symbol-link'><strong>PAA</strong></a></td>
 <td><small>NASDAQ</small></td>
 <td>Baseline</td>
-<td class='score-low'>21.00</td>
-<td>0</td>
-<td><small>trend=9.5, volume=3.5, limit=3.0, candlestick=2.5, moving_average=3.0, momentum=4.5, penalty_rsi=-5.0</small></td>
+<td class='score-low'>26.50</td>
+<td>19.33935422078561</td>
+<td><small>trend=11.0, volume=3.5, limit=3.0, candlestick=2.5, moving_average=3.0, momentum=3.5, penalty_rsi=-5.0, rs_index=5.0</small></td>
 </tr>
 <tr>
-<td><a href='https://finance.yahoo.com/quote/CDLR' target='_blank' class='symbol-link'><strong>CDLR</strong></a></td>
+<td><a href='https://finance.yahoo.com/quote/AD' target='_blank' class='symbol-link'><strong>AD</strong></a></td>
 <td><small>NYSE</small></td>
 <td>Baseline</td>
-<td class='score-low'>20.50</td>
-<td>0</td>
-<td><small>trend=7.0, volume=3.5, limit=2.0, candlestick=2.5, moving_average=3.0, momentum=4.5, penalty_rsi=-2.0</small></td>
-</tr>
-<tr>
-<td><a href='https://finance.yahoo.com/quote/DX' target='_blank' class='symbol-link'><strong>DX</strong></a></td>
-<td><small>NYSE</small></td>
-<td>Baseline</td>
-<td class='score-low'>20.50</td>
-<td>0</td>
-<td><small>trend=10.0, volume=3.5, limit=2.0, candlestick=2.5, moving_average=3.0, momentum=4.5, penalty_rsi=-5.0</small></td>
-</tr>
-<tr>
-<td><a href='https://finance.yahoo.com/quote/HIX' target='_blank' class='symbol-link'><strong>HIX</strong></a></td>
-<td><small>NYSE</small></td>
-<td>Baseline</td>
-<td class='score-low'>20.50</td>
-<td>0</td>
-<td><small>trend=7.5, volume=2.5, limit=3.0, moving_average=3.0, momentum=4.5</small></td>
+<td class='score-low'>26.00</td>
+<td>57.44619878369229</td>
+<td><small>trend=10.5, volume=3.5, limit=1.0, moving_average=3.0, momentum=3.0, rs_index=5.0</small></td>
 </tr>
 <tr>
 <td><a href='https://finance.yahoo.com/quote/MLI' target='_blank' class='symbol-link'><strong>MLI</strong></a></td>
 <td><small>NYSE</small></td>
 <td>Baseline</td>
-<td class='score-low'>20.50</td>
-<td>0</td>
-<td><small>trend=10.0, volume=3.5, limit=3.0, candlestick=1.5, moving_average=3.0, momentum=4.5, penalty_rsi=-5.0</small></td>
+<td class='score-low'>26.00</td>
+<td>132.33012999527602</td>
+<td><small>trend=11.5, volume=3.5, limit=3.0, candlestick=1.5, moving_average=3.0, momentum=3.5, penalty_rsi=-5.0, rs_index=5.0</small></td>
 </tr>
 <tr>
-<td><a href='https://finance.yahoo.com/quote/SOHO' target='_blank' class='symbol-link'><strong>SOHO</strong></a></td>
-<td><small>NASDAQ</small></td>
-<td>Baseline</td>
-<td class='score-low'>20.50</td>
-<td>0</td>
-<td><small>trend=12.0, volume=4.0, limit=2.0, moving_average=3.0, momentum=-0.5</small></td>
-</tr>
-<tr>
-<td><a href='https://finance.yahoo.com/quote/ATMU' target='_blank' class='symbol-link'><strong>ATMU</strong></a></td>
+<td><a href='https://finance.yahoo.com/quote/CDLR' target='_blank' class='symbol-link'><strong>CDLR</strong></a></td>
 <td><small>NYSE</small></td>
 <td>Baseline</td>
-<td class='score-low'>20.00</td>
-<td>0</td>
-<td><small>trend=9.5, volume=4.0, moving_average=3.0, momentum=3.5</small></td>
-</tr>
-<tr>
-<td><a href='https://finance.yahoo.com/quote/EWP' target='_blank' class='symbol-link'><strong>EWP</strong></a></td>
-<td><small>NYSE ARCA</small></td>
-<td>Baseline</td>
-<td class='score-low'>20.00</td>
-<td>0</td>
-<td><small>trend=10.0, volume=4.0, limit=2.0, moving_average=3.0, momentum=1.0</small></td>
-</tr>
-<tr>
-<td><a href='https://finance.yahoo.com/quote/KMI' target='_blank' class='symbol-link'><strong>KMI</strong></a></td>
-<td><small>NYSE</small></td>
-<td>Baseline</td>
-<td class='score-low'>20.00</td>
-<td>0</td>
-<td><small>trend=6.5, volume=4.0, limit=3.0, moving_average=3.0, momentum=3.5</small></td>
+<td class='score-low'>25.50</td>
+<td>21.944229025095552</td>
+<td><small>trend=8.0, volume=3.5, limit=2.0, candlestick=2.5, moving_average=3.0, momentum=3.5, penalty_rsi=-2.0, rs_index=5.0</small></td>
 </tr>
 <tr>
 <td><a href='https://finance.yahoo.com/quote/LION' target='_blank' class='symbol-link'><strong>LION</strong></a></td>
 <td><small>NYSE</small></td>
 <td>Baseline</td>
-<td class='score-low'>20.00</td>
-<td>0</td>
-<td><small>trend=10.5, volume=4.0, limit=2.0, moving_average=3.0, momentum=0.5</small></td>
+<td class='score-low'>25.50</td>
+<td>9.435509695197148</td>
+<td><small>trend=12.0, volume=4.0, limit=2.0, moving_average=3.0, momentum=-0.5, rs_index=5.0</small></td>
 </tr>
 <tr>
 <td><a href='https://finance.yahoo.com/quote/PAGP' target='_blank' class='symbol-link'><strong>PAGP</strong></a></td>
 <td><small>NASDAQ</small></td>
 <td>Baseline</td>
-<td class='score-low'>20.00</td>
-<td>0</td>
-<td><small>trend=9.5, volume=3.5, limit=3.0, candlestick=1.5, moving_average=3.0, momentum=4.5, penalty_rsi=-5.0</small></td>
-</tr>
-<tr>
-<td><a href='https://finance.yahoo.com/quote/VCV' target='_blank' class='symbol-link'><strong>VCV</strong></a></td>
-<td><small>NYSE</small></td>
-<td>Baseline</td>
-<td class='score-low'>20.00</td>
-<td>0</td>
-<td><small>trend=10.0, volume=4.0, moving_average=3.0, momentum=3.0</small></td>
-</tr>
-<tr>
-<td><a href='https://finance.yahoo.com/quote/ANNX' target='_blank' class='symbol-link'><strong>ANNX</strong></a></td>
-<td><small>NASDAQ</small></td>
-<td>Baseline</td>
-<td class='score-low'>19.50</td>
-<td>0</td>
-<td><small>trend=11.5, volume=1.0, moving_average=3.0, momentum=4.0</small></td>
-</tr>
-<tr>
-<td><a href='https://finance.yahoo.com/quote/DOC' target='_blank' class='symbol-link'><strong>DOC</strong></a></td>
-<td><small>NYSE</small></td>
-<td>Baseline</td>
-<td class='score-low'>19.50</td>
-<td>0</td>
-<td><small>trend=6.0, volume=3.5, limit=3.0, candlestick=2.5, moving_average=2.0, momentum=4.5, penalty_rsi=-2.0</small></td>
-</tr>
-<tr>
-<td><a href='https://finance.yahoo.com/quote/EMLP' target='_blank' class='symbol-link'><strong>EMLP</strong></a></td>
-<td><small>NYSE ARCA</small></td>
-<td>Baseline</td>
-<td class='score-low'>19.50</td>
-<td>0</td>
-<td><small>trend=4.0, volume=3.5, limit=2.0, candlestick=2.5, moving_average=3.0, momentum=4.5</small></td>
-</tr>
-<tr>
-<td><a href='https://finance.yahoo.com/quote/EPD' target='_blank' class='symbol-link'><strong>EPD</strong></a></td>
-<td><small>NYSE</small></td>
-<td>Baseline</td>
-<td class='score-low'>19.50</td>
-<td>0</td>
-<td><small>trend=6.0, volume=4.0, limit=2.0, moving_average=3.0, momentum=4.5</small></td>
-</tr>
-<tr>
-<td><a href='https://finance.yahoo.com/quote/IEX' target='_blank' class='symbol-link'><strong>IEX</strong></a></td>
-<td><small>NYSE</small></td>
-<td>Baseline</td>
-<td class='score-low'>19.50</td>
-<td>0</td>
-<td><small>trend=10.0, volume=3.5, limit=2.0, candlestick=1.5, moving_average=3.0, momentum=4.5, penalty_rsi=-5.0</small></td>
-</tr>
-<tr>
-<td><a href='https://finance.yahoo.com/quote/MLPX' target='_blank' class='symbol-link'><strong>MLPX</strong></a></td>
-<td><small>NYSE ARCA</small></td>
-<td>Baseline</td>
-<td class='score-low'>19.50</td>
-<td>0</td>
-<td><small>trend=4.0, volume=3.5, limit=3.0, candlestick=2.5, moving_average=3.0, momentum=3.5</small></td>
-</tr>
-<tr>
-<td><a href='https://finance.yahoo.com/quote/MSGS' target='_blank' class='symbol-link'><strong>MSGS</strong></a></td>
-<td><small>NYSE</small></td>
-<td>Baseline</td>
-<td class='score-low'>19.50</td>
-<td>0</td>
-<td><small>trend=10.0, volume=3.5, limit=2.0, candlestick=1.5, moving_average=3.0, momentum=4.5, penalty_rsi=-5.0</small></td>
-</tr>
-<tr>
-<td><a href='https://finance.yahoo.com/quote/NUV' target='_blank' class='symbol-link'><strong>NUV</strong></a></td>
-<td><small>NYSE</small></td>
-<td>Baseline</td>
-<td class='score-low'>19.50</td>
-<td>0</td>
-<td><small>trend=4.0, volume=3.5, limit=3.0, candlestick=1.5, moving_average=3.0, momentum=4.5</small></td>
-</tr>
-<tr>
-<td><a href='https://finance.yahoo.com/quote/SWZ' target='_blank' class='symbol-link'><strong>SWZ</strong></a></td>
-<td><small>NYSE</small></td>
-<td>Baseline</td>
-<td class='score-low'>19.50</td>
-<td>0</td>
-<td><small>trend=10.0, volume=4.0, limit=1.0, moving_average=3.0, momentum=1.5</small></td>
-</tr>
-<tr>
-<td><a href='https://finance.yahoo.com/quote/VPL' target='_blank' class='symbol-link'><strong>VPL</strong></a></td>
-<td><small>NYSE ARCA</small></td>
-<td>Baseline</td>
-<td class='score-low'>19.50</td>
-<td>0</td>
-<td><small>trend=9.5, volume=3.5, limit=2.0, moving_average=3.0, momentum=3.5, penalty_rsi=-2.0</small></td>
-</tr>
-<tr>
-<td><a href='https://finance.yahoo.com/quote/WDC' target='_blank' class='symbol-link'><strong>WDC</strong></a></td>
-<td><small>NASDAQ</small></td>
-<td>Baseline</td>
-<td class='score-low'>19.50</td>
-<td>0</td>
-<td><small>trend=9.5, volume=3.5, moving_average=3.0, momentum=3.5</small></td>
+<td class='score-low'>25.50</td>
+<td>20.488813018140604</td>
+<td><small>trend=11.0, volume=3.5, limit=3.0, candlestick=1.5, moving_average=3.0, momentum=3.5, penalty_rsi=-5.0, rs_index=5.0</small></td>
 </tr>
 <tr>
 <td><a href='https://finance.yahoo.com/quote/AMR' target='_blank' class='symbol-link'><strong>AMR</strong></a></td>
 <td><small>NYSE</small></td>
 <td>Baseline</td>
-<td class='score-low'>19.00</td>
-<td>0</td>
-<td><small>trend=10.0, volume=4.0, limit=-1.0, moving_average=3.0, momentum=3.0</small></td>
+<td class='score-low'>25.00</td>
+<td>238.4688330971623</td>
+<td><small>trend=11.0, volume=4.0, limit=-1.0, moving_average=3.0, momentum=3.0, rs_index=5.0</small></td>
+</tr>
+<tr>
+<td><a href='https://finance.yahoo.com/quote/ATMU' target='_blank' class='symbol-link'><strong>ATMU</strong></a></td>
+<td><small>NYSE</small></td>
+<td>Baseline</td>
+<td class='score-low'>25.00</td>
+<td>56.40011238195337</td>
+<td><small>trend=10.5, volume=4.0, moving_average=3.0, momentum=2.5, rs_index=5.0</small></td>
 </tr>
 <tr>
 <td><a href='https://finance.yahoo.com/quote/BCS' target='_blank' class='symbol-link'><strong>BCS</strong></a></td>
 <td><small>NYSE</small></td>
 <td>Baseline</td>
-<td class='score-low'>19.00</td>
-<td>0</td>
-<td><small>trend=10.0, volume=4.0, limit=2.0, moving_average=3.0</small></td>
+<td class='score-low'>25.00</td>
+<td>26.09598175400057</td>
+<td><small>trend=11.0, volume=4.0, limit=2.0, moving_average=3.0, rs_index=5.0</small></td>
 </tr>
 <tr>
-<td><a href='https://finance.yahoo.com/quote/CELH' target='_blank' class='symbol-link'><strong>CELH</strong></a></td>
+<td><a href='https://finance.yahoo.com/quote/MSGS' target='_blank' class='symbol-link'><strong>MSGS</strong></a></td>
+<td><small>NYSE</small></td>
+<td>Baseline</td>
+<td class='score-low'>25.00</td>
+<td>288.202176377714</td>
+<td><small>trend=11.5, volume=3.5, limit=2.0, candlestick=1.5, moving_average=3.0, momentum=3.5, penalty_rsi=-5.0, rs_index=5.0</small></td>
+</tr>
+<tr>
+<td><a href='https://finance.yahoo.com/quote/TIGO' target='_blank' class='symbol-link'><strong>TIGO</strong></a></td>
 <td><small>NASDAQ</small></td>
 <td>Baseline</td>
-<td class='score-low'>19.00</td>
-<td>0</td>
-<td><small>trend=9.5, volume=3.5, limit=2.0, candlestick=1.5, moving_average=2.0, momentum=2.5, penalty_rsi=-2.0</small></td>
+<td class='score-low'>24.50</td>
+<td>58.30367262620924</td>
+<td><small>trend=8.0, volume=3.5, limit=2.0, candlestick=2.5, moving_average=3.0, momentum=3.5, penalty_ema_overextension=-3.0, rs_index=5.0</small></td>
 </tr>
 <tr>
-<td><a href='https://finance.yahoo.com/quote/CON' target='_blank' class='symbol-link'><strong>CON</strong></a></td>
+<td><a href='https://finance.yahoo.com/quote/CDP' target='_blank' class='symbol-link'><strong>CDP</strong></a></td>
 <td><small>NYSE</small></td>
 <td>Baseline</td>
-<td class='score-low'>19.00</td>
-<td>0</td>
-<td><small>trend=7.0, volume=3.5, limit=1.0, moving_average=3.0, momentum=4.5</small></td>
+<td class='score-low'>24.00</td>
+<td>30.71705256775643</td>
+<td><small>trend=9.5, volume=3.5, limit=3.0, candlestick=2.5, moving_average=3.0, momentum=2.5, penalty_rsi=-2.0, rs_index=2.0</small></td>
 </tr>
 <tr>
-<td><a href='https://finance.yahoo.com/quote/ELA' target='_blank' class='symbol-link'><strong>ELA</strong></a></td>
-<td><small>NYSE MKT</small></td>
-<td>Baseline</td>
-<td class='score-low'>19.00</td>
-<td>0</td>
-<td><small>trend=8.0, volume=4.0, moving_average=3.0, momentum=4.0</small></td>
-</tr>
-<tr>
-<td><a href='https://finance.yahoo.com/quote/GWW' target='_blank' class='symbol-link'><strong>GWW</strong></a></td>
+<td><a href='https://finance.yahoo.com/quote/CFG' target='_blank' class='symbol-link'><strong>CFG</strong></a></td>
 <td><small>NYSE</small></td>
 <td>Baseline</td>
-<td class='score-low'>19.00</td>
-<td>0</td>
-<td><small>trend=8.0, volume=3.5, limit=1.0, moving_average=3.0, momentum=3.5</small></td>
-</tr>
-<tr>
-<td><a href='https://finance.yahoo.com/quote/HLNE' target='_blank' class='symbol-link'><strong>HLNE</strong></a></td>
-<td><small>NASDAQ</small></td>
-<td>Baseline</td>
-<td class='score-low'>19.00</td>
-<td>0</td>
-<td><small>trend=9.0, volume=3.5, limit=1.0, moving_average=3.0, momentum=2.5</small></td>
-</tr>
-<tr>
-<td><a href='https://finance.yahoo.com/quote/IVT' target='_blank' class='symbol-link'><strong>IVT</strong></a></td>
-<td><small>NYSE</small></td>
-<td>Baseline</td>
-<td class='score-low'>19.00</td>
-<td>0</td>
-<td><small>trend=5.0, volume=4.0, limit=3.0, candlestick=1.5, moving_average=3.0, momentum=2.5</small></td>
-</tr>
-<tr>
-<td><a href='https://finance.yahoo.com/quote/MFA' target='_blank' class='symbol-link'><strong>MFA</strong></a></td>
-<td><small>NYSE</small></td>
-<td>Baseline</td>
-<td class='score-low'>19.00</td>
-<td>0</td>
-<td><small>trend=10.0, volume=3.5, limit=3.0, moving_average=3.0, momentum=4.5, penalty_rsi=-5.0</small></td>
-</tr>
-<tr>
-<td><a href='https://finance.yahoo.com/quote/MITT' target='_blank' class='symbol-link'><strong>MITT</strong></a></td>
-<td><small>NYSE</small></td>
-<td>Baseline</td>
-<td class='score-low'>19.00</td>
-<td>0</td>
-<td><small>trend=10.0, volume=3.5, limit=1.0, moving_average=3.0, momentum=3.5, penalty_rsi=-2.0</small></td>
-</tr>
-<tr>
-<td><a href='https://finance.yahoo.com/quote/MORT' target='_blank' class='symbol-link'><strong>MORT</strong></a></td>
-<td><small>NYSE ARCA</small></td>
-<td>Baseline</td>
-<td class='score-low'>19.00</td>
-<td>0</td>
-<td><small>trend=10.0, volume=3.5, limit=3.0, moving_average=3.0, momentum=4.5, penalty_rsi=-5.0</small></td>
-</tr>
-<tr>
-<td><a href='https://finance.yahoo.com/quote/SNEX' target='_blank' class='symbol-link'><strong>SNEX</strong></a></td>
-<td><small>NASDAQ</small></td>
-<td>Baseline</td>
-<td class='score-low'>19.00</td>
-<td>0</td>
-<td><small>trend=7.0, volume=3.5, limit=2.0, moving_average=3.0, momentum=3.5</small></td>
-</tr>
-<tr>
-<td><a href='https://finance.yahoo.com/quote/STNG' target='_blank' class='symbol-link'><strong>STNG</strong></a></td>
-<td><small>NYSE</small></td>
-<td>Baseline</td>
-<td class='score-low'>19.00</td>
-<td>0</td>
-<td><small>trend=9.0, volume=3.5, limit=1.0, moving_average=2.0, momentum=3.5</small></td>
-</tr>
-<tr>
-<td><a href='https://finance.yahoo.com/quote/SUI' target='_blank' class='symbol-link'><strong>SUI</strong></a></td>
-<td><small>NYSE</small></td>
-<td>Baseline</td>
-<td class='score-low'>19.00</td>
-<td>0</td>
-<td><small>trend=6.0, volume=3.5, limit=2.0, moving_average=3.0, momentum=4.5</small></td>
-</tr>
-<tr>
-<td><a href='https://finance.yahoo.com/quote/TKR' target='_blank' class='symbol-link'><strong>TKR</strong></a></td>
-<td><small>NYSE</small></td>
-<td>Baseline</td>
-<td class='score-low'>19.00</td>
-<td>0</td>
-<td><small>trend=10.0, volume=3.5, moving_average=3.0, momentum=2.5</small></td>
+<td class='score-low'>24.00</td>
+<td>60.58958741951199</td>
+<td><small>trend=11.0, volume=4.0, limit=1.0, moving_average=3.0, rs_index=5.0</small></td>
 </tr>
 <tr>
 <td><a href='https://finance.yahoo.com/quote/COLO' target='_blank' class='symbol-link'><strong>COLO</strong></a></td>
 <td><small>NYSE ARCA</small></td>
 <td>Baseline</td>
-<td class='score-low'>18.50</td>
-<td>0</td>
-<td><small>trend=8.0, volume=3.5, limit=3.0, candlestick=2.5, moving_average=3.0, momentum=3.5, penalty_rsi=-5.0</small></td>
+<td class='score-low'>24.00</td>
+<td>40.10435835141708</td>
+<td><small>trend=9.5, volume=3.5, limit=3.0, candlestick=2.5, moving_average=3.0, momentum=2.5, penalty_rsi=-5.0, rs_index=5.0</small></td>
 </tr>
 <tr>
-<td><a href='https://finance.yahoo.com/quote/CWK' target='_blank' class='symbol-link'><strong>CWK</strong></a></td>
+<td><a href='https://finance.yahoo.com/quote/ECPG' target='_blank' class='symbol-link'><strong>ECPG</strong></a></td>
+<td><small>NASDAQ</small></td>
+<td>Baseline</td>
+<td class='score-low'>24.00</td>
+<td>55.94224735458391</td>
+<td><small>trend=11.0, volume=4.0, limit=1.0, moving_average=3.0, rs_index=5.0</small></td>
+</tr>
+<tr>
+<td><a href='https://finance.yahoo.com/quote/HLNE' target='_blank' class='symbol-link'><strong>HLNE</strong></a></td>
+<td><small>NASDAQ</small></td>
+<td>Baseline</td>
+<td class='score-low'>24.00</td>
+<td>151.89342795323762</td>
+<td><small>trend=10.0, volume=3.5, limit=1.0, moving_average=3.0, momentum=1.5, rs_index=5.0</small></td>
+</tr>
+<tr>
+<td><a href='https://finance.yahoo.com/quote/IEX' target='_blank' class='symbol-link'><strong>IEX</strong></a></td>
 <td><small>NYSE</small></td>
 <td>Baseline</td>
-<td class='score-low'>18.50</td>
-<td>0</td>
-<td><small>trend=7.0, volume=4.0, limit=1.0, moving_average=3.0, momentum=3.5</small></td>
+<td class='score-low'>24.00</td>
+<td>196.21415171797054</td>
+<td><small>trend=11.5, volume=3.0, limit=2.0, candlestick=1.5, moving_average=3.0, momentum=3.0, penalty_rsi=-5.0, rs_index=5.0</small></td>
 </tr>
 <tr>
-<td><a href='https://finance.yahoo.com/quote/DFAT' target='_blank' class='symbol-link'><strong>DFAT</strong></a></td>
+<td><a href='https://finance.yahoo.com/quote/MFA' target='_blank' class='symbol-link'><strong>MFA</strong></a></td>
+<td><small>NYSE</small></td>
+<td>Baseline</td>
+<td class='score-low'>24.00</td>
+<td>10.062292160701675</td>
+<td><small>trend=11.5, volume=3.5, limit=3.0, moving_average=3.0, momentum=3.0, penalty_rsi=-5.0, rs_index=5.0</small></td>
+</tr>
+<tr>
+<td><a href='https://finance.yahoo.com/quote/TKR' target='_blank' class='symbol-link'><strong>TKR</strong></a></td>
+<td><small>NYSE</small></td>
+<td>Baseline</td>
+<td class='score-low'>24.00</td>
+<td>93.1517244196807</td>
+<td><small>trend=11.0, volume=3.5, moving_average=3.0, momentum=1.5, rs_index=5.0</small></td>
+</tr>
+<tr>
+<td><a href='https://finance.yahoo.com/quote/AME' target='_blank' class='symbol-link'><strong>AME</strong></a></td>
+<td><small>NYSE</small></td>
+<td>Baseline</td>
+<td class='score-low'>23.50</td>
+<td>215.00261848176442</td>
+<td><small>trend=11.0, volume=4.0, limit=1.0, moving_average=3.0, momentum=-0.5, rs_index=5.0</small></td>
+</tr>
+<tr>
+<td><a href='https://finance.yahoo.com/quote/BSAC' target='_blank' class='symbol-link'><strong>BSAC</strong></a></td>
+<td><small>NYSE</small></td>
+<td>Baseline</td>
+<td class='score-low'>23.50</td>
+<td>33.16794916795625</td>
+<td><small>trend=11.0, volume=3.5, limit=1.0, moving_average=3.0, rs_index=5.0</small></td>
+</tr>
+<tr>
+<td><a href='https://finance.yahoo.com/quote/DSP' target='_blank' class='symbol-link'><strong>DSP</strong></a></td>
+<td><small>NASDAQ</small></td>
+<td>Baseline</td>
+<td class='score-low'>23.50</td>
+<td>12.43937732166549</td>
+<td><small>trend=8.0, volume=4.0, limit=2.0, candlestick=1.5, moving_average=3.0, rs_index=5.0</small></td>
+</tr>
+<tr>
+<td><a href='https://finance.yahoo.com/quote/EFC' target='_blank' class='symbol-link'><strong>EFC</strong></a></td>
+<td><small>NYSE</small></td>
+<td>Baseline</td>
+<td class='score-low'>23.50</td>
+<td>13.971365921895801</td>
+<td><small>trend=7.0, volume=4.0, limit=3.0, candlestick=2.5, moving_average=3.0, momentum=2.0, rs_index=2.0</small></td>
+</tr>
+<tr>
+<td><a href='https://finance.yahoo.com/quote/ENS' target='_blank' class='symbol-link'><strong>ENS</strong></a></td>
+<td><small>NYSE</small></td>
+<td>Baseline</td>
+<td class='score-low'>23.50</td>
+<td>167.27728246163676</td>
+<td><small>trend=10.5, volume=3.5, limit=1.0, moving_average=3.0, momentum=2.5, penalty_rsi=-2.0, rs_index=5.0</small></td>
+</tr>
+<tr>
+<td><a href='https://finance.yahoo.com/quote/GNK' target='_blank' class='symbol-link'><strong>GNK</strong></a></td>
+<td><small>NYSE</small></td>
+<td>Baseline</td>
+<td class='score-low'>23.50</td>
+<td>19.24853590564651</td>
+<td><small>trend=9.0, volume=4.0, limit=-1.0, moving_average=3.0, momentum=3.5, rs_index=5.0</small></td>
+</tr>
+<tr>
+<td><a href='https://finance.yahoo.com/quote/HP' target='_blank' class='symbol-link'><strong>HP</strong></a></td>
+<td><small>NYSE</small></td>
+<td>Baseline</td>
+<td class='score-low'>23.50</td>
+<td>32.14801557919356</td>
+<td><small>trend=9.5, volume=2.5, limit=1.0, moving_average=3.0, momentum=2.5, rs_index=5.0</small></td>
+</tr>
+<tr>
+<td><a href='https://finance.yahoo.com/quote/MITT' target='_blank' class='symbol-link'><strong>MITT</strong></a></td>
+<td><small>NYSE</small></td>
+<td>Baseline</td>
+<td class='score-low'>23.50</td>
+<td>9.171198669167925</td>
+<td><small>trend=11.0, volume=3.5, limit=1.0, moving_average=3.0, momentum=2.0, penalty_rsi=-2.0, rs_index=5.0</small></td>
+</tr>
+<tr>
+<td><a href='https://finance.yahoo.com/quote/MSGE' target='_blank' class='symbol-link'><strong>MSGE</strong></a></td>
+<td><small>NYSE</small></td>
+<td>Baseline</td>
+<td class='score-low'>23.50</td>
+<td>59.15494385376464</td>
+<td><small>trend=11.0, volume=3.5, moving_average=3.0, momentum=3.0, penalty_rsi=-2.0, rs_index=5.0</small></td>
+</tr>
+<tr>
+<td><a href='https://finance.yahoo.com/quote/RTX' target='_blank' class='symbol-link'><strong>RTX</strong></a></td>
+<td><small>NYSE</small></td>
+<td>Baseline</td>
+<td class='score-low'>23.50</td>
+<td>201.07667549737462</td>
+<td><small>trend=11.5, volume=3.5, limit=2.0, moving_average=3.0, momentum=3.5, penalty_rsi=-5.0, rs_index=5.0</small></td>
+</tr>
+<tr>
+<td><a href='https://finance.yahoo.com/quote/UMC' target='_blank' class='symbol-link'><strong>UMC</strong></a></td>
+<td><small>NYSE</small></td>
+<td>Baseline</td>
+<td class='score-low'>23.50</td>
+<td>9.24857837665503</td>
+<td><small>trend=10.5, volume=2.5, limit=2.0, moving_average=3.0, momentum=2.5, penalty_rsi=-2.0, rs_index=5.0</small></td>
+</tr>
+<tr>
+<td><a href='https://finance.yahoo.com/quote/ARR' target='_blank' class='symbol-link'><strong>ARR</strong></a></td>
+<td><small>NYSE</small></td>
+<td>Baseline</td>
+<td class='score-low'>23.00</td>
+<td>19.049579973263686</td>
+<td><small>trend=11.0, volume=3.0, limit=1.0, candlestick=1.5, moving_average=3.0, momentum=3.5, penalty_rsi=-5.0, rs_index=5.0</small></td>
+</tr>
+<tr>
+<td><a href='https://finance.yahoo.com/quote/COMP' target='_blank' class='symbol-link'><strong>COMP</strong></a></td>
+<td><small>NYSE</small></td>
+<td>Baseline</td>
+<td class='score-low'>23.00</td>
+<td>12.744192807159335</td>
+<td><small>trend=12.0, volume=2.0, limit=1.0, moving_average=3.0, momentum=2.0, penalty_rsi=-2.0, rs_index=5.0</small></td>
+</tr>
+<tr>
+<td><a href='https://finance.yahoo.com/quote/CTO' target='_blank' class='symbol-link'><strong>CTO</strong></a></td>
+<td><small>NYSE</small></td>
+<td>Baseline</td>
+<td class='score-low'>23.00</td>
+<td>18.38822011373016</td>
+<td><small>trend=7.5, volume=3.0, limit=3.0, candlestick=1.5, moving_average=3.0, rs_index=5.0</small></td>
+</tr>
+<tr>
+<td><a href='https://finance.yahoo.com/quote/DAR' target='_blank' class='symbol-link'><strong>DAR</strong></a></td>
+<td><small>NYSE</small></td>
+<td>Baseline</td>
+<td class='score-low'>23.00</td>
+<td>39.309138084222404</td>
+<td><small>trend=8.5, volume=4.0, moving_average=3.0, momentum=2.5, rs_index=5.0</small></td>
+</tr>
+<tr>
+<td><a href='https://finance.yahoo.com/quote/EWP' target='_blank' class='symbol-link'><strong>EWP</strong></a></td>
 <td><small>NYSE ARCA</small></td>
 <td>Baseline</td>
-<td class='score-low'>18.50</td>
-<td>0</td>
-<td><small>trend=9.5, volume=2.5, limit=1.0, moving_average=3.0, momentum=2.5</small></td>
+<td class='score-low'>23.00</td>
+<td>54.55443986180883</td>
+<td><small>trend=11.0, volume=4.0, limit=2.0, moving_average=3.0, momentum=1.0, rs_index=2.0</small></td>
+</tr>
+<tr>
+<td><a href='https://finance.yahoo.com/quote/EWY' target='_blank' class='symbol-link'><strong>EWY</strong></a></td>
+<td><small>NYSE ARCA</small></td>
+<td>Baseline</td>
+<td class='score-low'>23.00</td>
+<td>111.82397637727539</td>
+<td><small>trend=13.0, volume=3.5, limit=2.0, moving_average=3.0, momentum=1.5, penalty_rsi=-5.0, rs_index=5.0</small></td>
+</tr>
+<tr>
+<td><a href='https://finance.yahoo.com/quote/GASS' target='_blank' class='symbol-link'><strong>GASS</strong></a></td>
+<td><small>NASDAQ</small></td>
+<td>Baseline</td>
+<td class='score-low'>23.00</td>
+<td>7.795925638535142</td>
+<td><small>trend=11.0, volume=2.5, limit=1.0, moving_average=3.0, momentum=2.5, penalty_rsi=-2.0, rs_index=5.0</small></td>
+</tr>
+<tr>
+<td><a href='https://finance.yahoo.com/quote/GLDD' target='_blank' class='symbol-link'><strong>GLDD</strong></a></td>
+<td><small>NASDAQ</small></td>
+<td>Baseline</td>
+<td class='score-low'>23.00</td>
+<td>14.852177838990215</td>
+<td><small>trend=8.0, volume=3.5, moving_average=3.0, momentum=3.5, rs_index=5.0</small></td>
+</tr>
+<tr>
+<td><a href='https://finance.yahoo.com/quote/NCA' target='_blank' class='symbol-link'><strong>NCA</strong></a></td>
+<td><small>NYSE</small></td>
+<td>Baseline</td>
+<td class='score-low'>23.00</td>
+<td>9.354235241582531</td>
+<td><small>trend=11.0, volume=3.5, limit=1.0, moving_average=3.0, momentum=2.5, rs_index=2.0</small></td>
+</tr>
+<tr>
+<td><a href='https://finance.yahoo.com/quote/OSBC' target='_blank' class='symbol-link'><strong>OSBC</strong></a></td>
+<td><small>NASDAQ</small></td>
+<td>Baseline</td>
+<td class='score-low'>23.00</td>
+<td>20.55149257392255</td>
+<td><small>trend=8.5, volume=3.0, moving_average=3.0, momentum=3.5, rs_index=5.0</small></td>
+</tr>
+<tr>
+<td><a href='https://finance.yahoo.com/quote/OUT' target='_blank' class='symbol-link'><strong>OUT</strong></a></td>
+<td><small>NYSE</small></td>
+<td>Baseline</td>
+<td class='score-low'>23.00</td>
+<td>25.098126492169378</td>
+<td><small>trend=12.5, volume=-1.0, limit=3.0, candlestick=1.5, moving_average=3.0, momentum=-1.0, rs_index=5.0</small></td>
+</tr>
+<tr>
+<td><a href='https://finance.yahoo.com/quote/PSTL' target='_blank' class='symbol-link'><strong>PSTL</strong></a></td>
+<td><small>NYSE</small></td>
+<td>Baseline</td>
+<td class='score-low'>23.00</td>
+<td>17.458052641541506</td>
+<td><small>trend=11.0, volume=3.5, limit=2.0, moving_average=3.0, momentum=3.5, penalty_rsi=-5.0, rs_index=5.0</small></td>
+</tr>
+<tr>
+<td><a href='https://finance.yahoo.com/quote/RVTY' target='_blank' class='symbol-link'><strong>RVTY</strong></a></td>
+<td><small>NYSE</small></td>
+<td>Baseline</td>
+<td class='score-low'>23.00</td>
+<td>111.76521496496841</td>
+<td><small>trend=9.0, volume=3.5, moving_average=3.0, momentum=2.5, rs_index=5.0</small></td>
+</tr>
+<tr>
+<td><a href='https://finance.yahoo.com/quote/RYI' target='_blank' class='symbol-link'><strong>RYI</strong></a></td>
+<td><small>NYSE</small></td>
+<td>Baseline</td>
+<td class='score-low'>23.00</td>
+<td>28.55839302903261</td>
+<td><small>trend=10.0, volume=4.0, limit=-1.0, moving_average=3.0, momentum=2.0, rs_index=5.0</small></td>
+</tr>
+<tr>
+<td><a href='https://finance.yahoo.com/quote/SN' target='_blank' class='symbol-link'><strong>SN</strong></a></td>
+<td><small>NYSE</small></td>
+<td>Baseline</td>
+<td class='score-low'>23.00</td>
+<td>126.21761271425362</td>
+<td><small>trend=11.0, volume=3.5, limit=1.0, moving_average=3.0, momentum=-0.5, rs_index=5.0</small></td>
+</tr>
+<tr>
+<td><a href='https://finance.yahoo.com/quote/SWK' target='_blank' class='symbol-link'><strong>SWK</strong></a></td>
+<td><small>NYSE</small></td>
+<td>Baseline</td>
+<td class='score-low'>23.00</td>
+<td>84.12158889639863</td>
+<td><small>trend=12.5, volume=3.0, moving_average=3.0, momentum=1.5, penalty_rsi=-2.0, rs_index=5.0</small></td>
+</tr>
+<tr>
+<td><a href='https://finance.yahoo.com/quote/TPB' target='_blank' class='symbol-link'><strong>TPB</strong></a></td>
+<td><small>NYSE</small></td>
+<td>Baseline</td>
+<td class='score-low'>23.00</td>
+<td>118.14923796483993</td>
+<td><small>trend=11.5, volume=3.5, moving_average=3.0, momentum=2.0, penalty_rsi=-2.0, rs_index=5.0</small></td>
 </tr>
 </table>
-<div class='footer'>Generated by BlueHorseshoe v2.1 on 2026-01-17 04:06:21</div>
+<div class='footer'>Generated by BlueHorseshoe v2.1 on 2026-01-20 02:40:21</div>
 </div></body></html>

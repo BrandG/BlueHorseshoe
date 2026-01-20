@@ -264,18 +264,16 @@ class Backtester:
             eval_result = self.evaluate_prediction(pred, target_date)
             results.append(eval_result)
 
-            pnl = 0.0
-            if eval_result.get('entry') is not None and eval_result.get('exit_price') is not None:
-                pnl = ((eval_result['exit_price'] / eval_result['entry']) - 1) * 100
-
-            score_val = pred.get(score_key, 0.0)
-            
-            # Determine ML Probability key based on strategy
+            score_key = "baseline_score" if options.strategy == "baseline" else "mr_score"
+            setup_key = "baseline_setup" if options.strategy == "baseline" else "mr_setup"
             ml_prob_key = "baseline_ml_prob" if options.strategy == "baseline" else "mr_ml_prob"
+            
+            score_val = pred.get(score_key, 0.0)
             ml_prob = pred.get(ml_prob_key, 0.0)
 
             msg = f"{pred['symbol']} (Score: {score_val:.2f} | ML: {ml_prob*100:.1f}%): {eval_result['status']}"
-            if eval_result.get('entry') is not None:
+            if eval_result.get('entry') is not None and eval_result.get('exit_price') is not None:
+                pnl = ((eval_result['exit_price'] / eval_result['entry']) - 1) * 100
                 msg += f" | PnL: {pnl:.2f}% (Entry: {eval_result['entry']:.2f}, Exit: {eval_result['exit_price']:.2f}, Held: {eval_result['days_held']} days)"
             ReportSingleton().write(msg)
         return results

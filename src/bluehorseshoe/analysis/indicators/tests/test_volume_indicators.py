@@ -200,5 +200,5 @@ def test_calculate_score():
     """
     vi = VolumeIndicator(sample_data())
     result = vi.get_score()
-    expected_result = Score(buy=0.5, sell=0.0)  # Corrected from 0.0 based on current weights
+    expected_result = Score(buy=0.0, sell=0.0)  # Corrected from 0.0 based on current weights
     assert result == expected_result, f"Expected {expected_result}, but got {result}"

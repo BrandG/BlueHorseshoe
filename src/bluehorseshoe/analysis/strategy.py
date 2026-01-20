@@ -164,12 +164,12 @@ class SwingTrader:
                 # print(f"DEBUG: {last_row.get('symbol')} Tightened stop to ATR to save RR ({rr_ratio:.2f})")
 
         # Debugging
-        if rr_ratio < 0.5:
-            print(
-                f"DEBUG: {last_row.get('symbol', 'UNK')} RR Debug: entry={entry_price:.2f}, "
-                f"stop={stop_loss:.2f}, exit={take_profit:.2f}, atr={atr:.2f}, "
-                f"mult={ml_stop_multiplier:.2f}, rr={rr_ratio:.2f}"
-            )
+        # if rr_ratio < 0.5:
+        #    print(
+        #        f"DEBUG: {last_row.get('symbol', 'UNK')} RR Debug: entry={entry_price:.2f}, "
+        #        f"stop={stop_loss:.2f}, exit={take_profit:.2f}, atr={atr:.2f}, "
+        #        f"mult={ml_stop_multiplier:.2f}, rr={rr_ratio:.2f}"
+        #    )
 
         # 6. Quality Check & Return
         avg_volume = last_row.get('avg_volume_20', 1)
@@ -312,7 +312,7 @@ class SwingTrader:
         baseline_setup = self.calculate_baseline_setup(df, ml_stop_multiplier=ml_stop_multiplier)
 
         if not baseline_setup['is_realistic'] or baseline_setup['rr_ratio'] < MIN_RR_RATIO_BASELINE:
-            print(f"DEBUG: {symbol} - Baseline failed setup checks: realistic={baseline_setup['is_realistic']}, rr={baseline_setup['rr_ratio']}")
+            # print(f"DEBUG: {symbol} - Baseline failed setup checks: realistic={baseline_setup['is_realistic']}, rr={baseline_setup['rr_ratio']}")
             return None
 
         entry_price = baseline_setup['entry_price']

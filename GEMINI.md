@@ -64,6 +64,7 @@ The system implements two primary scoring strategies in `TechnicalAnalyzer`:
     - **Status:** Validated (Jan 2026).
     - **Performance:** 53% Win Rate, +6.5% PnL in Bear/Chop markets.
     - **Scoring:** Rewards extreme oversold conditions (RSI < 30) with significant mean reversion potential. Effective on volatile names.
+- **Filter Relaxation (Jan 20):** Lowered `MIN_RR_RATIO` to 1.0 and disabled mandatory weekly uptrend check to increase candidate volume for backtesting.
 
 - **Async Architecture (Jan 2026):** Transitioned heavy analysis workloads to Celery/Redis background tasks. The API now returns a `task_id` for long-running predictions, and a `/tasks/{task_id}` endpoint provides real-time progress updates.
 
@@ -75,4 +76,4 @@ The system implements two primary scoring strategies in `TechnicalAnalyzer`:
 - **Validation:** When adding new technical scoring logic, ensure column presence checks use `Series.index` to avoid value-based subsetting errors.
 - **Logging:** Always update `actions.txt` with key decisions and validation results.
 
-- **Next Task:** Refactor `ReportSingleton` to output structured JSON data for the API and Dashboard.
+- **Next Task:** Implement Job Scheduler for automated daily pipeline & JSON Reporting for API.

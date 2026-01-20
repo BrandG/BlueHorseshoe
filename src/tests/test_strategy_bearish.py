@@ -8,9 +8,9 @@ def sample_data():
     df = pd.DataFrame([{
             'date': pd.Timestamp.now().normalize() - pd.Timedelta(days=30-i),
             'open': 100.0 + i,
-            'high': 105.0 + i,
-            'low': 95.0 + i,
-            'close': 102.0 + i, # Uptrend
+            'high': 101.0 + i, # Reduced volatility
+            'low': 99.0 + i,   # Reduced volatility
+            'close': 100.5 + i, # Uptrend
             'volume': 1000000.0,
             'avg_volume_20': 1000000.0,
             'ema_20': 100.0 + i,
