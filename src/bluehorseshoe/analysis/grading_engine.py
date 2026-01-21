@@ -39,8 +39,16 @@ class GradingEngine:
     Evaluates historical predictions stored in 'trade_scores' against actual price action.
     """
 
-    def __init__(self, hold_days: int = 10):
+    def __init__(self, hold_days: int = 10, database=None):
+        """
+        Initialize GradingEngine with optional dependency injection.
+
+        Args:
+            hold_days: Number of days to hold a trade
+            database: MongoDB database instance. If None, uses global singleton.
+        """
         self.hold_days = hold_days
+        self.database = database
 
     def _simulate_trade(self, params: TradeParams, future_data: pd.DataFrame) -> TradeResult:
         """Core simulation logic for iterating through future price action."""
@@ -106,7 +114,7 @@ class GradingEngine:
         if any(v is None for v in [params.entry_price, params.stop_loss, params.take_profit]):
             return {'symbol': symbol, 'date': signal_date, 'score': params.score, 'status': 'missing_metadata'}
 
-        price_data = load_historical_data(symbol)
+        price_data = load_historical_data(symbol, database=self.database)
         if not price_data or 'days' not in price_data:
             return {'symbol': symbol, 'date': signal_date, 'score': params.score, 'status': 'no_data'}
 
@@ -141,7 +149,7 @@ class GradingEngine:
 
     def _process_symbol_scores(self, symbol: str, sym_scores: List[Dict]) -> List[Dict]:
         """Helper to process all scores for a single symbol."""
-        price_data = load_historical_data(symbol)
+        price_data = load_historical_data(symbol, database=self.database)
         if not price_data or 'days' not in price_data:
             return [{'symbol': symbol, 'date': s['date'], 'score': s.get('score'), 'status': 'no_data'}
                     for s in sym_scores]

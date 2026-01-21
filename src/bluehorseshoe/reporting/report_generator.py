@@ -216,6 +216,15 @@ class ReportSingleton(ReportWriter):
                 super().__init__(log_path=Path("/workspaces/BlueHorseshoe/src/logs/report.txt"))
                 self._initialized = True
 
+    def __enter__(self) -> 'ReportSingleton':
+        """
+        Override parent's __enter__ to reopen file if closed.
+        This allows the singleton to be used multiple times as a context manager.
+        """
+        if self._file is None or self._file.closed:
+            self._initialize_file()
+        return self
+
     @classmethod
     def reset(cls) -> None:
         """

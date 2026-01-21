@@ -127,7 +127,8 @@ def test_process_symbol(swing_trader, sample_data, mocker): # pylint: disable=re
     """
     mocker.patch('bluehorseshoe.analysis.strategy.load_historical_data', return_value={'days': sample_data.to_dict('records'),
                                                                      'symbol':'IBM', 'full_name': 'Test Stock'})
-    mocker.patch('bluehorseshoe.analysis.strategy.GlobalData', holiday=False)
+    # Mock holiday_mode on the config object instead of GlobalData
+    swing_trader.config.holiday_mode = False
     mocker.patch('bluehorseshoe.analysis.strategy.MIN_RR_RATIO_BASELINE', 0.0)
     mocker.patch('bluehorseshoe.analysis.strategy.MIN_RR_RATIO_MEAN_REVERSION', 0.0)
     mocker.patch('bluehorseshoe.analysis.strategy.MAX_RISK_PERCENT', 1.0)

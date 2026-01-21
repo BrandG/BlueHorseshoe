@@ -180,7 +180,7 @@ if __name__ == "__main__":
                 regime_for_html['spy_ma50'] = spy_details.get('ema50', 'N/A')
                 regime_for_html['spy_ma200'] = spy_details.get('ema200', 'N/A')
 
-                reporter = HTMLReporter()
+                reporter = HTMLReporter(database=ctx.db)
                 html_content = reporter.generate_report(
                     date=target_date,
                     regime=regime_for_html,
@@ -210,7 +210,7 @@ if __name__ == "__main__":
 
             # 1. Market Regime
             from bluehorseshoe.analysis.market_regime import MarketRegime
-            market_health = MarketRegime.get_market_health(target_date=target_date)
+            market_health = MarketRegime.get_market_health(target_date=target_date, database=ctx.db)
 
             # Flatten the regime details for the reporter
             spy_details = market_health.get('details', {}).get('SPY', {})
@@ -267,7 +267,7 @@ if __name__ == "__main__":
             top_candidates = candidates[:50]
 
             # 5. Generate Report
-            reporter = HTMLReporter()
+            reporter = HTMLReporter(database=ctx.db)
             html_content = reporter.generate_report(
                 date=target_date,
                 regime=market_health,

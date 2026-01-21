@@ -15,8 +15,16 @@ class HTMLReporter:
     """
     Generates HTML reports for BlueHorseshoe trading sessions.
     """
-    def __init__(self, output_dir: str = "src/logs"):
+    def __init__(self, output_dir: str = "src/logs", database=None):
+        """
+        Initialize HTMLReporter with optional dependency injection.
+
+        Args:
+            output_dir: Directory to save generated reports
+            database: MongoDB database instance. If None, uses global singleton.
+        """
         self.output_dir = output_dir
+        self.database = database
         self.css = """
         <style>
             :root {
@@ -134,7 +142,7 @@ class HTMLReporter:
         Generates a base64 encoded candlestick chart for the last 10 trading days.
         """
         try:
-            data = load_historical_data(symbol)
+            data = load_historical_data(symbol, database=self.database)
             if not data or 'days' not in data:
                 return ""
             

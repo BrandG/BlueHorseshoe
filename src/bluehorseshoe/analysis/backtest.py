@@ -53,10 +53,18 @@ class TradeState:
 class Backtester:
     """Class for orchestrating historical backtests of the trading strategy."""
 
-    def __init__(self, config: BacktestConfig = None):
+    def __init__(self, config: BacktestConfig = None, database=None):
+        """
+        Initialize Backtester with optional dependency injection.
+
+        Args:
+            config: BacktestConfig instance
+            database: MongoDB database instance. If None, uses global singleton.
+        """
         if config is None:
             config = BacktestConfig()
-        self.trader = SwingTrader()
+        self.database = database
+        self.trader = SwingTrader(database=database)
         self.config = config
         # Expose config attributes
         self.hold_days = config.hold_days
@@ -147,7 +155,7 @@ class Backtester:
         # Determine strictness of entry (optional, can be passed in config)
         # strict_entry = True # If True, Low must be <= Entry. If False, buy at Open.
 
-        price_data = load_historical_data(symbol)
+        price_data = load_historical_data(symbol, database=self.database)
         if not price_data or 'days' not in price_data:
             return {'symbol': symbol, 'status': 'data_error'}
 

@@ -293,7 +293,7 @@ class SwingTrader:
 
     def _load_and_validate_data(self, symbol: str, target_date: Optional[str]) -> Optional[tuple[pd.DataFrame, dict, dict]]:
         """Helper to load and validate historical data."""
-        price_data = load_historical_data(symbol)
+        price_data = load_historical_data(symbol, database=self.database, score_manager_instance=self.score_manager)
         if price_data is None or not price_data.get('days'):
             logging.error("Failed to load historical data for %s.", symbol)
             return None
@@ -470,7 +470,7 @@ class SwingTrader:
         logging.info("Processed %s with results Baseline: %.2f, MR: %.2f", symbol, ret_val['baseline_score'], ret_val['mr_score'])
         return ret_val
     def _load_benchmark_data(self, target_date: Optional[str]) -> Optional[pd.DataFrame]:
-        benchmark_data = load_historical_data("SPY")
+        benchmark_data = load_historical_data("SPY", database=self.database, score_manager_instance=self.score_manager)
         if benchmark_data and benchmark_data.get('days'):
             df = pd.DataFrame(benchmark_data['days'])
             if target_date:
@@ -580,7 +580,7 @@ class SwingTrader:
         """Main prediction function with parallel processing capability."""
 
         # 1. Market Context Filter
-        market_health = MarketRegime.get_market_health(target_date=target_date)
+        market_health = MarketRegime.get_market_health(target_date=target_date, database=self.database)
         self._write_report(f"Market Status: {market_health['status']} ({market_health['multiplier']}x risk)")
 
         # 2. Setup Data

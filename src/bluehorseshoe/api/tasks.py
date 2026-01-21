@@ -113,11 +113,13 @@ def predict_task(self, target_date: str = None, indicators: list = None, aggrega
 def generate_report_task(self, report_data: dict):
     """
     Generates HTML report from prediction results.
+    Creates a task-scoped container for dependency management.
     """
     logger.info(f"Task {self.request.id}: Generating HTML report...")
+    container = create_app_container()
     try:
-        reporter = HTMLReporter()
-        
+        reporter = HTMLReporter(database=container.get_database())
+
         # Extract data
         date = report_data.get('date', str(datetime.date.today()))
         regime = report_data.get('regime', {})
@@ -139,6 +141,8 @@ def generate_report_task(self, report_data: dict):
     except Exception as e:
         logger.error(f"Report generation failed: {e}", exc_info=True)
         raise e
+    finally:
+        container.close()
 
 @celery_app.task(bind=True)
 def send_email_task(self, report_info: dict):

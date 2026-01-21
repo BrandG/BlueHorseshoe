@@ -15,9 +15,13 @@ class MarketRegime:
     # pylint: disable=too-few-public-methods
 
     @staticmethod
-    def _calculate_breadth(target_date: Optional[str] = None) -> float:
+    def _calculate_breadth(target_date: Optional[str] = None, database=None) -> float:
         """
         Calculates market breadth: % of a sample of major stocks above their 50-day EMA.
+
+        Args:
+            target_date: Optional date to calculate breadth for
+            database: MongoDB database instance. If None, uses global singleton.
         """
         majors = [
             'AAPL', 'MSFT', 'AMZN', 'GOOGL', 'META', 'TSLA', 'NVDA', 'BRK.B', 'JNJ', 'JPM',
@@ -27,7 +31,7 @@ class MarketRegime:
         total = 0
 
         for symbol in majors:
-            data = load_historical_data(symbol)
+            data = load_historical_data(symbol, database=database)
             if not data or not data.get('days'):
                 continue
             df = pd.DataFrame(data['days'])
@@ -43,9 +47,16 @@ class MarketRegime:
         return (above_ema / total) if total > 0 else 0.5
 
     @staticmethod
-    def _get_index_health(symbol: str, target_date: Optional[str] = None) -> tuple[int, Dict[str, Any]]:
-        """Calculates the health score for a single index."""
-        data = load_historical_data(symbol)
+    def _get_index_health(symbol: str, target_date: Optional[str] = None, database=None) -> tuple[int, Dict[str, Any]]:
+        """
+        Calculates the health score for a single index.
+
+        Args:
+            symbol: Index symbol (e.g., SPY, QQQ)
+            target_date: Optional date to calculate health for
+            database: MongoDB database instance. If None, uses global singleton.
+        """
+        data = load_historical_data(symbol, database=database)
         if not data or not data.get('days'):
             logging.warning("MarketRegime: No data for %s", symbol)
             return 0, {'status': 'Unknown'}
@@ -94,9 +105,14 @@ class MarketRegime:
         return 'Bearish', 0.0
 
     @staticmethod
-    def get_market_health(target_date: Optional[str] = None) -> Dict[str, Any]:
+    def get_market_health(target_date: Optional[str] = None, database=None) -> Dict[str, Any]:
         """
         Determines the current market regime using price action, EMAs, and Breadth.
+
+        Args:
+            target_date: Optional date to calculate health for
+            database: MongoDB database instance. If None, uses global singleton.
+
         Returns:
             {
                 'status': 'Bullish' | 'Neutral' | 'Bearish',
@@ -109,11 +125,11 @@ class MarketRegime:
         total_score = 0
 
         for symbol in indices:
-            score, details = MarketRegime._get_index_health(symbol, target_date)
+            score, details = MarketRegime._get_index_health(symbol, target_date, database=database)
             total_score += score
             health_data[symbol] = details
 
-        breadth = MarketRegime._calculate_breadth(target_date)
+        breadth = MarketRegime._calculate_breadth(target_date, database=database)
         if breadth > 0.6:
             total_score += 2
         elif breadth > 0.4:

@@ -417,11 +417,22 @@ def load_historical_data_from_file(symbol):
     return {}
 
 
-def load_historical_data(symbol):
+def load_historical_data(symbol, database=None, score_manager_instance=None):
     """
     Loads historical stock price data for a given symbol from a file or the network.
+
+    Args:
+        symbol: Stock symbol to load
+        database: MongoDB database instance. If None, uses global singleton for backward compatibility.
+        score_manager_instance: ScoreManager instance. If None, uses global singleton for backward compatibility.
+
+    Returns:
+        Dictionary containing historical data with 'days' list
     """
-    data = load_historical_data_from_mongo(symbol, get_mongo_client())
+    # Use injected database or fall back to global singleton
+    db_instance = database if database is not None else get_mongo_client()
+
+    data = load_historical_data_from_mongo(symbol, db_instance)
     if not data:
         data = load_historical_data_from_file(symbol)
     if not data:
@@ -440,7 +451,7 @@ def load_historical_data(symbol):
             if len(days) >= 20 and ('ema_20' not in days[-1] or 'avg_volume_20' not in days[-1]):
                 df = pd.DataFrame(days)
                 data['days'] = get_technical_indicators(df)
-                save_historical_data_to_mongo(symbol, data, get_mongo_client())
+                save_historical_data_to_mongo(symbol, data, db_instance)
 
                 # Also update score
                 try:
@@ -448,7 +459,10 @@ def load_historical_data(symbol):
                     score_components = TechnicalAnalyzer.calculate_technical_score(full_df)
                     total_score = score_components.pop("total", 0.0)
                     last_date = data['days'][-1]['date']
-                    score_manager.save_scores([{
+
+                    # Use injected score manager or fall back to global singleton
+                    sm = score_manager_instance if score_manager_instance is not None else score_manager
+                    sm.save_scores([{
                         "symbol": symbol,
                         "date": last_date,
                         "score": total_score,
