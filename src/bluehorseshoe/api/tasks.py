@@ -40,7 +40,7 @@ def update_market_data_task(self):
         container.get_mongo_client().server_info()
 
         # Run update for recent data (compact mode)
-        build_all_symbols_history(BackfillConfig(recent=True))
+        build_all_symbols_history(BackfillConfig(recent=True), database=container.get_database())
         logger.info("Market data update completed.")
         return "Data Updated"
     except Exception as e:

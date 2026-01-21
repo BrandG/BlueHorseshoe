@@ -9,7 +9,6 @@ import logging
 from typing import List, Dict
 from dataclasses import dataclass
 import pandas as pd
-from bluehorseshoe.core.database import db
 from bluehorseshoe.data.historical_data import load_historical_data
 
 @dataclass
@@ -123,15 +122,23 @@ class GradingEngine:
 
         return self._evaluate_with_df(score_doc, df)
 
-    def run_grading(self, query: Dict = None, limit: int = 5000) -> List[Dict]:
+    def run_grading(self, query: Dict = None, limit: int = 5000, database=None) -> List[Dict]:
         """
         Runs grading on a batch of scores from MongoDB.
         Optimized to load historical data once per symbol.
+
+        Args:
+            query: MongoDB query filter
+            limit: Maximum number of scores to process
+            database: MongoDB database instance. Required.
         """
+        if database is None:
+            raise ValueError("database parameter is required for run_grading")
+
         if query is None:
             query = {"metadata.entry_price": {"$exists": True}}
 
-        coll = db.get_db()['trade_scores']
+        coll = database['trade_scores']
         scores = list(coll.find(query).sort("date", -1).limit(limit))
         logging.info("Found %d scores to grade. Grouping by symbol...", len(scores))
 

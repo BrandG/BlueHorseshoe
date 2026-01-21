@@ -26,8 +26,7 @@ import requests
 from ratelimit import limits, sleep_and_retry #pylint: disable=import-error
 from pymongo.errors import ServerSelectionTimeoutError, PyMongoError
 import talib as ta
-from bluehorseshoe.core.globals import GlobalData, get_mongo_client
-from bluehorseshoe.core.database import db
+from bluehorseshoe.core.config import get_settings
 from bluehorseshoe.core.symbols import get_symbol_list
 from bluehorseshoe.core.scores import score_manager
 from bluehorseshoe.analysis.technical_analyzer import TechnicalAnalyzer
@@ -165,20 +164,29 @@ def save_historical_data_to_mongo(symbol, data, db_instance):
     recent_collection.update_one(
         {"symbol": symbol}, {"$set": recent_data}, upsert=True)
 
-def get_backfill_checkpoint():
-    """Returns the last successfully processed symbol from the checkpoint collection."""
+def get_backfill_checkpoint(database):
+    """
+    Returns the last successfully processed symbol from the checkpoint collection.
+
+    Args:
+        database: MongoDB database instance
+    """
     try:
-        database = db.get_db()
         checkpoint = database.loader_checkpoints.find_one({"_id": "full_backfill_checkpoint"})
         return checkpoint.get("last_symbol") if checkpoint else None
     except PyMongoError as e:
         logging.error("Failed to get checkpoint: %s", e)
         return None
 
-def set_backfill_checkpoint(symbol):
-    """Saves the last successfully processed symbol to the checkpoint collection."""
+def set_backfill_checkpoint(symbol, database):
+    """
+    Saves the last successfully processed symbol to the checkpoint collection.
+
+    Args:
+        symbol: Stock symbol to checkpoint
+        database: MongoDB database instance
+    """
     try:
-        database = db.get_db()
         database.loader_checkpoints.update_one(
             {"_id": "full_backfill_checkpoint"},
             {"$set": {"last_symbol": symbol, "updated_at": pd.Timestamp.now().isoformat()}},
@@ -197,16 +205,23 @@ class BackfillConfig:
     resume: bool = False
     limit: Optional[int] = None
 
-def build_all_symbols_history(config: Optional[BackfillConfig] = None):
+def build_all_symbols_history(config: Optional[BackfillConfig] = None, database=None):
     """
     Builds historical data for all stock symbols and saves them to MongoDB.
+
+    Args:
+        config: BackfillConfig for controlling the backfill process
+        database: MongoDB database instance. Required for checkpoint operations.
     """
     if config is None:
         config = BackfillConfig()
 
+    if database is None:
+        raise ValueError("database parameter is required for build_all_symbols_history")
+
     starting_at = config.starting_at
     if config.resume and not starting_at:
-        starting_at = get_backfill_checkpoint()
+        starting_at = get_backfill_checkpoint(database)
         if starting_at:
             logging.info("Resuming backfill from symbol: %s", starting_at)
 
@@ -227,7 +242,7 @@ def build_all_symbols_history(config: Optional[BackfillConfig] = None):
             continue
 
         process_symbol(row, index, total_symbols, config.save_to_file, config.recent)
-        set_backfill_checkpoint(symbol)
+        set_backfill_checkpoint(symbol, database)
         processed_count += 1
 
         if config.limit and processed_count >= config.limit:
@@ -356,7 +371,8 @@ def save_data_to_file(symbol, net_data):
     """
     Save stock price data to a JSON file.
     """
-    file_path = os.path.join(GlobalData.base_path, f'StockPrice-{symbol}.json')
+    settings = get_settings()
+    file_path = os.path.join(settings.base_path, f'StockPrice-{symbol}.json')
     with open(file_path, 'w', encoding='utf-8') as file:
         file.write(json.dumps(net_data))
     logging.info("Saved data for %s to %s", symbol, file_path)
@@ -402,7 +418,8 @@ def load_historical_data_from_file(symbol):
     """
     Loads historical stock price data from a JSON file for a given symbol.
     """
-    file_path = os.path.join(GlobalData.base_path, f'StockPrice-{symbol}.json')
+    settings = get_settings()
+    file_path = os.path.join(settings.base_path, f'StockPrice-{symbol}.json')
 
     try:
         with open(file_path, 'r', encoding='utf-8') as file:

@@ -106,8 +106,9 @@ if __name__ == "__main__":
             except (ValueError, IndexError):
                 pass # Will default to all symbols
 
-        build_all_symbols_history(BackfillConfig(recent=True, symbols=symbols_filter))
-        logging.info("Recent historical data updated.")
+        with create_cli_context() as ctx:
+            build_all_symbols_history(BackfillConfig(recent=True, symbols=symbols_filter), database=ctx.db)
+            logging.info("Recent historical data updated.")
     elif "-b" in sys.argv:
         resume = "--resume" in sys.argv
         limit = None
@@ -124,8 +125,9 @@ if __name__ == "__main__":
             except (ValueError, IndexError):
                 pass
 
-        build_all_symbols_history(BackfillConfig(recent=False, resume=resume, limit=limit, symbols=symbols_filter))
-        logging.info("Full historical data updated.")
+        with create_cli_context() as ctx:
+            build_all_symbols_history(BackfillConfig(recent=False, resume=resume, limit=limit, symbols=symbols_filter), database=ctx.db)
+            logging.info("Full historical data updated.")
     elif "-p" in sys.argv:
         logging.info('Predicting next midpoints...')
         with create_cli_context() as ctx:
