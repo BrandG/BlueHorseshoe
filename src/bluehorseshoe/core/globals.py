@@ -38,7 +38,6 @@ class GlobalData:
     """
     base_path: str = '/workspaces/BlueHorseshoe/src/historical_data/'
     invalid_symbols: list = field(default_factory=list)
-    holiday:bool = False # define whether yesterday was a holiday
 
 # MongoDB connections are now managed through the AppContainer class
 # Use create_app_container() to get a database instance instead of this global function

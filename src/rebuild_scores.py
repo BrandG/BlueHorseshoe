@@ -4,25 +4,28 @@ Script to rebuild trade scores for a historical date range.
 import sys
 import logging
 from datetime import datetime, timedelta
+# pylint: disable=wrong-import-position
 from bluehorseshoe.analysis.strategy import SwingTrader
+from bluehorseshoe.cli.context import create_cli_context
 
 def rebuild_scores(start_date: str, end_date: str, inverted: bool = False, symbols: list[str] = None): # pylint: disable=unused-argument
     """
     Rebuilds scores for a range of dates.
     """
-    trader = SwingTrader()
+    with create_cli_context() as ctx:
+        trader = SwingTrader(database=ctx.db, config=ctx.config, report_writer=ctx.report_writer)
 
-    start = datetime.strptime(start_date, '%Y-%m-%d')
-    end = datetime.strptime(end_date, '%Y-%m-%d')
+        start = datetime.strptime(start_date, '%Y-%m-%d')
+        end = datetime.strptime(end_date, '%Y-%m-%d')
 
-    current = start
-    while current <= end:
-        # Skip weekends
-        if current.weekday() < 5:
-            date_str = current.strftime('%Y-%m-%d')
-            print(f"\nRebuilding scores for {date_str}...")
-            trader.swing_predict(target_date=date_str, symbols=symbols)
-        current += timedelta(days=1)
+        current = start
+        while current <= end:
+            # Skip weekends
+            if current.weekday() < 5:
+                date_str = current.strftime('%Y-%m-%d')
+                print(f"\nRebuilding scores for {date_str}...")
+                trader.swing_predict(target_date=date_str, symbols=symbols)
+            current += timedelta(days=1)
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)

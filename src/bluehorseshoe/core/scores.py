@@ -80,15 +80,3 @@ class ScoreManager:
 
         result = self.collection.delete_many(query)
         return result.deleted_count
-
-# Global instance removed - always create ScoreManager with explicit database dependency
-# Example: score_manager = ScoreManager(database=container.get_database())
-# For legacy compatibility with existing tests and code, create a temporary instance
-# This will be replaced with proper DI in each module
-try:
-    from .container import create_app_container
-    _temp_container = create_app_container()
-    score_manager = ScoreManager(database=_temp_container.get_database())
-except Exception:  # pylint: disable=broad-exception-caught
-    # If container creation fails (e.g., in tests), leave score_manager undefined
-    score_manager = None  # type: ignore

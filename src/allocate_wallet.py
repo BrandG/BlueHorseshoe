@@ -9,7 +9,7 @@ sys.path.append('/workspaces/BlueHorseshoe/src')
 
 # pylint: disable=wrong-import-position
 from bluehorseshoe.cli.context import create_cli_context
-from bluehorseshoe.core.scores import score_manager
+from bluehorseshoe.core.scores import ScoreManager
 from bluehorseshoe.core.symbols import get_overview_from_mongo
 from bluehorseshoe.analysis.market_regime import MarketRegime
 from bluehorseshoe.data.historical_data import load_historical_data
@@ -90,6 +90,7 @@ def allocate(database):
         max_positions = 5
 
     # Get scores
+    score_manager = ScoreManager(database=database)
     scores_baseline = score_manager.get_scores(target_date, strategy='baseline')
     scores_mr = score_manager.get_scores(target_date, strategy='mean_reversion')
     scores = scores_baseline + scores_mr

@@ -84,16 +84,17 @@ class SwingTrader:
 
         # Initialize analysis components
         self.technical_analyzer = TechnicalAnalyzer()
-        self.ml_inference = ml_inference if ml_inference is not None else MLInference(database=database)
-        self.stop_loss_inference = stop_loss_inference if stop_loss_inference is not None else StopLossInference(database=database)
+        self.ml_inference = ml_inference if ml_inference is not None else MLInference()
+        self.stop_loss_inference = stop_loss_inference if stop_loss_inference is not None else StopLossInference()
 
         # Create ScoreManager with injected database
         if database is not None:
             self.score_manager = ScoreManager(database=database)
         else:
-            # Backward compatibility - use global singleton
-            from bluehorseshoe.core.scores import score_manager
-            self.score_manager = score_manager
+            # Backward compatibility - create temporary score manager
+            from bluehorseshoe.core.container import create_app_container
+            _temp_container = create_app_container()
+            self.score_manager = ScoreManager(database=_temp_container.get_database())
 
     def _write_report(self, content: str) -> None:
         """

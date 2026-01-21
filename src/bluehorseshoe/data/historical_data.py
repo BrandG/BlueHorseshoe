@@ -1,22 +1,4 @@
-"""
-This module provides functions to load, save, and manage historical stock price data
-from various sources including Alpha Vantage API, MongoDB, and JSON files.
-
-Functions:
-    load_historical_data_from_net(stock_symbol, recent=False):
-        Fetches historical stock data from Alpha Vantage API.
-
-    load_historical_data_from_mongo(symbol, db):
-
-    load_historical_data_from_file(symbol):
-
-    load_historical_data(symbol):
-
-    save_historical_data_to_mongo(symbol, data, db):
-
-    build_all_symbols_history(starting_at='', save_to_file=False):
-"""
-import logging
+"import logging
 import os
 import json
 from dataclasses import dataclass
@@ -28,7 +10,7 @@ from pymongo.errors import ServerSelectionTimeoutError, PyMongoError
 import talib as ta
 from bluehorseshoe.core.config import get_settings
 from bluehorseshoe.core.symbols import get_symbol_list
-from bluehorseshoe.core.scores import score_manager
+from bluehorseshoe.core.scores import ScoreManager
 from bluehorseshoe.analysis.technical_analyzer import TechnicalAnalyzer
 
 
@@ -332,17 +314,22 @@ def process_symbol(row, index, total_symbols, save_to_file, recent, database):
             total_score = score_components.pop("total", 0.0)
             last_date = merged_days[-1]['date']
 
-            score_manager.save_scores([{
-                "symbol": symbol,
-                "date": last_date,
-                "score": total_score,
-                "strategy": "baseline",
-                "version": "1.1",
-                "metadata": {
-                    "source": "update_process",
-                    "components": score_components
+            # Use injected score manager or fall back to one created from passed DB
+            # We create a new ScoreManager instance here since we have the DB
+            sm = ScoreManager(database=database)
+            sm.save_scores([
+                {
+                    "symbol": symbol,
+                    "date": last_date,
+                    "score": total_score,
+                    "strategy": "baseline",
+                    "version": "1.1",
+                    "metadata": {
+                        "source": "update_process",
+                        "components": score_components
+                    }
                 }
-            }])
+            ])
         except (PyMongoError, ValueError, KeyError) as e:
             logging.error("Failed to calculate/save score for %s: %s", symbol, e)
 
@@ -491,18 +478,20 @@ def load_historical_data(symbol, database=None, score_manager_instance=None):
                     last_date = data['days'][-1]['date']
 
                     # Use injected score manager or fall back to global singleton
-                    sm = score_manager_instance if score_manager_instance is not None else score_manager
-                    sm.save_scores([{
-                        "symbol": symbol,
-                        "date": last_date,
-                        "score": total_score,
-                        "strategy": "baseline",
-                        "version": "1.1",
-                        "metadata": {
-                            "source": "load_process",
-                            "components": score_components
+                    sm = score_manager_instance if score_manager_instance is not None else ScoreManager(database=db_instance)
+                    sm.save_scores([
+                        {
+                            "symbol": symbol,
+                            "date": last_date,
+                            "score": total_score,
+                            "strategy": "baseline",
+                            "version": "1.1",
+                            "metadata": {
+                                "source": "load_process",
+                                "components": score_components
+                            }
                         }
-                    }])
+                    ])
                 except (PyMongoError, ValueError, KeyError) as e:
                     logging.error("Failed to update score for %s during load: %s", symbol, e)
 
