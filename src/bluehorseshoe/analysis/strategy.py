@@ -84,8 +84,8 @@ class SwingTrader:
 
         # Initialize analysis components
         self.technical_analyzer = TechnicalAnalyzer()
-        self.ml_inference = ml_inference if ml_inference is not None else MLInference()
-        self.stop_loss_inference = stop_loss_inference if stop_loss_inference is not None else StopLossInference()
+        self.ml_inference = ml_inference if ml_inference is not None else MLInference(database=database)
+        self.stop_loss_inference = stop_loss_inference if stop_loss_inference is not None else StopLossInference(database=database)
 
         # Create ScoreManager with injected database
         if database is not None:
