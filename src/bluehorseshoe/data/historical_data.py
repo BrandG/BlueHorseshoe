@@ -225,7 +225,7 @@ def build_all_symbols_history(config: Optional[BackfillConfig] = None, database=
         if starting_at:
             logging.info("Resuming backfill from symbol: %s", starting_at)
 
-    symbol_list = config.symbols if config.symbols is not None else get_symbol_list()
+    symbol_list = config.symbols if config.symbols is not None else get_symbol_list(database=database)
     if symbol_list is None:
         logging.error("Symbol list is None.")
         return

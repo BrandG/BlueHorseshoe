@@ -86,7 +86,7 @@ def process_date(date_str, tester, strategy="mean_reversion", top_n=10):
     Processes a single date, identifies top predictions, and evaluates their outcomes.
     """
     print(f"Analyzing {date_str} for strategy {strategy}...", flush=True)
-    symbols = get_symbol_name_list()
+    symbols = get_symbol_name_list(database=tester.database)
     score_key = "mr_score" if strategy == "mean_reversion" else "baseline_score"
 
     predictions = _get_predictions(date_str, tester, symbols, score_key)
@@ -98,8 +98,12 @@ def analyze_failures(start_date, end_date, strategy="mean_reversion", interval_d
     """
     Analyzes trading failures over a given period.
     """
+    from bluehorseshoe.core.container import create_app_container
+    container = create_app_container()
+    database = container.get_database()
+
     config = BacktestConfig(target_profit_factor=1.02, stop_loss_factor=0.98, hold_days=3)
-    tester = Backtester(config)
+    tester = Backtester(config, database=database)
 
     start_ts = pd.to_datetime(start_date)
     end_ts = pd.to_datetime(end_date)

@@ -176,19 +176,16 @@ def get_symbols_from_mongo(database=None, limit: Optional[int] = None) -> List[D
     Return stored symbols sorted alphabetically.
 
     Args:
-        database: Optional MongoDB database instance. If None, uses legacy global singleton.
+        database: MongoDB database instance. Required.
         limit: Optional limit on number of symbols to return.
 
     Returns:
         List of symbol dictionaries.
     """
     if database is None:
-        # Backward compatibility with global singleton
-        _db = db.get_db()
-    else:
-        _db = database
+        raise ValueError("database parameter is required for get_symbols_from_mongo")
 
-    cursor = _db["symbols"].find({}, {"_id": 0}).sort("symbol", 1)
+    cursor = database["symbols"].find({}, {"_id": 0}).sort("symbol", 1)
     if limit:
         cursor = cursor.limit(limit)
     return list(cursor)

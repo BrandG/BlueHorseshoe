@@ -211,7 +211,7 @@ class Backtester:
 
     def _load_symbols(self) -> List[str]:
         print("  > Loading symbols from database...", end="", flush=True)
-        symbols = get_symbol_name_list()
+        symbols = get_symbol_name_list(database=self.database)
         print(f" Done ({len(symbols)} symbols).", flush=True)
         return symbols
 
@@ -364,7 +364,7 @@ class Backtester:
         symbols = options.symbols
         if not symbols:
             print(f"  > Fetching symbols...", end="", flush=True)
-            symbols = get_symbol_name_list()
+            symbols = get_symbol_name_list(database=self.database)
             print(f" Done ({len(symbols)} symbols).", flush=True)
             # Update options with loaded symbols to pass down
             options.symbols = symbols
