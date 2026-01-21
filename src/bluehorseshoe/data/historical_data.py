@@ -241,7 +241,7 @@ def build_all_symbols_history(config: Optional[BackfillConfig] = None, database=
                 skip = False
             continue
 
-        process_symbol(row, index, total_symbols, config.save_to_file, config.recent)
+        process_symbol(row, index, total_symbols, config.save_to_file, config.recent, database)
         set_backfill_checkpoint(symbol, database)
         processed_count += 1
 
@@ -251,10 +251,18 @@ def build_all_symbols_history(config: Optional[BackfillConfig] = None, database=
 
 
 
-def process_symbol(row, index, total_symbols, save_to_file, recent):
+def process_symbol(row, index, total_symbols, save_to_file, recent, database):
     """
     Processes a stock symbol by loading its historical data, validating it,
     calculating technical indicators, and saving the data to MongoDB and optionally to a file.
+
+    Args:
+        row: Symbol row with 'symbol' and 'name' keys
+        index: Current symbol index
+        total_symbols: Total number of symbols
+        save_to_file: Whether to save data to file
+        recent: Whether to fetch recent data only
+        database: MongoDB database instance
     """
     symbol = row['symbol']
     name = row['name']
@@ -263,7 +271,7 @@ def process_symbol(row, index, total_symbols, save_to_file, recent):
     # Load existing data from MongoDB to merge with or check for updates
     existing_data = {}
     try:
-        existing_data = load_historical_data_from_mongo(symbol, get_mongo_client())
+        existing_data = load_historical_data_from_mongo(symbol, database)
         if existing_data and 'days' in existing_data and existing_data['days']:
             last_stored_date = existing_data['days'][-1]['date']
             
@@ -343,7 +351,7 @@ def process_symbol(row, index, total_symbols, save_to_file, recent):
 
         logging.info('%d - %s (%d%%) - size: %d', index, symbol, percentage, len(net_data["days"]))
         print(f"Processed {symbol}: {len(net_data['days'])} days")
-        save_historical_data_to_mongo(symbol, net_data, get_mongo_client())
+        save_historical_data_to_mongo(symbol, net_data, database)
 
         if save_to_file:
             save_data_to_file(symbol, net_data)
@@ -440,14 +448,19 @@ def load_historical_data(symbol, database=None, score_manager_instance=None):
 
     Args:
         symbol: Stock symbol to load
-        database: MongoDB database instance. If None, uses global singleton for backward compatibility.
+        database: MongoDB database instance. If None, creates temporary container for backward compatibility.
         score_manager_instance: ScoreManager instance. If None, uses global singleton for backward compatibility.
 
     Returns:
         Dictionary containing historical data with 'days' list
     """
-    # Use injected database or fall back to global singleton
-    db_instance = database if database is not None else get_mongo_client()
+    # Use injected database or fall back to container for backward compatibility
+    if database is None:
+        from bluehorseshoe.core.container import create_app_container
+        container = create_app_container()
+        db_instance = container.get_database()
+    else:
+        db_instance = database
 
     data = load_historical_data_from_mongo(symbol, db_instance)
     if not data:

@@ -56,21 +56,15 @@ def test_load_historical_data_from_net(mock_get):
     assert result['days'][0]['date'] == '2023-01-01'
     assert result['days'][0]['open'] == 100.0
 
-@patch('bluehorseshoe.data.historical_data.get_mongo_client')
-def test_load_historical_data_from_mongo(mock_get_mongo_client):
+def test_load_historical_data_from_mongo():
     """
     Test the load_historical_data_from_mongo function to ensure it correctly loads
     historical data from a MongoDB collection.
-
-    Args:
-        mock_get_mongo_client (MagicMock): A mock object for the MongoDB client.
 
     Mocks:
         - mock_db: A mock database object.
         - mock_collection: A mock collection object within the database.
         - mock_collection.find_one: Mocked to return a dictionary with 'symbol' and 'days' keys.
-        - mock_db.__getitem__: Mocked to return the mock_collection.
-        - mock_get_mongo_client.return_value: Mocked to return the mock_db.
 
     Asserts:
         - The result is not None.
@@ -81,34 +75,28 @@ def test_load_historical_data_from_mongo(mock_get_mongo_client):
     mock_collection = MagicMock()
     mock_collection.find_one.return_value = {'symbol': 'AAPL', 'days': []}
     mock_db.__getitem__.return_value = mock_collection
-    mock_get_mongo_client.return_value = mock_db
 
     result = load_historical_data_from_mongo('AAPL', mock_db)
     assert result is not None
     assert result['symbol'] == 'AAPL'
     assert 'days' in result
 
-@patch('bluehorseshoe.data.historical_data.get_mongo_client')
-def test_save_historical_data_to_mongo(mock_get_mongo_client):
+def test_save_historical_data_to_mongo():
     """
     Test the save_historical_data_to_mongo function to ensure it correctly saves data to MongoDB.
-
-    Args:
-        mock_get_mongo_client (MagicMock): Mocked function to get the MongoDB client.
 
     Mocks:
         - mock_db (MagicMock): Mocked MongoDB database.
         - mock_collection (MagicMock): Mocked MongoDB collection.
 
     Test:
-        - Mocks the MongoDB client, database, and collection.
+        - Mocks the MongoDB database and collection.
         - Calls the save_historical_data_to_mongo function with sample data.
         - Asserts that the update_one method on the mocked collection is called.
     """
     mock_db = MagicMock()
     mock_collection = MagicMock()
     mock_db.__getitem__.return_value = mock_collection
-    mock_get_mongo_client.return_value = mock_db
 
     data = {'symbol': 'AAPL', 'days': []}
     save_historical_data_to_mongo('AAPL', data, mock_db)
@@ -135,7 +123,11 @@ def test_build_all_symbols_history(mock_save_historical_data_to_mongo, mock_load
         mock_load_historical_data_from_net (Mock): Mock for the load_historical_data_from_net function.
         mock_get_symbol_list (Mock): Mock for the get_symbol_list function.
     """
-    build_all_symbols_history(BackfillConfig())
+    mock_db = MagicMock()
+    mock_collection = MagicMock()
+    mock_db.__getitem__.return_value = mock_collection
+
+    build_all_symbols_history(BackfillConfig(), database=mock_db)
     mock_get_symbol_list.assert_called_once()
     mock_load_historical_data_from_net.assert_called_once_with(stock_symbol='AAPL', recent=False)
     mock_save_historical_data_to_mongo.assert_called_once()
@@ -196,7 +188,8 @@ def test_load_historical_data(mock_net, mock_file, mock_mongo):
     mock_file.return_value = None
     mock_net.return_value = {'symbol': 'AAPL', 'days': []}
 
-    result = load_historical_data('AAPL')
+    mock_db = MagicMock()
+    result = load_historical_data('AAPL', database=mock_db)
     assert result is not None
     assert result['symbol'] == 'AAPL'
     assert 'days' in result
