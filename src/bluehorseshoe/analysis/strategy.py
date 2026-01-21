@@ -26,6 +26,7 @@ from dataclasses import dataclass
 from typing import Dict, Optional, List, Any
 
 import pandas as pd
+from pymongo.database import Database
 from ta.volatility import AverageTrueRange
 
 from bluehorseshoe.analysis.constants import (
@@ -35,16 +36,15 @@ from bluehorseshoe.analysis.constants import (
     MAX_RISK_PERCENT,
     REQUIRE_WEEKLY_UPTREND
 )
-
 from bluehorseshoe.analysis.market_regime import MarketRegime
 from bluehorseshoe.analysis.ml_overlay import MLInference
 from bluehorseshoe.analysis.ml_stop_loss import StopLossInference
 from bluehorseshoe.analysis.technical_analyzer import TechnicalAnalyzer
-from bluehorseshoe.core.globals import GlobalData
-from bluehorseshoe.core.scores import score_manager
+from bluehorseshoe.core.config import Settings, get_settings
+from bluehorseshoe.core.scores import ScoreManager
 from bluehorseshoe.core.symbols import get_symbol_name_list, get_symbols_from_mongo
 from bluehorseshoe.data.historical_data import load_historical_data
-from bluehorseshoe.reporting.report_generator import ReportSingleton
+from bluehorseshoe.reporting.report_generator import ReportWriter, ReportSingleton
 
 @dataclass
 class StrategyContext:
@@ -59,10 +59,54 @@ class StrategyContext:
 class SwingTrader:
     """Main class for swing trading analysis."""
 
-    def __init__(self):
+    def __init__(
+        self,
+        database: Optional[Database] = None,
+        config: Optional[Settings] = None,
+        ml_inference: Optional[MLInference] = None,
+        stop_loss_inference: Optional[StopLossInference] = None,
+        report_writer: Optional[ReportWriter] = None
+    ):
+        """
+        Initialize SwingTrader with dependency injection.
+
+        Args:
+            database: MongoDB Database instance. If None, uses legacy global singleton.
+            config: Settings instance. If None, loads from environment.
+            ml_inference: MLInference instance. If None, creates new instance.
+            stop_loss_inference: StopLossInference instance. If None, creates new instance.
+            report_writer: ReportWriter instance for logging. If None, uses legacy ReportSingleton.
+        """
+        # Store injected dependencies
+        self.database = database
+        self.config = config if config is not None else get_settings()
+        self.report_writer = report_writer
+
+        # Initialize analysis components
         self.technical_analyzer = TechnicalAnalyzer()
-        self.ml_inference = MLInference()
-        self.stop_loss_inference = StopLossInference()
+        self.ml_inference = ml_inference if ml_inference is not None else MLInference()
+        self.stop_loss_inference = stop_loss_inference if stop_loss_inference is not None else StopLossInference()
+
+        # Create ScoreManager with injected database
+        if database is not None:
+            self.score_manager = ScoreManager(database=database)
+        else:
+            # Backward compatibility - use global singleton
+            from bluehorseshoe.core.scores import score_manager
+            self.score_manager = score_manager
+
+    def _write_report(self, content: str) -> None:
+        """
+        Write to report using injected writer or fallback to singleton.
+
+        Args:
+            content: Content to write to the report
+        """
+        if self.report_writer is not None:
+            self.report_writer.write(content)
+        else:
+            # Backward compatibility - use singleton
+            ReportSingleton().write(content)
 
     def is_weekly_uptrend(self, df: pd.DataFrame) -> bool:
         """
@@ -110,11 +154,11 @@ class SwingTrader:
         Method: Limit Buy at Close - (0.2 * ATR) to capture intraday noise.
         """
         last_close = last_row['close']
-        
+
         # Optimized Entry: Close - 0.2 * ATR
         # This has been backtested to outperform Market/EMA9 entries significantly (4x PnL).
         entry_price = last_close - (0.2 * atr)
-        
+
         return entry_price
 
     def calculate_baseline_setup(self, df: pd.DataFrame, ml_stop_multiplier: float = 2.0) -> Dict[str, float]:
@@ -141,10 +185,10 @@ class SwingTrader:
         # 4. Stop Loss & Take Profit
         atr_stop = entry_price - (ml_stop_multiplier * atr)
         swing_stop = swing_low_5 * 0.985
-        
+
         # Default to safest stop (widest)
         stop_loss = min(swing_stop, atr_stop)
-        
+
         take_profit = max(swing_high_20, entry_price + (3.0 * atr))
 
         # 5. Risk Calculation
@@ -157,7 +201,7 @@ class SwingTrader:
             # Check if tightening to ATR stop saves the trade
             risk_atr = entry_price - atr_stop
             rr_atr = reward / risk_atr if risk_atr > 0 else 0
-            
+
             if rr_atr >= MIN_RR_RATIO_BASELINE:
                 stop_loss = atr_stop
                 rr_ratio = rr_atr
@@ -272,7 +316,7 @@ class SwingTrader:
             return None
 
         yesterday = dict(df.iloc[-1])
-        if not target_date and not GlobalData.holiday:
+        if not target_date and not self.config.holiday_mode:
             last_trading_day = pd.Timestamp.now().normalize() - pd.offsets.BDay(1)
             yesterday['date'] = pd.to_datetime(yesterday['date'])
             if yesterday['date'] != last_trading_day:
@@ -439,9 +483,9 @@ class SwingTrader:
         """Execute parallel prediction for a batch of symbols."""
         max_workers = min(8, os.cpu_count() or 4)
 
-        ReportSingleton().write(f"Yesterday was {'not ' if not GlobalData.holiday else ''}a holiday.")
+        self._write_report(f"Yesterday was {'not ' if not self.config.holiday_mode else ''}a holiday.")
         if ctx.target_date:
-            ReportSingleton().write(f"Predicting for historical date: {ctx.target_date}")
+            self._write_report(f"Predicting for historical date: {ctx.target_date}")
         logging.info("Processing %d symbols with %d workers...", len(symbols), max_workers)
 
         results = []
@@ -475,12 +519,12 @@ class SwingTrader:
 
     def _report_top_candidates(self, results, strategy_key, setup_key, title):
         sorted_results = sorted([r for r in results if r[strategy_key] > 0], key=lambda x: x[strategy_key], reverse=True)
-        ReportSingleton().write(f'\n--- Top 5 {title} Candidates ---')
+        self._write_report(f'\n--- Top 5 {title} Candidates ---')
         for i in range(min(5, len(sorted_results))):
             res = sorted_results[i]
             setup = res[setup_key]
             prob_key = 'baseline_ml_prob' if 'baseline' in strategy_key else 'mr_ml_prob'
-            ReportSingleton().write(
+            self._write_report(
                 f"{res['symbol']} - Entry: {setup['entry_price']:.2f} | "
                 f"Stop: {setup['stop_loss']:.2f} (SL Mult: {res.get('stop_multiplier', 0):.1f}) | Exit: {setup['take_profit']:.2f} | "
                 f"Score: {res[strategy_key]:.2f} | ML Win%: {res[prob_key]*100:.1f}% - Name: {res['name']}"
@@ -537,15 +581,15 @@ class SwingTrader:
 
         # 1. Market Context Filter
         market_health = MarketRegime.get_market_health(target_date=target_date)
-        ReportSingleton().write(f"Market Status: {market_health['status']} ({market_health['multiplier']}x risk)")
+        self._write_report(f"Market Status: {market_health['status']} ({market_health['multiplier']}x risk)")
 
         # 2. Setup Data
         benchmark_df = self._load_benchmark_data(target_date)
         if symbols is None:
-            symbols = get_symbol_name_list()
+            symbols = get_symbol_name_list(database=self.database)
 
         # Build symbol metadata map
-        all_symbols = get_symbols_from_mongo()
+        all_symbols = get_symbols_from_mongo(database=self.database)
         symbol_map = {s['symbol']: s.get('exchange', 'Unknown') for s in all_symbols}
 
         ctx = StrategyContext(
@@ -568,7 +612,7 @@ class SwingTrader:
         # 5. Save
         if valid_results:
             score_data = self._prepare_scores_for_save(valid_results)
-            score_manager.save_scores(score_data)
+            self.score_manager.save_scores(score_data)
             logging.info("Saved %d scores (Baseline & Mean Reversion) to trade_scores", len(score_data))
 
         # 6. Prepare Return Data for HTML Reporter

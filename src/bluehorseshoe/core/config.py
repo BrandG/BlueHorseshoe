@@ -1,9 +1,11 @@
 """
-Configuration management for BlueHorseshoe, handling weights for various technical indicators.
+Configuration management for BlueHorseshoe, handling application settings and indicator weights.
 """
 import json
 import os
 import logging
+from typing import Optional
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 WEIGHTS_FILE = '/workspaces/BlueHorseshoe/src/weights.json'
 
@@ -46,6 +48,48 @@ DEFAULT_WEIGHTS = {
         'CANDLESTICK_MULTIPLIER': 1.0
     }
 }
+
+class Settings(BaseSettings):
+    """
+    Application-wide settings loaded from environment variables.
+    Uses Pydantic BaseSettings for validation and .env file support.
+    """
+    # MongoDB
+    mongo_uri: str = "mongodb://mongo:27017"
+    mongo_db: str = "bluehorseshoe"
+
+    # File Paths
+    base_path: str = "/workspaces/BlueHorseshoe/src/historical_data"
+    logs_path: str = "/workspaces/BlueHorseshoe/src/logs"
+    graphs_path: str = "/workspaces/BlueHorseshoe/src/graphs"
+    weights_path: str = "/workspaces/BlueHorseshoe/src/weights.json"
+
+    # Alpha Vantage API
+    alphavantage_key: str = ""
+    alphavantage_cps: int = 2
+
+    # Feature Flags
+    holiday_mode: bool = False
+
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding='utf-8',
+        case_sensitive=False,
+        extra='ignore'
+    )
+
+# Singleton instance for settings (lazy-loaded)
+_settings_instance: Optional[Settings] = None
+
+def get_settings() -> Settings:
+    """
+    Get or create the settings singleton instance.
+    This allows environment variables to be loaded once and reused.
+    """
+    global _settings_instance
+    if _settings_instance is None:
+        _settings_instance = Settings()
+    return _settings_instance
 
 class ConfigManager:
     """

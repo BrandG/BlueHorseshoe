@@ -97,28 +97,23 @@ def graph(graph_data: GraphData) -> str:
     return ""
 
 
-class ReportSingleton:
+class ReportWriter:
     """
-    A thread-safe singleton class to manage writing to a report file.
+    Request-scoped report writer (not a singleton).
+    Manages writing to a report file with proper resource lifecycle.
     """
-    _instance: Optional['ReportSingleton'] = None
-    _lock = Lock()
 
-    def __new__(cls) -> 'ReportSingleton':
-        with cls._lock:
-            if cls._instance is None:
-                cls._instance = super().__new__(cls)
-                cls._instance._initialized = False
-            return cls._instance
+    def __init__(self, log_path: Union[str, Path]) -> None:
+        """
+        Initialize report writer with specified log path.
 
-    def __init__(self) -> None:
-        with self._lock:
-            if not getattr(self, '_initialized', False):
-                self._file = None
-                self._write_lock = Lock()
-                self.log_path = Path("/workspaces/BlueHorseshoe/src/logs/report.txt")
-                self._initialize_file()
-                self._initialized = True
+        Args:
+            log_path: Path to the report file (can be str or Path object)
+        """
+        self._file = None
+        self._write_lock = Lock()
+        self.log_path = Path(log_path) if isinstance(log_path, str) else log_path
+        self._initialize_file()
 
     def _initialize_file(self) -> None:
         """Initialize the log file with proper directory creation and error handling."""
@@ -168,19 +163,17 @@ class ReportSingleton:
         """
         Safely close the report file with proper error handling.
         """
-        with self._lock:
-            if self._file is not None:
-                try:
-                    self._file.flush()
-                    os.fsync(self._file.fileno())
-                    self._file.close()
-                except (IOError, OSError) as e:
-                    logging.error("Error closing report file: %s", str(e))
-                finally:
-                    self._file = None
-                    self._initialized = False
+        if self._file is not None:
+            try:
+                self._file.flush()
+                os.fsync(self._file.fileno())
+                self._file.close()
+            except (IOError, OSError) as e:
+                logging.error("Error closing report file: %s", str(e))
+            finally:
+                self._file = None
 
-    def __enter__(self) -> 'ReportSingleton':
+    def __enter__(self) -> 'ReportWriter':
         """Enable context manager support."""
         return self
 
@@ -196,6 +189,32 @@ class ReportSingleton:
     def is_open(self) -> bool:
         """Check if the report file is currently open."""
         return self._file is not None and not self._file.closed
+
+
+class ReportSingleton(ReportWriter):
+    """
+    DEPRECATED: Backward compatibility wrapper for ReportWriter.
+    Maintains singleton behavior for legacy code.
+    New code should use ReportWriter directly.
+    """
+    _instance: Optional['ReportSingleton'] = None
+    _lock = Lock()
+
+    def __new__(cls) -> 'ReportSingleton':
+        with cls._lock:
+            if cls._instance is None:
+                # Create instance without calling __init__ yet
+                instance = object.__new__(cls)
+                cls._instance = instance
+                cls._instance._initialized = False
+            return cls._instance
+
+    def __init__(self) -> None:
+        with self._lock:
+            if not getattr(self, '_initialized', False):
+                # Call parent __init__ with default path
+                super().__init__(log_path=Path("/workspaces/BlueHorseshoe/src/logs/report.txt"))
+                self._initialized = True
 
     @classmethod
     def reset(cls) -> None:

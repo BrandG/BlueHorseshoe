@@ -4,7 +4,7 @@ import numpy as np
 from celery import chain
 from bluehorseshoe.api.celery_app import celery_app
 from bluehorseshoe.analysis.strategy import SwingTrader
-from bluehorseshoe.core.globals import get_mongo_client
+from bluehorseshoe.core.container import create_app_container
 from bluehorseshoe.data.historical_data import build_all_symbols_history, BackfillConfig
 from bluehorseshoe.reporting.html_reporter import HTMLReporter
 from bluehorseshoe.core.email_service import EmailService
@@ -31,12 +31,14 @@ def convert_numpy(obj):
 def update_market_data_task(self):
     """
     Task to update recent historical data for all symbols.
+    Creates a task-scoped container for dependency management.
     """
     logger.info(f"Task {self.request.id}: Starting market data update...")
+    container = create_app_container()
     try:
-        if get_mongo_client() is None:
-             raise RuntimeError("Could not connect to MongoDB")
-        
+        # Test database connection
+        container.get_mongo_client().server_info()
+
         # Run update for recent data (compact mode)
         build_all_symbols_history(BackfillConfig(recent=True))
         logger.info("Market data update completed.")
@@ -44,6 +46,8 @@ def update_market_data_task(self):
     except Exception as e:
         logger.error(f"Market update failed: {e}", exc_info=True)
         raise e
+    finally:
+        container.close()
 
 @celery_app.task(bind=True)
 def predict_task(self, target_date: str = None, indicators: list = None, aggregation: str = "sum", previous_result=None):
@@ -51,10 +55,11 @@ def predict_task(self, target_date: str = None, indicators: list = None, aggrega
     Background task to run SwingTrader prediction.
     Accepts `previous_result` to allow chaining, though it ignores it.
     If target_date is None, defaults to latest available.
+    Creates a task-scoped container for dependency management.
     """
     # If chained from update_task, previous_result might be "Data Updated"
     logger.info(f"Task {self.request.id}: Starting prediction for {target_date or 'latest'}")
-    
+
     def progress_callback(current, total, percent):
         self.update_state(
             state='PROGRESS',
@@ -66,12 +71,18 @@ def predict_task(self, target_date: str = None, indicators: list = None, aggrega
             }
         )
 
+    container = create_app_container()
     try:
-        if get_mongo_client() is None:
-            raise RuntimeError("Could not connect to MongoDB")
+        # Test database connection
+        container.get_mongo_client().server_info()
 
-        trader = SwingTrader()
-        
+        # Create SwingTrader with injected dependencies
+        trader = SwingTrader(
+            database=container.get_database(),
+            config=container.settings,
+            report_writer=None  # No report writer for background tasks (uses stdout)
+        )
+
         # Note: SwingTrader automatically handles target_date=None by finding latest
         report_data = trader.swing_predict(
             target_date=target_date,
@@ -79,9 +90,9 @@ def predict_task(self, target_date: str = None, indicators: list = None, aggrega
             aggregation=aggregation,
             progress_callback=progress_callback
         )
-        
+
         clean_data = convert_numpy(report_data)
-        
+
         # Inject the date into the result if not present, for the reporter
         if target_date:
             clean_data['date'] = target_date
@@ -95,6 +106,8 @@ def predict_task(self, target_date: str = None, indicators: list = None, aggrega
     except Exception as e:
         logger.error(f"Prediction failed: {e}", exc_info=True)
         raise e
+    finally:
+        container.close()
 
 @celery_app.task(bind=True)
 def generate_report_task(self, report_data: dict):

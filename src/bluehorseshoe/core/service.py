@@ -230,8 +230,19 @@ def load_universe_data(
 
     return results
 
-def get_latest_market_date() -> Optional[str]:
-    """Find the most recent date available in historical_data."""
-    database = db.get_db()
+def get_latest_market_date(database=None) -> Optional[str]:
+    """
+    Find the most recent date available in historical_data.
+
+    Args:
+        database: Optional MongoDB database instance. If not provided, uses legacy global.
+
+    Returns:
+        Latest date string or None if no data found.
+    """
+    if database is None:
+        # Backward compatibility with global singleton
+        database = db.get_db()
+
     latest = database.historical_prices.find_one({}, {'days.date': 1}, sort=[('days.date', -1)])
     return latest['days'][-1]['date'] if latest else None

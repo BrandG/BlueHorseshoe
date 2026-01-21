@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from contextlib import asynccontextmanager
 
 from bluehorseshoe.api.routes import router
-from bluehorseshoe.core.globals import get_mongo_client
+from bluehorseshoe.core.container import create_app_container
 
 # Configure logging
 logging.basicConfig(
@@ -17,19 +17,25 @@ logger = logging.getLogger("bluehorseshoe.api")
 async def lifespan(app: FastAPI):
     """
     Lifespan context manager for startup and shutdown events.
+    Initializes dependency injection container and manages resource lifecycle.
     """
     logger.info("Starting BlueHorseshoe API...")
-    
-    # Initialize DB connection on startup
-    client = get_mongo_client()
-    if client is None:
-        logger.error("Failed to connect to MongoDB on startup.")
-    else:
-        logger.info("Connected to MongoDB.")
-    
+
+    # Create and store container in app state
+    app.state.container = create_app_container()
+
+    # Test MongoDB connection
+    try:
+        app.state.container.get_mongo_client().server_info()
+        logger.info("Connected to MongoDB successfully")
+    except Exception as e:
+        logger.error(f"Failed to connect to MongoDB: {e}")
+
     yield
-    
+
+    # Cleanup resources
     logger.info("Shutting down BlueHorseshoe API...")
+    app.state.container.close()
 
 app = FastAPI(
     title="BlueHorseshoe API",

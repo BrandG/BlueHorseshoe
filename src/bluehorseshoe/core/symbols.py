@@ -161,20 +161,41 @@ def refresh_symbols() -> Dict[str, Any]:
 # Goal 2: Load symbol list from Mongo
 # ---------------------------------------------------------------------
 
-def get_symbols_from_mongo(limit: Optional[int] = None) -> List[Dict[str, Any]]:
-    """Return stored symbols sorted alphabetically."""
-    _db = db.get_db()
+def get_symbols_from_mongo(database=None, limit: Optional[int] = None) -> List[Dict[str, Any]]:
+    """
+    Return stored symbols sorted alphabetically.
+
+    Args:
+        database: Optional MongoDB database instance. If None, uses legacy global singleton.
+        limit: Optional limit on number of symbols to return.
+
+    Returns:
+        List of symbol dictionaries.
+    """
+    if database is None:
+        # Backward compatibility with global singleton
+        _db = db.get_db()
+    else:
+        _db = database
+
     cursor = _db["symbols"].find({}, {"_id": 0}).sort("symbol", 1)
     if limit:
         cursor = cursor.limit(limit)
     return list(cursor)
 
 
-def get_symbol_list(prefer_net: bool = False) -> List[Dict[str, Any]]:
+def get_symbol_list(database=None, prefer_net: bool = False) -> List[Dict[str, Any]]:
     """
     Convenience getter:
       - prefer_net=True: try net, fall back to mongo on error/empty.
       - prefer_net=False: mongo only.
+
+    Args:
+        database: Optional MongoDB database instance. If None, uses legacy global singleton.
+        prefer_net: If True, tries to fetch from network first.
+
+    Returns:
+        List of symbol dictionaries.
     """
     invalid_symbols = get_invalid_symbols()
     symbols = []
@@ -185,14 +206,22 @@ def get_symbol_list(prefer_net: bool = False) -> List[Dict[str, Any]]:
             logging.warning("Net symbol fetch failed; falling back to Mongo: %s", e)
 
     if not symbols:
-        symbols = get_symbols_from_mongo()
+        symbols = get_symbols_from_mongo(database=database)
 
     return [s for s in symbols if s["symbol"].upper() not in invalid_symbols]
 
 
-def get_symbol_name_list() -> List[str]:
-    """Retrieves a list of symbol names."""
-    return [s['symbol'] for s in get_symbol_list()]
+def get_symbol_name_list(database=None) -> List[str]:
+    """
+    Retrieves a list of symbol names.
+
+    Args:
+        database: Optional MongoDB database instance. If None, uses legacy global singleton.
+
+    Returns:
+        List of symbol strings.
+    """
+    return [s['symbol'] for s in get_symbol_list(database=database)]
 
 
 # ---------------------------------------------------------------------

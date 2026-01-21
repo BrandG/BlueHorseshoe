@@ -28,9 +28,8 @@ import os
 
 from sklearn.exceptions import ConvergenceWarning
 
-from bluehorseshoe.reporting.report_generator import ReportSingleton
 from bluehorseshoe.reporting.html_reporter import HTMLReporter
-from bluehorseshoe.core.globals import get_mongo_client
+from bluehorseshoe.cli.context import create_cli_context
 from bluehorseshoe.core.service import get_latest_market_date
 from bluehorseshoe.data.historical_data import build_all_symbols_history, check_market_status, BackfillConfig
 from bluehorseshoe.analysis.strategy import SwingTrader
@@ -48,7 +47,7 @@ def debug_test():
 
 if __name__ == "__main__":
     logging.basicConfig(
-        level=logging.DEBUG, 
+        level=logging.DEBUG,
         format='%(asctime)s - %(levelname)s - %(message)s',
         handlers=[
             logging.FileHandler('/workspaces/BlueHorseshoe/src/logs/blueHorseshoe.log', mode='w'),
@@ -60,9 +59,6 @@ if __name__ == "__main__":
 
     logging.info('Starting BlueHorseshoe at %s...', time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()))
     start_time = time.time()
-
-    if get_mongo_client() is None:
-        sys.exit(1)
 
     # Suppress specific warnings
     warnings.filterwarnings("ignore", category=UserWarning, message="Non-invertible starting MA parameters found. " +
@@ -127,140 +123,160 @@ if __name__ == "__main__":
                 symbols_filter = [{'symbol': s.strip(), 'name': ''} for s in symbols_str.split(',')]
             except (ValueError, IndexError):
                 pass
-        
+
         build_all_symbols_history(BackfillConfig(recent=False, resume=resume, limit=limit, symbols=symbols_filter))
         logging.info("Full historical data updated.")
     elif "-p" in sys.argv:
         logging.info('Predicting next midpoints...')
-        target_date = None
-        try:
-            p_idx = sys.argv.index("-p")
-            if len(sys.argv) > p_idx + 1 and not sys.argv[p_idx+1].startswith("-"):
-                target_date = sys.argv[p_idx + 1]
-        except (ValueError, IndexError):
-            pass
+        with create_cli_context() as ctx:
+            target_date = None
+            try:
+                p_idx = sys.argv.index("-p")
+                if len(sys.argv) > p_idx + 1 and not sys.argv[p_idx+1].startswith("-"):
+                    target_date = sys.argv[p_idx + 1]
+            except (ValueError, IndexError):
+                pass
 
-        if not target_date:
-            target_date = get_latest_market_date()
-            logging.info("No date provided for -p, defaulting to latest: %s", target_date)
+            if not target_date:
+                target_date = get_latest_market_date(database=ctx.db)
+                logging.info("No date provided for -p, defaulting to latest: %s", target_date)
 
-        enabled_indicators = None
-        if "--indicators" in sys.argv:
-            enabled_indicators = [i.strip() for i in sys.argv[sys.argv.index("--indicators") + 1].split(",")]
+            enabled_indicators = None
+            if "--indicators" in sys.argv:
+                enabled_indicators = [i.strip() for i in sys.argv[sys.argv.index("--indicators") + 1].split(",")]
 
-        aggregation = "sum"
-        if "--aggregation" in sys.argv:
-            aggregation = sys.argv[sys.argv.index("--aggregation") + 1]
+            aggregation = "sum"
+            if "--aggregation" in sys.argv:
+                aggregation = sys.argv[sys.argv.index("--aggregation") + 1]
 
-        report_data = SwingTrader().swing_predict(
-            target_date=target_date,
-            enabled_indicators=enabled_indicators,
-            aggregation=aggregation
-        )
+            symbols_filter = None
+            if "--symbols" in sys.argv:
+                try:
+                    symbols_str = sys.argv[sys.argv.index("--symbols") + 1]
+                    symbols_filter = [s.strip() for s in symbols_str.split(',')]
+                except (ValueError, IndexError):
+                    pass
 
-        # Generate HTML Report
-        if report_data:
-            # Flatten the regime data for the reporter
-            regime_for_html = report_data.get('regime', {})
-            spy_details = regime_for_html.get('details', {}).get('SPY', {})
-            regime_for_html['spy_price'] = spy_details.get('close', 'N/A')
-            regime_for_html['spy_ma50'] = spy_details.get('ema50', 'N/A')
-            regime_for_html['spy_ma200'] = spy_details.get('ema200', 'N/A')
-            
+            # Create SwingTrader with injected dependencies
+            trader = SwingTrader(
+                database=ctx.db,
+                config=ctx.config,
+                report_writer=ctx.report_writer
+            )
+
+            report_data = trader.swing_predict(
+                target_date=target_date,
+                enabled_indicators=enabled_indicators,
+                aggregation=aggregation,
+                symbols=symbols_filter
+            )
+
+            # Generate HTML Report
+            if report_data:
+                # Flatten the regime data for the reporter
+                regime_for_html = report_data.get('regime', {})
+                spy_details = regime_for_html.get('details', {}).get('SPY', {})
+                regime_for_html['spy_price'] = spy_details.get('close', 'N/A')
+                regime_for_html['spy_ma50'] = spy_details.get('ema50', 'N/A')
+                regime_for_html['spy_ma200'] = spy_details.get('ema200', 'N/A')
+
+                reporter = HTMLReporter()
+                html_content = reporter.generate_report(
+                    date=target_date,
+                    regime=regime_for_html,
+                    candidates=report_data.get('candidates', []),
+                    charts=report_data.get('charts', [])
+                )
+                saved_path = reporter.save(html_content, filename=f"report_{target_date}.html")
+                logging.info("HTML Report saved to %s", saved_path)
+                print(f"HTML Report generated: {saved_path}")
+    elif "-r" in sys.argv:
+        # Generate Report from saved scores
+        logging.info("Regenerating report from saved scores...")
+        with create_cli_context() as ctx:
+            target_date = None
+            try:
+                r_idx = sys.argv.index("-r")
+                if len(sys.argv) > r_idx + 1 and not sys.argv[r_idx+1].startswith("-"):
+                    target_date = sys.argv[r_idx + 1]
+            except (ValueError, IndexError):
+                pass
+
+            if not target_date:
+                target_date = get_latest_market_date(database=ctx.db)
+                logging.info("No date provided for -r, defaulting to latest: %s", target_date)
+
+            logging.info("Regenerating report for %s...", target_date)
+
+            # 1. Market Regime
+            from bluehorseshoe.analysis.market_regime import MarketRegime
+            market_health = MarketRegime.get_market_health(target_date=target_date)
+
+            # Flatten the regime details for the reporter
+            spy_details = market_health.get('details', {}).get('SPY', {})
+            market_health['spy_price'] = spy_details.get('close', 'N/A')
+            market_health['spy_ma50'] = spy_details.get('ema50', 'N/A')
+            market_health['spy_ma200'] = spy_details.get('ema200', 'N/A')
+
+            # 2. Fetch Scores
+            from bluehorseshoe.core.scores import ScoreManager
+            score_manager = ScoreManager(database=ctx.db)
+            baseline_scores = score_manager.get_scores(target_date, strategy="baseline")
+            mr_scores = score_manager.get_scores(target_date, strategy="mean_reversion")
+
+            if not baseline_scores and not mr_scores:
+                print(f"No scores found for {target_date}. Please run prediction first (-p).")
+                sys.exit(0)
+
+            # 3. Build Symbol Map (for exchange info)
+            from bluehorseshoe.core.symbols import get_symbols_from_mongo
+            all_symbols = get_symbols_from_mongo(database=ctx.db)
+            symbol_map = {s['symbol']: s.get('exchange', 'Unknown') for s in all_symbols}
+
+            # 4. Construct Candidates
+            candidates = []
+
+            # Process Baseline
+            for s in baseline_scores:
+                meta = s.get('metadata', {})
+                candidates.append({
+                    "symbol": s['symbol'],
+                    "exchange": symbol_map.get(s['symbol'], 'Unknown'),
+                    "strategy": "Baseline",
+                    "score": s['score'],
+                    "close": meta.get('entry_price', 0),
+                    "ml_prob": meta.get('ml_win_prob', 0.0),
+                    "reasons": [f"{k}={v:.1f}" for k, v in meta.get('components', {}).items() if v != 0]
+                })
+
+            # Process Mean Reversion
+            for s in mr_scores:
+                meta = s.get('metadata', {})
+                candidates.append({
+                    "symbol": s['symbol'],
+                    "exchange": symbol_map.get(s['symbol'], 'Unknown'),
+                    "strategy": "MeanRev",
+                    "score": s['score'],
+                    "close": meta.get('entry_price', 0),
+                    "ml_prob": meta.get('ml_win_prob', 0.0),
+                    "reasons": [f"{k}={v:.1f}" for k, v in meta.get('components', {}).items() if v != 0]
+                })
+
+            # Sort and Limit
+            candidates.sort(key=lambda x: x['score'], reverse=True)
+            top_candidates = candidates[:50]
+
+            # 5. Generate Report
             reporter = HTMLReporter()
             html_content = reporter.generate_report(
                 date=target_date,
-                regime=regime_for_html,
-                candidates=report_data.get('candidates', []),
-                charts=report_data.get('charts', [])
+                regime=market_health,
+                candidates=top_candidates,
+                charts=[]
             )
             saved_path = reporter.save(html_content, filename=f"report_{target_date}.html")
-            logging.info("HTML Report saved to %s", saved_path)
-            print(f"HTML Report generated: {saved_path}")
-    elif "-r" in sys.argv:
-        # Generate Report from saved scores
-        target_date = None
-        try:
-            r_idx = sys.argv.index("-r")
-            if len(sys.argv) > r_idx + 1 and not sys.argv[r_idx+1].startswith("-"):
-                target_date = sys.argv[r_idx + 1]
-        except (ValueError, IndexError):
-            pass
-
-        if not target_date:
-            target_date = get_latest_market_date()
-            logging.info("No date provided for -r, defaulting to latest: %s", target_date)
-
-        logging.info("Regenerating report for %s...", target_date)
-
-        # 1. Market Regime
-        from bluehorseshoe.analysis.market_regime import MarketRegime
-        market_health = MarketRegime.get_market_health(target_date=target_date)
-        
-        # Flatten the regime details for the reporter
-        spy_details = market_health.get('details', {}).get('SPY', {})
-        market_health['spy_price'] = spy_details.get('close', 'N/A')
-        market_health['spy_ma50'] = spy_details.get('ema50', 'N/A')
-        market_health['spy_ma200'] = spy_details.get('ema200', 'N/A')
-
-        # 2. Fetch Scores
-        from bluehorseshoe.core.scores import score_manager
-        baseline_scores = score_manager.get_scores(target_date, strategy="baseline")
-        mr_scores = score_manager.get_scores(target_date, strategy="mean_reversion")
-
-        if not baseline_scores and not mr_scores:
-            print(f"No scores found for {target_date}. Please run prediction first (-p).")
-            sys.exit(0)
-
-        # 3. Build Symbol Map (for exchange info)
-        from bluehorseshoe.core.symbols import get_symbols_from_mongo
-        all_symbols = get_symbols_from_mongo()
-        symbol_map = {s['symbol']: s.get('exchange', 'Unknown') for s in all_symbols}
-
-        # 4. Construct Candidates
-        candidates = []
-
-        # Process Baseline
-        for s in baseline_scores:
-            meta = s.get('metadata', {})
-            candidates.append({
-                "symbol": s['symbol'],
-                "exchange": symbol_map.get(s['symbol'], 'Unknown'),
-                "strategy": "Baseline",
-                "score": s['score'],
-                "close": meta.get('entry_price', 0),
-                "ml_prob": meta.get('ml_win_prob', 0.0),
-                "reasons": [f"{k}={v:.1f}" for k, v in meta.get('components', {}).items() if v != 0]
-            })
-
-        # Process Mean Reversion
-        for s in mr_scores:
-            meta = s.get('metadata', {})
-            candidates.append({
-                "symbol": s['symbol'],
-                "exchange": symbol_map.get(s['symbol'], 'Unknown'),
-                "strategy": "MeanRev",
-                "score": s['score'],
-                "close": meta.get('entry_price', 0),
-                "ml_prob": meta.get('ml_win_prob', 0.0),
-                "reasons": [f"{k}={v:.1f}" for k, v in meta.get('components', {}).items() if v != 0]
-            })
-
-        # Sort and Limit
-        candidates.sort(key=lambda x: x['score'], reverse=True)
-        top_candidates = candidates[:50]
-
-        # 5. Generate Report
-        reporter = HTMLReporter()
-        html_content = reporter.generate_report(
-            date=target_date,
-            regime=market_health,
-            candidates=top_candidates,
-            charts=[]
-        )
-        saved_path = reporter.save(html_content, filename=f"report_{target_date}.html")
-        logging.info("HTML Report regenerated at %s", saved_path)
-        print(f"HTML Report regenerated: {saved_path}")
+            logging.info("HTML Report regenerated at %s", saved_path)
+            print(f"HTML Report regenerated: {saved_path}")
     elif "-t" in sys.argv:
         try:
             test_idx = sys.argv.index("-t")
@@ -372,4 +388,4 @@ if __name__ == "__main__":
 
     end_time = time.time()
     logging.info('Execution time: %.2f seconds', end_time - start_time)
-    ReportSingleton().close()
+    # Report writer cleanup is handled by CLI context manager for modes that use it

@@ -4,6 +4,7 @@ Module for managing trade scores in MongoDB.
 from typing import List, Dict, Any, Optional
 from datetime import datetime
 from pymongo import UpdateOne
+from pymongo.database import Database
 from .database import db
 
 class ScoreManager:
@@ -12,9 +13,20 @@ class ScoreManager:
     Allows saving, retrieving, and clearing scores without touching historical data.
     """
 
-    def __init__(self, collection_name: str = "trade_scores"):
+    def __init__(self, database: Optional[Database] = None, collection_name: str = "trade_scores"):
+        """
+        Initialize ScoreManager with database dependency.
+
+        Args:
+            database: MongoDB Database instance. If None, uses legacy global singleton.
+            collection_name: Name of the collection to use for scores.
+        """
         self.collection_name = collection_name
-        self._db = db.get_db()
+        if database is None:
+            # Backward compatibility with global singleton
+            self._db = db.get_db()
+        else:
+            self._db = database
         self.collection = self._db[self.collection_name]
         # Ensure index for performance and uniqueness
         self.collection.create_index([("symbol", 1), ("date", 1), ("strategy", 1)], unique=True)
@@ -71,5 +83,6 @@ class ScoreManager:
         result = self.collection.delete_many(query)
         return result.deleted_count
 
-# Global instance
-score_manager = ScoreManager()
+# Global instance (deprecated - for backward compatibility only)
+# New code should create ScoreManager with explicit database dependency
+score_manager = ScoreManager()  # Uses legacy global db singleton

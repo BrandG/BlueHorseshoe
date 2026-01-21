@@ -1,18 +1,18 @@
 import os
 import glob
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from fastapi.responses import FileResponse
 from celery.result import AsyncResult
+from pymongo.database import Database
 from bluehorseshoe.api.models import PredictionRequest, TaskSubmission, TaskStatus
 from bluehorseshoe.api.tasks import predict_task, run_daily_pipeline
-from bluehorseshoe.core.globals import get_mongo_client
+from bluehorseshoe.core.dependencies import get_database, get_config
+from bluehorseshoe.core.config import Settings
 from bluehorseshoe.core.service import get_latest_market_date
 import logging
 
 router = APIRouter()
 logger = logging.getLogger("bluehorseshoe.api")
-
-LOGS_DIR = "/workspaces/BlueHorseshoe/src/logs"
 
 @router.post("/pipeline/run", response_model=TaskSubmission, status_code=202)
 async def trigger_daily_pipeline():
@@ -29,17 +29,18 @@ async def trigger_daily_pipeline():
     )
 
 @router.post("/predict", response_model=TaskSubmission, status_code=202)
-async def predict_candidates(request: PredictionRequest):
+async def predict_candidates(
+    request: PredictionRequest,
+    db: Database = Depends(get_database)
+):
     """
     Submit a prediction job to the background worker.
     Returns a task_id to poll for results.
     """
     target_date = request.target_date
     if not target_date:
-        if get_mongo_client() is None:
-             raise HTTPException(status_code=500, detail="Database connection failed")
-        
-        target_date = get_latest_market_date()
+        # Use injected database to get latest market date
+        target_date = get_latest_market_date(db)
         if not target_date:
              raise HTTPException(status_code=404, detail="No market data available to determine latest date.")
 
@@ -80,31 +81,31 @@ async def get_task_status(task_id: str):
     return response
 
 @router.get("/reports")
-async def list_reports():
+async def list_reports(config: Settings = Depends(get_config)):
     """
     List all available report dates.
     """
-    pattern = os.path.join(LOGS_DIR, "report_*.html")
+    pattern = os.path.join(config.logs_path, "report_*.html")
     files = glob.glob(pattern)
-    
+
     # Extract dates from filenames (e.g., report_2026-01-15.html -> 2026-01-15)
     reports = []
     for f in files:
         basename = os.path.basename(f)
         date_part = basename.replace("report_", "").replace(".html", "")
         reports.append(date_part)
-    
+
     return sorted(reports, reverse=True)
 
 @router.get("/reports/{date}")
-async def get_report(date: str):
+async def get_report(date: str, config: Settings = Depends(get_config)):
     """
     Retrieve a specific HTML report by date (YYYY-MM-DD).
     """
-    file_path = os.path.join(LOGS_DIR, f"report_{date}.html")
+    file_path = os.path.join(config.logs_path, f"report_{date}.html")
     if not os.path.exists(file_path):
         raise HTTPException(status_code=404, detail=f"Report for {date} not found")
-    
+
     return FileResponse(file_path, media_type="text/html")
 
 @router.get("/health")
