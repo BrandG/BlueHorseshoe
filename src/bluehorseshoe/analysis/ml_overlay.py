@@ -20,9 +20,17 @@ class MLOverlayTrainer:
     Trains a Machine Learning model to act as a filter/overlay for technical signals.
     """
 
-    def __init__(self, model_path: str = "src/models/ml_overlay_v1.joblib"):
+    def __init__(self, model_path: str = "src/models/ml_overlay_v1.joblib", database=None):
+        """
+        Initialize ML overlay trainer.
+
+        Args:
+            model_path: Path to save/load the trained model
+            database: MongoDB database instance. Required for grading engine operations.
+        """
         self.model_path = model_path
-        self.grading_engine = GradingEngine(hold_days=10)
+        self.database = database
+        self.grading_engine = GradingEngine(hold_days=10, database=database)
         self.label_encoders = {}
 
         # Ensure models directory exists
@@ -41,7 +49,7 @@ class MLOverlayTrainer:
         if before_date:
             query["date"] = {"$lt": before_date}
 
-        results = self.grading_engine.run_grading(query=query, limit=limit)
+        results = self.grading_engine.run_grading(query=query, limit=limit, database=self.database)
         df_graded = pd.DataFrame(results)
 
         if df_graded.empty:

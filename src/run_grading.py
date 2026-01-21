@@ -12,7 +12,7 @@ import pandas as pd
 sys.path.append('/workspaces/BlueHorseshoe/src')
 
 # pylint: disable=wrong-import-position
-from bluehorseshoe.core.database import db
+from bluehorseshoe.cli.context import create_cli_context
 from bluehorseshoe.analysis.grading_engine import GradingEngine
 
 def get_args():
@@ -24,9 +24,15 @@ def get_args():
     parser.add_argument('--save', action='store_true', help='Save grading results to DB')
     return parser.parse_args()
 
-def save_grading_results(results: list):
-    """Saves grading outcomes to MongoDB."""
-    coll = db.get_db()['trade_scores']
+def save_grading_results(results: list, database):
+    """
+    Saves grading outcomes to MongoDB.
+
+    Args:
+        results: List of grading results
+        database: MongoDB database instance
+    """
+    coll = database['trade_scores']
     print(f"Saving results for {len(results)} trades...")
     save_count = 0
     for res in results:
@@ -72,22 +78,23 @@ def main():
     args = get_args()
     logging.basicConfig(level=logging.INFO, format='%(levelname)s:%(message)s')
 
-    engine = GradingEngine(hold_days=args.hold)
+    with create_cli_context() as ctx:
+        engine = GradingEngine(hold_days=args.hold, database=ctx.db)
 
-    query = {"metadata.entry_price": {"$exists": True}}
-    if args.strategy:
-        query["strategy"] = args.strategy
-        print(f"Filtering by strategy: {args.strategy}")
+        query = {"metadata.entry_price": {"$exists": True}}
+        if args.strategy:
+            query["strategy"] = args.strategy
+            print(f"Filtering by strategy: {args.strategy}")
 
-    print(f"Fetching up to {args.limit} scores and evaluating performance...")
-    results = engine.run_grading(query=query, limit=args.limit)
+        print(f"Fetching up to {args.limit} scores and evaluating performance...")
+        results = engine.run_grading(query=query, limit=args.limit, database=ctx.db)
 
-    if not results:
-        print("No results found.")
-        return
+        if not results:
+            print("No results found.")
+            return
 
-    if args.save:
-        save_grading_results(results)
+        if args.save:
+            save_grading_results(results, ctx.db)
 
     summary = engine.summarize_results(results)
     comp_summary = engine.summarize_components(results)

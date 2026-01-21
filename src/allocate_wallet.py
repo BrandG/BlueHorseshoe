@@ -8,21 +8,32 @@ import sys
 sys.path.append('/workspaces/BlueHorseshoe/src')
 
 # pylint: disable=wrong-import-position
-from bluehorseshoe.core.database import db as database_instance
+from bluehorseshoe.cli.context import create_cli_context
 from bluehorseshoe.core.scores import score_manager
 from bluehorseshoe.core.symbols import get_overview_from_mongo
 from bluehorseshoe.analysis.market_regime import MarketRegime
 from bluehorseshoe.data.historical_data import load_historical_data
 
-def get_latest_date():
-    """Find the most recent date in the trade_scores collection."""
-    db = database_instance.get_db()
-    latest = db.trade_scores.find_one(sort=[("date", -1)])
+def get_latest_date(database):
+    """
+    Find the most recent date in the trade_scores collection.
+
+    Args:
+        database: MongoDB database instance
+    """
+    latest = database.trade_scores.find_one(sort=[("date", -1)])
     return latest["date"] if latest else None
 
-def get_entry_price(symbol, target_date):
-    """Retrieve entry price from metadata or fall back to latest close."""
-    data = load_historical_data(symbol)
+def get_entry_price(symbol, target_date, database):
+    """
+    Retrieve entry price from metadata or fall back to latest close.
+
+    Args:
+        symbol: Stock symbol
+        target_date: Target date
+        database: MongoDB database instance
+    """
+    data = load_historical_data(symbol, database=database)
     if not data or not data.get('days'):
         return 0.0
     for day in reversed(data['days']):
@@ -54,9 +65,14 @@ def _select_candidates(candidates, max_positions):
                 break
     return final_picks
 
-def allocate():
-    """Main allocation logic."""
-    target_date = get_latest_date()
+def allocate(database):
+    """
+    Main allocation logic.
+
+    Args:
+        database: MongoDB database instance
+    """
+    target_date = get_latest_date(database)
     if not target_date:
         print("No trade scores found.")
         return
@@ -64,7 +80,7 @@ def allocate():
     print(f"Allocating for {target_date}...")
 
     # Market Regime Filter
-    regime_info = MarketRegime.get_market_health(target_date)
+    regime_info = MarketRegime.get_market_health(target_date, database=database)
     print(f"Current Market Regime: {regime_info['status']}")
 
     if regime_info['status'] == 'Bearish':
@@ -87,8 +103,9 @@ def allocate():
 
     print(f"Selected {len(final_picks)} positions:")
     for p in final_picks:
-        entry = get_entry_price(p['symbol'], target_date)
+        entry = get_entry_price(p['symbol'], target_date, database)
         print(f"- {p['symbol']} ({p['strategy']}): Score {p['score']:.2f}, Entry Est: {entry:.2f}")
 
 if __name__ == "__main__":
-    allocate()
+    with create_cli_context() as ctx:
+        allocate(ctx.db)

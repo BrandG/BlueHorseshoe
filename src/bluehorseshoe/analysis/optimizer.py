@@ -11,8 +11,16 @@ class WeightOptimizer:
     Analyzes trading performance and optimizes indicator weights.
     """
     # pylint: disable=too-few-public-methods
-    def __init__(self, days_lookback: int = 30):
-        self.engine = GradingEngine(hold_days=10)
+    def __init__(self, days_lookback: int = 30, database=None):
+        """
+        Initialize weight optimizer.
+
+        Args:
+            days_lookback: Number of days to look back for optimization
+            database: MongoDB database instance. Required for grading engine operations.
+        """
+        self.engine = GradingEngine(hold_days=10, database=database)
+        self.database = database
         self.days_lookback = days_lookback
 
     def run_optimization(self):
@@ -23,7 +31,7 @@ class WeightOptimizer:
 
         # 1. Fetch scores from the last 30 days
         # In a real scenario, we'd filter by date. Here we'll just take the last 5000 scores.
-        results = self.engine.run_grading(limit=5000)
+        results = self.engine.run_grading(limit=5000, database=self.database)
         if not results:
             logging.warning("No results to analyze for optimization.")
             return
@@ -87,6 +95,9 @@ class WeightOptimizer:
         logging.info("Weight optimization complete.")
 
 if __name__ == '__main__':
+    from bluehorseshoe.core.container import create_app_container
     logging.basicConfig(level=logging.INFO)
-    optimizer = WeightOptimizer()
+    container = create_app_container()
+    optimizer = WeightOptimizer(database=container.get_database())
     optimizer.run_optimization()
+    container.close()
