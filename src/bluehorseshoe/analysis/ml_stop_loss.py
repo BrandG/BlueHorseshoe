@@ -58,7 +58,7 @@ class StopLossTrainer:
         features = []
         for _, row in df_graded.iterrows():
             # Extract unified features
-            feat = extract_features(row['symbol'], row.get('components', {}), row['date'])
+            feat = extract_features(row['symbol'], row.get('components', {}), row['date'], database=self.database)
             if not feat:
                 continue
 
@@ -138,8 +138,16 @@ class StopLossInference:
     Predicts optimal ATR multiplier for a stop loss.
     """
     # pylint: disable=too-few-public-methods
-    def __init__(self, model_path: str = "src/models/ml_stop_loss_v1.joblib"):
+    def __init__(self, model_path: str = "src/models/ml_stop_loss_v1.joblib", database=None):
+        """
+        Initialize stop loss inference.
+
+        Args:
+            model_path: Path to the trained model file.
+            database: MongoDB database instance. Required for feature extraction.
+        """
         self.model_path = model_path
+        self.database = database
         self.model = None
         self.encoders = {}
         self.features = []
@@ -178,14 +186,25 @@ class StopLossInference:
     def predict_stop_loss_multiplier(self, symbol: str, components: Dict[str, float], target_date: str = None) -> float:
         """
         Predicts the recommended ATR multiplier for the stop loss.
+
+        Args:
+            symbol: Stock symbol.
+            components: Technical indicator scores.
+            target_date: Target date for prediction.
+
+        Returns:
+            Recommended ATR multiplier for stop loss.
         """
+        if self.database is None:
+            raise ValueError("database parameter is required for predict_stop_loss_multiplier")
+
         if self.model is None:
             return 2.0  # Default fallback
 
         if target_date is None:
             target_date = datetime.now().strftime("%Y-%m-%d")
 
-        feat = extract_features(symbol, components, target_date)
+        feat = extract_features(symbol, components, target_date, database=self.database)
         feat = self._encode_features(feat)
         df_inf = self._prepare_inference_df(feat)
 

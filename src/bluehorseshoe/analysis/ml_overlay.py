@@ -62,7 +62,7 @@ class MLOverlayTrainer:
         features = []
         for _, row in df_graded.iterrows():
             # Extract unified features
-            feat = extract_features(row['symbol'], row.get('components', {}), row['date'])
+            feat = extract_features(row['symbol'], row.get('components', {}), row['date'], database=self.database)
             if not feat:
                 continue
 
@@ -156,8 +156,16 @@ class MLInference:
     Handles loading the trained ML model and performing predictions.
     """
     # pylint: disable=too-few-public-methods
-    def __init__(self, model_path: str = "src/models/ml_overlay_v1.joblib"):
+    def __init__(self, model_path: str = "src/models/ml_overlay_v1.joblib", database=None):
+        """
+        Initialize ML inference.
+
+        Args:
+            model_path: Path to the trained model file.
+            database: MongoDB database instance. Required for feature extraction.
+        """
         self.model_path = model_path
+        self.database = database
         self.models = {} # Cache for strategy-specific models
         self.encoders = {}
         self.features = {} # Cache for features per model
@@ -200,7 +208,19 @@ class MLInference:
     def predict_probability(self, symbol: str, components: Dict[str, float], target_date: str = None, strategy: str = "general") -> float:
         """
         Predicts the win probability for a given symbol and technical components.
+
+        Args:
+            symbol: Stock symbol.
+            components: Technical indicator scores.
+            target_date: Target date for prediction.
+            strategy: Strategy name for model selection.
+
+        Returns:
+            Probability of success (0.0-1.0).
         """
+        if self.database is None:
+            raise ValueError("database parameter is required for predict_probability")
+
         # Try to load strategy-specific model if not already loaded
         if strategy != "general" and strategy not in self.models:
             strat_path = f"src/models/ml_overlay_{strategy}.joblib"
@@ -217,7 +237,7 @@ class MLInference:
             target_date = datetime.now().strftime("%Y-%m-%d")
 
         # Build feature vector
-        feat = extract_features(symbol, components, target_date)
+        feat = extract_features(symbol, components, target_date, database=self.database)
         feat = self._encode_features(feat, self.encoders.get(model_key, {}))
         df_inf = self._prepare_inference_df(feat, model_key)
 

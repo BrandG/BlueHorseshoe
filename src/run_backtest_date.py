@@ -4,21 +4,24 @@ import random
 import logging
 import pandas as pd
 import numpy as np
-from bluehorseshoe.core.globals import get_mongo_client
+from bluehorseshoe.core.container import create_app_container
 from bluehorseshoe.data.historical_data import load_historical_data
 from bluehorseshoe.analysis.backtest import Backtester, BacktestOptions, BacktestConfig
+from bluehorseshoe.analysis.market_regime import MarketRegime
 
 def main():
     # Setup logging
     logging.basicConfig(level=logging.INFO, format='%(message)s')
-    
-    # Initialize Mongo
-    if get_mongo_client() is None:
+
+    container = create_app_container()
+    database = container.get_database()
+    if database is None:
         print("Failed to connect to MongoDB.")
+        container.close()
         sys.exit(1)
 
     print("Fetching valid trading dates from SPY...")
-    spy_data = load_historical_data("SPY")
+    spy_data = load_historical_data("SPY", database=database)
     if not spy_data or 'days' not in spy_data:
         print("Could not load SPY data to determine dates.")
         sys.exit(1)
@@ -64,7 +67,7 @@ def main():
         hold_days=5
     )
 
-    tester = Backtester(config=config)
+    tester = Backtester(config=config, database=database)
     
     # Aggregators
     total_trades = 0
@@ -97,7 +100,7 @@ def main():
         print(f">>> Target Date: {date_str} <<< ")
         
         # Check Regime
-        regime = MarketRegime.get_market_health(target_date=date_str)
+        regime = MarketRegime.get_market_health(target_date=date_str, database=database)
         print(f"Market Regime: {regime['status']} (Multiplier: {regime['multiplier']}x)")
 
         # Reset strategy for each run based on regime? 
@@ -138,6 +141,8 @@ def main():
         else:
             print("No trades executed.")
         print(f"##########################################")
+
+    container.close()
 
 if __name__ == "__main__":
     main()

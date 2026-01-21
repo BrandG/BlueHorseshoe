@@ -10,7 +10,7 @@ from pymongo.errors import PyMongoError
 # Import our internal modules
 from bluehorseshoe.analysis.ml_overlay import MLOverlayTrainer
 from . import symbols
-from .database import db
+from .container import create_app_container
 
 # Configure logging
 logging.basicConfig(
@@ -22,13 +22,16 @@ logging.basicConfig(
     ]
 )
 
-def update_symbol_universe():
+def update_symbol_universe(database):
     """
     Step 1: Get the latest list of active symbols from Alpha Vantage.
+
+    Args:
+        database: MongoDB database instance.
     """
     print("\n--- STEP 1: Updating Symbol Universe ---")
     try:
-        result = symbols.refresh_symbols()
+        result = symbols.refresh_symbols(database=database)
         status = result.get("status")
         count = result.get("count", 0)
 
@@ -43,18 +46,19 @@ def update_symbol_universe():
         logging.error("Failed to update symbol universe: %s", e)
         print(f"❌ Error: {e}")
 
-def update_history_batch(limit: int = 0, recent_only: bool = True):
+def update_history_batch(database, limit: int = 0, recent_only: bool = True):
     """
     Step 2: Loop through symbols in DB and update their price history.
 
     Args:
+        database: MongoDB database instance.
         limit: Max number of symbols to update (0 for all).
         recent_only: If True, fetches 'compact' data (faster, less data).
     """
     print(f"\n--- STEP 2: Updating Price History (Recent Only: {recent_only}) ---")
 
     # 1. Get all symbols from Mongo
-    all_symbols = symbols.get_symbols_from_mongo()
+    all_symbols = symbols.get_symbols_from_mongo(database=database)
 
     if limit > 0:
         all_symbols = all_symbols[:limit]
@@ -78,7 +82,7 @@ def update_history_batch(limit: int = 0, recent_only: bool = True):
 
         try:
             # This function already has the @limits decorator for rate limiting
-            symbols.refresh_historical_for_symbol(ticker, recent=recent_only)
+            symbols.refresh_historical_for_symbol(ticker, recent=recent_only, database=database)
             success_count += 1
 
         except (RequestException, PyMongoError, RuntimeError, ValueError) as e:
@@ -91,12 +95,16 @@ def update_history_batch(limit: int = 0, recent_only: bool = True):
     print(f"Success: {success_count}")
     print(f"Errors:  {error_count}")
 
-def update_overviews_batch(limit: int = 0):
+def update_overviews_batch(database, limit: int = 0):
     """
     Step 3: Update company overview data for symbols in DB.
+
+    Args:
+        database: MongoDB database instance.
+        limit: Max number of symbols to update (0 for all).
     """
     print("\n--- STEP 3: Updating Company Overviews ---")
-    all_symbols = symbols.get_symbols_from_mongo()
+    all_symbols = symbols.get_symbols_from_mongo(database=database)
     if limit > 0:
         all_symbols = all_symbols[:limit]
 
@@ -111,7 +119,7 @@ def update_overviews_batch(limit: int = 0):
         try:
             overview = symbols.fetch_overview_from_net(ticker)
             if overview:
-                symbols.upsert_overview_to_mongo(ticker, overview)
+                symbols.upsert_overview_to_mongo(ticker, overview, database=database)
                 success_count += 1
         except (RequestException, PyMongoError, RuntimeError) as e:
             error_count += 1
@@ -120,12 +128,16 @@ def update_overviews_batch(limit: int = 0):
 
     print(f"\n✅ Overviews Complete. Success: {success_count}, Errors: {error_count}")
 
-def update_news_batch(limit: int = 0):
+def update_news_batch(database, limit: int = 0):
     """
     Step 4: Update news sentiment data for symbols in DB.
+
+    Args:
+        database: MongoDB database instance.
+        limit: Max number of symbols to update (0 for all).
     """
     print("\n--- STEP 4: Updating News Sentiment ---")
-    all_symbols = symbols.get_symbols_from_mongo()
+    all_symbols = symbols.get_symbols_from_mongo(database=database)
     if limit > 0:
         all_symbols = all_symbols[:limit]
 
@@ -140,7 +152,7 @@ def update_news_batch(limit: int = 0):
         try:
             news = symbols.fetch_news_sentiment_from_net(ticker)
             if news:
-                symbols.upsert_news_sentiment_to_mongo(ticker, news)
+                symbols.upsert_news_sentiment_to_mongo(ticker, news, database=database)
                 success_count += 1
         except (RequestException, PyMongoError, RuntimeError) as e:
             error_count += 1
@@ -149,13 +161,17 @@ def update_news_batch(limit: int = 0):
 
     print(f"\n✅ News Complete. Success: {success_count}, Errors: {error_count}")
 
-def retrain_ml_models(limit: int = 10000):
+def retrain_ml_models(database, limit: int = 10000):
     """
     Step 5: Retrain ML Overlay models using newly graded trades.
+
+    Args:
+        database: MongoDB database instance.
+        limit: Max number of graded trades to use for training.
     """
     print("\n--- STEP 5: Retraining ML Models ---")
     try:
-        trainer = MLOverlayTrainer()
+        trainer = MLOverlayTrainer(database=database)
         trainer.retrain_all(limit=limit)
         print("✅ Retraining Complete.")
     except Exception as e:  # pylint: disable=broad-exception-caught
@@ -177,31 +193,35 @@ def main():
 
     args = parser.parse_args()
 
-    # Ensure DB connection
-    db.connect()
+    # Create container and get database
+    container = create_app_container()
+    database = container.get_database()
 
-    if args.symbols or args.full:
-        update_symbol_universe()
+    try:
+        if args.symbols or args.full:
+            update_symbol_universe(database)
 
-    if args.history or args.full:
-        # Default to recent=True unless --deep is passed
-        recent_mode = not args.deep
-        update_history_batch(limit=args.limit, recent_only=recent_mode)
+        if args.history or args.full:
+            # Default to recent=True unless --deep is passed
+            recent_mode = not args.deep
+            update_history_batch(database, limit=args.limit, recent_only=recent_mode)
 
-    if args.overviews or args.full:
-        update_overviews_batch(limit=args.limit)
+        if args.overviews or args.full:
+            update_overviews_batch(database, limit=args.limit)
 
-    if args.news or args.full:
-        update_news_batch(limit=args.limit)
+        if args.news or args.full:
+            update_news_batch(database, limit=args.limit)
 
-    if args.retrain or args.full:
-        # For ML training, 0 limit usually means "use a reasonable default" in prepare_training_data
-        # We'll use 10000 as a default if limit is 0
-        train_limit = args.limit if args.limit > 0 else 10000
-        retrain_ml_models(limit=train_limit)
+        if args.retrain or args.full:
+            # For ML training, 0 limit usually means "use a reasonable default" in prepare_training_data
+            # We'll use 10000 as a default if limit is 0
+            train_limit = args.limit if args.limit > 0 else 10000
+            retrain_ml_models(database, limit=train_limit)
 
-    if not (args.symbols or args.history or args.overviews or args.news or args.retrain or args.full):
-        parser.print_help()
+        if not (args.symbols or args.history or args.overviews or args.news or args.retrain or args.full):
+            parser.print_help()
+    finally:
+        container.close()
 
 if __name__ == "__main__":
     main()

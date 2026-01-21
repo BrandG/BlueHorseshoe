@@ -16,7 +16,7 @@ import pandas as pd
 sys.path.append(os.path.join(os.getcwd(), 'src'))
 
 # pylint: disable=wrong-import-position
-from bluehorseshoe.core.globals import get_mongo_client
+from bluehorseshoe.core.container import create_app_container
 
 # Setup logging
 logging.basicConfig(
@@ -91,9 +91,11 @@ def check_completeness():
     Main execution loop.
     """
     # pylint: disable=too-many-locals
-    database = get_mongo_client()
+    container = create_app_container()
+    database = container.get_database()
     if database is None:
         logging.error("Could not connect to MongoDB")
+        container.close()
         sys.exit(1)
 
     col = database['historical_prices']
@@ -149,6 +151,8 @@ def check_completeness():
 
     logging.info("Audit Complete. Found issues in %d symbols.", issues_found)
     logging.info("Detailed report written to %s", output_file)
+
+    container.close()
 
 if __name__ == "__main__":
     check_completeness()

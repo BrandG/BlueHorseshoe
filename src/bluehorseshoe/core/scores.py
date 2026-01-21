@@ -5,7 +5,6 @@ from typing import List, Dict, Any, Optional
 from datetime import datetime
 from pymongo import UpdateOne
 from pymongo.database import Database
-from .database import db
 
 class ScoreManager:
     """
@@ -18,15 +17,14 @@ class ScoreManager:
         Initialize ScoreManager with database dependency.
 
         Args:
-            database: MongoDB Database instance. If None, uses legacy global singleton.
+            database: MongoDB Database instance. Required.
             collection_name: Name of the collection to use for scores.
         """
-        self.collection_name = collection_name
         if database is None:
-            # Backward compatibility with global singleton
-            self._db = db.get_db()
-        else:
-            self._db = database
+            raise ValueError("database parameter is required for ScoreManager")
+
+        self.collection_name = collection_name
+        self._db = database
         self.collection = self._db[self.collection_name]
         # Ensure index for performance and uniqueness
         self.collection.create_index([("symbol", 1), ("date", 1), ("strategy", 1)], unique=True)
@@ -83,6 +81,14 @@ class ScoreManager:
         result = self.collection.delete_many(query)
         return result.deleted_count
 
-# Global instance (deprecated - for backward compatibility only)
-# New code should create ScoreManager with explicit database dependency
-score_manager = ScoreManager()  # Uses legacy global db singleton
+# Global instance removed - always create ScoreManager with explicit database dependency
+# Example: score_manager = ScoreManager(database=container.get_database())
+# For legacy compatibility with existing tests and code, create a temporary instance
+# This will be replaced with proper DI in each module
+try:
+    from .container import create_app_container
+    _temp_container = create_app_container()
+    score_manager = ScoreManager(database=_temp_container.get_database())
+except Exception:  # pylint: disable=broad-exception-caught
+    # If container creation fails (e.g., in tests), leave score_manager undefined
+    score_manager = None  # type: ignore

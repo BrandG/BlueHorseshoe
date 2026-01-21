@@ -1,49 +1,26 @@
 """
 Module: globals
 
-This module provides various global configurations, utility functions, and classes for the BlueHorseshoe project.
-It includes functionalities for loading invalid symbols, managing a singleton report file, connecting to MongoDB,
-plotting graphs, and fetching stock symbols from the internet or a file.
+This module provides global configurations and utility functions for the BlueHorseshoe project.
+It includes functionalities for loading invalid symbols.
 
-Imports:
-    - io
-    - csv
-    - logging
-    - os
-    - datetime
-    - dataclasses
-    - pymongo
-    - requests
-    - matplotlib.pyplot
-    - ratelimit
-    - pymongo.errors
-    - matplotlib.ticker
+Note: MongoDB connections are now managed through the AppContainer class in container.py.
+Use create_app_container() to get database instances instead of using global singletons.
 
 Global Variables:
-    - BASE_PATH (str): The base path for historical data files.
-    - MONGO_CLIENT (pymongo.MongoClient): The MongoDB client instance.
-    - invalid_symbols (list): A list to store invalid stock symbols.
+    - GlobalData.base_path (str): The base path for historical data files.
+    - GlobalData.invalid_symbols (list): A list to store invalid stock symbols.
 
 Functions:
-    - load_invalid_symbols(): Loads invalid symbols from a file and stores them in the global variable `invalid_symbols`.
-    - get_mongo_client(uri="", db_name="bluehorseshoe"): Creates and returns a MongoDB client connected to the specified URI and database.
-    - graph(graph_data: GraphData): Plots a graph with the given labels, title, curves, lines, and points.
-    - get_symbol_list_from_net(): Fetches a list of active stock symbols from the NYSE exchange using the Alpha Vantage API.
-    - get_symbol_list_from_file(): Reads a list of symbols from a JSON file.
-    - get_symbol_name_list(): Retrieves a list of symbol names.
-    - get_symbol_list(): Retrieves a list of symbols from a file or the internet.
+    - load_invalid_symbols(): Loads invalid symbols from a file and stores them in GlobalData.
 
 Classes:
-    - ReportSingleton: A singleton class to manage writing to a report file.
-    - GraphData: A class used to represent data for a graph.
+    - GlobalData: Dataclass containing global configuration data.
 """
 
 import logging
 import os
 from dataclasses import dataclass, field
-from typing import Optional
-import pymongo
-from pymongo.errors import ConnectionFailure, ConfigurationError
 
 @dataclass
 class GlobalData:
@@ -54,46 +31,17 @@ class GlobalData:
     ----------
     BASE_PATH : str
         The base path for historical data files.
-    MONGO_CLIENT : pymongo.MongoClient
-        The MongoDB client instance.
     INVALID_SYMBOLS : list
         A list to store invalid stock symbols.
+
+    Note: MongoDB connections are now managed through AppContainer instead of global state.
     """
     base_path: str = '/workspaces/BlueHorseshoe/src/historical_data/'
-    mongo_client: Optional[pymongo.MongoClient] = None
     invalid_symbols: list = field(default_factory=list)
     holiday:bool = False # define whether yesterday was a holiday
 
-def get_mongo_client(uri="", db_name=""):
-    """
-    Creates and returns a MongoDB client connected to the specified URI and database.
-
-    Args:
-        uri (str): The URI for the MongoDB connection. Default is "mongodb://mongo:27017".
-        db_name (str): The name of the database to connect to. Default is "bluehorseshoe".
-
-    Returns:
-        pymongo.database.Database: The database client connected to the specified database.
-    """
-    if db_name == "":
-        db_name = os.getenv("MONGO_DB", "bluehorseshoe")
-
-    if GlobalData.mongo_client is None:
-        try:
-            if uri == "":
-                uri = os.getenv("MONGO_URI", "mongodb://mongo:27017")
-            GlobalData.mongo_client = pymongo.MongoClient(uri)
-            # MONGO_CLIENT = MongoClient(
-            #     uri, connectTimeoutMS=2000, serverSelectionTimeoutMS=2000)
-            server_info = GlobalData.mongo_client.server_info()
-            logging.info("Connected to MongoDB server version %s",
-                         server_info['version'])
-        except (ConnectionFailure, ConfigurationError) as e:
-            logging.error(
-                "An error occurred while connecting to MongoDB: %s", e)
-            return None
-
-    return GlobalData.mongo_client.get_database(db_name)
+# MongoDB connections are now managed through the AppContainer class
+# Use create_app_container() to get a database instance instead of this global function
 
 def load_invalid_symbols():
     """

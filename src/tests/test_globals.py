@@ -9,7 +9,6 @@ Functions:
     setup_invalid_symbols_file(tmp_path): Sets up a temporary file with invalid stock symbols for testing purposes.
     test_load_invalid_symbols(): Tests the load_invalid_symbols function.
     test_load_invalid_symbols_file_not_found(): Tests the load_invalid_symbols function when the symbols file is not found.
-    test_get_mongo_client(mock_mongo_client): Tests the get_mongo_client function to ensure it returns a non-None client instance.
     test_get_symbol_list_from_net(mock_get): Tests the get_symbol_list_from_net function to ensure it correctly parses
         the symbol list from the network response.
     test_get_symbol_list(mock_get_symbol_list_from_net): Tests the get_symbol_list function.
@@ -26,7 +25,6 @@ import pytest
 
 from bluehorseshoe.core.globals import (
     load_invalid_symbols,
-    get_mongo_client,
     GlobalData
 )
 from bluehorseshoe.core.symbols import (
@@ -90,24 +88,7 @@ def test_load_invalid_symbols_file_not_found():
     load_invalid_symbols()
     assert not GlobalData.invalid_symbols
 
-@patch("pymongo.MongoClient")
-def test_get_mongo_client(mock_mongo_client):
-    """
-    Test the get_mongo_client function to ensure it returns a non-None client instance
-    and that the mock_mongo_client is called exactly once.
-
-    Args:
-        mock_mongo_client (MagicMock): A mock object for the MongoDB client.
-
-    Asserts:
-        The client returned by get_mongo_client is not None.
-        The mock_mongo_client is called exactly once.
-    """
-    mock_client_instance = MagicMock()
-    mock_mongo_client.return_value = mock_client_instance
-    client = get_mongo_client()
-    assert client is not None
-    mock_mongo_client.assert_called_once()
+# Test for get_mongo_client removed - MongoDB connections now managed through AppContainer
 
 @patch("requests.get")
 def test_get_symbol_list_from_net(mock_get):

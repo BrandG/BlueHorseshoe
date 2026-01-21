@@ -10,7 +10,6 @@ from pymongo.errors import PyMongoError
 from requests.exceptions import RequestException
 
 from .models import DailyReport, Candidate, PriceData, PredictionData
-from .database import db
 from .symbols import (
     get_symbols_from_mongo,
     fetch_overview_from_net,
@@ -36,11 +35,17 @@ def run_backtest(symbol: str, start: date, end: date, strategy_name: str = "base
         },
     }
 
-def handle_trigger_action(action: str, payload: Dict[str, Any]) -> Dict[str, Any]:
+def handle_trigger_action(action: str, payload: Dict[str, Any], database=None) -> Dict[str, Any]:
     """
     Flexible action handler for development triggers.
+
+    Args:
+        action: Action name to execute.
+        payload: Action payload data.
+        database: MongoDB database instance. Required.
     """
-    _db = db.get_db()
+    if database is None:
+        raise ValueError("database parameter is required for handle_trigger_action")
 
     if action == "hello":
         name = payload.get("name", "World")
@@ -48,10 +53,10 @@ def handle_trigger_action(action: str, payload: Dict[str, Any]) -> Dict[str, Any
 
     if action == "test_db":
         try:
-            collections = _db.list_collection_names()
+            collections = database.list_collection_names()
             stats = {}
             for col_name in collections:
-                stats[col_name] = _db[col_name].count_documents({})
+                stats[col_name] = database[col_name].count_documents({})
             return {
                 "collections": collections,
                 "document_counts": stats
@@ -61,16 +66,16 @@ def handle_trigger_action(action: str, payload: Dict[str, Any]) -> Dict[str, Any
 
     elif action == "backfill_overviews":
         limit = payload.get("limit", 10)
-        symbols = get_symbols_from_mongo(limit=limit)
+        symbols = get_symbols_from_mongo(database=database, limit=limit)
         count = 0
         for s in symbols:
             sym = s["symbol"]
             # Check if already exists
-            if not get_overview_from_mongo(sym):
+            if not get_overview_from_mongo(sym, database=database):
                 try:
                     ov = fetch_overview_from_net(sym)
                     if ov:
-                        upsert_overview_to_mongo(sym, ov)
+                        upsert_overview_to_mongo(sym, ov, database=database)
                         count += 1
                         time.sleep(0.2) # Small delay
                 except (RequestException, PyMongoError, RuntimeError) as e:
@@ -83,15 +88,21 @@ def handle_trigger_action(action: str, payload: Dict[str, Any]) -> Dict[str, Any
             "available_actions": ["hello", "test_db", "backfill_overviews"],
         }
 
-def run_daily() -> Dict[str, Any]:
+def run_daily(database=None) -> Dict[str, Any]:
     """
     Main Daily Scan Routine.
+
+    Args:
+        database: MongoDB database instance. Required.
     """
+    if database is None:
+        raise ValueError("database parameter is required for run_daily")
+
     # 1. Determine date
     report_date = date.today().isoformat()
 
     # 2. Load universe data EFFICIENTLY
-    universe_data = load_universe_data()
+    universe_data = load_universe_data(database=database)
 
     if not universe_data:
         return {"error": "No data found for scanning"}
@@ -170,17 +181,24 @@ def _parse_date_str(d: str) -> str:
 def load_universe_data(
     data_date: Optional[str] = None,
     min_price: float = 1.0,
+    database=None,
 ) -> List[Dict[str, Any]]:
     """
     Load OHLCV bars for the universe using an Efficient Aggregation Pipeline.
 
     This replaces the 'Look-Ahead' / 'N+1 Query' loop.
+
+    Args:
+        data_date: Optional target date. If None, uses most recent date.
+        min_price: Minimum price filter.
+        database: MongoDB database instance. Required.
     """
-    _db = db.get_db()
+    if database is None:
+        raise ValueError("database parameter is required for load_universe_data")
 
     # 1. If no date provided, find the most recent date in the prices collection
     if data_date is None:
-        sample = _db["historical_prices_recent"].find_one({}, {"days": {"$slice": -1}})
+        sample = database["historical_prices_recent"].find_one({}, {"days": {"$slice": -1}})
         if not sample or not sample.get("days"):
             return []
         data_date = _parse_date_str(sample["days"][0].get("date"))
@@ -226,7 +244,7 @@ def load_universe_data(
     ]
 
     # Run the aggregation
-    results = list(_db["historical_prices_recent"].aggregate(pipeline))
+    results = list(database["historical_prices_recent"].aggregate(pipeline))
 
     return results
 
@@ -235,14 +253,13 @@ def get_latest_market_date(database=None) -> Optional[str]:
     Find the most recent date available in historical_data.
 
     Args:
-        database: Optional MongoDB database instance. If not provided, uses legacy global.
+        database: MongoDB database instance. Required.
 
     Returns:
         Latest date string or None if no data found.
     """
     if database is None:
-        # Backward compatibility with global singleton
-        database = db.get_db()
+        raise ValueError("database parameter is required for get_latest_market_date")
 
     latest = database.historical_prices.find_one({}, {'days.date': 1}, sort=[('days.date', -1)])
     return latest['days'][-1]['date'] if latest else None

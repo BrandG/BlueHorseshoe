@@ -14,7 +14,35 @@ Fixtures:
 
 import pytest
 import pandas as pd
+from unittest.mock import MagicMock
 from bluehorseshoe.analysis.strategy import SwingTrader, TechnicalAnalyzer, StrategyContext
+
+@pytest.fixture
+def mock_database():
+    """Create a mock database for testing."""
+    mock_db = MagicMock()
+    # Mock symbol_overviews collection
+    mock_overviews_col = MagicMock()
+    mock_overviews_col.find_one.return_value = {
+        "Sector": "Technology",
+        "Industry": "Software",
+        "MarketCapitalization": "1000000000",
+        "Beta": "1.2",
+        "PERatio": "25"
+    }
+    # Mock symbol_news collection
+    mock_news_col = MagicMock()
+    mock_news_col.find_one.return_value = {"feed": []}
+    # Mock trade_scores collection for ScoreManager
+    mock_scores_col = MagicMock()
+
+    mock_db.__getitem__.side_effect = lambda key: {
+        "symbol_overviews": mock_overviews_col,
+        "symbol_news": mock_news_col,
+        "trade_scores": mock_scores_col
+    }.get(key, MagicMock())
+
+    return mock_db
 
 @pytest.fixture
 def sample_data():
@@ -65,14 +93,17 @@ def sample_data():
     return df
 
 @pytest.fixture
-def swing_trader():
+def swing_trader(mock_database):
     """
     Create and return an instance of the SwingTrader class.
 
+    Args:
+        mock_database: Mock database fixture.
+
     Returns:
-        SwingTrader: An instance of the SwingTrader class.
+        SwingTrader: An instance of the SwingTrader class with mock database.
     """
-    return SwingTrader()
+    return SwingTrader(database=mock_database)
 
 def test_calculate_trend(sample_data): # pylint: disable=redefined-outer-name
     """

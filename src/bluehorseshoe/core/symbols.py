@@ -23,8 +23,7 @@ from ratelimit import limits, sleep_and_retry
 from pymongo import UpdateOne
 from pymongo.results import BulkWriteResult
 
-# Import the centralized database instance
-from .database import db
+# Database instances are now passed as parameters instead of using global singletons
 
 # ---------------------------------------------------------------------
 # Config
@@ -116,13 +115,18 @@ def fetch_symbol_list_from_net() -> List[Dict[str, Any]]:
     return symbols
 
 
-def upsert_symbols_to_mongo(symbols: Iterable[Dict[str, Any]]) -> int:
+def upsert_symbols_to_mongo(symbols: Iterable[Dict[str, Any]], database=None) -> int:
     """
     Upsert symbol documents into MongoDB.
+
+    Args:
+        symbols: Iterable of symbol dictionaries to upsert.
+        database: MongoDB database instance. Required.
     """
-    # Use the centralized db
-    _db = db.get_db()
-    _symbols_col = _db["symbols"]
+    if database is None:
+        raise ValueError("database parameter is required for upsert_symbols_to_mongo")
+
+    _symbols_col = database["symbols"]
 
     # Create index if it doesn't exist (idempotent)
     _symbols_col.create_index("symbol", unique=True)
@@ -139,15 +143,21 @@ def upsert_symbols_to_mongo(symbols: Iterable[Dict[str, Any]]) -> int:
     return (result.upserted_count or 0) + (result.modified_count or 0)
 
 
-def refresh_symbols() -> Dict[str, Any]:
+def refresh_symbols(database=None) -> Dict[str, Any]:
     """
     Fetch symbols from net and store in MongoDB.
+
+    Args:
+        database: MongoDB database instance. Required.
     """
+    if database is None:
+        raise ValueError("database parameter is required for refresh_symbols")
+
     symbols = fetch_symbol_list_from_net()
     if not symbols:
         return {"status": "empty", "count": 0, "symbol_count": 0, "sample": []}
 
-    count = upsert_symbols_to_mongo(symbols)
+    count = upsert_symbols_to_mongo(symbols, database=database)
 
     return {
         "status": "ok",
@@ -285,19 +295,26 @@ def fetch_daily_ohlc_from_net(symbol: str, recent: bool = False) -> Dict[str, An
     return {"symbol": sym, "days": days}
 
 
-def upsert_historical_to_mongo(symbol: str, days: List[Dict[str, Any]]) -> None:
+def upsert_historical_to_mongo(symbol: str, days: List[Dict[str, Any]], database=None) -> None:
     """
     Store full historical days in historical_prices,
     plus a recent slice in historical_prices_recent.
     Merges with existing data to prevent truncation.
+
+    Args:
+        symbol: Stock symbol.
+        days: List of OHLCV day dictionaries.
+        database: MongoDB database instance. Required.
     """
     sym = symbol.upper().strip()
     if not sym:
         raise ValueError("symbol is required")
 
-    _db = db.get_db()
-    _prices = _db["historical_prices"]
-    _prices_recent = _db["historical_prices_recent"]
+    if database is None:
+        raise ValueError("database parameter is required for upsert_historical_to_mongo")
+
+    _prices = database["historical_prices"]
+    _prices_recent = database["historical_prices_recent"]
 
     now = datetime.utcnow().isoformat()
 
@@ -324,16 +341,24 @@ def upsert_historical_to_mongo(symbol: str, days: List[Dict[str, Any]]) -> None:
     _prices_recent.update_one({"symbol": sym}, {"$set": recent_doc}, upsert=True)
 
 
-def refresh_historical_for_symbol(symbol: str, recent: bool = False) -> Dict[str, Any]:
+def refresh_historical_for_symbol(symbol: str, recent: bool = False, database=None) -> Dict[str, Any]:
     """
     Fetch OHLC from net and upsert to Mongo.
+
+    Args:
+        symbol: Stock symbol.
+        recent: If True, fetch compact data; if False, fetch full history.
+        database: MongoDB database instance. Required.
     """
+    if database is None:
+        raise ValueError("database parameter is required for refresh_historical_for_symbol")
+
     data = fetch_daily_ohlc_from_net(symbol, recent=recent)
     days = data.get("days", [])
     if not days:
         raise RuntimeError(f"No historical days returned for {symbol}")
 
-    upsert_historical_to_mongo(data["symbol"], days)
+    upsert_historical_to_mongo(data["symbol"], days, database=database)
 
     return {
         "symbol": data["symbol"],
@@ -367,16 +392,23 @@ def fetch_overview_from_net(symbol: str) -> Dict[str, Any]:
     return json_data
 
 
-def upsert_overview_to_mongo(symbol: str, overview: Dict[str, Any]) -> None:
+def upsert_overview_to_mongo(symbol: str, overview: Dict[str, Any], database=None) -> None:
     """
     Store company overview metadata in the symbol_overviews collection.
+
+    Args:
+        symbol: Stock symbol.
+        overview: Overview data dictionary from Alpha Vantage.
+        database: MongoDB database instance. Required.
     """
     sym = symbol.upper().strip()
     if not sym:
         raise ValueError("symbol is required")
 
-    _db = db.get_db()
-    _overviews = _db["symbol_overviews"]
+    if database is None:
+        raise ValueError("database parameter is required for upsert_overview_to_mongo")
+
+    _overviews = database["symbol_overviews"]
 
     overview["symbol"] = sym
     overview["last_updated"] = datetime.utcnow().isoformat()
@@ -384,13 +416,19 @@ def upsert_overview_to_mongo(symbol: str, overview: Dict[str, Any]) -> None:
     _overviews.update_one({"symbol": sym}, {"$set": overview}, upsert=True)
 
 
-def get_overview_from_mongo(symbol: str) -> Dict[str, Any]:
+def get_overview_from_mongo(symbol: str, database=None) -> Dict[str, Any]:
     """
     Load company overview for a symbol from MongoDB.
+
+    Args:
+        symbol: Stock symbol.
+        database: MongoDB database instance. Required.
     """
+    if database is None:
+        raise ValueError("database parameter is required for get_overview_from_mongo")
+
     sym = symbol.upper().strip()
-    _db = db.get_db()
-    doc = _db["symbol_overviews"].find_one({"symbol": sym}, {"_id": 0})
+    doc = database["symbol_overviews"].find_one({"symbol": sym}, {"_id": 0})
     return doc or {}
 
 
@@ -409,13 +447,20 @@ def fetch_news_sentiment_from_net(tickers: str) -> Dict[str, Any]:
     return response.json()
 
 
-def upsert_news_sentiment_to_mongo(symbol: str, news_data: Dict[str, Any]) -> None:
+def upsert_news_sentiment_to_mongo(symbol: str, news_data: Dict[str, Any], database=None) -> None:
     """
     Store news sentiment feed in the symbol_news collection.
+
+    Args:
+        symbol: Stock symbol.
+        news_data: News sentiment data from Alpha Vantage.
+        database: MongoDB database instance. Required.
     """
+    if database is None:
+        raise ValueError("database parameter is required for upsert_news_sentiment_to_mongo")
+
     sym = symbol.upper().strip()
-    _db = db.get_db()
-    _news = _db["symbol_news"]
+    _news = database["symbol_news"]
 
     # We store the feed as a single document for the ticker
     doc = {
@@ -426,13 +471,19 @@ def upsert_news_sentiment_to_mongo(symbol: str, news_data: Dict[str, Any]) -> No
     _news.update_one({"symbol": sym}, {"$set": doc}, upsert=True)
 
 
-def get_news_sentiment_from_mongo(symbol: str) -> List[Dict[str, Any]]:
+def get_news_sentiment_from_mongo(symbol: str, database=None) -> List[Dict[str, Any]]:
     """
     Load news sentiment feed for a symbol from MongoDB.
+
+    Args:
+        symbol: Stock symbol.
+        database: MongoDB database instance. Required.
     """
+    if database is None:
+        raise ValueError("database parameter is required for get_news_sentiment_from_mongo")
+
     sym = symbol.upper().strip()
-    _db = db.get_db()
-    doc = _db["symbol_news"].find_one({"symbol": sym}, {"_id": 0})
+    doc = database["symbol_news"].find_one({"symbol": sym}, {"_id": 0})
     return (doc or {}).get("feed", [])
 
 
@@ -450,12 +501,20 @@ def _normalize_target_date(target_date: str | date) -> datetime | None:
     return None
 
 
-def get_sentiment_score(symbol: str, target_date: str | date) -> float:
+def get_sentiment_score(symbol: str, target_date: str | date, database=None) -> float:
     """
     Calculates an average sentiment score for a symbol up to a target date.
     Lookback is 7 days.
+
+    Args:
+        symbol: Stock symbol.
+        target_date: Target date for sentiment analysis.
+        database: MongoDB database instance. Required.
     """
-    feed = get_news_sentiment_from_mongo(symbol)
+    if database is None:
+        raise ValueError("database parameter is required for get_sentiment_score")
+
+    feed = get_news_sentiment_from_mongo(symbol, database=database)
     target_dt = _normalize_target_date(target_date)
 
     if not feed or not target_dt:
@@ -482,16 +541,23 @@ def get_sentiment_score(symbol: str, target_date: str | date) -> float:
     return sum(scores) / len(scores) if scores else 0.0
 
 
-def get_historical_from_mongo(symbol: str, recent: bool = False) -> List[Dict[str, Any]]:
+def get_historical_from_mongo(symbol: str, recent: bool = False, database=None) -> List[Dict[str, Any]]:
     """
     Load historical data for a symbol from MongoDB.
+
+    Args:
+        symbol: Stock symbol.
+        recent: If True, load from recent prices collection; if False, load from full history.
+        database: MongoDB database instance. Required.
     """
+    if database is None:
+        raise ValueError("database parameter is required for get_historical_from_mongo")
+
     sym = symbol.upper().strip()
     if not sym:
         raise ValueError("symbol is required")
 
-    _db = db.get_db()
-    col = _db["historical_prices_recent"] if recent else _db["historical_prices"]
+    col = database["historical_prices_recent"] if recent else database["historical_prices"]
 
     doc = col.find_one({"symbol": sym}, {"_id": 0, "days": 1})
     return (doc or {}).get("days", [])

@@ -17,7 +17,7 @@ from .symbols import (
     refresh_historical_for_symbol,
     fetch_daily_ohlc_from_net,
 )
-from .database import db
+from .container import create_app_container
 
 
 # -------------------------------
@@ -35,12 +35,16 @@ LOG_LEVEL = os.environ.get("BH_LOG_LEVEL", "INFO").upper()
 logging.basicConfig(level=getattr(logging, LOG_LEVEL, logging.INFO))
 
 
-def _checkpoint_col() -> Collection:
-    """Return the checkpoint collection."""
-    return db.get_db()[CHECKPOINT_COLLECTION]
+def _checkpoint_col(database) -> Collection:
+    """Return the checkpoint collection.
+
+    Args:
+        database: MongoDB database instance.
+    """
+    return database[CHECKPOINT_COLLECTION]
 
 
-def get_checkpoint() -> Dict[str, Any]:
+def get_checkpoint(database) -> Dict[str, Any]:
     """
     Returns checkpoint doc:
       {
@@ -50,14 +54,24 @@ def get_checkpoint() -> Dict[str, Any]:
         "run_count": 12,
         "processed_total": 600
       }
+
+    Args:
+        database: MongoDB database instance.
     """
-    doc = _checkpoint_col().find_one({"_id": CHECKPOINT_ID}) or {}
+    doc = _checkpoint_col(database).find_one({"_id": CHECKPOINT_ID}) or {}
     return doc
 
 
-def set_checkpoint(last_symbol: str, processed_total: int, run_count: int) -> None:
-    """Update the batch loader checkpoint in the database."""
-    _checkpoint_col().update_one(
+def set_checkpoint(database, last_symbol: str, processed_total: int, run_count: int) -> None:
+    """Update the batch loader checkpoint in the database.
+
+    Args:
+        database: MongoDB database instance.
+        last_symbol: Last processed symbol.
+        processed_total: Total symbols processed.
+        run_count: Number of runs completed.
+    """
+    _checkpoint_col(database).update_one(
         {"_id": CHECKPOINT_ID},
         {"$set": {
             "last_symbol": last_symbol,
@@ -69,29 +83,45 @@ def set_checkpoint(last_symbol: str, processed_total: int, run_count: int) -> No
     )
 
 
-def clear_checkpoint() -> None:
-    """Remove the current checkpoint."""
-    _checkpoint_col().delete_one({"_id": CHECKPOINT_ID})
+def clear_checkpoint(database) -> None:
+    """Remove the current checkpoint.
 
-def _active_symbols_after(last_symbol, limit) -> List[str]:
+    Args:
+        database: MongoDB database instance.
+    """
+    _checkpoint_col(database).delete_one({"_id": CHECKPOINT_ID})
+
+def _active_symbols_after(database, last_symbol, limit) -> List[str]:
     """
     Get next symbols alphabetically after last_symbol.
     Uses Mongo sort order so it's stable.
+
+    Args:
+        database: MongoDB database instance.
+        last_symbol: Last processed symbol.
+        limit: Maximum number of symbols to return.
     """
     query = {"active": True}
     if last_symbol:
         query["symbol"] = {"$gt": last_symbol}
 
     cursor = (
-        db.get_db()["symbols"]
+        database["symbols"]
         .find(query, {"_id":0, "symbol":1})
         .sort("symbol", 1)
         .limit(limit)
     )
     return [d["symbol"] for d in cursor]
 
-def _symbols_after(last_symbol, limit, active_only: bool) -> List[str]:
-    """Retrieve a list of symbols alphabetically following the last symbol."""
+def _symbols_after(database, last_symbol, limit, active_only: bool) -> List[str]:
+    """Retrieve a list of symbols alphabetically following the last symbol.
+
+    Args:
+        database: MongoDB database instance.
+        last_symbol: Last processed symbol.
+        limit: Maximum number of symbols to return.
+        active_only: If True, only return active symbols.
+    """
     query = {}
     if active_only:
         query["active"] = True
@@ -99,7 +129,7 @@ def _symbols_after(last_symbol, limit, active_only: bool) -> List[str]:
         query["symbol"] = {"$gt": last_symbol}
 
     cursor = (
-        db.get_db()["symbols"]
+        database["symbols"]
         .find(query, {"_id": 0, "symbol": 1})
         .sort("symbol", 1)
         .limit(limit)
@@ -107,6 +137,7 @@ def _symbols_after(last_symbol, limit, active_only: bool) -> List[str]:
     return [d["symbol"] for d in cursor]
 
 def run_historical_batch(
+    database,
     limit: int = BATCH_LIMIT,
     recent_only: bool = RECENT_ONLY,
     sleep_seconds: float = SLEEP_BETWEEN,
@@ -116,14 +147,21 @@ def run_historical_batch(
     Run a single batch of historical loads.
     Safe to call from cron repeatedly.
 
+    Args:
+        database: MongoDB database instance.
+        limit: Maximum number of symbols to process.
+        recent_only: If True, fetch compact data.
+        sleep_seconds: Sleep time between API calls.
+        classify: If True, process all symbols; if False, only active symbols.
+
     Returns a summary payload suitable for logs / API.
     """
-    ck = get_checkpoint()
+    ck = get_checkpoint(database)
     last_symbol = ck.get("last_symbol")
     run_count = int(ck.get("run_count", 0)) + 1
     processed_total = int(ck.get("processed_total", 0))
 
-    symbols = _symbols_after(last_symbol, limit, active_only=not classify)
+    symbols = _symbols_after(database, last_symbol, limit, active_only=not classify)
 
     if not symbols:
         logging.info("No more symbols after %s. Batch complete.", last_symbol)
@@ -142,7 +180,7 @@ def run_historical_batch(
     for sym in symbols:
         last_symbol = sym
         try:
-            refresh_historical_for_symbol(sym, recent=recent_only)
+            refresh_historical_for_symbol(sym, recent=recent_only, database=database)
             stats["successes"] += 1
             processed_total += 1
             logging.info("Loaded %s (%d/%d this batch)", sym,
@@ -157,7 +195,7 @@ def run_historical_batch(
         time.sleep(sleep_seconds)
 
         # checkpoint after each symbol so restarts are painless
-        set_checkpoint(last_symbol, processed_total, run_count)
+        set_checkpoint(database, last_symbol, processed_total, run_count)
 
     return {
         "status": "ok",
@@ -171,11 +209,17 @@ def run_historical_batch(
         "recent_only": recent_only,
     }
 
-def classify_symbols_batch(limit=50, sleep_seconds=1.2):
-    """Classify a batch of symbols by updating their data."""
-    ck = get_checkpoint()
+def classify_symbols_batch(database, limit=50, sleep_seconds=1.2):
+    """Classify a batch of symbols by updating their data.
+
+    Args:
+        database: MongoDB database instance.
+        limit: Maximum number of symbols to process.
+        sleep_seconds: Sleep time between API calls.
+    """
+    ck = get_checkpoint(database)
     last_symbol = ck.get("last_symbol")
-    symbols = _symbols_after(last_symbol, limit, active_only=False)
+    symbols = _symbols_after(database, last_symbol, limit, active_only=False)
 
     if not symbols:
         return {"status": "done"}
@@ -185,13 +229,17 @@ def classify_symbols_batch(limit=50, sleep_seconds=1.2):
     for sym in symbols:
         fetch_daily_ohlc_from_net(sym, recent=True)  # compact
 
-        refresh_historical_for_symbol(sym, True)
+        refresh_historical_for_symbol(sym, True, database=database)
 
         processed_total += 1
-        set_checkpoint(sym, processed_total, run_count)
+        set_checkpoint(database, sym, processed_total, run_count)
         time.sleep(sleep_seconds)
 
     return {"status": "ok", "last_symbol": symbols[-1]}
 
 if __name__ == "__main__":
-    run_historical_batch()
+    container = create_app_container()
+    try:
+        run_historical_batch(container.get_database())
+    finally:
+        container.close()

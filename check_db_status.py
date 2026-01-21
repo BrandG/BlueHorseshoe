@@ -1,7 +1,7 @@
-from bluehorseshoe.core.globals import get_mongo_client
-import datetime
+from bluehorseshoe.core.container import create_app_container
 
-db = get_mongo_client()
+container = create_app_container()
+db = container.get_database()
 
 # Get the latest date across all symbols using aggregation
 pipeline = [
@@ -24,3 +24,5 @@ if spy and spy.get('days'):
     print(f'SPY latest date: {spy["days"][-1]["date"]}')
 else:
     print('SPY not found or has no data.')
+
+container.close()

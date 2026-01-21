@@ -2,7 +2,7 @@ import sys
 import random
 import logging
 import pandas as pd
-from bluehorseshoe.core.globals import get_mongo_client
+from bluehorseshoe.core.container import create_app_container
 from bluehorseshoe.data.historical_data import load_historical_data
 from bluehorseshoe.analysis.backtest import Backtester, BacktestOptions, BacktestConfig
 
@@ -27,13 +27,16 @@ ALL_INDICATORS = [
 
 def main():
     logging.basicConfig(level=logging.INFO, format='%(message)s')
-    
-    if get_mongo_client() is None:
+
+    container = create_app_container()
+    database = container.get_database()
+    if database is None:
         print("Failed to connect to MongoDB.")
+        container.close()
         sys.exit(1)
 
     print("Fetching valid trading dates from SPY...")
-    spy_data = load_historical_data("SPY")
+    spy_data = load_historical_data("SPY", database=database)
     if not spy_data or 'days' not in spy_data:
         print("Could not load SPY data to determine dates.")
         sys.exit(1)
@@ -52,7 +55,7 @@ def main():
 
     # Initialize Backtester
     backtest_config = BacktestConfig(hold_days=5)
-    tester = Backtester(config=backtest_config)
+    tester = Backtester(config=backtest_config, database=database)
 
     print(f"Starting indicator analysis. Each of the {len(ALL_INDICATORS)} indicators will be tested with {num_runs_per_indicator} backtests.")
 
@@ -107,6 +110,8 @@ def main():
     print(f"##########################################")
     print(f"Report saved to {report_path}")
     print(report_df.to_string())
+
+    container.close()
 
 if __name__ == "__main__":
     main()
