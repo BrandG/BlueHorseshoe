@@ -1,11 +1,15 @@
 # ToDo: BlueHorseshoe Roadmap
 
 ## Current State (v2.1)
-- **Codebase Health:** Perfect (Lint score 10.0/10).
+- **Codebase Health:** Perfect (Lint score 9.50/10).
 - **Data Integrity:** FIXED (v2.1). Switched to Split-Adjusted Data. Backfill in progress.
 - **Reporting:** Enhanced with HTML output.
 
-## Phase 3: Strategy Refinement (Immediate Priority)
+## System Stability & Infrastructure (New Priority)
+- [ ] **Infrastructure Upgrade:** Upgrade DigitalOcean Droplet to 4 vCPUs (Regular Intel) to resolve CPU starvation during parallel research/production workloads.
+- [ ] **Workload Separation:** Move long-running research scripts (`run_isolated_indicator_test.py`) to a dedicated "Research" droplet if upgrading is not sufficient.
+
+## Phase 3: Strategy Refinement
 - [x] **Formalize Mean Reversion:** Update `TechnicalAnalyzer` to explicitly reward oversold conditions (RSI < 30, Price < Lower BB).
 - [x] **Optimize Entry Timing:** COMPLETED. Implemented ATR-based limit entry (`Close - 0.2 * ATR`). Experiment showed ~4x PnL improvement over Market entry.
 - [x] **Comparative Backtest:** Run strict comparison: Baseline (Trend) vs. Mean Reversion over 6-month window.
