@@ -20,8 +20,8 @@ celery_app.conf.update(
     result_serializer="json",
     timezone="UTC",
     enable_utc=True,
-    # 2 hour hard limit for pipeline
-    task_time_limit=7200, 
+    # 4 hour hard limit for pipeline
+    task_time_limit=14400, 
 )
 
 # Schedule

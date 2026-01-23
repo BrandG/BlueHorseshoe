@@ -1,0 +1,70 @@
+{
+  "experiment_name": "test_rsi_quick",
+  "indicator": "RSI",
+  "multiplier": 1.0,
+  "strategy": "baseline",
+  "timestamp": "2026-01-22T19:18:54.711014",
+  "runs": 1,
+  "metrics": {
+    "total_trades": 5,
+    "winning_trades": 1,
+    "win_rate": 20.0,
+    "avg_pnl": -0.9307724910116777,
+    "total_pnl": -4.6538624550583885,
+    "sharpe_ratio": -2.023751412327698,
+    "max_drawdown": 4.365269352590239,
+    "pnl_std": 3.265138761527578
+  },
+  "trades": [
+    {
+      "run": 1,
+      "date": "2010-01-29",
+      "symbol": "AVY",
+      "entry": 22.747682735518623,
+      "exit": 22.6169,
+      "pnl_pct": -0.5749277279765042,
+      "status": "closed_loss",
+      "regime": "Bearish"
+    },
+    {
+      "run": 1,
+      "date": "2010-01-29",
+      "symbol": "BTI",
+      "entry": 12.9198,
+      "exit": 12.612787267332118,
+      "pnl_pct": -2.3762963255459235,
+      "status": "stopped_out",
+      "regime": "Bearish"
+    },
+    {
+      "run": 1,
+      "date": "2010-01-29",
+      "symbol": "CAH",
+      "entry": 21.891108238178447,
+      "exit": 21.4557,
+      "pnl_pct": -1.9889730270443162,
+      "status": "closed_loss",
+      "regime": "Bearish"
+    },
+    {
+      "run": 1,
+      "date": "2010-01-29",
+      "symbol": "DLB",
+      "entry": 38.508225372107844,
+      "exit": 40.2197,
+      "pnl_pct": 4.444439107110365,
+      "status": "closed_profit",
+      "regime": "Bearish"
+    },
+    {
+      "run": 1,
+      "date": "2010-01-29",
+      "symbol": "DLTR",
+      "entry": 16.44374823218587,
+      "exit": 15.76,
+      "pnl_pct": -4.15810448160201,
+      "status": "stopped_out",
+      "regime": "Bearish"
+    }
+  ]
+}

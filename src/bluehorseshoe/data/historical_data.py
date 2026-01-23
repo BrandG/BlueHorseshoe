@@ -79,6 +79,10 @@ def check_market_status(symbol='SPY'):
              # Fallback to local if TZ fails
             now_ny = pd.Timestamp.now()
 
+        # If before 6 PM ET, expect data from the previous day
+        if now_ny.hour < 18:
+            now_ny -= pd.Timedelta(days=1)
+
         expected_date = now_ny.date()
 
         if now_ny.weekday() == 5: # Saturday

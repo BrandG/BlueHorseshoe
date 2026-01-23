@@ -18,3 +18,4 @@ yfinance
 ta-lib
 pandas_ta
 pylint
+pydantic-settings
