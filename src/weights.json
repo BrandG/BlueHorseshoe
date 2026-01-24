@@ -11,7 +11,7 @@
     "momentum": {
         "RSI_MULTIPLIER": 0.0,
         "ROC_MULTIPLIER": 1.0,
-        "MACD_MULTIPLIER": 1.5,
+        "MACD_MULTIPLIER": 0.5,
         "MACD_SIGNAL_MULTIPLIER": 0.15,
         "BB_MULTIPLIER": 0.5,
         "WILLIAMS_R_MULTIPLIER": 0.5,
