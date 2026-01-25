@@ -199,6 +199,13 @@ def run_experiment(
 
         tester = Backtester(config=config, database=database)
 
+        # Load all symbols once
+        from bluehorseshoe.core.symbols import get_symbol_name_list
+        all_symbols = get_symbol_name_list(database=database)
+        print(f"Loaded {len(all_symbols)} total symbols from database")
+        print(f"Will sample 1,000 random symbols per run for faster testing")
+        print()
+
         # Track results
         all_trades = []
         total_trades = 0
@@ -219,8 +226,13 @@ def run_experiment(
             regime = MarketRegime.get_market_health(target_date=date_str, database=database)
             print(f"Regime: {regime['status']} ({regime['multiplier']}x)")
 
+            # Sample 1,000 random symbols for this run
+            sample_size = min(1000, len(all_symbols))
+            sampled_symbols = random.sample(all_symbols, sample_size)
+            print(f"Sampled {sample_size} symbols for backtest")
+
             # Run backtest
-            options = BacktestOptions(strategy=strategy, top_n=5)
+            options = BacktestOptions(strategy=strategy, top_n=5, symbols=sampled_symbols)
             results = tester.run_backtest(date_str, options=options)
 
             # Process results
@@ -320,9 +332,49 @@ def run_experiment(
             shutil.move(backup_weights_path, original_weights_path)
             print("\n✓ Restored original weights.json")
         else:
-            print("\n⚠ Warning: Backup weights file not found, restoring from git")
-            import subprocess
-            subprocess.run(["git", "restore", str(original_weights_path)], check=True)
+            # Backup not found (race condition from parallel tests) - restore to safe default
+            print("\n⚠ Warning: Backup weights file not found, restoring to default (all zeros)")
+            default_weights = {
+                "trend": {
+                    "ADX_MULTIPLIER": 0.0,
+                    "STOCHASTIC_MULTIPLIER": 0.0,
+                    "ICHIMOKU_MULTIPLIER": 0.0,
+                    "PSAR_MULTIPLIER": 0.0,
+                    "HEIKEN_ASHI_MULTIPLIER": 0.0,
+                    "DONCHIAN_MULTIPLIER": 0.0,
+                    "SUPERTREND_MULTIPLIER": 0.0
+                },
+                "momentum": {
+                    "RSI_MULTIPLIER": 0.0,
+                    "ROC_MULTIPLIER": 0.0,
+                    "MACD_MULTIPLIER": 0.0,
+                    "MACD_SIGNAL_MULTIPLIER": 0.0,
+                    "BB_MULTIPLIER": 0.0,
+                    "WILLIAMS_R_MULTIPLIER": 0.0,
+                    "CCI_MULTIPLIER": 0.0
+                },
+                "volume": {
+                    "OBV_MULTIPLIER": 0.0,
+                    "CMF_MULTIPLIER": 0.0,
+                    "ATR_BAND_MULTIPLIER": 0.0,
+                    "ATR_SPIKE_MULTIPLIER": 0.0,
+                    "MFI_MULTIPLIER": 0.0
+                },
+                "candlestick": {
+                    "RISE_FALL_3_METHODS_MULTIPLIER": 0.0,
+                    "THREE_WHITE_SOLDIERS_MULTIPLIER": 0.0,
+                    "MARUBOZU_MULTIPLIER": 0.0,
+                    "BELT_HOLD_MULTIPLIER": 0.0
+                },
+                "mean_reversion": {
+                    "RSI_MULTIPLIER": 0.0,
+                    "BB_MULTIPLIER": 0.0,
+                    "MA_DIST_MULTIPLIER": 0.0,
+                    "CANDLESTICK_MULTIPLIER": 0.0
+                }
+            }
+            with open(original_weights_path, 'w') as f:
+                json.dump(default_weights, f, indent=2)
 
 
 def main():
