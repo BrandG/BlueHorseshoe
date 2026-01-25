@@ -19,10 +19,10 @@
   },
   "volume": {
     "OBV_MULTIPLIER": 0.0,
-    "CMF_MULTIPLIER": 1.5,
+    "CMF_MULTIPLIER": 0.0,
     "ATR_BAND_MULTIPLIER": 0.0,
     "ATR_SPIKE_MULTIPLIER": 0.0,
-    "MFI_MULTIPLIER": 0.0
+    "MFI_MULTIPLIER": 1.5
   },
   "candlestick": {
     "RISE_FALL_3_METHODS_MULTIPLIER": 0.0,
