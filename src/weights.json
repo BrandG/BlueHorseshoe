@@ -20,7 +20,7 @@
   "volume": {
     "OBV_MULTIPLIER": 0.0,
     "CMF_MULTIPLIER": 0.0,
-    "ATR_BAND_MULTIPLIER": 0.5,
+    "ATR_BAND_MULTIPLIER": 0.0,
     "ATR_SPIKE_MULTIPLIER": 0.0,
     "MFI_MULTIPLIER": 0.0
   },
