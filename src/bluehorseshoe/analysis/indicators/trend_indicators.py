@@ -421,7 +421,10 @@ class TrendIndicator(Indicator):
 
         for name, (func, weight_key) in sub_map.items():
             if enabled_sub_indicators is None or name in enabled_sub_indicators:
-                score = func() * self.weights[weight_key]
+                multiplier = self.weights[weight_key]
+                if multiplier == 0.0:
+                    continue  # Skip calculation if multiplier is zero
+                score = func() * multiplier
                 if aggregation == "product":
                     buy_score *= score
                 else:
