@@ -1,0 +1,60 @@
+{
+  "experiment_name": "supertrend_test",
+  "indicator": "SUPERTREND",
+  "multiplier": 0.5,
+  "strategy": "baseline",
+  "timestamp": "2026-01-27T10:46:25.516403",
+  "runs": 1,
+  "metrics": {
+    "total_trades": 4,
+    "winning_trades": 3,
+    "win_rate": 75.0,
+    "avg_pnl": 2.621078049147252,
+    "total_pnl": 10.484312196589007,
+    "sharpe_ratio": 7.602625881004386,
+    "max_drawdown": 0.3233595333842487,
+    "pnl_std": 2.447550164776121
+  },
+  "trades": [
+    {
+      "run": 1,
+      "date": "2007-11-26",
+      "symbol": "CMS",
+      "entry": 9.339726387279871,
+      "exit": 9.6199,
+      "pnl_pct": 2.999805359412955,
+      "status": "closed_profit",
+      "regime": "Bearish"
+    },
+    {
+      "run": 1,
+      "date": "2007-11-26",
+      "symbol": "HE",
+      "entry": 11.2815,
+      "exit": 11.5287,
+      "pnl_pct": 2.1911979789921654,
+      "status": "closed_profit",
+      "regime": "Bearish"
+    },
+    {
+      "run": 1,
+      "date": "2007-11-26",
+      "symbol": "FLR",
+      "entry": 57.10575889062515,
+      "exit": 60.3132,
+      "pnl_pct": 5.616668391568136,
+      "status": "closed_profit",
+      "regime": "Bearish"
+    },
+    {
+      "run": 1,
+      "date": "2007-11-26",
+      "symbol": "TXRH",
+      "entry": 9.151893520182686,
+      "exit": 9.1223,
+      "pnl_pct": -0.3233595333842487,
+      "status": "closed_loss",
+      "regime": "Bearish"
+    }
+  ]
+}
