@@ -1,0 +1,60 @@
+{
+  "experiment_name": "three_white_soldiers_quick_test",
+  "indicator": "THREE_WHITE_SOLDIERS",
+  "multiplier": 0.5,
+  "strategy": "baseline",
+  "timestamp": "2026-01-27T14:19:09.448230",
+  "runs": 1,
+  "metrics": {
+    "total_trades": 4,
+    "winning_trades": 3,
+    "win_rate": 75.0,
+    "avg_pnl": 0.2059956428142551,
+    "total_pnl": 0.8239825712570203,
+    "sharpe_ratio": 0.6573384646480466,
+    "max_drawdown": 0.0,
+    "pnl_std": 2.2247655782855227
+  },
+  "trades": [
+    {
+      "run": 1,
+      "date": "2005-06-20",
+      "symbol": "ROP",
+      "entry": 31.94377244431334,
+      "exit": 30.985496887446722,
+      "pnl_pct": -2.9998822416392734,
+      "status": "stopped_out",
+      "regime": "Bullish"
+    },
+    {
+      "run": 1,
+      "date": "2005-06-20",
+      "symbol": "LH",
+      "entry": 41.0707704498249,
+      "exit": 41.2358,
+      "pnl_pct": 0.40181751734291726,
+      "status": "closed_profit",
+      "regime": "Bullish"
+    },
+    {
+      "run": 1,
+      "date": "2005-06-20",
+      "symbol": "DVN",
+      "entry": 30.63582232235865,
+      "exit": 31.1709,
+      "pnl_pct": 1.7465752086270658,
+      "status": "closed_profit",
+      "regime": "Bullish"
+    },
+    {
+      "run": 1,
+      "date": "2005-06-20",
+      "symbol": "EG",
+      "entry": 59.548776865512316,
+      "exit": 60.5465,
+      "pnl_pct": 1.6754720869263107,
+      "status": "closed_profit",
+      "regime": "Bullish"
+    }
+  ]
+}

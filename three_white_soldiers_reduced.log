@@ -1,0 +1,1110 @@
+/usr/local/lib/python3.12/site-packages/sklearn/utils/parallel.py:144: UserWarning: `sklearn.utils.parallel.delayed` should be used with `sklearn.utils.parallel.Parallel` to make it possible to propagate the scikit-learn configuration of the current thread to the joblib workers.
+  warnings.warn(
+======================================================================
+ISOLATED INDICATOR TEST: THREE_WHITE_SOLDIERS
+======================================================================
+Experiment Name: three_white_soldiers_reduced
+Multiplier: 0.5
+Strategy: baseline
+Number of Runs: 20
+======================================================================
+
+Created isolated config: /workspaces/BlueHorseshoe/src/experiments/results/three_white_soldiers_reduced_config.json
+✓ Temporarily using isolated weights
+
+Loaded 10870 total symbols from database
+Will sample 1,000 random symbols per run for faster testing
+
+
+--- Run 1/20 ---
+Date: 2025-12-22
+Regime: Bullish (1.0x)
+Sampled 1000 symbols for backtest
+
+--- Baseline Backtest Report for 2025-12-22 (Hold: 5 days) | Agg: sum ---
+DEBUG: DJCO - Baseline price out of range: 530.8408077358152
+DEBUG: LOKVW - Baseline price out of range: 0.9406017530429955
+DEBUG: ULTA - Baseline price out of range: 609.445192219805
+DEBUG: SOHO - Baseline price out of range: 2.1650071937652764
+DEBUG: EDF - Baseline price out of range: 4.740701133672877
+DEBUG: INN - Baseline price out of range: 4.964759556917686
+DEBUG: BLND - Baseline price out of range: 3.0206949311891425
+DEBUG: DRDBW - Baseline price out of range: 0.6242795837820996
+DEBUG: CLPR - Baseline price out of range: 3.3273347040680545
+DEBUG: PYPD - Baseline price out of range: 3.9513093848439027
+DEBUG: NAT - Baseline price out of range: 3.397352121089417
+DEBUG: NIO - Baseline price out of range: 4.955954643228644
+  > Progress: 500/1000 symbols analyzed (50.0%)
+DEBUG: POWW - Baseline price out of range: 1.8027197310011702
+DEBUG: FICO - Baseline price out of range: 1732.2426994430623
+DEBUG: GMGT - Baseline price out of range: 0.0005957516213429691
+DEBUG: GIGM - Baseline price out of range: 1.4493649645941742
+DEBUG: ALCYW - Baseline price out of range: 0.12891428230922197
+DEBUG: BOWNR - Baseline price out of range: 0.2251989511540083
+DEBUG: MCO - Baseline price out of range: 507.8539336193216
+DEBUG: MRT - Baseline price out of range: 2.220729063399393
+DEBUG: TLNCW - Baseline price out of range: 0.5451010708264055
+DEBUG: CCLD - Baseline price out of range: 3.134590299112789
+DEBUG: SPOT - Baseline price out of range: 574.9396782566207
+DEBUG: OACCW - Baseline price out of range: 0.7069342944160449
+DEBUG: UYSCR - Baseline price out of range: 0.2673208165887844
+  > Progress: 1000/1000 symbols analyzed (100.0%)
+AEM (Score: 12.00 | ML: 48.0%): closed_loss | PnL: -5.27% (Entry: 178.96, Exit: 169.53, Held: 5 days)
+OSW (Score: 12.00 | ML: 60.0%): closed_loss | PnL: -4.32% (Entry: 21.68, Exit: 20.74, Held: 5 days)
+CGDV (Score: 11.50 | ML: 74.0%): closed_profit | PnL: 1.08% (Entry: 43.68, Exit: 44.15, Held: 5 days)
+INTF (Score: 11.50 | ML: 74.0%): limit_expired
+FLGB (Score: 11.50 | ML: 74.0%): limit_expired
+Summary: 1/3 profitable (33.33%) | Avg PnL: -2.84%
+Trades: 5
+
+--- Run 2/20 ---
+Date: 2006-08-24
+Regime: Bullish (1.0x)
+Sampled 1000 symbols for backtest
+
+--- Baseline Backtest Report for 2006-08-24 (Hold: 5 days) | Agg: sum ---
+DEBUG: FIZZ - Baseline price out of range: 3.5705694167866615
+DEBUG: VHC - Baseline price out of range: 2.173995797778773
+DEBUG: RELL - Baseline price out of range: 4.722360988728675
+DEBUG: JOF - Baseline price out of range: 4.705904543464954
+DEBUG: MQY - Baseline price out of range: 4.841776722931404
+DEBUG: JHS - Baseline price out of range: 3.999385329419458
+DEBUG: ORKA - Baseline price out of range: 2132696.2665063753
+DEBUG: SSBI - Baseline price out of range: 4.686148533995739
+DEBUG: CII - Baseline price out of range: 2.821807886781722
+DEBUG: RES - Baseline price out of range: 4.373219506508076
+DEBUG: NL - Baseline price out of range: 4.570241188273539
+DEBUG: IRS - Baseline price out of range: 4.414166604196049
+DEBUG: SPRO - Baseline price out of range: 2.5702506385603203
+DEBUG: MGF - Baseline price out of range: 1.5303998747291159
+DEBUG: MPW - Baseline price out of range: 2.7485460213399464
+DEBUG: PTY - Baseline price out of range: 1.9885649116812314
+DEBUG: TTEK - Baseline price out of range: 2.9104112397066273
+  > Progress: 500/1000 symbols analyzed (50.0%)
+DEBUG: ARLP - Baseline price out of range: 3.7729944301640046
+DEBUG: IGR - Baseline price out of range: 2.7700500877038956
+DEBUG: IQI - Baseline price out of range: 4.614030553518572
+DEBUG: BHK - Baseline price out of range: 3.2334087155839524
+DEBUG: BLW - Baseline price out of range: 3.898480497369738
+DEBUG: HYT - Baseline price out of range: 2.0117187164999595
+DEBUG: GRF - Baseline price out of range: 1.5467048681026114
+DEBUG: USA - Baseline price out of range: 1.2464536831824278
+DEBUG: RVP - Baseline price out of range: 3.561677674496182
+DEBUG: SDS - Baseline price out of range: 17220.703532330823
+DEBUG: HNRG - Baseline price out of range: 3.125136707173445
+DEBUG: UTG - Baseline price out of range: 4.9391930440174034
+DEBUG: RMT - Baseline price out of range: 2.4070042403773297
+DEBUG: JRO - Baseline price out of range: 3.4113980077239185
+DEBUG: GGN - Baseline price out of range: 2.7457202142331494
+DEBUG: VTN - Baseline price out of range: 4.8066564967537895
+DEBUG: BOE - Baseline price out of range: 3.95494309478359
+DEBUG: ABR - Baseline price out of range: 4.967384560485935
+DEBUG: SPE - Baseline price out of range: 2.356642640961191
+DEBUG: GUT - Baseline price out of range: 1.5880060140873777
+DEBUG: TCX - Baseline price out of range: 3.616985724246683
+DEBUG: GTN - Baseline price out of range: 4.651565985609141
+DEBUG: PML - Baseline price out of range: 4.670783331586324
+DEBUG: HBNC - Baseline price out of range: 2.8388740623290283
+DEBUG: ROST - Baseline price out of range: 4.617776341463778
+DEBUG: OTEX - Baseline price out of range: 3.0659183426196224
+DEBUG: MIY - Baseline price out of range: 4.993169757575226
+  > Progress: 1000/1000 symbols analyzed (100.0%)
+/usr/local/lib/python3.12/site-packages/sklearn/utils/parallel.py:144: UserWarning: `sklearn.utils.parallel.delayed` should be used with `sklearn.utils.parallel.Parallel` to make it possible to propagate the scikit-learn configuration of the current thread to the joblib workers.
+  warnings.warn(
+/usr/local/lib/python3.12/site-packages/sklearn/utils/parallel.py:144: UserWarning: `sklearn.utils.parallel.delayed` should be used with `sklearn.utils.parallel.Parallel` to make it possible to propagate the scikit-learn configuration of the current thread to the joblib workers.
+  warnings.warn(
+DHT (Score: 10.00 | ML: 80.0%): closed_loss | PnL: -4.27% (Entry: 39.06, Exit: 37.40, Held: 5 days)
+EBF (Score: 10.00 | ML: 84.0%): closed_profit | PnL: 3.41% (Entry: 7.01, Exit: 7.25, Held: 5 days)
+GIS (Score: 10.00 | ML: 75.0%): limit_expired
+C (Score: 9.00 | ML: 77.0%): closed_profit | PnL: 1.57% (Entry: 322.75, Exit: 327.81, Held: 5 days)
+MTB (Score: 9.00 | ML: 84.0%): closed_profit | PnL: 0.21% (Entry: 68.18, Exit: 68.32, Held: 5 days)
+Summary: 3/4 profitable (75.00%) | Avg PnL: 0.23%
+Trades: 5
+
+--- Run 3/20 ---
+Date: 2003-12-15
+Regime: Bullish (1.0x)
+Sampled 1000 symbols for backtest
+
+--- Baseline Backtest Report for 2003-12-15 (Hold: 5 days) | Agg: sum ---
+DEBUG: MHD - Baseline price out of range: 3.991944067977654
+DEBUG: MDU - Baseline price out of range: 3.1786928650065964
+DEBUG: CNQ - Baseline price out of range: 1.4322891165263556
+DEBUG: AIRT - Baseline price out of range: 2.739688372797132
+DEBUG: MCR - Baseline price out of range: 1.5877925237823358
+DEBUG: CIF - Baseline price out of range: 0.40533228522401876
+DEBUG: SIF - Baseline price out of range: 3.9906620727175355
+DEBUG: PAMT - Baseline price out of range: 4.246968149177518
+DEBUG: KFS - Baseline price out of range: 0.15547127998615715
+DEBUG: ENB - Baseline price out of range: 3.657483507813951
+DEBUG: RCS - Baseline price out of range: 1.3606601918873305
+DEBUG: ARKR - Baseline price out of range: 4.62688895778722
+DEBUG: NDAQ - Baseline price out of range: 2.253991499295902
+DEBUG: SID - Baseline price out of range: 0.5068012760069819
+DEBUG: SBS - Baseline price out of range: 1.1156211039956594
+DEBUG: CSGP - Baseline price out of range: 3.8734512420601166
+  > Progress: 500/1000 symbols analyzed (50.0%)
+DEBUG: OKE - Baseline price out of range: 3.0824453969593093
+DEBUG: NMI - Baseline price out of range: 3.54104643859942
+DEBUG: TAYD - Baseline price out of range: 2.3779541114792617
+DEBUG: BKE - Baseline price out of range: 1.7786308143911944
+DEBUG: GIC - Baseline price out of range: 2.6457306547793262
+DEBUG: JCTC - Baseline price out of range: 0.798709830257134
+DEBUG: WVVI - Baseline price out of range: 2.2416501764912073
+DEBUG: SBSI - Baseline price out of range: 2.8324586561062906
+DEBUG: ENX - Baseline price out of range: 4.411413032331545
+DEBUG: PMX - Baseline price out of range: 3.5875705889153577
+DEBUG: VIV - Baseline price out of range: 2.9980349449532375
+DEBUG: AHT - Baseline price out of range: 2086.4840270935138
+DEBUG: CTSH - Baseline price out of range: 4.932067314304967
+DEBUG: HQL - Baseline price out of range: 2.122977440523978
+DEBUG: BBWI - Baseline price out of range: 4.85366529280655
+DEBUG: GILD - Baseline price out of range: 4.837753903923794
+DEBUG: GEL - Baseline price out of range: 2.117216390796389
+DEBUG: IFN - Baseline price out of range: 1.759426482219477
+DEBUG: NVO - Baseline price out of range: 1.3698403140063677
+DEBUG: WMB - Baseline price out of range: 3.2297762593062496
+DEBUG: PFL - Baseline price out of range: 1.9370610918719868
+DEBUG: NRT - Baseline price out of range: 3.0652586159720943
+DEBUG: VGM - Baseline price out of range: 3.910063440929425
+DEBUG: SCI - Baseline price out of range: 3.62377792521143
+DEBUG: CSX - Baseline price out of range: 1.3216353876829945
+DEBUG: HQH - Baseline price out of range: 2.6638592263718524
+  > Progress: 1000/1000 symbols analyzed (100.0%)
+PKX (Score: 11.50 | ML: 53.0%): closed_profit | PnL: 2.38% (Entry: 18.38, Exit: 18.81, Held: 5 days)
+SYY (Score: 10.00 | ML: 73.0%): closed_profit | PnL: 3.07% (Entry: 19.48, Exit: 20.08, Held: 5 days)
+SPGI (Score: 10.00 | ML: 61.0%): closed_profit | PnL: 1.86% (Entry: 23.20, Exit: 23.64, Held: 5 days)
+F (Score: 9.50 | ML: 82.0%): success | PnL: 7.20% (Entry: 6.93, Exit: 7.43, Held: 2 days)
+HSBC (Score: 9.00 | ML: 77.0%): closed_profit | PnL: 2.74% (Entry: 24.49, Exit: 25.16, Held: 5 days)
+Summary: 5/5 profitable (100.00%) | Avg PnL: 3.45%
+Trades: 5
+
+--- Run 4/20 ---
+Date: 2007-06-27
+Regime: Neutral (0.5x)
+Sampled 1000 symbols for backtest
+
+--- Baseline Backtest Report for 2007-06-27 (Hold: 5 days) | Agg: sum ---
+DEBUG: TREX - Baseline price out of range: 2.4922855281475895
+DEBUG: EVG - Baseline price out of range: 4.283347889144451
+DEBUG: FEO - Baseline price out of range: 4.6460804087035745
+DEBUG: CPHI - Baseline price out of range: 824.4316326020673
+DEBUG: REX - Baseline price out of range: 3.31730226209963
+DEBUG: MSB - Baseline price out of range: 3.473333660568229
+DEBUG: VLT - Baseline price out of range: 3.4846657498788494
+DEBUG: FONR - Baseline price out of range: 4.991690945841922
+DEBUG: AWP - Baseline price out of range: 2.5903119487857875
+DEBUG: AWF - Baseline price out of range: 2.5702072189966048
+DEBUG: ACHV - Baseline price out of range: 210012.15516401906
+DEBUG: HNNA - Baseline price out of range: 4.468672302285912
+DEBUG: GNSS - Baseline price out of range: 3.652053059312955
+DEBUG: EFR - Baseline price out of range: 4.622084990557088
+DEBUG: ACCS - Baseline price out of range: 1.1173429236668584
+DEBUG: HIHO - Baseline price out of range: 1.4738058515939991
+DEBUG: TTEK - Baseline price out of range: 3.8336052950455084
+DEBUG: CALM - Baseline price out of range: 4.477345827192965
+DEBUG: EVF - Baseline price out of range: 2.1538041338938334
+DEBUG: NVR - Baseline price out of range: 682.6628421500455
+DEBUG: EGAN - Baseline price out of range: 0.9914815381864001
+DEBUG: PRSO - Baseline price out of range: 68788.53345567238
+DEBUG: EHI - Baseline price out of range: 2.0984992261765387
+DEBUG: SZK - Baseline price out of range: 716.3730828195004
+DEBUG: VKI - Baseline price out of range: 4.034206640223349
+DEBUG: EGY - Baseline price out of range: 4.022034436950362
+  > Progress: 500/1000 symbols analyzed (50.0%)
+DEBUG: MGF - Baseline price out of range: 1.6161636767535328
+DEBUG: AGI - Baseline price out of range: 4.223624857055027
+DEBUG: GGT - Baseline price out of range: 1.8123005156836454
+DEBUG: PDEX - Baseline price out of range: 4.815431879717961
+DEBUG: ARLP - Baseline price out of range: 4.369351107328744
+DEBUG: DSU - Baseline price out of range: 3.954300165248504
+DEBUG: STAA - Baseline price out of range: 4.018997320679969
+DEBUG: MYI - Baseline price out of range: 4.8239890177853955
+DEBUG: NMZ - Baseline price out of range: 4.962759643445612
+DEBUG: ESCA - Baseline price out of range: 4.754520103700184
+DEBUG: EW - Baseline price out of range: 4.182102524746358
+DEBUG: UGP - Baseline price out of range: 2.3047247305992626
+DEBUG: NSSC - Baseline price out of range: 2.9675705252196396
+DEBUG: MVT - Baseline price out of range: 4.891614011249347
+DEBUG: EOS - Baseline price out of range: 4.112737987990062
+DEBUG: NEOG - Baseline price out of range: 3.205990935660387
+DEBUG: NBR - Baseline price out of range: 1416.0016111787666
+DEBUG: CQP - Baseline price out of range: 4.130907343833499
+  > Progress: 1000/1000 symbols analyzed (100.0%)
+MTEX (Score: 13.00 | ML: 74.0%): stopped_out | PnL: -9.79% (Entry: 100.19, Exit: 90.38, Held: 5 days)
+UL (Score: 12.50 | ML: 56.0%): closed_profit | PnL: 0.75% (Entry: 18.46, Exit: 18.60, Held: 5 days)
+NSIT (Score: 11.50 | ML: 78.0%): limit_expired
+SOXX (Score: 11.00 | ML: 74.0%): closed_profit | PnL: 1.77% (Entry: 18.24, Exit: 18.56, Held: 5 days)
+AMAT (Score: 10.00 | ML: 56.0%): closed_loss | PnL: -0.05% (Entry: 14.80, Exit: 14.79, Held: 5 days)
+Summary: 2/4 profitable (50.00%) | Avg PnL: -1.83%
+Trades: 5
+
+--- Run 5/20 ---
+Date: 2014-08-19
+Regime: Bullish (1.0x)
+Sampled 1000 symbols for backtest
+
+--- Baseline Backtest Report for 2014-08-19 (Hold: 5 days) | Agg: sum ---
+DEBUG: CRWS - Baseline price out of range: 3.6620850116910675
+DEBUG: VCEL - Baseline price out of range: 3.7194708359038082
+DEBUG: MSN - Baseline price out of range: 1.0294248782428537
+DEBUG: GCV - Baseline price out of range: 2.034107494078055
+DEBUG: LINK - Baseline price out of range: 1.678730269909597
+DEBUG: SID - Baseline price out of range: 2.6430026204445602
+DEBUG: PSEC - Baseline price out of range: 2.7088957323918006
+DEBUG: GAB - Baseline price out of range: 2.213986839391757
+DEBUG: CRF - Baseline price out of range: 2.5191293465585143
+DEBUG: AGD - Baseline price out of range: 3.884067311319537
+DEBUG: LND - Baseline price out of range: 1.9760688614105417
+DEBUG: MGLD - Baseline price out of range: 0.3364977882171191
+DEBUG: ABEV - Baseline price out of range: 4.421227025191108
+DEBUG: ASRT - Baseline price out of range: 888.7481462649886
+DEBUG: USD - Baseline price out of range: 0.8032940556967689
+DEBUG: USA - Baseline price out of range: 1.9476629717455014
+DEBUG: RITM - Baseline price out of range: 3.6836692495194665
+DEBUG: EOD - Baseline price out of range: 2.5066937213661724
+DEBUG: JMM - Baseline price out of range: 4.097087504642003
+  > Progress: 500/1000 symbols analyzed (50.0%)
+DEBUG: PNNT - Baseline price out of range: 2.8616647265664166
+DEBUG: SOXL - Baseline price out of range: 1.6634353684781802
+DEBUG: URG - Baseline price out of range: 1.1114491495982384
+DEBUG: NRIM - Baseline price out of range: 4.099007186207487
+DEBUG: ASPS - Baseline price out of range: 710.2479767998947
+DEBUG: ICMB - Baseline price out of range: 2.5314738281309865
+DEBUG: PFO - Baseline price out of range: 4.9233090283829934
+DEBUG: ASRV - Baseline price out of range: 2.4239087074951606
+DEBUG: CHY - Baseline price out of range: 4.7667663665646325
+DEBUG: DUG - Baseline price out of range: 670.755510624135
+DEBUG: RQI - Baseline price out of range: 4.486300304835982
+DEBUG: ICCM - Baseline price out of range: 0.04481313126679263
+DEBUG: SDS - Baseline price out of range: 1991.1794391630485
+DEBUG: QNST - Baseline price out of range: 4.826912005696454
+DEBUG: UBCP - Baseline price out of range: 4.503010279337165
+DEBUG: FURY - Baseline price out of range: 0.4088142349965031
+DEBUG: FTLF - Baseline price out of range: 0.3348499766621417
+DEBUG: SMCI - Baseline price out of range: 2.5784154507735497
+DEBUG: GGN - Baseline price out of range: 2.9603888465941943
+DEBUG: FET - Baseline price out of range: 655.3952391446705
+DEBUG: CHW - Baseline price out of range: 3.083059089160751
+DEBUG: ZSL - Baseline price out of range: 665.7524850084657
+DEBUG: EDD - Baseline price out of range: 4.806741731005126
+DEBUG: EAD - Baseline price out of range: 3.2497496013237748
+DEBUG: ELP - Baseline price out of range: 3.6884926528942747
+  > Progress: 1000/1000 symbols analyzed (100.0%)
+/usr/local/lib/python3.12/site-packages/sklearn/utils/parallel.py:144: UserWarning: `sklearn.utils.parallel.delayed` should be used with `sklearn.utils.parallel.Parallel` to make it possible to propagate the scikit-learn configuration of the current thread to the joblib workers.
+  warnings.warn(
+EWM (Score: 12.50 | ML: 74.0%): closed_profit | PnL: 0.99% (Entry: 30.67, Exit: 30.97, Held: 5 days)
+FTA (Score: 12.50 | ML: 74.0%): limit_expired
+APOG (Score: 11.50 | ML: 79.0%): closed_profit | PnL: 2.40% (Entry: 28.86, Exit: 29.56, Held: 5 days)
+COST (Score: 11.50 | ML: 50.0%): closed_profit | PnL: 0.73% (Entry: 96.80, Exit: 97.51, Held: 5 days)
+XEL (Score: 11.50 | ML: 70.0%): closed_profit | PnL: 0.83% (Entry: 21.79, Exit: 21.97, Held: 5 days)
+Summary: 4/4 profitable (100.00%) | Avg PnL: 1.24%
+Trades: 5
+
+--- Run 6/20 ---
+Date: 2025-04-10
+Regime: Bearish (0.0x)
+Sampled 1000 symbols for backtest
+
+--- Baseline Backtest Report for 2025-04-10 (Hold: 5 days) | Agg: sum ---
+DEBUG: FTEK - Baseline price out of range: 0.962982554797376
+DEBUG: OPHC - Baseline price out of range: 3.6864399967876724
+DEBUG: CIK - Baseline price out of range: 2.457948137321275
+  > Progress: 500/1000 symbols analyzed (50.0%)
+/usr/local/lib/python3.12/site-packages/sklearn/utils/parallel.py:144: UserWarning: `sklearn.utils.parallel.delayed` should be used with `sklearn.utils.parallel.Parallel` to make it possible to propagate the scikit-learn configuration of the current thread to the joblib workers.
+  warnings.warn(
+DEBUG: WTM - Baseline price out of range: 1698.9178648135953
+DEBUG: LDWY - Baseline price out of range: 3.638290847479131
+DEBUG: FGB - Baseline price out of range: 3.5809911436368775
+  > Progress: 1000/1000 symbols analyzed (100.0%)
+UGL (Score: 13.00 | ML: 74.0%): limit_expired
+PHYS (Score: 13.00 | ML: 74.0%): limit_expired
+SGOL (Score: 13.00 | ML: 74.0%): limit_expired
+MOH (Score: 7.00 | ML: 85.0%): stopped_out | PnL: -8.36% (Entry: 339.84, Exit: 311.44, Held: 5 days)
+SAIC (Score: 7.00 | ML: 81.0%): closed_profit | PnL: 4.35% (Entry: 110.43, Exit: 115.23, Held: 5 days)
+Summary: 1/2 profitable (50.00%) | Avg PnL: -2.01%
+Trades: 5
+
+--- Run 7/20 ---
+Date: 2009-07-21
+Regime: Bullish (1.0x)
+Sampled 1000 symbols for backtest
+
+--- Baseline Backtest Report for 2009-07-21 (Hold: 5 days) | Agg: sum ---
+DEBUG: GF - Baseline price out of range: 1.7391053363993498
+DEBUG: BDL - Baseline price out of range: 4.548238822887665
+DEBUG: ITRN - Baseline price out of range: 4.144040286554743
+DEBUG: DX - Baseline price out of range: 3.5709667845022577
+DEBUG: FTF - Baseline price out of range: 2.3833762796300326
+DEBUG: SGA - Baseline price out of range: 1.726247466651058
+DEBUG: KSM - Baseline price out of range: 4.427232437305966
+DEBUG: RXL - Baseline price out of range: 2.124511261992361
+DEBUG: EVT - Baseline price out of range: 3.6615232704417444
+DEBUG: SMFG - Baseline price out of range: 4.489611230676697
+DEBUG: REX - Baseline price out of range: 1.774954594488703
+DEBUG: EAD - Baseline price out of range: 1.7270088631249654
+DEBUG: PHD - Baseline price out of range: 2.8108137715310306
+  > Progress: 500/1000 symbols analyzed (50.0%)
+DEBUG: AOD - Baseline price out of range: 3.0771432710935485
+DEBUG: NNY - Baseline price out of range: 4.796153356460076
+DEBUG: BKN - Baseline price out of range: 4.703162193937966
+DEBUG: LBTYA - Baseline price out of range: 3.7617139991854636
+DEBUG: GUT - Baseline price out of range: 1.439211885649158
+DEBUG: HIO - Baseline price out of range: 1.2646045191858308
+DEBUG: GDV - Baseline price out of range: 3.878531322771217
+DEBUG: BAK - Baseline price out of range: 4.33491881008136
+DEBUG: OMAB - Baseline price out of range: 4.794778163632449
+DEBUG: ETB - Baseline price out of range: 3.498013940030366
+DEBUG: FLUX - Baseline price out of range: 0.05086647472604744
+DEBUG: ALRS - Baseline price out of range: 4.421091121453968
+DEBUG: NIXX - Baseline price out of range: 6299.998851588247
+DEBUG: VGM - Baseline price out of range: 4.296131613378064
+DEBUG: APH - Baseline price out of range: 3.6216835102388147
+DEBUG: PFN - Baseline price out of range: 1.2814487083016344
+DEBUG: CUBA - Baseline price out of range: 1.4508606433977531
+DEBUG: FFA - Baseline price out of range: 2.767278294763645
+DEBUG: CZWI - Baseline price out of range: 4.564914971226371
+DEBUG: TSCO - Baseline price out of range: 1.9149095990958114
+  > Progress: 1000/1000 symbols analyzed (100.0%)
+EEFT (Score: 11.00 | ML: 79.0%): success | PnL: 9.46% (Entry: 19.35, Exit: 21.18, Held: 4 days)
+TXNM (Score: 10.50 | ML: 68.0%): closed_profit | PnL: 2.82% (Entry: 7.09, Exit: 7.29, Held: 5 days)
+COR (Score: 10.50 | ML: 59.0%): success | PnL: 7.80% (Entry: 12.99, Exit: 14.01, Held: 5 days)
+DIA (Score: 10.50 | ML: 74.0%): closed_profit | PnL: 2.16% (Entry: 62.21, Exit: 63.55, Held: 5 days)
+VEA (Score: 10.50 | ML: 74.0%): closed_profit | PnL: 1.70% (Entry: 17.95, Exit: 18.25, Held: 5 days)
+Summary: 5/5 profitable (100.00%) | Avg PnL: 4.79%
+Trades: 5
+
+--- Run 8/20 ---
+Date: 2001-02-02
+Regime: Bearish (0.0x)
+Sampled 1000 symbols for backtest
+
+--- Baseline Backtest Report for 2001-02-02 (Hold: 5 days) | Agg: sum ---
+DEBUG: NKE - Baseline price out of range: 4.92291480886972
+DEBUG: MHF - Baseline price out of range: 2.400468337062295
+DEBUG: NXN - Baseline price out of range: 4.736558627623081
+DEBUG: BNS - Baseline price out of range: 4.344141928194117
+DEBUG: RES - Baseline price out of range: 1.2107806265231562
+DEBUG: FAX - Baseline price out of range: 3.0846139306276807
+DEBUG: AIG - Baseline price out of range: 1028.97269718933
+DEBUG: PPT - Baseline price out of range: 0.9369613836226806
+DEBUG: TSBK - Baseline price out of range: 3.6441329519062684
+DEBUG: TOWN - Baseline price out of range: 4.711921702010485
+DEBUG: PFO - Baseline price out of range: 1.5171389596736469
+DEBUG: PRG - Baseline price out of range: 3.4506124496811177
+DEBUG: EW - Baseline price out of range: 1.5311094478466538
+DEBUG: MGF - Baseline price out of range: 1.1414502872297834
+DEBUG: MPA - Baseline price out of range: 3.336329057785117
+DEBUG: FT - Baseline price out of range: 1.3506573190744458
+DEBUG: JHI - Baseline price out of range: 2.5554535218766996
+DEBUG: VMO - Baseline price out of range: 2.938848575625034
+DEBUG: CVBF - Baseline price out of range: 2.5420948521363074
+DEBUG: STRN - Baseline price out of range: 1.0527088842688253
+DEBUG: EMF - Baseline price out of range: 1.741925263560363
+DEBUG: USLM - Baseline price out of range: 0.7991038147473808
+DEBUG: ORI - Baseline price out of range: 3.539669337662564
+DEBUG: CMC - Baseline price out of range: 1.6998903249504023
+  > Progress: 500/1000 symbols analyzed (50.0%)
+/usr/local/lib/python3.12/site-packages/sklearn/utils/parallel.py:144: UserWarning: `sklearn.utils.parallel.delayed` should be used with `sklearn.utils.parallel.Parallel` to make it possible to propagate the scikit-learn configuration of the current thread to the joblib workers.
+  warnings.warn(
+DEBUG: JCTC - Baseline price out of range: 0.8423181631540044
+DEBUG: AIT - Baseline price out of range: 4.677551526423245
+DEBUG: WPC - Baseline price out of range: 3.9335554217876956
+DEBUG: VFC - Baseline price out of range: 4.177048804531008
+DEBUG: BBVA - Baseline price out of range: 4.259844112347752
+DEBUG: LAKE - Baseline price out of range: 4.54798910104677
+DEBUG: JOF - Baseline price out of range: 2.2935129835042485
+DEBUG: UBFO - Baseline price out of range: 2.0886506853441666
+DEBUG: MGPI - Baseline price out of range: 3.4709359502100248
+DEBUG: RFI - Baseline price out of range: 1.3109786023316348
+DEBUG: SABA - Baseline price out of range: 1.6549860310540028
+DEBUG: MHY - Baseline price out of range: 2.155982911023914
+DEBUG: SBI - Baseline price out of range: 2.823187627562983
+DEBUG: CWCO - Baseline price out of range: 2.0337353182991396
+DEBUG: HIO - Baseline price out of range: 0.9402400055481874
+DEBUG: MFM - Baseline price out of range: 1.840643195237889
+DEBUG: NEE - Baseline price out of range: 3.309918704981167
+DEBUG: FLO - Baseline price out of range: 0.727443000931408
+DEBUG: DGICB - Baseline price out of range: 2.341773797479473
+  > Progress: 1000/1000 symbols analyzed (100.0%)
+RMD (Score: 11.50 | ML: 67.0%): stopped_out | PnL: -8.58% (Entry: 9.02, Exit: 8.25, Held: 1 days)
+RNR (Score: 11.50 | ML: 83.0%): limit_expired
+BDX (Score: 11.50 | ML: 68.0%): closed_profit | PnL: 4.62% (Entry: 23.69, Exit: 24.79, Held: 5 days)
+MAT (Score: 11.50 | ML: 81.0%): closed_profit | PnL: 2.09% (Entry: 9.08, Exit: 9.27, Held: 5 days)
+TFC (Score: 10.00 | ML: 82.0%): closed_profit | PnL: 1.45% (Entry: 14.45, Exit: 14.66, Held: 5 days)
+Summary: 3/4 profitable (75.00%) | Avg PnL: -0.11%
+Trades: 5
+
+--- Run 9/20 ---
+Date: 2024-04-03
+Regime: Bullish (1.0x)
+Sampled 1000 symbols for backtest
+
+--- Baseline Backtest Report for 2024-04-03 (Hold: 5 days) | Agg: sum ---
+DEBUG: QIPT - Baseline price out of range: 4.182403420299021
+DEBUG: MAMA - Baseline price out of range: 4.788919311388804
+DEBUG: NTWK - Baseline price out of range: 2.8958972145646538
+DEBUG: DTCX - Baseline price out of range: 4.210804957424287
+DEBUG: IVV - Baseline price out of range: 509.2569996920977
+DEBUG: GLDG - Baseline price out of range: 0.9320310031697324
+DEBUG: DSWL - Baseline price out of range: 1.9198308414602894
+DEBUG: APWC - Baseline price out of range: 1.3494011027511024
+DEBUG: HTT - Baseline price out of range: 2.442145063497949
+DEBUG: KLAC - Baseline price out of range: 683.4793058265004
+DEBUG: PT - Baseline price out of range: 1.0725472463177546
+DEBUG: IOMT - Baseline price out of range: 0.026998088902249293
+DEBUG: MELI - Baseline price out of range: 1496.6040424457121
+DEBUG: HUBS - Baseline price out of range: 622.6952801494211
+DEBUG: IMDX - Baseline price out of range: 2.9183643365236094
+DEBUG: HIO - Baseline price out of range: 3.2235224985423034
+DEBUG: TRX - Baseline price out of range: 0.45390406212521334
+DEBUG: ACCO - Baseline price out of range: 4.72014834802292
+DEBUG: PRT - Baseline price out of range: 3.5051216881609046
+DEBUG: SVRA - Baseline price out of range: 4.749502405178078
+DEBUG: LFT - Baseline price out of range: 1.946674088642437
+DEBUG: IGR - Baseline price out of range: 4.042303405609315
+DEBUG: MDY - Baseline price out of range: 534.2651410480419
+  > Progress: 500/1000 symbols analyzed (50.0%)
+DEBUG: THCHW - Baseline price out of range: 0.5599999938128362
+DEBUG: GGB - Baseline price out of range: 3.458760299693395
+DEBUG: MFG - Baseline price out of range: 3.6748840569093297
+DEBUG: RAIL - Baseline price out of range: 3.9171539261754313
+DEBUG: BRN - Baseline price out of range: 2.4732584954376615
+DEBUG: PHK - Baseline price out of range: 3.9927529515488445
+DEBUG: GNT - Baseline price out of range: 4.588746101874914
+DEBUG: AMBP - Baseline price out of range: 2.824721539858217
+DEBUG: GPRO - Baseline price out of range: 2.1493952732133668
+DEBUG: FCNCA - Baseline price out of range: 1563.4209738302611
+DEBUG: ASBPW - Baseline price out of range: 0.029875302193001572
+DEBUG: DUETW - Baseline price out of range: 0.03001532237020205
+DEBUG: SB - Baseline price out of range: 4.59270870850966
+  > Progress: 1000/1000 symbols analyzed (100.0%)
+KOP (Score: 12.50 | ML: 58.0%): closed_profit | PnL: 0.86% (Entry: 54.85, Exit: 55.32, Held: 5 days)
+AVDV (Score: 12.50 | ML: 74.0%): closed_loss | PnL: -0.06% (Entry: 61.05, Exit: 61.02, Held: 5 days)
+MTSI (Score: 11.50 | ML: 79.0%): closed_profit | PnL: 1.66% (Entry: 100.81, Exit: 102.48, Held: 5 days)
+NMFC (Score: 11.50 | ML: 80.0%): closed_loss | PnL: -0.55% (Entry: 10.25, Exit: 10.20, Held: 5 days)
+KCE (Score: 11.00 | ML: 74.0%): closed_loss | PnL: -1.07% (Entry: 106.28, Exit: 105.14, Held: 5 days)
+Summary: 2/5 profitable (40.00%) | Avg PnL: 0.17%
+Trades: 5
+
+--- Run 10/20 ---
+Date: 2012-06-13
+Regime: Bearish (0.0x)
+Sampled 1000 symbols for backtest
+
+--- Baseline Backtest Report for 2012-06-13 (Hold: 5 days) | Agg: sum ---
+DEBUG: MBI - Baseline price out of range: 4.29886008183301
+DEBUG: CERS - Baseline price out of range: 3.217928398439523
+DEBUG: NHS - Baseline price out of range: 3.5744691985666535
+DEBUG: AHT - Baseline price out of range: 2702.509660484259
+DEBUG: PCM - Baseline price out of range: 2.7463964848929487
+DEBUG: BOTJ - Baseline price out of range: 3.834577599847887
+DEBUG: EXTR - Baseline price out of range: 3.4107412739915235
+DEBUG: ETW - Baseline price out of range: 2.7401347765318746
+DEBUG: STLA - Baseline price out of range: 1.2932232356899287
+DEBUG: BKNG - Baseline price out of range: 632.3348456096114
+DEBUG: NSYS - Baseline price out of range: 3.469045058784777
+DEBUG: BSET - Baseline price out of range: 4.890798868564416
+DEBUG: WIT - Baseline price out of range: 1.4329338137252998
+DEBUG: VNDA - Baseline price out of range: 4.062400826950587
+DEBUG: UMH - Baseline price out of range: 4.696680365847751
+DEBUG: ZNB - Baseline price out of range: 157640.6264259852
+DEBUG: UGE - Baseline price out of range: 3.1236713196277406
+DEBUG: FRBA - Baseline price out of range: 4.414501779146409
+DEBUG: AXIA - Baseline price out of range: 3.5841151574177803
+DEBUG: GRX - Baseline price out of range: 3.240543297232919
+DEBUG: CMCT - Baseline price out of range: 3273.975454829976
+DEBUG: SDD - Baseline price out of range: 984.6399270278739
+  > Progress: 500/1000 symbols analyzed (50.0%)
+DEBUG: CHW - Baseline price out of range: 2.112439434415386
+DEBUG: PSI - Baseline price out of range: 4.386023445914269
+DEBUG: BCX - Baseline price out of range: 4.611561887655964
+DEBUG: HCKT - Baseline price out of range: 3.960731196436775
+DEBUG: PAR - Baseline price out of range: 4.78811349321662
+DEBUG: ADAM - Baseline price out of range: 4.466465221948209
+DEBUG: GGB - Baseline price out of range: 3.9527673166776074
+DEBUG: RCS - Baseline price out of range: 3.057537690723904
+DEBUG: HL - Baseline price out of range: 4.380356591755071
+DEBUG: EXLS - Baseline price out of range: 4.455411425041688
+DEBUG: MERC - Baseline price out of range: 3.9183268389727375
+DEBUG: DHF - Baseline price out of range: 1.277131511567912
+DEBUG: SGU - Baseline price out of range: 1.88188134480364
+DEBUG: SPNS - Baseline price out of range: 3.0413182452513574
+DEBUG: HBNC - Baseline price out of range: 4.789726901961897
+DEBUG: GDL - Baseline price out of range: 4.91907745147276
+DEBUG: MRTN - Baseline price out of range: 4.481725230038473
+DEBUG: ADX - Baseline price out of range: 2.988236400941602
+DEBUG: HYT - Baseline price out of range: 3.642517906260065
+DEBUG: ASG - Baseline price out of range: 1.1861321382780217
+DEBUG: NMFC - Baseline price out of range: 3.331923940025655
+DEBUG: ZWS - Baseline price out of range: 4.363305631788771
+  > Progress: 1000/1000 symbols analyzed (100.0%)
+/usr/local/lib/python3.12/site-packages/sklearn/utils/parallel.py:144: UserWarning: `sklearn.utils.parallel.delayed` should be used with `sklearn.utils.parallel.Parallel` to make it possible to propagate the scikit-learn configuration of the current thread to the joblib workers.
+  warnings.warn(
+/usr/local/lib/python3.12/site-packages/sklearn/utils/parallel.py:144: UserWarning: `sklearn.utils.parallel.delayed` should be used with `sklearn.utils.parallel.Parallel` to make it possible to propagate the scikit-learn configuration of the current thread to the joblib workers.
+  warnings.warn(
+/usr/local/lib/python3.12/site-packages/sklearn/utils/parallel.py:144: UserWarning: `sklearn.utils.parallel.delayed` should be used with `sklearn.utils.parallel.Parallel` to make it possible to propagate the scikit-learn configuration of the current thread to the joblib workers.
+  warnings.warn(
+/usr/local/lib/python3.12/site-packages/sklearn/utils/parallel.py:144: UserWarning: `sklearn.utils.parallel.delayed` should be used with `sklearn.utils.parallel.Parallel` to make it possible to propagate the scikit-learn configuration of the current thread to the joblib workers.
+  warnings.warn(
+/usr/local/lib/python3.12/site-packages/sklearn/utils/parallel.py:144: UserWarning: `sklearn.utils.parallel.delayed` should be used with `sklearn.utils.parallel.Parallel` to make it possible to propagate the scikit-learn configuration of the current thread to the joblib workers.
+  warnings.warn(
+/usr/local/lib/python3.12/site-packages/sklearn/utils/parallel.py:144: UserWarning: `sklearn.utils.parallel.delayed` should be used with `sklearn.utils.parallel.Parallel` to make it possible to propagate the scikit-learn configuration of the current thread to the joblib workers.
+  warnings.warn(
+/usr/local/lib/python3.12/site-packages/sklearn/utils/parallel.py:144: UserWarning: `sklearn.utils.parallel.delayed` should be used with `sklearn.utils.parallel.Parallel` to make it possible to propagate the scikit-learn configuration of the current thread to the joblib workers.
+  warnings.warn(
+/usr/local/lib/python3.12/site-packages/sklearn/utils/parallel.py:144: UserWarning: `sklearn.utils.parallel.delayed` should be used with `sklearn.utils.parallel.Parallel` to make it possible to propagate the scikit-learn configuration of the current thread to the joblib workers.
+  warnings.warn(
+/usr/local/lib/python3.12/site-packages/sklearn/utils/parallel.py:144: UserWarning: `sklearn.utils.parallel.delayed` should be used with `sklearn.utils.parallel.Parallel` to make it possible to propagate the scikit-learn configuration of the current thread to the joblib workers.
+  warnings.warn(
+/usr/local/lib/python3.12/site-packages/sklearn/utils/parallel.py:144: UserWarning: `sklearn.utils.parallel.delayed` should be used with `sklearn.utils.parallel.Parallel` to make it possible to propagate the scikit-learn configuration of the current thread to the joblib workers.
+  warnings.warn(
+SAM (Score: 11.50 | ML: 57.0%): closed_profit | PnL: 0.90% (Entry: 111.90, Exit: 112.91, Held: 5 days)
+WST (Score: 10.50 | ML: 66.0%): closed_loss | PnL: -0.37% (Entry: 22.83, Exit: 22.75, Held: 5 days)
+NWE (Score: 10.00 | ML: 79.0%): closed_profit | PnL: 2.75% (Entry: 20.79, Exit: 21.36, Held: 5 days)
+SBRA (Score: 9.00 | ML: 56.0%): closed_profit | PnL: 4.42% (Entry: 5.65, Exit: 5.90, Held: 5 days)
+ECL (Score: 9.00 | ML: 53.0%): closed_profit | PnL: 1.23% (Entry: 56.71, Exit: 57.41, Held: 5 days)
+Summary: 4/5 profitable (80.00%) | Avg PnL: 1.79%
+Trades: 5
+
+--- Run 11/20 ---
+Date: 2006-11-21
+Regime: Bullish (1.0x)
+Sampled 1000 symbols for backtest
+
+--- Baseline Backtest Report for 2006-11-21 (Hold: 5 days) | Agg: sum ---
+DEBUG: XELB - Baseline price out of range: 0.9926781918274262
+DEBUG: SID - Baseline price out of range: 1.8394491767264192
+DEBUG: EVN - Baseline price out of range: 4.9734467837893135
+DEBUG: HOMB - Baseline price out of range: 2.7151273708734474
+DEBUG: QID - Baseline price out of range: 53953.7457898492
+DEBUG: QVCGA - Baseline price out of range: 623.5319827998138
+DEBUG: LEU - Baseline price out of range: 3243.37686707527
+DEBUG: SGC - Baseline price out of range: 3.225005788433879
+DEBUG: IGR - Baseline price out of range: 3.1764449102240806
+DEBUG: FFA - Baseline price out of range: 3.9492578450762057
+DEBUG: BBAR - Baseline price out of range: 3.943017270910364
+DEBUG: ELME - Baseline price out of range: 2.6935229509184144
+DEBUG: GGN - Baseline price out of range: 2.949630781679594
+DEBUG: SBS - Baseline price out of range: 2.8975475160444915
+DEBUG: HQH - Baseline price out of range: 3.145766273451666
+DEBUG: FLL - Baseline price out of range: 3.28519918042145
+DEBUG: CPRT - Baseline price out of range: 1.843421843856099
+DEBUG: APT - Baseline price out of range: 2.3737415364601047
+DEBUG: ALT - Baseline price out of range: 563.2621333268802
+DEBUG: SMBC - Baseline price out of range: 4.954375323838112
+DEBUG: NMI - Baseline price out of range: 4.448401682668927
+  > Progress: 500/1000 symbols analyzed (50.0%)
+DEBUG: RCMT - Baseline price out of range: 2.8687229088961463
+DEBUG: HPS - Baseline price out of range: 4.313765135348488
+DEBUG: UG - Baseline price out of range: 3.6638165413723254
+DEBUG: UMH - Baseline price out of range: 4.683439698630744
+DEBUG: SCD - Baseline price out of range: 2.198895660545386
+DEBUG: VLT - Baseline price out of range: 3.383104932018381
+DEBUG: VHC - Baseline price out of range: 3.082985068769118
+DEBUG: DNP - Baseline price out of range: 2.526915969804344
+DEBUG: WILC - Baseline price out of range: 4.337466872526869
+DEBUG: EXPO - Baseline price out of range: 3.775494261252627
+DEBUG: ELP - Baseline price out of range: 1.9318311288318253
+DEBUG: PEGA - Baseline price out of range: 2.30632539611128
+DEBUG: LGI - Baseline price out of range: 4.055585716357477
+DEBUG: MIN - Baseline price out of range: 1.1509263174498796
+DEBUG: CIK - Baseline price out of range: 0.7455149639304146
+DEBUG: MARPS - Baseline price out of range: 4.993458911330966
+DEBUG: NNY - Baseline price out of range: 4.333926154455146
+DEBUG: NMZ - Baseline price out of range: 4.843847939068347
+DEBUG: AEF - Baseline price out of range: 3.0101092826532447
+DEBUG: PFL - Baseline price out of range: 2.4697261164428523
+DEBUG: HWKN - Baseline price out of range: 4.8266143488692945
+DEBUG: SDS - Baseline price out of range: 15039.136412050528
+DEBUG: JHI - Baseline price out of range: 3.698447086423556
+  > Progress: 1000/1000 symbols analyzed (100.0%)
+/usr/local/lib/python3.12/site-packages/sklearn/utils/parallel.py:144: UserWarning: `sklearn.utils.parallel.delayed` should be used with `sklearn.utils.parallel.Parallel` to make it possible to propagate the scikit-learn configuration of the current thread to the joblib workers.
+  warnings.warn(
+/usr/local/lib/python3.12/site-packages/sklearn/utils/parallel.py:144: UserWarning: `sklearn.utils.parallel.delayed` should be used with `sklearn.utils.parallel.Parallel` to make it possible to propagate the scikit-learn configuration of the current thread to the joblib workers.
+  warnings.warn(
+EWK (Score: 11.00 | ML: 74.0%): closed_profit | PnL: 0.78% (Entry: 13.84, Exit: 13.95, Held: 5 days)
+MTRN (Score: 11.00 | ML: 53.0%): stopped_out | PnL: -6.71% (Entry: 32.18, Exit: 30.02, Held: 2 days)
+UNFI (Score: 11.00 | ML: 72.0%): stopped_out | PnL: -3.93% (Entry: 36.38, Exit: 34.95, Held: 3 days)
+IYE (Score: 11.00 | ML: 74.0%): closed_profit | PnL: 4.58% (Entry: 20.25, Exit: 21.18, Held: 5 days)
+GIFI (Score: 11.00 | ML: 82.0%): success | PnL: 10.15% (Entry: 29.19, Exit: 32.15, Held: 5 days)
+Summary: 3/5 profitable (60.00%) | Avg PnL: 0.97%
+Trades: 5
+
+--- Run 12/20 ---
+Date: 2005-07-19
+Regime: Bullish (1.0x)
+Sampled 1000 symbols for backtest
+
+--- Baseline Backtest Report for 2005-07-19 (Hold: 5 days) | Agg: sum ---
+DEBUG: NZF - Baseline price out of range: 4.475668297027764
+DEBUG: HNNA - Baseline price out of range: 3.9360544801450614
+DEBUG: HTD - Baseline price out of range: 3.4592136386023244
+DEBUG: IHT - Baseline price out of range: 1.1679771444842109
+DEBUG: PMO - Baseline price out of range: 3.8367981352447478
+DEBUG: TPL - Baseline price out of range: 3.336662345269459
+DEBUG: SBSI - Baseline price out of range: 3.903587582700859
+DEBUG: AWRE - Baseline price out of range: 2.9913259259187512
+DEBUG: RVP - Baseline price out of range: 2.7289078805781948
+DEBUG: FTFT - Baseline price out of range: 7830.391114100836
+DEBUG: RES - Baseline price out of range: 2.507475817582499
+DEBUG: JRS - Baseline price out of range: 2.937179927528107
+DEBUG: FLC - Baseline price out of range: 4.004818535146042
+DEBUG: SBS - Baseline price out of range: 1.3128251418419485
+DEBUG: MHY - Baseline price out of range: 2.3490613970389895
+DEBUG: GDV - Baseline price out of range: 4.915629827921304
+DEBUG: USAU - Baseline price out of range: 4249.056185903172
+DEBUG: ITUB - Baseline price out of range: 0.6942503621999956
+DEBUG: SCCO - Baseline price out of range: 2.886330244205262
+DEBUG: PCN - Baseline price out of range: 1.895514316140114
+DEBUG: AVK - Baseline price out of range: 3.396788121646139
+DEBUG: ETB - Baseline price out of range: 3.0895245623825316
+DEBUG: DX - Baseline price out of range: 2.797834859985944
+DEBUG: ODC - Baseline price out of range: 4.031692018186503
+DEBUG: JPS - Baseline price out of range: 3.136634242483953
+DEBUG: HBIO - Baseline price out of range: 2.5649896799447065
+DEBUG: PTY - Baseline price out of range: 1.759047520238173
+  > Progress: 500/1000 symbols analyzed (50.0%)
+DEBUG: ETO - Baseline price out of range: 4.088540517109156
+DEBUG: EXPO - Baseline price out of range: 3.1415556817144545
+DEBUG: CIF - Baseline price out of range: 0.46213861329625655
+DEBUG: SHEN - Baseline price out of range: 3.475339831305975
+DEBUG: FTF - Baseline price out of range: 2.170930136466926
+DEBUG: FFIN - Baseline price out of range: 3.6697271397243094
+DEBUG: AEHR - Baseline price out of range: 2.9255831088014776
+DEBUG: RDY - Baseline price out of range: 1.4762388184454296
+DEBUG: LRCX - Baseline price out of range: 2.6343964023981603
+DEBUG: VKQ - Baseline price out of range: 4.050936238074014
+DEBUG: ASG - Baseline price out of range: 0.9898429655567028
+DEBUG: TRX - Baseline price out of range: 1.139361463948727
+DEBUG: ADX - Baseline price out of range: 2.508139892710224
+DEBUG: CTRA - Baseline price out of range: 3.3268680702180244
+DEBUG: FFC - Baseline price out of range: 4.075489202811488
+DEBUG: AMPG - Baseline price out of range: 0.0019999995901304824
+DEBUG: GCBC - Baseline price out of range: 2.625761299240581
+DEBUG: CAMT - Baseline price out of range: 2.83237615178853
+DEBUG: KFS - Baseline price out of range: 0.28677917412661313
+DEBUG: KTN - Baseline price out of range: 4.350628448008204
+DEBUG: MVF - Baseline price out of range: 2.993057636346426
+DEBUG: MFIN - Baseline price out of range: 3.378970473565009
+DEBUG: IAC - Baseline price out of range: 2.771930323073374
+DEBUG: HNRG - Baseline price out of range: 1.5203667614487932
+DEBUG: SNFCA - Baseline price out of range: 1.1304181438742673
+DEBUG: ERC - Baseline price out of range: 2.358558563865676
+DEBUG: NAC - Baseline price out of range: 4.671597664045431
+  > Progress: 1000/1000 symbols analyzed (100.0%)
+PCH (Score: 12.50 | ML: 53.0%): closed_profit | PnL: 1.27% (Entry: 11.77, Exit: 11.92, Held: 5 days)
+WCC (Score: 11.50 | ML: 79.0%): closed_profit | PnL: 0.70% (Entry: 32.47, Exit: 32.69, Held: 5 days)
+MSFT (Score: 11.50 | ML: 61.0%): closed_loss | PnL: -1.08% (Entry: 18.02, Exit: 17.83, Held: 5 days)
+EWG (Score: 11.50 | ML: 74.0%): limit_expired
+M (Score: 11.00 | ML: 80.0%): closed_profit | PnL: 1.16% (Entry: 19.66, Exit: 19.89, Held: 5 days)
+Summary: 3/4 profitable (75.00%) | Avg PnL: 0.51%
+Trades: 5
+
+--- Run 13/20 ---
+Date: 2024-03-21
+Regime: Bullish (1.0x)
+Sampled 1000 symbols for backtest
+
+--- Baseline Backtest Report for 2024-03-21 (Hold: 5 days) | Agg: sum ---
+DEBUG: GHG - Baseline price out of range: 3.026641494868154
+DEBUG: BAYAR - Baseline price out of range: 0.1091661402040877
+DEBUG: HLLY - Baseline price out of range: 4.430111064175973
+DEBUG: HIO - Baseline price out of range: 3.2815535910376323
+DEBUG: SNT - Baseline price out of range: 1.328849933684644
+DEBUG: DRTS - Baseline price out of range: 2.9457867494315204
+DEBUG: MFM - Baseline price out of range: 4.8330523987148934
+DEBUG: AWP - Baseline price out of range: 3.07872496761955
+DEBUG: AMBP - Baseline price out of range: 2.8155348897140344
+  > Progress: 500/1000 symbols analyzed (50.0%)
+/usr/local/lib/python3.12/site-packages/sklearn/utils/parallel.py:144: UserWarning: `sklearn.utils.parallel.delayed` should be used with `sklearn.utils.parallel.Parallel` to make it possible to propagate the scikit-learn configuration of the current thread to the joblib workers.
+  warnings.warn(
+DEBUG: PVL - Baseline price out of range: 1.157091502390134
+DEBUG: SIF - Baseline price out of range: 3.067257476151819
+DEBUG: RAVE - Baseline price out of range: 1.9525423243501796
+DEBUG: GRAB - Baseline price out of range: 3.230270488055256
+DEBUG: NTWK - Baseline price out of range: 2.8886222932801373
+DEBUG: PHX - Baseline price out of range: 2.8940992417509994
+DEBUG: KOSS - Baseline price out of range: 2.4905339629988585
+DEBUG: CRON - Baseline price out of range: 2.3682342522074262
+DEBUG: FF - Baseline price out of range: 4.976806506210325
+DEBUG: AVIR - Baseline price out of range: 4.060015644809643
+DEBUG: GIGM - Baseline price out of range: 1.272215973869319
+DEBUG: ROP - Baseline price out of range: 547.8640969942284
+DEBUG: CNDT - Baseline price out of range: 3.3640711373765844
+DEBUG: PETS - Baseline price out of range: 4.708552722091528
+DEBUG: ACHV - Baseline price out of range: 4.554620072946339
+DEBUG: FKWL - Baseline price out of range: 2.94232512512835
+DEBUG: ASML - Baseline price out of range: 965.615142729096
+  > Progress: 1000/1000 symbols analyzed (100.0%)
+BDJ (Score: 12.50 | ML: 74.0%): closed_loss | PnL: -0.65% (Entry: 7.05, Exit: 7.01, Held: 5 days)
+PFFD (Score: 12.50 | ML: 74.0%): stopped_out | PnL: -1.24% (Entry: 18.12, Exit: 17.89, Held: 5 days)
+NTB (Score: 12.00 | ML: 81.0%): closed_profit | PnL: 1.67% (Entry: 28.83, Exit: 29.31, Held: 5 days)
+FLR (Score: 12.00 | ML: 83.0%): limit_expired
+FNF (Score: 12.00 | ML: 85.0%): closed_profit | PnL: 1.60% (Entry: 47.25, Exit: 48.01, Held: 5 days)
+Summary: 2/4 profitable (50.00%) | Avg PnL: 0.34%
+Trades: 5
+
+--- Run 14/20 ---
+Date: 2017-12-19
+Regime: Bullish (1.0x)
+Sampled 1000 symbols for backtest
+
+--- Baseline Backtest Report for 2017-12-19 (Hold: 5 days) | Agg: sum ---
+DEBUG: ICMB - Baseline price out of range: 2.3090302076942604
+DEBUG: GASS - Baseline price out of range: 2.8744883294245205
+DEBUG: UONE - Baseline price out of range: 1.5855212279768574
+DEBUG: GIGM - Baseline price out of range: 3.0036030781645824
+DEBUG: FF - Baseline price out of range: 4.8625042820032505
+DEBUG: FT - Baseline price out of range: 4.282941210466583
+DEBUG: MMT - Baseline price out of range: 2.9959164359479287
+DEBUG: NSL - Baseline price out of range: 4.113288963886613
+DEBUG: MHH - Baseline price out of range: 4.830516151093588
+DEBUG: MFV - Baseline price out of range: 3.4041432368795195
+DEBUG: KORU - Baseline price out of range: 521.5141537295301
+  > Progress: 500/1000 symbols analyzed (50.0%)
+DEBUG: SMCI - Baseline price out of range: 2.2033017738660727
+DEBUG: SSSS - Baseline price out of range: 2.5137463049776914
+DEBUG: PCF - Baseline price out of range: 4.145283866029068
+DEBUG: XFLT - Baseline price out of range: 3.679467821092462
+DEBUG: SJT - Baseline price out of range: 4.199221899802476
+DEBUG: SNFCA - Baseline price out of range: 3.4657359963734335
+DEBUG: WTM - Baseline price out of range: 842.9391681501194
+DEBUG: VGZ - Baseline price out of range: 0.642253809897791
+DEBUG: RNWK - Baseline price out of range: 3.852810116319901
+DEBUG: SDS - Baseline price out of range: 828.521730824818
+DEBUG: IAE - Baseline price out of range: 4.3023922455798305
+DEBUG: ZTEK - Baseline price out of range: 0.516486698954711
+DEBUG: ZCZZT - Baseline price out of range: 199351.03548788754
+DEBUG: PESI - Baseline price out of range: 3.623216638124756
+DEBUG: SSG - Baseline price out of range: 54062.06933318412
+  > Progress: 1000/1000 symbols analyzed (100.0%)
+EWO (Score: 11.50 | ML: 74.0%): limit_expired
+ITW (Score: 11.00 | ML: 64.0%): closed_loss | PnL: -0.57% (Entry: 137.03, Exit: 136.25, Held: 5 days)
+SJM (Score: 10.50 | ML: 72.0%): closed_profit | PnL: 3.19% (Entry: 93.66, Exit: 96.65, Held: 5 days)
+GOLF (Score: 10.50 | ML: 67.0%): limit_expired
+LH (Score: 10.50 | ML: 67.0%): closed_loss | PnL: -1.56% (Entry: 134.06, Exit: 131.97, Held: 5 days)
+Summary: 1/3 profitable (33.33%) | Avg PnL: 0.35%
+Trades: 5
+
+--- Run 15/20 ---
+Date: 2015-11-24
+Regime: Bullish (1.0x)
+Sampled 1000 symbols for backtest
+
+--- Baseline Backtest Report for 2015-11-24 (Hold: 5 days) | Agg: sum ---
+DEBUG: EDF - Baseline price out of range: 2.872882265863596
+DEBUG: MHF - Baseline price out of range: 4.896628487090488
+DEBUG: HIO - Baseline price out of range: 1.9395598615230776
+DEBUG: RMT - Baseline price out of range: 3.1876972902036016
+DEBUG: SCWO - Baseline price out of range: 1.1959637967320649
+DEBUG: BUR - Baseline price out of range: 2.4361754595397995
+DEBUG: ASG - Baseline price out of range: 1.895268520338571
+DEBUG: EVO - Baseline price out of range: 2.1373501683846885
+DEBUG: FDUS - Baseline price out of range: 4.399934260748729
+DEBUG: GIC - Baseline price out of range: 4.847649937094936
+DEBUG: JOF - Baseline price out of range: 4.662637138842458
+DEBUG: ADX - Baseline price out of range: 4.964345829758042
+DEBUG: GCTK - Baseline price out of range: 309205.61227576184
+DEBUG: BDJ - Baseline price out of range: 3.384457539904748
+DEBUG: IHT - Baseline price out of range: 1.965050662616812
+DEBUG: CMU - Baseline price out of range: 2.6761472727744335
+DEBUG: MFV - Baseline price out of range: 2.346592305853126
+DEBUG: MDU - Baseline price out of range: 4.877123078493158
+DEBUG: ETW - Baseline price out of range: 4.391814068757132
+  > Progress: 500/1000 symbols analyzed (50.0%)
+DEBUG: III - Baseline price out of range: 3.1605973543826065
+DEBUG: JQC - Baseline price out of range: 2.6122676650196373
+DEBUG: IHD - Baseline price out of range: 2.7231484621002275
+DEBUG: UMC - Baseline price out of range: 1.1770030349837448
+DEBUG: MFM - Baseline price out of range: 4.063618011072182
+DEBUG: DSWL - Baseline price out of range: 0.8197603075780496
+DEBUG: QLD - Baseline price out of range: 4.97693780266321
+DEBUG: REGN - Baseline price out of range: 561.1610688757197
+DEBUG: GLDD - Baseline price out of range: 4.26265249108432
+DEBUG: AHT - Baseline price out of range: 4491.17155041293
+DEBUG: SPE - Baseline price out of range: 4.639412295239692
+DEBUG: AWX - Baseline price out of range: 2.2890022287476537
+DEBUG: LYG - Baseline price out of range: 2.763108343911147
+DEBUG: NOTV - Baseline price out of range: 1.6361977000171746
+DEBUG: FCO - Baseline price out of range: 2.1571624101717344
+DEBUG: MHH - Baseline price out of range: 3.9166275118968925
+DEBUG: OIH - Baseline price out of range: 515.2440933737088
+  > Progress: 1000/1000 symbols analyzed (100.0%)
+/usr/local/lib/python3.12/site-packages/sklearn/utils/parallel.py:144: UserWarning: `sklearn.utils.parallel.delayed` should be used with `sklearn.utils.parallel.Parallel` to make it possible to propagate the scikit-learn configuration of the current thread to the joblib workers.
+  warnings.warn(
+/usr/local/lib/python3.12/site-packages/sklearn/utils/parallel.py:144: UserWarning: `sklearn.utils.parallel.delayed` should be used with `sklearn.utils.parallel.Parallel` to make it possible to propagate the scikit-learn configuration of the current thread to the joblib workers.
+  warnings.warn(
+/usr/local/lib/python3.12/site-packages/sklearn/utils/parallel.py:144: UserWarning: `sklearn.utils.parallel.delayed` should be used with `sklearn.utils.parallel.Parallel` to make it possible to propagate the scikit-learn configuration of the current thread to the joblib workers.
+  warnings.warn(
+/usr/local/lib/python3.12/site-packages/sklearn/utils/parallel.py:144: UserWarning: `sklearn.utils.parallel.delayed` should be used with `sklearn.utils.parallel.Parallel` to make it possible to propagate the scikit-learn configuration of the current thread to the joblib workers.
+  warnings.warn(
+/usr/local/lib/python3.12/site-packages/sklearn/utils/parallel.py:144: UserWarning: `sklearn.utils.parallel.delayed` should be used with `sklearn.utils.parallel.Parallel` to make it possible to propagate the scikit-learn configuration of the current thread to the joblib workers.
+  warnings.warn(
+/usr/local/lib/python3.12/site-packages/sklearn/utils/parallel.py:144: UserWarning: `sklearn.utils.parallel.delayed` should be used with `sklearn.utils.parallel.Parallel` to make it possible to propagate the scikit-learn configuration of the current thread to the joblib workers.
+  warnings.warn(
+/usr/local/lib/python3.12/site-packages/sklearn/utils/parallel.py:144: UserWarning: `sklearn.utils.parallel.delayed` should be used with `sklearn.utils.parallel.Parallel` to make it possible to propagate the scikit-learn configuration of the current thread to the joblib workers.
+  warnings.warn(
+ESE (Score: 10.50 | ML: 60.0%): closed_loss | PnL: -1.90% (Entry: 37.28, Exit: 36.57, Held: 5 days)
+BSM (Score: 10.50 | ML: 81.0%): success | PnL: 11.40% (Entry: 6.01, Exit: 6.70, Held: 4 days)
+CBT (Score: 10.50 | ML: 73.0%): closed_profit | PnL: 1.18% (Entry: 33.55, Exit: 33.94, Held: 5 days)
+A (Score: 10.50 | ML: 67.0%): closed_loss | PnL: -0.86% (Entry: 37.31, Exit: 36.99, Held: 5 days)
+KRNY (Score: 10.00 | ML: 83.0%): closed_profit | PnL: 3.31% (Entry: 8.59, Exit: 8.87, Held: 5 days)
+Summary: 3/5 profitable (60.00%) | Avg PnL: 2.63%
+Trades: 5
+
+--- Run 16/20 ---
+Date: 2010-10-19
+Regime: Bullish (1.0x)
+Sampled 1000 symbols for backtest
+
+--- Baseline Backtest Report for 2010-10-19 (Hold: 5 days) | Agg: sum ---
+DEBUG: ETV - Baseline price out of range: 3.2334494780500616
+DEBUG: UMDD - Baseline price out of range: 2.6753573646817372
+DEBUG: FT - Baseline price out of range: 2.3753688748914095
+DEBUG: SDD - Baseline price out of range: 1949.8398457220621
+DEBUG: SDOW - Baseline price out of range: 42622.99191272836
+DEBUG: COKE - Baseline price out of range: 4.630427488526033
+DEBUG: USD - Baseline price out of range: 0.28235376090564374
+DEBUG: KFS - Baseline price out of range: 0.13314418437703446
+DEBUG: CIK - Baseline price out of range: 0.9694755239933922
+DEBUG: RCG - Baseline price out of range: 1.8160434038723978
+DEBUG: SAR - Baseline price out of range: 2.8279903336744074
+DEBUG: IBKR - Baseline price out of range: 3.06291458344677
+DEBUG: BOE - Baseline price out of range: 4.568491179514495
+DEBUG: MPV - Baseline price out of range: 4.289219546935869
+DEBUG: SNT - Baseline price out of range: 1.7508143019737945
+DEBUG: SCHB - Baseline price out of range: 3.563161755259575
+DEBUG: EXG - Baseline price out of range: 2.379131367564383
+DEBUG: AXON - Baseline price out of range: 4.226830077694419
+DEBUG: MSN - Baseline price out of range: 1.2158764239403193
+DEBUG: IAE - Baseline price out of range: 3.8489468652428322
+DEBUG: IRD - Baseline price out of range: 575.5574886389641
+DEBUG: TFSL - Baseline price out of range: 4.431119938017295
+DEBUG: GUT - Baseline price out of range: 1.5836421137748002
+DEBUG: DXD - Baseline price out of range: 1602.4861605686035
+DEBUG: CSQ - Baseline price out of range: 2.571437666752061
+DEBUG: HCI - Baseline price out of range: 4.117940779007175
+DEBUG: RF - Baseline price out of range: 4.6950877888194045
+DEBUG: ASG - Baseline price out of range: 1.0382529439087527
+DEBUG: JHX - Baseline price out of range: 3.6827543110392438
+DEBUG: CVBF - Baseline price out of range: 4.586158737066999
+  > Progress: 500/1000 symbols analyzed (50.0%)
+DEBUG: BINI - Baseline price out of range: 1.671569307940675e+17
+DEBUG: NECB - Baseline price out of range: 3.2470700854984775
+DEBUG: PYN - Baseline price out of range: 4.262338681759631
+DEBUG: MVF - Baseline price out of range: 4.193567237097135
+DEBUG: EDD - Baseline price out of range: 4.62419615714739
+DEBUG: SCHX - Baseline price out of range: 3.523439152426386
+DEBUG: MPB - Baseline price out of range: 4.140045858481217
+DEBUG: MBCN - Baseline price out of range: 4.804668558235327
+DEBUG: MHH - Baseline price out of range: 0.8835808534140438
+DEBUG: CII - Baseline price out of range: 3.91452938295562
+DEBUG: EOS - Baseline price out of range: 3.88400444523729
+DEBUG: CMCT - Baseline price out of range: 3099.705694549339
+  > Progress: 1000/1000 symbols analyzed (100.0%)
+AEP (Score: 9.00 | ML: 81.0%): closed_profit | PnL: 3.46% (Entry: 20.35, Exit: 21.06, Held: 5 days)
+PAC (Score: 8.00 | ML: 67.0%): success | PnL: 6.52% (Entry: 16.91, Exit: 18.02, Held: 3 days)
+CNP (Score: 8.00 | ML: 70.0%): limit_expired
+KELYA (Score: 7.50 | ML: 83.0%): limit_expired
+MMM (Score: 7.00 | ML: 61.0%): limit_expired
+Summary: 2/2 profitable (100.00%) | Avg PnL: 4.99%
+Trades: 5
+
+--- Run 17/20 ---
+Date: 2002-06-13
+Regime: Bearish (0.0x)
+Sampled 1000 symbols for backtest
+
+--- Baseline Backtest Report for 2002-06-13 (Hold: 5 days) | Agg: sum ---
+DEBUG: CSPI - Baseline price out of range: 1.0353476631215994
+DEBUG: NCA - Baseline price out of range: 3.279624259064667
+DEBUG: BKTI - Baseline price out of range: 3.1692591961655134
+DEBUG: EWO - Baseline price out of range: 4.5010636173206215
+DEBUG: NAT - Baseline price out of range: 1.3284233363633222
+DEBUG: FT - Baseline price out of range: 1.5618902191138677
+DEBUG: KRMD - Baseline price out of range: 0.0644482246323536
+DEBUG: PLUS - Baseline price out of range: 1.8196698354211336
+DEBUG: PPT - Baseline price out of range: 1.0531053144896736
+DEBUG: OLP - Baseline price out of range: 2.4013307879146564
+DEBUG: FAX - Baseline price out of range: 4.04147227209143
+DEBUG: CMU - Baseline price out of range: 1.347760982498874
+DEBUG: TTEK - Baseline price out of range: 2.3657760232398664
+DEBUG: TRMB - Baseline price out of range: 2.629139600856646
+DEBUG: AGX - Baseline price out of range: 3.6214864252181904
+DEBUG: PHX - Baseline price out of range: 1.3818770292438474
+DEBUG: BN - Baseline price out of range: 1.0107363315027067
+DEBUG: LCII - Baseline price out of range: 4.56964147602293
+DEBUG: GEO - Baseline price out of range: 1.1654823055422365
+DEBUG: GGT - Baseline price out of range: 0.9087784899689325
+DEBUG: EDUC - Baseline price out of range: 1.1666554689863435
+DEBUG: LMNR - Baseline price out of range: 3.4124916930599483
+DEBUG: EBF - Baseline price out of range: 3.839723515988939
+DEBUG: RCI - Baseline price out of range: 2.535076980857176
+DEBUG: PMF - Baseline price out of range: 3.5413443504513813
+DEBUG: VSEC - Baseline price out of range: 1.4808707623050774
+  > Progress: 500/1000 symbols analyzed (50.0%)
+DEBUG: AIV - Baseline price out of range: 1.2300863692224038
+DEBUG: MUC - Baseline price out of range: 3.831224785965854
+DEBUG: WNEB - Baseline price out of range: 2.075838134066419
+DEBUG: IEP - Baseline price out of range: 1.5692894772299213
+DEBUG: CCNE - Baseline price out of range: 4.433743682574189
+DEBUG: ATNI - Baseline price out of range: 3.2524564890891385
+DEBUG: EEA - Baseline price out of range: 2.9728428603904495
+DEBUG: GROW - Baseline price out of range: 0.7254897657295275
+DEBUG: MYI - Baseline price out of range: 3.701697979117718
+DEBUG: MFV - Baseline price out of range: 1.0691009120513295
+DEBUG: MVT - Baseline price out of range: 3.1168029077399813
+DEBUG: ADX - Baseline price out of range: 1.9627911286752948
+DEBUG: NMT - Baseline price out of range: 4.90672451106153
+DEBUG: NAZ - Baseline price out of range: 4.984904006022102
+DEBUG: CCF - Baseline price out of range: 3.8854422656017658
+DEBUG: CSGP - Baseline price out of range: 2.080104171327234
+DEBUG: SF - Baseline price out of range: 2.5452920598837125
+DEBUG: EW - Baseline price out of range: 1.9408429085183794
+DEBUG: JEQ - Baseline price out of range: 2.4413427104877523
+DEBUG: TWI - Baseline price out of range: 3.2238440619539794
+DEBUG: AOS - Baseline price out of range: 2.9799002066165
+DEBUG: SHEN - Baseline price out of range: 1.9714919658384567
+DEBUG: AMS - Baseline price out of range: 3.4500795890894023
+DEBUG: MUJ - Baseline price out of range: 3.694179825395547
+DEBUG: MXF - Baseline price out of range: 2.921355486016457
+DEBUG: PHI - Baseline price out of range: 2.2445394358580675
+DEBUG: SBI - Baseline price out of range: 3.121675001843819
+DEBUG: ARLP - Baseline price out of range: 0.8882004718729005
+DEBUG: BRT - Baseline price out of range: 3.4322277616749903
+DEBUG: WWW - Baseline price out of range: 3.7691916020829876
+  > Progress: 1000/1000 symbols analyzed (100.0%)
+ITT (Score: 8.00 | ML: 67.0%): closed_profit | PnL: 3.71% (Entry: 25.57, Exit: 26.52, Held: 5 days)
+EBAY (Score: 7.50 | ML: 82.0%): closed_profit | PnL: 3.64% (Entry: 5.47, Exit: 5.67, Held: 5 days)
+CNP (Score: 6.00 | ML: 71.0%): closed_loss | PnL: -7.80% (Entry: 6.66, Exit: 6.14, Held: 5 days)
+HUM (Score: 6.00 | ML: 63.0%): closed_profit | PnL: 2.29% (Entry: 14.20, Exit: 14.53, Held: 5 days)
+HR (Score: 5.00 | ML: 82.0%): closed_profit | PnL: 3.14% (Entry: 5.03, Exit: 5.19, Held: 5 days)
+Summary: 4/5 profitable (80.00%) | Avg PnL: 1.00%
+Trades: 5
+
+--- Run 18/20 ---
+Date: 2015-07-27
+Regime: Neutral (0.5x)
+Sampled 1000 symbols for backtest
+
+--- Baseline Backtest Report for 2015-07-27 (Hold: 5 days) | Agg: sum ---
+DEBUG: ASRV - Baseline price out of range: 2.525581898228072
+DEBUG: DMAC - Baseline price out of range: 1.6399161959029394
+DEBUG: LYG - Baseline price out of range: 3.3413990778681937
+DEBUG: RMT - Baseline price out of range: 3.429716199821283
+DEBUG: GLO - Baseline price out of range: 3.5502777900495115
+DEBUG: IVT - Baseline price out of range: 1.7091297193958106
+DEBUG: EGAN - Baseline price out of range: 4.538155616814198
+DEBUG: OIA - Baseline price out of range: 3.8153378310330965
+DEBUG: UBFO - Baseline price out of range: 2.5449238941977934
+DEBUG: TECS - Baseline price out of range: 165078.72551633153
+  > Progress: 500/1000 symbols analyzed (50.0%)
+DEBUG: AXGN - Baseline price out of range: 3.381886345296214
+DEBUG: ABVC - Baseline price out of range: 0.5705997585105544
+DEBUG: AGD - Baseline price out of range: 3.925673159988325
+DEBUG: CTLP - Baseline price out of range: 3.2511651561086516
+DEBUG: AQN - Baseline price out of range: 4.127930907476656
+DEBUG: SCO - Baseline price out of range: 879.0678617473169
+DEBUG: FURY - Baseline price out of range: 0.8941546830993187
+DEBUG: MFM - Baseline price out of range: 3.7928744767230795
+DEBUG: RCMT - Baseline price out of range: 3.86369815241025
+  > Progress: 1000/1000 symbols analyzed (100.0%)
+AEP (Score: 9.00 | ML: 81.0%): closed_profit | PnL: 1.47% (Entry: 38.30, Exit: 38.87, Held: 5 days)
+AVA (Score: 9.00 | ML: 80.0%): success | PnL: 4.76% (Entry: 20.69, Exit: 21.68, Held: 3 days)
+IDA (Score: 9.00 | ML: 71.0%): success | PnL: 4.90% (Entry: 43.70, Exit: 45.84, Held: 2 days)
+PM (Score: 9.00 | ML: 54.0%): closed_profit | PnL: 0.68% (Entry: 50.45, Exit: 50.79, Held: 5 days)
+EUM (Score: 8.50 | ML: 74.0%): closed_loss | PnL: -0.04% (Entry: 47.12, Exit: 47.11, Held: 5 days)
+Summary: 4/5 profitable (80.00%) | Avg PnL: 2.35%
+Trades: 5
+
+--- Run 19/20 ---
+Date: 2024-06-03
+Regime: Bullish (1.0x)
+Sampled 1000 symbols for backtest
+
+--- Baseline Backtest Report for 2024-06-03 (Hold: 5 days) | Agg: sum ---
+DEBUG: FPH - Baseline price out of range: 3.2670521100599346
+DEBUG: CUBA - Baseline price out of range: 1.9261478092918674
+DEBUG: GODNR - Baseline price out of range: 0.34624861903255655
+DEBUG: CIF - Baseline price out of range: 1.4324214322652338
+DEBUG: USIO - Baseline price out of range: 1.5355465861118223
+DEBUG: HEPS - Baseline price out of range: 2.2006515240868456
+DEBUG: BDN - Baseline price out of range: 3.715892429193751
+DEBUG: UGP - Baseline price out of range: 3.960216852690732
+DEBUG: ITI - Baseline price out of range: 4.483661898828637
+DEBUG: OPK - Baseline price out of range: 1.4069401576546778
+DEBUG: ROP - Baseline price out of range: 528.7498393414361
+DEBUG: WIT - Baseline price out of range: 2.525402503832901
+DEBUG: GGT - Baseline price out of range: 3.9782848571589837
+DEBUG: UNAMQ - Baseline price out of range: 0.01983019356422063
+  > Progress: 500/1000 symbols analyzed (50.0%)
+DEBUG: PHK - Baseline price out of range: 3.943137992499011
+DEBUG: MNDO - Baseline price out of range: 1.6818706843677786
+DEBUG: FINV - Baseline price out of range: 4.528447077803453
+DEBUG: EDD - Baseline price out of range: 3.884776213267145
+DEBUG: ARMN - Baseline price out of range: 4.454679253697114
+DEBUG: IGR - Baseline price out of range: 4.029213063012862
+DEBUG: SPKLW - Baseline price out of range: 0.15873387624313912
+DEBUG: EDF - Baseline price out of range: 4.332659778503179
+DEBUG: SIF - Baseline price out of range: 3.25579166913229
+DEBUG: GLDG - Baseline price out of range: 0.9397548636470596
+DEBUG: NXDT - Baseline price out of range: 4.308265904130538
+DEBUG: DHY - Baseline price out of range: 1.7739388425252791
+DEBUG: DOYU - Baseline price out of range: 1.3633115479622575
+  > Progress: 1000/1000 symbols analyzed (100.0%)
+GHY (Score: 12.50 | ML: 74.0%): closed_profit | PnL: 0.59% (Entry: 10.06, Exit: 10.12, Held: 5 days)
+SITC (Score: 11.50 | ML: 76.0%): closed_loss | PnL: -1.55% (Entry: 5.53, Exit: 5.44, Held: 5 days)
+FSK (Score: 10.50 | ML: 81.0%): closed_loss | PnL: -0.68% (Entry: 15.96, Exit: 15.85, Held: 5 days)
+BTI (Score: 10.50 | ML: 53.0%): stopped_out | PnL: -1.36% (Entry: 27.20, Exit: 26.83, Held: 5 days)
+LTC (Score: 10.00 | ML: 52.0%): stopped_out | PnL: -2.58% (Entry: 31.24, Exit: 30.43, Held: 4 days)
+Summary: 1/5 profitable (20.00%) | Avg PnL: -1.11%
+Trades: 5
+
+--- Run 20/20 ---
+Date: 2021-07-22
+Regime: Bullish (1.0x)
+Sampled 1000 symbols for backtest
+
+--- Baseline Backtest Report for 2021-07-22 (Hold: 5 days) | Agg: sum ---
+DEBUG: SUNE - Baseline price out of range: 2464457.2491733194
+DEBUG: COPRD - Baseline price out of range: 0.04475213262776441
+DEBUG: LPSN - Baseline price out of range: 933.6801700276297
+DEBUG: LSAK - Baseline price out of range: 4.1695338360201575
+DEBUG: SVM - Baseline price out of range: 4.5737049267162115
+DEBUG: CMPX - Baseline price out of range: 4.9163914579874115
+DEBUG: CHMI - Baseline price out of range: 4.365935766560106
+DEBUG: TRMD - Baseline price out of range: 4.518800780402484
+DEBUG: BETRW - Baseline price out of range: 1.6041361248738881
+DEBUG: IMG - Baseline price out of range: 1948.1270814050617
+DEBUG: POCI - Baseline price out of range: 1.6909834310505865
+  > Progress: 500/1000 symbols analyzed (50.0%)
+DEBUG: PNNT - Baseline price out of range: 3.7038948345560763
+DEBUG: MACK - Baseline price out of range: 3.1412427263748492
+DEBUG: SNT - Baseline price out of range: 3.236497948256304
+DEBUG: CABO - Baseline price out of range: 1748.517617513793
+DEBUG: FGB - Baseline price out of range: 2.828047173583272
+  > Progress: 1000/1000 symbols analyzed (100.0%)
+FAF (Score: 14.00 | ML: 82.0%): closed_profit | PnL: 3.60% (Entry: 55.52, Exit: 57.52, Held: 5 days)
+CARR (Score: 11.50 | ML: 67.0%): limit_expired
+XLV (Score: 11.50 | ML: 74.0%): limit_expired
+VV (Score: 11.50 | ML: 74.0%): limit_expired
+VUG (Score: 11.00 | ML: 74.0%): closed_profit | PnL: 0.87% (Entry: 287.16, Exit: 289.66, Held: 5 days)
+Summary: 2/2 profitable (100.00%) | Avg PnL: 2.24%
+Trades: 5
+
+======================================================================
+EXPERIMENT RESULTS
+======================================================================
+Total Trades: 81
+Win Rate: 67.90% (55/81)
+Average PnL: 1.05%
+Total PnL: 84.74%
+Sharpe Ratio: 1.954
+Max Drawdown: 10.72%
+PnL Std Dev: 3.80%
+======================================================================
+
+✓ Results saved: /workspaces/BlueHorseshoe/src/experiments/results/three_white_soldiers_reduced.json
+
+⚠ Warning: Backup weights file not found, restoring to default (all zeros)
