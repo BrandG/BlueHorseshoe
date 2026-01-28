@@ -31,7 +31,7 @@
     "BELT_HOLD_MULTIPLIER": 1.5
   },
   "mean_reversion": {
-    "RSI_MULTIPLIER": 0.0,
+    "RSI_MULTIPLIER": 1.5,
     "BB_MULTIPLIER": 0.0,
     "MA_DIST_MULTIPLIER": 0.0,
     "CANDLESTICK_MULTIPLIER": 0.0

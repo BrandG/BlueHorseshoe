@@ -35,13 +35,14 @@ EXPERIMENTS_DIR = Path("/workspaces/BlueHorseshoe/src/experiments")
 EXPERIMENTS_DIR.mkdir(exist_ok=True)
 (EXPERIMENTS_DIR / "results").mkdir(exist_ok=True)
 
-def create_isolated_weights(indicator_name: str, multiplier: float = 1.0) -> dict:
+def create_isolated_weights(indicator_name: str, multiplier: float = 1.0, strategy: str = 'baseline') -> dict:
     """
     Create a weights config with only the specified indicator active.
 
     Args:
         indicator_name: Name of indicator to test (e.g., 'RSI', 'ADX', 'MACD')
         multiplier: Multiplier value for the active indicator
+        strategy: Strategy to test ('baseline' or 'mean_reversion')
 
     Returns:
         Dict with all multipliers zeroed except the target indicator
@@ -91,14 +92,24 @@ def create_isolated_weights(indicator_name: str, multiplier: float = 1.0) -> dic
     indicator_key = f"{indicator_name.upper()}_MULTIPLIER"
     found = False
 
-    for category in weights.values():
-        if indicator_key in category:
-            category[indicator_key] = multiplier
+    # Strategy-aware multiplier setting
+    if strategy == 'mean_reversion':
+        # For mean reversion, only set multipliers in mean_reversion section
+        if indicator_key in weights['mean_reversion']:
+            weights['mean_reversion'][indicator_key] = multiplier
             found = True
-            break
+    else:
+        # For baseline, set multipliers in trend/momentum/volume/candlestick sections
+        for category_name, category in weights.items():
+            if category_name == 'mean_reversion':
+                continue  # Skip mean_reversion section for baseline tests
+            if indicator_key in category:
+                category[indicator_key] = multiplier
+                found = True
+                break
 
     if not found:
-        raise ValueError(f"Indicator '{indicator_name}' not found in weights config")
+        raise ValueError(f"Indicator '{indicator_name}' not found in weights config for strategy '{strategy}'")
 
     return weights
 
@@ -158,7 +169,7 @@ def run_experiment(
     print()
 
     # Create isolated weights config
-    isolated_weights = create_isolated_weights(indicator_name, multiplier)
+    isolated_weights = create_isolated_weights(indicator_name, multiplier, strategy)
 
     # Save config temporarily
     temp_config_path = EXPERIMENTS_DIR / "results" / f"{experiment_name}_config.json"
