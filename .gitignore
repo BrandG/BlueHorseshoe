@@ -15,6 +15,8 @@ src/error_symbols.txt
 src/logs/failure_analysis.csv
 src/logs/test.log
 src/logs/fail_script.log
+.env
 docker/.env
 src/logs/*.log
 src/logs/*.html
+src/logs/*.txt
