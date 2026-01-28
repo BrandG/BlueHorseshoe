@@ -1,0 +1,19 @@
+{
+  "experiment_name": "rsi_mr_reduced",
+  "indicator": "RSI",
+  "multiplier": 0.5,
+  "strategy": "mean_reversion",
+  "timestamp": "2026-01-28T02:36:46.598790",
+  "runs": 20,
+  "metrics": {
+    "total_trades": 0,
+    "winning_trades": 0,
+    "win_rate": 0,
+    "avg_pnl": 0,
+    "total_pnl": 0.0,
+    "sharpe_ratio": 0.0,
+    "max_drawdown": 0.0,
+    "pnl_std": 0.0
+  },
+  "trades": []
+}

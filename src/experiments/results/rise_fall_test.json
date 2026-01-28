@@ -1,0 +1,70 @@
+{
+  "experiment_name": "rise_fall_test",
+  "indicator": "RISE_FALL_3_METHODS",
+  "multiplier": 0.5,
+  "strategy": "baseline",
+  "timestamp": "2026-01-27T18:38:38.429374",
+  "runs": 1,
+  "metrics": {
+    "total_trades": 5,
+    "winning_trades": 3,
+    "win_rate": 60.0,
+    "avg_pnl": -0.8659223506413284,
+    "total_pnl": -4.329611753206642,
+    "sharpe_ratio": -1.1499120583356093,
+    "max_drawdown": 13.26820575808939,
+    "pnl_std": 5.346007818835954
+  },
+  "trades": [
+    {
+      "run": 1,
+      "date": "2024-04-16",
+      "symbol": "EZPW",
+      "entry": 11.197555046910683,
+      "exit": 11.5,
+      "pnl_pct": 2.700990991535779,
+      "status": "closed_profit",
+      "regime": "Bearish"
+    },
+    {
+      "run": 1,
+      "date": "2024-04-16",
+      "symbol": "CHD",
+      "entry": 100.84197645883147,
+      "exit": 105.2448295763594,
+      "pnl_pct": 4.3660916536333305,
+      "status": "success",
+      "regime": "Bearish"
+    },
+    {
+      "run": 1,
+      "date": "2024-04-16",
+      "symbol": "SPOT",
+      "entry": 296.2050327123558,
+      "exit": 277.45535983591355,
+      "pnl_pct": -6.329964317199832,
+      "status": "stopped_out",
+      "regime": "Bearish"
+    },
+    {
+      "run": 1,
+      "date": "2024-04-16",
+      "symbol": "FRO",
+      "entry": 21.41101437207836,
+      "exit": 19.9254665,
+      "pnl_pct": -6.938241440889559,
+      "status": "stopped_out",
+      "regime": "Bearish"
+    },
+    {
+      "run": 1,
+      "date": "2024-04-16",
+      "symbol": "AAMI",
+      "entry": 22.60327710138012,
+      "exit": 23.0263,
+      "pnl_pct": 1.8715113597136401,
+      "status": "closed_profit",
+      "regime": "Bearish"
+    }
+  ]
+}

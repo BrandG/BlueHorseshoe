@@ -1,0 +1,760 @@
+{
+  "experiment_name": "atr_spike_reduced",
+  "indicator": "ATR_SPIKE",
+  "multiplier": 0.5,
+  "strategy": "baseline",
+  "timestamp": "2026-01-26T02:59:07.500509",
+  "runs": 20,
+  "metrics": {
+    "total_trades": 74,
+    "winning_trades": 34,
+    "win_rate": 45.94594594594595,
+    "avg_pnl": -0.42437234602379825,
+    "total_pnl": -31.403553605761072,
+    "sharpe_ratio": -0.8144460312449464,
+    "max_drawdown": 41.24523002352648,
+    "pnl_std": 3.6991337333626806
+  },
+  "trades": [
+    {
+      "run": 1,
+      "date": "2023-09-27",
+      "symbol": "FANG",
+      "entry": 142.65464409064626,
+      "exit": 134.7390365,
+      "pnl_pct": -5.548790676324911,
+      "status": "stopped_out",
+      "regime": "Bearish"
+    },
+    {
+      "run": 1,
+      "date": "2023-09-27",
+      "symbol": "XES",
+      "entry": 95.45152823923183,
+      "exit": 89.5962895,
+      "pnl_pct": -6.134253528719569,
+      "status": "stopped_out",
+      "regime": "Bearish"
+    },
+    {
+      "run": 1,
+      "date": "2023-09-27",
+      "symbol": "CRC",
+      "entry": 53.7127,
+      "exit": 50.6771665,
+      "pnl_pct": -5.651426012842398,
+      "status": "stopped_out",
+      "regime": "Bearish"
+    },
+    {
+      "run": 1,
+      "date": "2023-09-27",
+      "symbol": "RES",
+      "entry": 8.6752820156944,
+      "exit": 7.931614000000001,
+      "pnl_pct": -8.572263291833437,
+      "status": "stopped_out",
+      "regime": "Bearish"
+    },
+    {
+      "run": 3,
+      "date": "2007-06-21",
+      "symbol": "AMAT",
+      "entry": 14.854400607591266,
+      "exit": 14.7013,
+      "pnl_pct": -1.030675095116429,
+      "status": "closed_loss",
+      "regime": "Bullish"
+    },
+    {
+      "run": 3,
+      "date": "2007-06-21",
+      "symbol": "SMH",
+      "entry": 13.9584,
+      "exit": 13.7595,
+      "pnl_pct": -1.4249484181568128,
+      "status": "closed_loss",
+      "regime": "Bullish"
+    },
+    {
+      "run": 3,
+      "date": "2007-06-21",
+      "symbol": "KYN",
+      "entry": 6.249678105351879,
+      "exit": 5.961023,
+      "pnl_pct": -4.618719564207485,
+      "status": "stopped_out",
+      "regime": "Bullish"
+    },
+    {
+      "run": 3,
+      "date": "2007-06-21",
+      "symbol": "RNR",
+      "entry": 47.9307,
+      "exit": 50.1764393162927,
+      "pnl_pct": 4.685388104685928,
+      "status": "success",
+      "regime": "Bullish"
+    },
+    {
+      "run": 3,
+      "date": "2007-06-21",
+      "symbol": "ENTG",
+      "entry": 11.445157283200391,
+      "exit": 11.3852,
+      "pnl_pct": -0.5238659610942942,
+      "status": "closed_loss",
+      "regime": "Bullish"
+    },
+    {
+      "run": 4,
+      "date": "2004-02-05",
+      "symbol": "M",
+      "entry": 12.586707660636346,
+      "exit": 13.0256,
+      "pnl_pct": 3.48695108520114,
+      "status": "closed_profit",
+      "regime": "Neutral"
+    },
+    {
+      "run": 4,
+      "date": "2004-02-05",
+      "symbol": "COST",
+      "entry": 25.2288379705731,
+      "exit": 25.1313,
+      "pnl_pct": -0.386613012802528,
+      "status": "closed_loss",
+      "regime": "Neutral"
+    },
+    {
+      "run": 4,
+      "date": "2004-02-05",
+      "symbol": "NVRI",
+      "entry": 15.8883,
+      "exit": 16.1707,
+      "pnl_pct": 1.7774085333232659,
+      "status": "closed_profit",
+      "regime": "Neutral"
+    },
+    {
+      "run": 4,
+      "date": "2004-02-05",
+      "symbol": "FLR",
+      "entry": 16.232286102470788,
+      "exit": 16.1835,
+      "pnl_pct": -0.30054979417448724,
+      "status": "closed_loss",
+      "regime": "Neutral"
+    },
+    {
+      "run": 4,
+      "date": "2004-02-05",
+      "symbol": "MCD",
+      "entry": 14.773332202116965,
+      "exit": 15.4271,
+      "pnl_pct": 4.425323880480758,
+      "status": "closed_profit",
+      "regime": "Neutral"
+    },
+    {
+      "run": 5,
+      "date": "2014-01-07",
+      "symbol": "INTU",
+      "entry": 69.4425978967976,
+      "exit": 69.53,
+      "pnl_pct": 0.12586237532803413,
+      "status": "closed_profit",
+      "regime": "Bullish"
+    },
+    {
+      "run": 5,
+      "date": "2014-01-07",
+      "symbol": "TEVA",
+      "entry": 37.41038278572042,
+      "exit": 39.21514099991409,
+      "pnl_pct": 4.824217449286694,
+      "status": "success",
+      "regime": "Bullish"
+    },
+    {
+      "run": 5,
+      "date": "2014-01-07",
+      "symbol": "BWA",
+      "entry": 41.59678509361369,
+      "exit": 41.4353,
+      "pnl_pct": -0.38821532301178685,
+      "status": "closed_loss",
+      "regime": "Bullish"
+    },
+    {
+      "run": 5,
+      "date": "2014-01-07",
+      "symbol": "VNET",
+      "entry": 22.817965621466694,
+      "exit": 23.12,
+      "pnl_pct": 1.323669180433673,
+      "status": "closed_profit",
+      "regime": "Bullish"
+    },
+    {
+      "run": 5,
+      "date": "2014-01-07",
+      "symbol": "IEV",
+      "entry": 33.18879440887497,
+      "exit": 33.8241,
+      "pnl_pct": 1.9142171399728403,
+      "status": "closed_profit",
+      "regime": "Bullish"
+    },
+    {
+      "run": 6,
+      "date": "2024-09-24",
+      "symbol": "FNDF",
+      "entry": 34.85435192191728,
+      "exit": 34.764,
+      "pnl_pct": -0.2592270891155435,
+      "status": "closed_loss",
+      "regime": "Bullish"
+    },
+    {
+      "run": 6,
+      "date": "2024-09-24",
+      "symbol": "UGI",
+      "entry": 23.29156045002079,
+      "exit": 22.8613,
+      "pnl_pct": -1.8472804814604227,
+      "status": "closed_loss",
+      "regime": "Bullish"
+    },
+    {
+      "run": 6,
+      "date": "2024-09-24",
+      "symbol": "DIVI",
+      "entry": 31.42125904510885,
+      "exit": 31.3342,
+      "pnl_pct": -0.2770705177149946,
+      "status": "closed_loss",
+      "regime": "Bullish"
+    },
+    {
+      "run": 6,
+      "date": "2024-09-24",
+      "symbol": "PEGA",
+      "entry": 35.753924849859146,
+      "exit": 35.6551,
+      "pnl_pct": -0.27640280129843653,
+      "status": "closed_loss",
+      "regime": "Bullish"
+    },
+    {
+      "run": 6,
+      "date": "2024-09-24",
+      "symbol": "RGLD",
+      "entry": 143.3660097930747,
+      "exit": 139.6684,
+      "pnl_pct": -2.579139782443285,
+      "status": "closed_loss",
+      "regime": "Bullish"
+    },
+    {
+      "run": 7,
+      "date": "2001-03-20",
+      "symbol": "RSG",
+      "entry": 7.4688,
+      "exit": 7.121082483719288,
+      "pnl_pct": -4.655600849945262,
+      "status": "stopped_out",
+      "regime": "Bearish"
+    },
+    {
+      "run": 7,
+      "date": "2001-03-20",
+      "symbol": "LOW",
+      "entry": 10.885114395303509,
+      "exit": 9.974701,
+      "pnl_pct": -8.36383856192009,
+      "status": "stopped_out",
+      "regime": "Bearish"
+    },
+    {
+      "run": 7,
+      "date": "2001-03-20",
+      "symbol": "HIW",
+      "entry": 5.9843415322565985,
+      "exit": 5.800756854822581,
+      "pnl_pct": -3.06775066971805,
+      "status": "stopped_out",
+      "regime": "Bearish"
+    },
+    {
+      "run": 7,
+      "date": "2001-03-20",
+      "symbol": "VMC",
+      "entry": 32.211,
+      "exit": 30.88279732590783,
+      "pnl_pct": -4.123444395058106,
+      "status": "stopped_out",
+      "regime": "Bearish"
+    },
+    {
+      "run": 7,
+      "date": "2001-03-20",
+      "symbol": "FMX",
+      "entry": 6.549163193541271,
+      "exit": 6.3385,
+      "pnl_pct": -3.216642910181644,
+      "status": "closed_loss",
+      "regime": "Bearish"
+    },
+    {
+      "run": 8,
+      "date": "2001-06-12",
+      "symbol": "CVX",
+      "entry": 19.31171533223139,
+      "exit": 18.7503,
+      "pnl_pct": -2.907123073082918,
+      "status": "closed_loss",
+      "regime": "Bearish"
+    },
+    {
+      "run": 8,
+      "date": "2001-06-12",
+      "symbol": "ES",
+      "entry": 8.6347,
+      "exit": 8.7942,
+      "pnl_pct": 1.847197933917788,
+      "status": "closed_profit",
+      "regime": "Bearish"
+    },
+    {
+      "run": 8,
+      "date": "2001-06-12",
+      "symbol": "MD",
+      "entry": 6.984588052408765,
+      "exit": 6.9875,
+      "pnl_pct": 0.04169104275564273,
+      "status": "closed_profit",
+      "regime": "Bearish"
+    },
+    {
+      "run": 8,
+      "date": "2001-06-12",
+      "symbol": "SO",
+      "entry": 7.668435047568343,
+      "exit": 7.7478,
+      "pnl_pct": 1.0349563103729142,
+      "status": "closed_profit",
+      "regime": "Bearish"
+    },
+    {
+      "run": 9,
+      "date": "2021-05-06",
+      "symbol": "LOW",
+      "entry": 188.34403675773322,
+      "exit": 181.26940433506545,
+      "pnl_pct": -3.756228519073246,
+      "status": "stopped_out",
+      "regime": "Bullish"
+    },
+    {
+      "run": 9,
+      "date": "2021-05-06",
+      "symbol": "MGA",
+      "entry": 80.39153775919917,
+      "exit": 81.2861,
+      "pnl_pct": 1.1127567225798884,
+      "status": "closed_profit",
+      "regime": "Bullish"
+    },
+    {
+      "run": 9,
+      "date": "2021-05-06",
+      "symbol": "VSS",
+      "entry": 114.8258,
+      "exit": 113.20598882730137,
+      "pnl_pct": -1.410668310343699,
+      "status": "stopped_out",
+      "regime": "Bullish"
+    },
+    {
+      "run": 9,
+      "date": "2021-05-06",
+      "symbol": "KOF",
+      "entry": 39.362119124689805,
+      "exit": 40.5509,
+      "pnl_pct": 3.0201140125215797,
+      "status": "closed_profit",
+      "regime": "Bullish"
+    },
+    {
+      "run": 9,
+      "date": "2021-05-06",
+      "symbol": "CARR",
+      "entry": 41.20501000662169,
+      "exit": 40.9076,
+      "pnl_pct": -0.7217811780021344,
+      "status": "closed_loss",
+      "regime": "Bullish"
+    },
+    {
+      "run": 10,
+      "date": "2025-12-12",
+      "symbol": "BCH",
+      "entry": 38.69129503452976,
+      "exit": 37.0,
+      "pnl_pct": -4.371254653069578,
+      "status": "stopped_out",
+      "regime": "Bullish"
+    },
+    {
+      "run": 10,
+      "date": "2025-12-12",
+      "symbol": "DTM",
+      "entry": 119.27,
+      "exit": 119.52,
+      "pnl_pct": 0.2096084514127572,
+      "status": "closed_profit",
+      "regime": "Bullish"
+    },
+    {
+      "run": 10,
+      "date": "2025-12-12",
+      "symbol": "ANDE",
+      "entry": 53.44931319415551,
+      "exit": 53.4286,
+      "pnl_pct": -0.03875296597406486,
+      "status": "closed_loss",
+      "regime": "Bullish"
+    },
+    {
+      "run": 10,
+      "date": "2025-12-12",
+      "symbol": "UGL",
+      "entry": 55.420333140486925,
+      "exit": 59.47,
+      "pnl_pct": 7.307186063366733,
+      "status": "closed_profit",
+      "regime": "Bullish"
+    },
+    {
+      "run": 11,
+      "date": "2010-07-15",
+      "symbol": "MO",
+      "entry": 8.253855567060185,
+      "exit": 8.5361,
+      "pnl_pct": 3.419546545813157,
+      "status": "closed_profit",
+      "regime": "Neutral"
+    },
+    {
+      "run": 11,
+      "date": "2010-07-15",
+      "symbol": "ELV",
+      "entry": 42.2278,
+      "exit": 41.5721,
+      "pnl_pct": -1.552768555311912,
+      "status": "closed_loss",
+      "regime": "Neutral"
+    },
+    {
+      "run": 11,
+      "date": "2010-07-15",
+      "symbol": "THD",
+      "entry": 31.46856200982834,
+      "exit": 32.6955,
+      "pnl_pct": 3.898932495830154,
+      "status": "closed_profit",
+      "regime": "Neutral"
+    },
+    {
+      "run": 11,
+      "date": "2010-07-15",
+      "symbol": "HSY",
+      "entry": 35.703693049612596,
+      "exit": 34.385365,
+      "pnl_pct": -3.6924136889164183,
+      "status": "stopped_out",
+      "regime": "Neutral"
+    },
+    {
+      "run": 11,
+      "date": "2010-07-15",
+      "symbol": "EWD",
+      "entry": 15.3325,
+      "exit": 15.6487,
+      "pnl_pct": 2.062285993804003,
+      "status": "closed_profit",
+      "regime": "Neutral"
+    },
+    {
+      "run": 12,
+      "date": "2014-04-11",
+      "symbol": "TRGP",
+      "entry": 60.300493046071246,
+      "exit": 63.1121,
+      "pnl_pct": 4.662659974903693,
+      "status": "closed_profit",
+      "regime": "Bearish"
+    },
+    {
+      "run": 12,
+      "date": "2014-04-11",
+      "symbol": "KYN",
+      "entry": 11.246298023119571,
+      "exit": 11.3188,
+      "pnl_pct": 0.6446741561657143,
+      "status": "closed_profit",
+      "regime": "Bearish"
+    },
+    {
+      "run": 12,
+      "date": "2014-04-11",
+      "symbol": "FANG",
+      "entry": 51.7654494694797,
+      "exit": 58.808707427284176,
+      "pnl_pct": 13.606098333903383,
+      "status": "success",
+      "regime": "Bearish"
+    },
+    {
+      "run": 12,
+      "date": "2014-04-11",
+      "symbol": "SABA",
+      "entry": 6.961060359373255,
+      "exit": 6.9472,
+      "pnl_pct": -0.19911275951791652,
+      "status": "closed_loss",
+      "regime": "Bearish"
+    },
+    {
+      "run": 13,
+      "date": "2008-11-05",
+      "symbol": "AGG",
+      "entry": 59.28073054768444,
+      "exit": 59.3435,
+      "pnl_pct": 0.10588508565201327,
+      "status": "closed_profit",
+      "regime": "Bearish"
+    },
+    {
+      "run": 13,
+      "date": "2008-11-05",
+      "symbol": "XLP",
+      "entry": 15.171419507934905,
+      "exit": 15.1902,
+      "pnl_pct": 0.12378862805337842,
+      "status": "closed_profit",
+      "regime": "Bearish"
+    },
+    {
+      "run": 13,
+      "date": "2008-11-05",
+      "symbol": "JNK",
+      "entry": 28.95327963607731,
+      "exit": 27.9748,
+      "pnl_pct": -3.3795122638130226,
+      "status": "closed_loss",
+      "regime": "Bearish"
+    },
+    {
+      "run": 15,
+      "date": "2006-11-03",
+      "symbol": "SBAC",
+      "entry": 24.70060511368122,
+      "exit": 25.896,
+      "pnl_pct": 4.8395368486607415,
+      "status": "closed_profit",
+      "regime": "Bullish"
+    },
+    {
+      "run": 15,
+      "date": "2006-11-03",
+      "symbol": "AB",
+      "entry": 17.324427662182668,
+      "exit": 17.8162,
+      "pnl_pct": 2.838606546817224,
+      "status": "closed_profit",
+      "regime": "Bullish"
+    },
+    {
+      "run": 15,
+      "date": "2006-11-03",
+      "symbol": "SCCO",
+      "entry": 7.2808,
+      "exit": 7.3236,
+      "pnl_pct": 0.5878474892868857,
+      "status": "closed_profit",
+      "regime": "Bullish"
+    },
+    {
+      "run": 15,
+      "date": "2006-11-03",
+      "symbol": "EWK",
+      "entry": 13.5983,
+      "exit": 13.8444,
+      "pnl_pct": 1.8097850466602505,
+      "status": "closed_profit",
+      "regime": "Bullish"
+    },
+    {
+      "run": 16,
+      "date": "2017-09-25",
+      "symbol": "MDIV",
+      "entry": 11.483362723656706,
+      "exit": 11.5258,
+      "pnl_pct": 0.3695544359656022,
+      "status": "closed_profit",
+      "regime": "Neutral"
+    },
+    {
+      "run": 16,
+      "date": "2017-09-25",
+      "symbol": "AGNC",
+      "entry": 7.682011913175771,
+      "exit": 7.7741,
+      "pnl_pct": 1.1987495966556017,
+      "status": "closed_profit",
+      "regime": "Neutral"
+    },
+    {
+      "run": 16,
+      "date": "2017-09-25",
+      "symbol": "OGE",
+      "entry": 25.139539666579715,
+      "exit": 25.1209,
+      "pnl_pct": -0.07414482057718219,
+      "status": "closed_loss",
+      "regime": "Neutral"
+    },
+    {
+      "run": 17,
+      "date": "2010-12-15",
+      "symbol": "SWX",
+      "entry": 23.002904308568212,
+      "exit": 23.5073,
+      "pnl_pct": 2.192747857686439,
+      "status": "closed_profit",
+      "regime": "Bullish"
+    },
+    {
+      "run": 17,
+      "date": "2010-12-15",
+      "symbol": "RTX",
+      "entry": 27.479668570151375,
+      "exit": 27.7532,
+      "pnl_pct": 0.9953956655275542,
+      "status": "closed_profit",
+      "regime": "Bullish"
+    },
+    {
+      "run": 18,
+      "date": "2000-09-12",
+      "symbol": "BC",
+      "entry": 13.535627274310627,
+      "exit": 13.3958,
+      "pnl_pct": -1.0330313584802076,
+      "status": "closed_loss",
+      "regime": "Neutral"
+    },
+    {
+      "run": 18,
+      "date": "2000-09-12",
+      "symbol": "HD",
+      "entry": 32.3163,
+      "exit": 31.0002,
+      "pnl_pct": -4.0725578113831045,
+      "status": "closed_loss",
+      "regime": "Neutral"
+    },
+    {
+      "run": 18,
+      "date": "2000-09-12",
+      "symbol": "HP",
+      "entry": 9.659827352334945,
+      "exit": 8.939100875684403,
+      "pnl_pct": -7.461069958733068,
+      "status": "stopped_out",
+      "regime": "Neutral"
+    },
+    {
+      "run": 18,
+      "date": "2000-09-12",
+      "symbol": "ED",
+      "entry": 10.586700052247354,
+      "exit": 10.047700574720892,
+      "pnl_pct": -5.09128883284119,
+      "status": "stopped_out",
+      "regime": "Neutral"
+    },
+    {
+      "run": 18,
+      "date": "2000-09-12",
+      "symbol": "DGX",
+      "entry": 21.5554,
+      "exit": 19.87916013318348,
+      "pnl_pct": -7.7764266347018385,
+      "status": "stopped_out",
+      "regime": "Neutral"
+    },
+    {
+      "run": 19,
+      "date": "2019-07-01",
+      "symbol": "PRF",
+      "entry": 20.5770872284897,
+      "exit": 20.7267,
+      "pnl_pct": 0.7270843042505915,
+      "status": "closed_profit",
+      "regime": "Bullish"
+    },
+    {
+      "run": 19,
+      "date": "2019-07-01",
+      "symbol": "IUSV",
+      "entry": 49.339558576377215,
+      "exit": 49.5845,
+      "pnl_pct": 0.4964402412389157,
+      "status": "closed_profit",
+      "regime": "Bullish"
+    },
+    {
+      "run": 20,
+      "date": "2023-07-13",
+      "symbol": "MFA",
+      "entry": 8.183055506981388,
+      "exit": 8.2269,
+      "pnl_pct": 0.5357961091820407,
+      "status": "closed_profit",
+      "regime": "Bullish"
+    },
+    {
+      "run": 20,
+      "date": "2023-07-13",
+      "symbol": "GRID",
+      "entry": 104.37348738697693,
+      "exit": 104.2298,
+      "pnl_pct": -0.13766655745074408,
+      "status": "closed_loss",
+      "regime": "Bullish"
+    },
+    {
+      "run": 20,
+      "date": "2023-07-13",
+      "symbol": "AOR",
+      "entry": 48.3982,
+      "exit": 48.3889,
+      "pnl_pct": -0.01921559066246914,
+      "status": "closed_loss",
+      "regime": "Bullish"
+    },
+    {
+      "run": 20,
+      "date": "2023-07-13",
+      "symbol": "URA",
+      "entry": 19.47798998724528,
+      "exit": 18.9494,
+      "pnl_pct": -2.7137809783833733,
+      "status": "closed_loss",
+      "regime": "Bullish"
+    }
+  ]
+}

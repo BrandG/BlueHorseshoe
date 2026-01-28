@@ -1,0 +1,40 @@
+{
+  "experiment_name": "rsi_quick_1k",
+  "indicator": "RSI",
+  "multiplier": 1.0,
+  "strategy": "baseline",
+  "timestamp": "2026-01-23T18:48:33.134861",
+  "runs": 1,
+  "metrics": {
+    "total_trades": 2,
+    "winning_trades": 2,
+    "win_rate": 100.0,
+    "avg_pnl": 1.0686482879404768,
+    "total_pnl": 2.1372965758809537,
+    "sharpe_ratio": 14.92528521708923,
+    "max_drawdown": 0.0,
+    "pnl_std": 0.5083085601036156
+  },
+  "trades": [
+    {
+      "run": 1,
+      "date": "2025-12-19",
+      "symbol": "BOE",
+      "entry": 11.624000357230134,
+      "exit": 11.79,
+      "pnl_pct": 1.4280767177249132,
+      "status": "closed_profit",
+      "regime": "Bullish"
+    },
+    {
+      "run": 1,
+      "date": "2025-12-19",
+      "symbol": "PCEF",
+      "entry": 19.74,
+      "exit": 19.88,
+      "pnl_pct": 0.7092198581560405,
+      "status": "closed_profit",
+      "regime": "Bullish"
+    }
+  ]
+}
