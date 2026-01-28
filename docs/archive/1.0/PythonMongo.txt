@@ -1,0 +1,7 @@
+https://www.mongodb.com/blog/post/getting-started-with-python-and-mongodb
+https://www.makeuseof.com/tag/install-pip-for-python
+https://cloud.mongodb.com/v2/5c7840cbcf09a22172f2f460#clusters
+http://zetcode.com/python/pymongo/
+
+Don't forget to turn on Mongod
+Put it in the BashRC if you can.

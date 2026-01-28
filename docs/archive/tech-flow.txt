@@ -1,0 +1,107 @@
+# Technical Flow Documentation
+
+**System:** BlueHorseshoe Trading Engine
+**Scope:** End-to-End Data & Execution Flow
+
+## 1. High-Level Architecture
+
+The system operates as a linear pipeline: **Ingest  Process  Enrich  Report**.
+
+```mermaid
+graph TD
+    A[Trigger] --> B(Data Ingestion Layer)
+    B --> C{Strategy Engine}
+    C -->|Baseline| D[Technical Analysis]
+    C -->|Mean Reversion| D
+    D --> E[ML Overlay]
+    E --> F[Grading Engine]
+    E --> G[Reporting Layer]
+
+```
+
+## 2. Detailed Execution Flow
+
+### Phase 1: The Trigger (Entry Points)
+
+The flow begins in one of two ways, primarily controlled by `src/main.py`:
+
+1. **Manual/Cron (CLI):**
+* `python main.py -u`: Triggers **Update Mode** (Data Fetching).
+* `python main.py -p`: Triggers **Prediction Mode** (Analysis).
+
+
+2. **Service/API (SaaS):**
+* `service.run_daily()`: Called by an external scheduler (e.g., FastAPI endpoint).
+
+
+
+### Phase 2: Data Ingestion Layer
+
+*Responsible Module:* `bluehorseshoe.data.historical_data`
+
+1. **Bellwether Check:**
+* System requests `SPY` data from AlphaVantage to verify the market is "settled" for the day.
+* *Decision:* If `latest_date < today`, abort execution (prevents processing on holidays).
+
+
+2. **Batch Processing:**
+* If check passes, `build_all_symbols_history()` iterates through the symbol universe.
+* **External Call:** `requests.get(AlphaVantage)` fetches OHLCV data.
+* **Validation:** Checks for missing fields or stale dates.
+
+
+3. **Persistence:**
+* Data is upserted into MongoDB: `db.historical_prices.update_one()`.
+
+
+
+### Phase 3: Strategy & Analysis Layer
+
+*Responsible Module:* `bluehorseshoe.analysis.strategy`
+
+1. **Load Universe:** System retrieves active symbols from MongoDB.
+2. **Strategy Evaluation (Parallelized):**
+* The `SwingTrader` class processes symbols in parallel threads.
+* **Trend Check:** Calculates `is_weekly_uptrend()` (EMA10 > EMA30 on weekly aggregation).
+* **Indicator Calculation:** `TechnicalAnalyzer` computes RSI, MACD, Bollinger Bands, and ATR.
+
+
+3. **Signal Generation:**
+* **Baseline:** Checks for `Close > EMA9` + `Volume > Avg` + `RSI < 70`.
+* **Mean Reversion:** Checks for deviations from `EMA20`.
+* *Output:* A raw "Setup" dictionary containing `entry_price`, `stop_loss`, and `take_profit`.
+
+
+
+### Phase 4: The ML Overlay (Enrichment)
+
+*Responsible Module:* `bluehorseshoe.analysis.ml_overlay`
+
+1. **Feature Extraction:**
+* The raw signals from Phase 3 are converted into a feature vector (e.g., `volatility`, `rsi_value`, `sector`).
+
+
+2. **Inference:**
+* `MLInference.predict_probability()` loads the pre-trained `.joblib` model (Random Forest).
+* It calculates a **Win Probability (0.0 - 1.0)** for the specific trade setup.
+
+
+3. **Filtering:**
+* If `probability < threshold`, the trade is discarded (even if the technicals look good).
+
+
+
+### Phase 5: Grading & Reporting
+
+*Responsible Module:* `bluehorseshoe.reporting` & `grading_engine`
+
+1. **Reporting:**
+* `ReportSingleton` aggregates the top 10 candidates sorted by their ML Score.
+* `graph()` generates `.png` charts using `mplfinance` for the top picks.
+
+
+2. **Grading (Feedback Loop):**
+* The system continually reviews *past* predictions stored in `db.trade_scores`.
+* It compares the `predicted_target` vs. `actual_high` of subsequent days.
+* *Outcome:* Updates the trade record with `status: "success"` or `"failure"`. This data is fed back into Phase 4 for future model retraining.
+

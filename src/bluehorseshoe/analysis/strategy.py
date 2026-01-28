@@ -570,6 +570,103 @@ class SwingTrader:
                 })
         return score_data
 
+    def _get_previous_trading_date(self, current_date: str) -> Optional[str]:
+        """Finds the trading date immediately preceding the current_date."""
+        # Use SPY as proxy for market days
+        data = self.database.historical_prices.find_one(
+            {"symbol": "SPY"},
+            {"days.date": 1}
+        )
+        if not data or 'days' not in data:
+            return None
+            
+        dates = sorted([d['date'] for d in data['days']])
+        
+        prev_date = None
+        for d in dates:
+            if d < current_date:
+                prev_date = d
+            else:
+                break
+        return prev_date
+
+    def get_previous_performance(self, target_date: str) -> Dict[str, Any]:
+        """
+        Evaluates the performance of the PREVIOUS day's top candidates on the target_date.
+        """
+        prev_date = self._get_previous_trading_date(target_date)
+        if not prev_date:
+            return {}
+            
+        # Get Scores for Prev Date
+        baseline_scores = self.score_manager.get_scores(prev_date, strategy="baseline")
+        mr_scores = self.score_manager.get_scores(prev_date, strategy="mean_reversion")
+        
+        # Filter Top 5 of each
+        top_baseline = sorted(baseline_scores, key=lambda x: x['score'], reverse=True)[:5]
+        top_mr = sorted(mr_scores, key=lambda x: x['score'], reverse=True)[:5]
+        
+        combined_candidates = top_baseline + top_mr
+        results = []
+        
+        for cand in combined_candidates:
+            symbol = cand['symbol']
+            setup = cand.get('metadata', {})
+            
+            entry = setup.get('entry_price')
+            stop = setup.get('stop_loss')
+            target = setup.get('take_profit')
+            
+            if not entry:
+                continue
+                
+            # Get Price Data for Target Date (Today)
+            price_doc = self.database.historical_prices.find_one(
+                {"symbol": symbol},
+                {"days": {"$elemMatch": {"date": target_date}}}
+            )
+            
+            if not price_doc or 'days' not in price_doc or not price_doc['days']:
+                # Maybe data missing for this symbol?
+                continue
+                
+            day_data = price_doc['days'][0]
+            
+            # Logic
+            triggered = day_data['low'] <= entry
+            
+            outcome = "Pending"
+            pnl_pct = 0.0
+            
+            if triggered:
+                # Check Stop/Target
+                if day_data['low'] <= stop:
+                    outcome = "Stopped Out"
+                    pnl_pct = (stop - entry) / entry
+                elif day_data['high'] >= target:
+                    outcome = "Target Hit"
+                    pnl_pct = (target - entry) / entry
+                else:
+                    outcome = "Active"
+                    pnl_pct = (day_data['close'] - entry) / entry
+            else:
+                outcome = "No Entry"
+                
+            results.append({
+                "symbol": symbol,
+                "strategy": cand.get('strategy', 'Unknown'),
+                "entry": entry,
+                "stop": stop,
+                "target": target,
+                "outcome": outcome,
+                "pnl": pnl_pct,
+                "close": day_data['close'],
+                "high": day_data['high'],
+                "low": day_data['low']
+            })
+            
+        return {"date": prev_date, "results": results}
+
     def swing_predict(
         self,
         target_date: Optional[str] = None,
@@ -628,6 +725,8 @@ class SwingTrader:
                     "strategy": "Baseline",
                     "score": r["baseline_score"],
                     "close": setup.get("entry_price", 0), # Approx
+                    "stop_loss": setup.get("stop_loss", 0),
+                    "target": setup.get("take_profit", 0),
                     "ml_prob": r.get("baseline_ml_prob", 0.0),
                     "reasons": [f"{k}={v:.1f}" for k, v in r['baseline_components'].items() if v != 0]
                 })
@@ -639,6 +738,8 @@ class SwingTrader:
                     "strategy": "MeanRev",
                     "score": r["mr_score"],
                     "close": setup.get("entry_price", 0),
+                    "stop_loss": setup.get("stop_loss", 0),
+                    "target": setup.get("take_profit", 0),
                     "ml_prob": r.get("mr_ml_prob", 0.0),
                     "reasons": [f"{k}={v:.1f}" for k, v in r['mr_components'].items() if v != 0]
                 })

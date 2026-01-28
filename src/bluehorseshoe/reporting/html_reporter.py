@@ -85,10 +85,32 @@ class HTMLReporter:
             .top-lists-wrapper { display: flex; gap: 20px; margin: 20px 0; }
             .top-list { flex: 1; background: var(--container-bg); border: 1px solid var(--border-color); border-radius: 8px; padding: 15px; box-shadow: 0 2px 4px var(--card-shadow); }
             .top-list h3 { border-bottom: 2px solid var(--border-color); margin-top: 0; padding-bottom: 10px; color: var(--heading-color); font-size: 1.2em; }
-            .top-list ul { list-style: none; padding: 0; margin: 0; }
-            .top-list li { padding: 8px 0; border-bottom: 1px solid var(--border-color); font-family: 'Consolas', 'Monaco', monospace; font-size: 0.95em; }
-            .top-list li:last-child { border-bottom: none; }
-            .top-list-header { font-weight: bold; color: var(--secondary-text); font-size: 0.8em; text-transform: uppercase; border-bottom: 2px solid var(--border-color) !important; padding-bottom: 5px !important; margin-bottom: 5px; display: flex; justify-content: space-between; }
+            
+            .top-list-row { 
+                display: grid; 
+                grid-template-columns: 120px 80px 100px 1fr; 
+                align-items: center; 
+                padding: 10px 0; 
+                border-bottom: 1px solid var(--border-color);
+                width: 100%;
+                font-family: 'Consolas', 'Monaco', monospace;
+                font-size: 0.95em;
+            }
+            .top-list-row:hover { background-color: var(--table-row-hover); }
+            .top-list-row:last-child { border-bottom: none; }
+            
+            .top-list-header-grid { 
+                display: grid; 
+                grid-template-columns: 120px 80px 100px 1fr; 
+                font-weight: bold; 
+                color: var(--secondary-text); 
+                font-size: 0.8em; 
+                text-transform: uppercase; 
+                border-bottom: 2px solid var(--border-color); 
+                padding-bottom: 8px; 
+                margin-bottom: 5px; 
+            }
+            
             .symbol-link { text-decoration: none; color: var(--link-color); transition: color 0.2s; }
             .symbol-link:hover { color: var(--link-hover); text-decoration: underline; }
             
@@ -98,9 +120,8 @@ class HTMLReporter:
 
             /* Collapsible Styles */
             details { width: 100%; }
-            summary { cursor: pointer; display: flex; justify-content: space-between; outline: none; list-style: none; }
+            summary { cursor: pointer; outline: none; list-style: none; }
             summary::-webkit-details-marker { display: none; }
-            .summary-content { display: flex; justify-content: space-between; width: 100%; align-items: center; }
             .sparkline-container { text-align: center; padding: 10px; background: var(--bg-color); margin-top: 5px; border-radius: 4px; }
         </style>
         <script>
@@ -173,7 +194,7 @@ class HTMLReporter:
             return ""
 
     def _format_top_list_item(self, c: Dict[str, Any]) -> str:
-        # Format: <<SYMBOL>>:<<EXCHANGE>> <<TECH SCORE>> <<ML ATTITUDE>> <<ENTRY PRICE>>
+        # Format: <<SYMBOL>>:<<EXCHANGE>> <<TECH SCORE>> <<ML ATTITUDE>> <<ENTRY>> <<STOP>> <<TARGET>>
         # ML Attitude derived from probability
         prob = c.get('ml_prob', 0.0)
         attitude = f"ML:{prob*100:.0f}%"
@@ -181,7 +202,21 @@ class HTMLReporter:
         symbol = c['symbol']
         url = f"https://finance.yahoo.com/quote/{symbol}"
         
-        summary_html = f"<div class='summary-content'><span><a href='{url}' target='_blank' class='symbol-link'><b>{symbol}</b></a>:<small>{c.get('exchange','UNK')}</small></span> <span><b>{c['score']:.1f}</b> <span style='color:#777'>{attitude}</span> <b>${c['close']:.2f}</b></span></div>"
+        # Format prices
+        entry = c.get('close', 0)
+        stop = c.get('stop_loss', 0)
+        target = c.get('target', 0)
+        
+        price_info = f"E:<b>${entry:.2f}</b> S:<b style='color:var(--badge-bear)'>${stop:.2f}</b> T:<b style='color:var(--badge-bull)'>${target:.2f}</b>"
+        
+        summary_html = f"""
+            <div class='top-list-row'>
+                <span><a href='{url}' target='_blank' class='symbol-link'><b>{symbol}</b></a>:<small>{c.get('exchange','UNK')}</small></span>
+                <span><b>{c['score']:.1f}</b></span>
+                <span style='color:#777'>{attitude}</span>
+                <span>{price_info}</span>
+            </div>
+        """
         
         chart_html = ""
         if 'chart_b64' in c and c['chart_b64']:
@@ -190,7 +225,7 @@ class HTMLReporter:
         return f"<details><summary>{summary_html}</summary>{chart_html}</details>"
 
 
-    def generate_report(self, date: str, regime: Dict[str, Any], candidates: List[Dict[str, Any]], charts: List[str]) -> str:
+    def generate_report(self, date: str, regime: Dict[str, Any], candidates: List[Dict[str, Any]], charts: List[str], previous_performance: Dict[str, Any] = None) -> str:
         """
         Builds the complete HTML string.
         """
@@ -237,31 +272,67 @@ class HTMLReporter:
             # Baseline Column
             "<div class='top-list'>",
             "<h3>Top 5 Baseline (Trend)</h3>",
-            "<ul>",
-            "<li class='top-list-header'><span>Symbol</span> <span>Score / ML / Entry</span></li>"
+            "<div class='top-list-header-grid'><span>Symbol</span> <span>Score</span> <span>ML</span> <span>Levels</span></div>"
         ]
         
         if baseline_top5:
             for c in baseline_top5:
-                html.append(f"<li>{self._format_top_list_item(c)}</li>")
+                html.append(self._format_top_list_item(c))
         else:
-            html.append("<li>No candidates found.</li>")
+            html.append("<div class='top-list-row'>No candidates found.</div>")
         
-        html.append("</ul></div>")
+        html.append("</div>")
 
         # Mean Rev Column
         html.append("<div class='top-list'>")
         html.append("<h3>Top 5 Mean Reversion</h3>")
-        html.append("<ul>")
-        html.append("<li class='top-list-header'><span>Symbol</span> <span>Score / ML / Entry</span></li>")
+        html.append("<div class='top-list-header-grid'><span>Symbol</span> <span>Score</span> <span>ML</span> <span>Levels</span></div>")
 
         if meanrev_top5:
             for c in meanrev_top5:
-                html.append(f"<li>{self._format_top_list_item(c)}</li>")
+                html.append(self._format_top_list_item(c))
         else:
-            html.append("<li>No candidates found.</li>")
+            html.append("<div class='top-list-row'>No candidates found.</div>")
 
-        html.append("</ul></div></div>")
+        html.append("</div></div>")
+
+        # Previous Performance Section
+        if previous_performance and previous_performance.get('results'):
+            prev_date = previous_performance.get('date', 'Unknown')
+            results = previous_performance.get('results', [])
+            
+            html.append(f"<h2>Previous Day Performance <small style='font-size:0.6em; color:#777'>(Suggestions from {prev_date})</small></h2>")
+            html.append("<table>")
+            html.append("<tr><th>Symbol</th><th>Strategy</th><th>Setup (E/S/T)</th><th>Outcome</th><th>PnL</th></tr>")
+            
+            for r in results:
+                symbol = r['symbol']
+                url = f"https://finance.yahoo.com/quote/{symbol}"
+                outcome = r['outcome']
+                pnl = r['pnl']
+                
+                outcome_style = "background-color: #95a5a6;" # Gray (No Entry)
+                if outcome == "Active":
+                    outcome_style = "background-color: #3498db;" # Blue
+                elif outcome == "Target Hit":
+                    outcome_style = "background-color: #27ae60;" # Green
+                elif outcome == "Stopped Out":
+                    outcome_style = "background-color: #c0392b;" # Red
+                
+                pnl_color = "color: #27ae60;" if pnl > 0 else ("color: #c0392b;" if pnl < 0 else "color: #777;")
+                pnl_str = f"{pnl*100:.2f}%" if outcome != "No Entry" else "-"
+                
+                setup_str = f"E:${r['entry']:.2f} S:${r['stop']:.2f} T:${r['target']:.2f}"
+                
+                html.append("<tr>")
+                html.append(f"<td><a href='{url}' target='_blank' class='symbol-link'><b>{symbol}</b></a></td>")
+                html.append(f"<td>{r['strategy']}</td>")
+                html.append(f"<td><small>{setup_str}</small></td>")
+                html.append(f"<td><span class='badge' style='{outcome_style}'>{outcome}</span></td>")
+                html.append(f"<td style='font-weight:bold; {pnl_color}'>{pnl_str}</td>")
+                html.append("</tr>")
+                
+            html.append("</table>")
 
         # Candidates Section
         html.append(f"<h2>Top Candidates ({len(candidates)})</h2>")

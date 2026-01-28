@@ -172,6 +172,9 @@ if __name__ == "__main__":
                 aggregation=aggregation,
                 symbols=symbols_filter
             )
+            
+            # Calculate previous day's performance
+            prev_perf = trader.get_previous_performance(target_date)
 
             # Generate HTML Report
             if report_data:
@@ -187,7 +190,8 @@ if __name__ == "__main__":
                     date=target_date,
                     regime=regime_for_html,
                     candidates=report_data.get('candidates', []),
-                    charts=report_data.get('charts', [])
+                    charts=report_data.get('charts', []),
+                    previous_performance=prev_perf
                 )
                 saved_path = reporter.save(html_content, filename=f"report_{target_date}.html")
                 logging.info("HTML Report saved to %s", saved_path)
@@ -247,6 +251,8 @@ if __name__ == "__main__":
                     "strategy": "Baseline",
                     "score": s['score'],
                     "close": meta.get('entry_price', 0),
+                    "stop_loss": meta.get('stop_loss', 0),
+                    "target": meta.get('take_profit', 0),
                     "ml_prob": meta.get('ml_win_prob', 0.0),
                     "reasons": [f"{k}={v:.1f}" for k, v in meta.get('components', {}).items() if v != 0]
                 })
@@ -260,6 +266,8 @@ if __name__ == "__main__":
                     "strategy": "MeanRev",
                     "score": s['score'],
                     "close": meta.get('entry_price', 0),
+                    "stop_loss": meta.get('stop_loss', 0),
+                    "target": meta.get('take_profit', 0),
                     "ml_prob": meta.get('ml_win_prob', 0.0),
                     "reasons": [f"{k}={v:.1f}" for k, v in meta.get('components', {}).items() if v != 0]
                 })
@@ -269,12 +277,17 @@ if __name__ == "__main__":
             top_candidates = candidates[:50]
 
             # 5. Generate Report
+            # Calculate previous day's performance
+            trader = SwingTrader(database=ctx.db)
+            prev_perf = trader.get_previous_performance(target_date)
+
             reporter = HTMLReporter(database=ctx.db)
             html_content = reporter.generate_report(
                 date=target_date,
                 regime=market_health,
                 candidates=top_candidates,
-                charts=[]
+                charts=[],
+                previous_performance=prev_perf
             )
             saved_path = reporter.save(html_content, filename=f"report_{target_date}.html")
             logging.info("HTML Report regenerated at %s", saved_path)

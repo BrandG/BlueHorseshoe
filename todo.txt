@@ -3,7 +3,7 @@
 ## Current State (v2.1)
 - **Codebase Health:** Perfect (Lint score 9.50/10).
 - **Data Integrity:** FIXED (v2.1). Switched to Split-Adjusted Data. Backfill in progress.
-- **Reporting:** Enhanced with HTML output.
+- **Reporting:** Enhanced with HTML output. Vertical Div Layout implemented for Top 5 lists. Previous Day Performance section added.
 
 ## System Stability & Infrastructure (New Priority)
 - [ ] **Infrastructure Upgrade:** Upgrade DigitalOcean Droplet to 4 vCPUs (Regular Intel) to resolve CPU starvation during parallel research/production workloads.
@@ -42,6 +42,9 @@
 - [ ] **ML Overlay v2.0:** Retrain models with deep history once backfill is complete.
 
 ## Completed Tasks
+- [x] **UI Polish:** Refactored "Top 5" lists to use vertical Grid layout for better alignment.
+- [x] **Performance Reporting:** Added "Previous Day Performance" section to HTML reports to track suggestion outcomes.
+- [x] **Reporting Upgrade:** Added Entry, Stop Loss, and Target prices to "Top 5" lists in HTML reports.
 - [x] **Full Backfill (v2):** Completed Jan 14. 10,839 symbols loaded.
 - [x] **Data Quality Audit:** Completed. Identified 1,200+ symbols with unadjusted split spikes.
 - [x] **Fix Data Source:** Switched to `TIME_SERIES_DAILY_ADJUSTED`.
