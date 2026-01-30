@@ -1,0 +1,412 @@
+{
+  "group_num": 1,
+  "group_name": "top3_baseline",
+  "description": "Top 3 Baseline - Marubozu + Donchian + Heiken Ashi",
+  "config_file": "group1_top3_baseline.json",
+  "num_runs": 20,
+  "date_range": [
+    "2026-01-15",
+    "2026-01-27"
+  ],
+  "timestamp": "2026-01-29T22:57:27.782711",
+  "summary": {
+    "total_trades": 39,
+    "winning_trades": 22,
+    "win_rate": 56.41025641025641,
+    "avg_pnl_per_trade": 1.066608852995707,
+    "total_return": 41.597745266832575,
+    "sharpe_ratio": 0.309885971872336
+  },
+  "trades": [
+    {
+      "date": "2026-01-22",
+      "symbol": "RGEN",
+      "entry": 166.6582625147013,
+      "exit": 160.05,
+      "status": "closed_loss",
+      "outcome": "loss",
+      "pnl_pct": -3.965157451535517,
+      "hold_days": 3
+    },
+    {
+      "date": "2026-01-22",
+      "symbol": "EAGL",
+      "entry": 33.36789322375318,
+      "exit": 33.02,
+      "status": "closed_loss",
+      "outcome": "loss",
+      "pnl_pct": -1.042598708346154,
+      "hold_days": 3
+    },
+    {
+      "date": "2026-01-22",
+      "symbol": "JQUA",
+      "entry": 64.1958275990121,
+      "exit": 64.64,
+      "status": "closed_profit",
+      "outcome": "win",
+      "pnl_pct": 0.6919022896041405,
+      "hold_days": 3
+    },
+    {
+      "date": "2026-01-22",
+      "symbol": "DB",
+      "entry": 38.68,
+      "exit": 39.54,
+      "status": "closed_profit",
+      "outcome": "win",
+      "pnl_pct": 2.2233712512926607,
+      "hold_days": 3
+    },
+    {
+      "date": "2026-01-22",
+      "symbol": "SCHK",
+      "entry": 33.19698318966301,
+      "exit": 33.5,
+      "status": "closed_profit",
+      "outcome": "win",
+      "pnl_pct": 0.9127841786278568,
+      "hold_days": 3
+    },
+    {
+      "date": "2026-01-20",
+      "symbol": "KRG",
+      "entry": 23.47042145122908,
+      "exit": 23.07,
+      "status": "closed_loss",
+      "outcome": "loss",
+      "pnl_pct": -1.7060684319672115,
+      "hold_days": 3
+    },
+    {
+      "date": "2026-01-20",
+      "symbol": "IMMR",
+      "entry": 6.535699886197853,
+      "exit": 6.8,
+      "status": "closed_profit",
+      "outcome": "win",
+      "pnl_pct": 4.04394507710335,
+      "hold_days": 3
+    },
+    {
+      "date": "2026-01-20",
+      "symbol": "GGN",
+      "entry": 5.38414898557929,
+      "exit": 5.621914201889952,
+      "status": "success",
+      "outcome": "win",
+      "pnl_pct": 4.416022233921901,
+      "hold_days": 3
+    },
+    {
+      "date": "2026-01-21",
+      "symbol": "EWP",
+      "entry": 54.46170574474218,
+      "exit": 56.53,
+      "status": "success",
+      "outcome": "win",
+      "pnl_pct": 3.7977037754780563,
+      "hold_days": 2
+    },
+    {
+      "date": "2026-01-21",
+      "symbol": "NWG",
+      "entry": 17.608658782771446,
+      "exit": 18.528777041199774,
+      "status": "success",
+      "outcome": "win",
+      "pnl_pct": 5.22537389008062,
+      "hold_days": 3
+    },
+    {
+      "date": "2026-01-21",
+      "symbol": "DIVO",
+      "entry": 45.295707836997614,
+      "exit": 45.63,
+      "status": "closed_profit",
+      "outcome": "win",
+      "pnl_pct": 0.7380217220699592,
+      "hold_days": 3
+    },
+    {
+      "date": "2026-01-21",
+      "symbol": "WMB",
+      "entry": 62.91276429940518,
+      "exit": 65.48,
+      "status": "closed_profit",
+      "outcome": "win",
+      "pnl_pct": 4.080627721867702,
+      "hold_days": 3
+    },
+    {
+      "date": "2026-01-21",
+      "symbol": "CCNE",
+      "entry": 27.92,
+      "exit": 26.696120386720008,
+      "status": "stopped_out",
+      "outcome": "loss",
+      "pnl_pct": -4.3835229702005485,
+      "hold_days": 3
+    },
+    {
+      "date": "2026-01-21",
+      "symbol": "IXC",
+      "entry": 44.88471345997592,
+      "exit": 46.34,
+      "status": "closed_profit",
+      "outcome": "win",
+      "pnl_pct": 3.2422765521757713,
+      "hold_days": 3
+    },
+    {
+      "date": "2026-01-21",
+      "symbol": "IAI",
+      "entry": 186.35476269058236,
+      "exit": 185.26,
+      "status": "closed_loss",
+      "outcome": "loss",
+      "pnl_pct": -0.5874616107344077,
+      "hold_days": 3
+    },
+    {
+      "date": "2026-01-21",
+      "symbol": "WMB",
+      "entry": 62.91276429940518,
+      "exit": 65.48,
+      "status": "closed_profit",
+      "outcome": "win",
+      "pnl_pct": 4.080627721867702,
+      "hold_days": 3
+    },
+    {
+      "date": "2026-01-21",
+      "symbol": "IUSV",
+      "entry": 104.8231143657124,
+      "exit": 104.76,
+      "status": "closed_loss",
+      "outcome": "loss",
+      "pnl_pct": -0.060210351594969236,
+      "hold_days": 3
+    },
+    {
+      "date": "2026-01-15",
+      "symbol": "YUM",
+      "entry": 160.36,
+      "exit": 155.11152798319358,
+      "status": "stopped_out",
+      "outcome": "loss",
+      "pnl_pct": -3.2729309159431508,
+      "hold_days": 1
+    },
+    {
+      "date": "2026-01-15",
+      "symbol": "TRC",
+      "entry": 16.77,
+      "exit": 16.123326954922454,
+      "status": "stopped_out",
+      "outcome": "loss",
+      "pnl_pct": -3.8561302628356886,
+      "hold_days": 2
+    },
+    {
+      "date": "2026-01-15",
+      "symbol": "CPF",
+      "entry": 32.16,
+      "exit": 32.87,
+      "status": "closed_profit",
+      "outcome": "win",
+      "pnl_pct": 2.2077114427860645,
+      "hold_days": 3
+    },
+    {
+      "date": "2026-01-15",
+      "symbol": "TCMD",
+      "entry": 30.27298065939274,
+      "exit": 29.86,
+      "status": "closed_loss",
+      "outcome": "loss",
+      "pnl_pct": -1.3641889579333655,
+      "hold_days": 3
+    },
+    {
+      "date": "2026-01-16",
+      "symbol": "EPD",
+      "entry": 32.81680941912052,
+      "exit": 33.04,
+      "status": "closed_profit",
+      "outcome": "win",
+      "pnl_pct": 0.6801105434382615,
+      "hold_days": 3
+    },
+    {
+      "date": "2026-01-16",
+      "symbol": "EWP",
+      "entry": 54.12,
+      "exit": 55.13,
+      "status": "closed_profit",
+      "outcome": "win",
+      "pnl_pct": 1.8662232076866347,
+      "hold_days": 3
+    },
+    {
+      "date": "2026-01-16",
+      "symbol": "MAC",
+      "entry": 18.32,
+      "exit": 18.35,
+      "status": "closed_profit",
+      "outcome": "win",
+      "pnl_pct": 0.16375545851528006,
+      "hold_days": 3
+    },
+    {
+      "date": "2026-01-16",
+      "symbol": "NUV",
+      "entry": 9.13,
+      "exit": 9.045373176941702,
+      "status": "stopped_out",
+      "outcome": "loss",
+      "pnl_pct": -0.9269093434643882,
+      "hold_days": 1
+    },
+    {
+      "date": "2026-01-16",
+      "symbol": "BBIO",
+      "entry": 74.75,
+      "exit": 77.87,
+      "status": "closed_profit",
+      "outcome": "win",
+      "pnl_pct": 4.173913043478272,
+      "hold_days": 3
+    },
+    {
+      "date": "2026-01-20",
+      "symbol": "CCEP",
+      "entry": 89.96546010593374,
+      "exit": 89.55,
+      "status": "closed_loss",
+      "outcome": "loss",
+      "pnl_pct": -0.4617995677947295,
+      "hold_days": 3
+    },
+    {
+      "date": "2026-01-20",
+      "symbol": "CADE",
+      "entry": 44.29863705364772,
+      "exit": 43.14,
+      "status": "closed_loss",
+      "outcome": "loss",
+      "pnl_pct": -2.6155139993236154,
+      "hold_days": 3
+    },
+    {
+      "date": "2026-01-20",
+      "symbol": "LAMR",
+      "entry": 130.02174323109048,
+      "exit": 128.17,
+      "status": "closed_loss",
+      "outcome": "loss",
+      "pnl_pct": -1.424179668010872,
+      "hold_days": 3
+    },
+    {
+      "date": "2026-01-20",
+      "symbol": "KVUE",
+      "entry": 17.516955308478785,
+      "exit": 17.64,
+      "status": "closed_profit",
+      "outcome": "win",
+      "pnl_pct": 0.7024319543799784,
+      "hold_days": 3
+    },
+    {
+      "date": "2026-01-16",
+      "symbol": "BNS",
+      "entry": 73.23,
+      "exit": 74.87,
+      "status": "closed_profit",
+      "outcome": "win",
+      "pnl_pct": 2.23951932268196,
+      "hold_days": 3
+    },
+    {
+      "date": "2026-01-16",
+      "symbol": "BOOT",
+      "entry": 190.99072514522848,
+      "exit": 183.98,
+      "status": "closed_loss",
+      "outcome": "loss",
+      "pnl_pct": -3.6707149731472932,
+      "hold_days": 3
+    },
+    {
+      "date": "2026-01-16",
+      "symbol": "OSEA",
+      "entry": 30.22,
+      "exit": 30.060017788441996,
+      "status": "stopped_out",
+      "outcome": "loss",
+      "pnl_pct": -0.5293918317604285,
+      "hold_days": 0
+    },
+    {
+      "date": "2026-01-16",
+      "symbol": "PRM",
+      "entry": 28.4144250376926,
+      "exit": 28.22,
+      "status": "closed_loss",
+      "outcome": "loss",
+      "pnl_pct": -0.6842476574299483,
+      "hold_days": 3
+    },
+    {
+      "date": "2026-01-16",
+      "symbol": "PNTG",
+      "entry": 28.66,
+      "exit": 31.721283856003073,
+      "status": "success",
+      "outcome": "win",
+      "pnl_pct": 10.6813812142466,
+      "hold_days": 2
+    },
+    {
+      "date": "2026-01-21",
+      "symbol": "VIST",
+      "entry": 52.04,
+      "exit": 57.47,
+      "status": "closed_profit",
+      "outcome": "win",
+      "pnl_pct": 10.434281322059945,
+      "hold_days": 3
+    },
+    {
+      "date": "2026-01-21",
+      "symbol": "DFLV",
+      "entry": 35.60984358348447,
+      "exit": 35.78,
+      "status": "closed_profit",
+      "outcome": "win",
+      "pnl_pct": 0.47783533818848145,
+      "hold_days": 3
+    },
+    {
+      "date": "2026-01-21",
+      "symbol": "E",
+      "entry": 38.64,
+      "exit": 40.82563849248991,
+      "status": "success",
+      "outcome": "win",
+      "pnl_pct": 5.656414318038072,
+      "hold_days": 3
+    },
+    {
+      "date": "2026-01-21",
+      "symbol": "IAI",
+      "entry": 186.35476269058236,
+      "exit": 185.26,
+      "status": "closed_loss",
+      "outcome": "loss",
+      "pnl_pct": -0.5874616107344077,
+      "hold_days": 3
+    }
+  ]
+}
