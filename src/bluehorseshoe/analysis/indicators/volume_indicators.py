@@ -165,6 +165,59 @@ class VolumeIndicator(Indicator):
 
         return float(np.select([obv_diff > 0, obv_diff < 0], [1, -1], default=0))
 
+    def calculate_vwap(self, window: int = 20) -> float:
+        """
+        Calculate VWAP (Volume Weighted Average Price) score.
+
+        VWAP shows the average price weighted by volume, representing where
+        institutional money is positioned. Price above VWAP = institutional
+        strength, price below VWAP = institutional weakness.
+
+        For daily data, we approximate VWAP using:
+        - Typical Price = (High + Low + Close) / 3
+        - VWAP = Sum(Typical Price × Volume) / Sum(Volume) over window
+
+        Scoring:
+        • +2.0 if price >2% above VWAP (strong institutional support)
+        • +1.0 if price >1% above VWAP (above institutional average)
+        • -1.0 if price <1% below VWAP (below institutional average)
+        • -2.0 if price <2% below VWAP (weak institutional support)
+        • 0.0 otherwise
+
+        Args:
+            window: Lookback period for VWAP calculation (default: 20 days)
+
+        Returns:
+            float: Score from -2.0 to +2.0 based on price position relative to VWAP
+        """
+        if len(self.days) < window:
+            return 0.0
+
+        # Calculate typical price (High + Low + Close) / 3
+        recent_data = self.days.tail(window)
+        typical_price = (recent_data['high'] + recent_data['low'] + recent_data['close']) / 3
+
+        # Calculate VWAP: Sum(Typical Price × Volume) / Sum(Volume)
+        vwap = (typical_price * recent_data['volume']).sum() / recent_data['volume'].sum()
+
+        # Get current price (most recent close)
+        current_price = self.days['close'].iloc[-1]
+
+        # Calculate percentage difference from VWAP
+        vwap_diff_pct = ((current_price - vwap) / vwap) * 100
+
+        # Score based on distance from VWAP
+        if vwap_diff_pct > 2.0:
+            return 2.0  # Strong institutional support
+        elif vwap_diff_pct > 1.0:
+            return 1.0  # Above institutional average
+        elif vwap_diff_pct < -2.0:
+            return -2.0  # Weak institutional support
+        elif vwap_diff_pct < -1.0:
+            return -1.0  # Below institutional average
+        else:
+            return 0.0  # Near VWAP (neutral)
+
     def calculate_mfi(self, window: int = 14) -> float:
         """
         Calculate Money Flow Index (MFI) using the 'ta' library.
@@ -217,7 +270,8 @@ class VolumeIndicator(Indicator):
             'atr_band': (self.score_atr_band, 'ATR_BAND_MULTIPLIER'),
             'atr_spike': (self.score_atr_spike, 'ATR_SPIKE_MULTIPLIER'),
             'avg_volume': (self.calculate_avg_volume, None),
-            'mfi': (self.calculate_mfi, 'MFI_MULTIPLIER')
+            'mfi': (self.calculate_mfi, 'MFI_MULTIPLIER'),
+            'vwap': (self.calculate_vwap, 'VWAP_MULTIPLIER')
         }
 
         for name, (func, weight_key) in sub_map.items():

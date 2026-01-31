@@ -33,7 +33,8 @@ DEFAULT_WEIGHTS = {
         'CMF_MULTIPLIER': 1.0,
         'ATR_BAND_MULTIPLIER': 1.0,
         'ATR_SPIKE_MULTIPLIER': 1.0,
-        'MFI_MULTIPLIER': 1.0
+        'MFI_MULTIPLIER': 1.0,
+        'VWAP_MULTIPLIER': 1.0
     },
     'candlestick': {
         'RISE_FALL_3_METHODS_MULTIPLIER': 1.0,
