@@ -293,72 +293,73 @@ if __name__ == "__main__":
             logging.info("HTML Report regenerated at %s", saved_path)
             print(f"HTML Report regenerated: {saved_path}")
     elif "-t" in sys.argv:
-        try:
-            test_idx = sys.argv.index("-t")
-            target_date = sys.argv[test_idx + 1]
+        with create_cli_context() as ctx:
+            try:
+                test_idx = sys.argv.index("-t")
+                target_date = sys.argv[test_idx + 1]
 
-            # Optional parameters
-            target_profit = 1.01
-            stop_loss = 0.98
-            hold_days = 3
+                # Optional parameters
+                target_profit = 1.01
+                stop_loss = 0.98
+                hold_days = 3
 
-            use_trailing = "--trailing" in sys.argv
-            trailing_mult = 2.0
-            if "--trailing-mult" in sys.argv:
-                trailing_mult = float(sys.argv[sys.argv.index("--trailing-mult") + 1])
+                use_trailing = "--trailing" in sys.argv
+                trailing_mult = 2.0
+                if "--trailing-mult" in sys.argv:
+                    trailing_mult = float(sys.argv[sys.argv.index("--trailing-mult") + 1])
 
-            if "--target" in sys.argv:
-                target_profit = float(sys.argv[sys.argv.index("--target") + 1])
-            if "--stop" in sys.argv:
-                stop_loss = float(sys.argv[sys.argv.index("--stop") + 1])
-            if "--hold" in sys.argv:
-                hold_days = int(sys.argv[sys.argv.index("--hold") + 1])
+                if "--target" in sys.argv:
+                    target_profit = float(sys.argv[sys.argv.index("--target") + 1])
+                if "--stop" in sys.argv:
+                    stop_loss = float(sys.argv[sys.argv.index("--stop") + 1])
+                if "--hold" in sys.argv:
+                    hold_days = int(sys.argv[sys.argv.index("--hold") + 1])
 
-            from bluehorseshoe.analysis.backtest import Backtester, BacktestConfig, BacktestOptions
+                from bluehorseshoe.analysis.backtest import Backtester, BacktestConfig, BacktestOptions
 
-            config = BacktestConfig(
-                target_profit_factor=target_profit,
-                stop_loss_factor=stop_loss,
-                hold_days=hold_days,
-                use_trailing_stop=use_trailing,
-                trailing_multiplier=trailing_mult
-            )
-            tester = Backtester(config=config)
+                config = BacktestConfig(
+                    target_profit_factor=target_profit,
+                    stop_loss_factor=stop_loss,
+                    hold_days=hold_days,
+                    use_trailing_stop=use_trailing,
+                    trailing_multiplier=trailing_mult
+                )
+                tester = Backtester(config=config, database=ctx.db)
 
-            strategy = "baseline"
-            if "--strategy" in sys.argv:
-                strategy = sys.argv[sys.argv.index("--strategy") + 1]
+                strategy = "baseline"
+                if "--strategy" in sys.argv:
+                    strategy = sys.argv[sys.argv.index("--strategy") + 1]
 
-            enabled_indicators = None
-            if "--indicators" in sys.argv:
-                enabled_indicators = [i.strip() for i in sys.argv[sys.argv.index("--indicators") + 1].split(",")]
+                enabled_indicators = None
+                if "--indicators" in sys.argv:
+                    enabled_indicators = [i.strip() for i in sys.argv[sys.argv.index("--indicators") + 1].split(",")]
 
-            aggregation = "sum"
-            if "--aggregation" in sys.argv:
-                aggregation = sys.argv[sys.argv.index("--aggregation") + 1]
+                aggregation = "sum"
+                if "--aggregation" in sys.argv:
+                    aggregation = sys.argv[sys.argv.index("--aggregation") + 1]
 
-            symbols_filter = None
-            if "--symbols" in sys.argv:
-                symbols_filter = [s.strip() for s in sys.argv[sys.argv.index("--symbols") + 1].split(",")]
+                symbols_filter = None
+                if "--symbols" in sys.argv:
+                    symbols_filter = [s.strip() for s in sys.argv[sys.argv.index("--symbols") + 1].split(",")]
 
-            options = BacktestOptions(
-                strategy=strategy,
-                enabled_indicators=enabled_indicators,
-                aggregation=aggregation,
-                symbols=symbols_filter
-            )
+                options = BacktestOptions(
+                    strategy=strategy,
+                    enabled_indicators=enabled_indicators,
+                    aggregation=aggregation,
+                    symbols=symbols_filter
+                )
 
-            if "--end" in sys.argv:
-                end_date = sys.argv[sys.argv.index("--end") + 1]
-                interval = int(sys.argv[sys.argv.index("--interval") + 1]) if "--interval" in sys.argv else 7
-                logging.info("Running range backtest from %s to %s | Strategy: %s...", target_date, end_date, strategy)
-                tester.run_range_backtest(target_date, end_date, interval_days=interval, options=options)
-            else:
-                logging.info("Running backtest for %s | Strategy: %s...", target_date, strategy)
-                tester.run_backtest(target_date, options=options)
-        except (IndexError, ValueError) as e:
-            logging.error("Invalid arguments for backtesting: %s", e)
-            print("Usage: python main.py -t START_DATE [--end END_DATE] [--interval 7] [--target 1.01] [--stop 0.98] [--hold 3]")
+                if "--end" in sys.argv:
+                    end_date = sys.argv[sys.argv.index("--end") + 1]
+                    interval = int(sys.argv[sys.argv.index("--interval") + 1]) if "--interval" in sys.argv else 7
+                    logging.info("Running range backtest from %s to %s | Strategy: %s...", target_date, end_date, strategy)
+                    tester.run_range_backtest(target_date, end_date, interval_days=interval, options=options)
+                else:
+                    logging.info("Running backtest for %s | Strategy: %s...", target_date, strategy)
+                    tester.run_backtest(target_date, options=options)
+            except (IndexError, ValueError) as e:
+                logging.error("Invalid arguments for backtesting: %s", e)
+                print("Usage: python main.py -t START_DATE [--end END_DATE] [--interval 7] [--target 1.01] [--stop 0.98] [--hold 3]")
     elif "-o" in sys.argv:
         logging.info("Optimizing indicator weights...")
         WeightOptimizer().run_optimization()
