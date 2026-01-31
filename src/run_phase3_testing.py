@@ -155,7 +155,8 @@ def run_backtest(date):
     cmd = ['docker', 'exec', 'bluehorseshoe', 'python', 'src/main.py', '-t', date]
 
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+        # Increased timeout for full backtests (30 minutes for 10K+ symbols)
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=1800)
         return result.returncode == 0
     except subprocess.TimeoutExpired:
         print(f"    ⚠️  Backtest timeout for {date}")
