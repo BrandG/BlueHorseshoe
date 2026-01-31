@@ -17,7 +17,10 @@ DEFAULT_WEIGHTS = {
         'PSAR_MULTIPLIER': 1.0,
         'HEIKEN_ASHI_MULTIPLIER': 1.0,
         'DONCHIAN_MULTIPLIER': 1.0,
-        'SUPERTREND_MULTIPLIER': 1.0
+        'SUPERTREND_MULTIPLIER': 1.0,
+        'TTM_SQUEEZE_MULTIPLIER': 1.0,
+        'AROON_MULTIPLIER': 1.0,
+        'KELTNER_MULTIPLIER': 1.0
     },
     'momentum': {
         'RSI_MULTIPLIER': 1.0,
@@ -34,7 +37,9 @@ DEFAULT_WEIGHTS = {
         'ATR_BAND_MULTIPLIER': 1.0,
         'ATR_SPIKE_MULTIPLIER': 1.0,
         'MFI_MULTIPLIER': 1.0,
-        'VWAP_MULTIPLIER': 1.0
+        'VWAP_MULTIPLIER': 1.0,
+        'FORCE_INDEX_MULTIPLIER': 1.0,
+        'AD_LINE_MULTIPLIER': 1.0
     },
     'candlestick': {
         'RISE_FALL_3_METHODS_MULTIPLIER': 1.0,

@@ -31,8 +31,8 @@ Methods:
 from typing import Optional
 import numpy as np
 import pandas as pd
-from ta.trend import PSARIndicator # pylint: disable=import-error
-from ta.volatility import DonchianChannel, AverageTrueRange # pylint: disable=import-error
+from ta.trend import PSARIndicator, AroonIndicator # pylint: disable=import-error
+from ta.volatility import DonchianChannel, AverageTrueRange, BollingerBands, KeltnerChannel # pylint: disable=import-error
 
 from bluehorseshoe.analysis.indicators.indicator import Indicator, IndicatorScore
 from bluehorseshoe.core.config import weights_config
@@ -380,8 +380,234 @@ class TrendIndicator(Indicator):
             return 1.0
         elif curr == -1:
             return -1.0
-            
+
         return 0.0
+
+    def calculate_ttm_squeeze(self, bb_length: int = 20, bb_std: float = 2.0,
+                              kc_length: int = 20, kc_atr_mult: float = 1.5) -> float:
+        """
+        Calculate TTM Squeeze score (Bollinger Bands vs Keltner Channels).
+
+        The squeeze occurs when Bollinger Bands compress inside Keltner Channels,
+        indicating low volatility that often precedes explosive moves.
+
+        Scoring:
+        • +2.0 if squeeze just released with bullish momentum
+        • +1.5 if in squeeze with price rising (coiling for breakout)
+        • +0.5 if in squeeze with price flat
+        • -1.0 if in squeeze with price falling
+        • -2.0 if squeeze released with bearish momentum
+        • 0.0 if no squeeze (normal volatility)
+
+        Args:
+            bb_length: Bollinger Bands period (default: 20)
+            bb_std: Bollinger Bands standard deviation multiplier (default: 2.0)
+            kc_length: Keltner Channel period (default: 20)
+            kc_atr_mult: Keltner Channel ATR multiplier (default: 1.5)
+
+        Returns:
+            float: Score from -2.0 to +2.0 based on squeeze state
+        """
+        if len(self.days) < max(bb_length, kc_length) + 5:
+            return 0.0
+
+        # Calculate Bollinger Bands
+        bb = BollingerBands(
+            close=self.days['close'],
+            window=bb_length,
+            window_dev=bb_std
+        )
+        bb_upper = bb.bollinger_hband()
+        bb_lower = bb.bollinger_lband()
+        bb_width = bb_upper - bb_lower
+
+        # Calculate Keltner Channels
+        kc = KeltnerChannel(
+            high=self.days['high'],
+            low=self.days['low'],
+            close=self.days['close'],
+            window=kc_length,
+            window_atr=kc_length,
+            multiplier=kc_atr_mult
+        )
+        kc_upper = kc.keltner_channel_hband()
+        kc_lower = kc.keltner_channel_lband()
+        kc_width = kc_upper - kc_lower
+
+        # Squeeze condition: BB inside KC (BB width < KC width)
+        squeeze = bb_width < kc_width
+
+        # Current and previous squeeze state
+        in_squeeze_now = squeeze.iloc[-1]
+        in_squeeze_prev = squeeze.iloc[-2] if len(squeeze) > 1 else False
+
+        # Momentum (simplified: close vs 5-day ago)
+        if len(self.days) >= 5:
+            momentum = self.days['close'].iloc[-1] - self.days['close'].iloc[-5]
+        else:
+            momentum = 0
+
+        # Scoring
+        if not in_squeeze_now and in_squeeze_prev:
+            # Squeeze just released
+            if momentum > 0:
+                return 2.0  # Bullish release
+            else:
+                return -2.0  # Bearish release
+
+        elif in_squeeze_now:
+            # In squeeze - check price action
+            if momentum > 0:
+                return 1.5  # Coiling with bullish momentum
+            elif abs(momentum) < self.days['close'].iloc[-1] * 0.01:
+                return 0.5  # Coiling flat
+            else:
+                return -1.0  # Coiling with bearish momentum
+
+        else:
+            # Not in squeeze - normal volatility
+            return 0.0
+
+    def calculate_aroon(self, window: int = 25) -> float:
+        """
+        Calculate Aroon Indicator score.
+
+        Aroon measures time since highest high / lowest low over a period.
+        Early detector of trend changes based on time, not price.
+
+        Formula:
+            Aroon Up = ((Period - Days Since High) / Period) * 100
+            Aroon Down = ((Period - Days Since Low) / Period) * 100
+
+        Scoring:
+        • +2.0 if Aroon Up > 70 and Aroon Down < 30 (strong uptrend)
+        • +1.5 if Aroon Up crossed above Aroon Down recently (new uptrend)
+        • +1.0 if Aroon Up > 50 and rising
+        • -2.0 if Aroon Down > 70 and Aroon Up < 30 (strong downtrend)
+        • -1.0 if Aroon Down > Aroon Up
+        • 0.0 otherwise
+
+        Args:
+            window: Lookback period (default: 25 days)
+
+        Returns:
+            float: Score from -2.0 to +2.0 based on Aroon state
+        """
+        if len(self.days) < window + 5:
+            return 0.0
+
+        aroon = AroonIndicator(
+            high=self.days['high'],
+            low=self.days['low'],
+            window=window
+        )
+        aroon_up = aroon.aroon_up()
+        aroon_down = aroon.aroon_down()
+
+        # Current values
+        up_now = aroon_up.iloc[-1]
+        down_now = aroon_down.iloc[-1]
+
+        # Previous values (for crossover detection)
+        up_prev = aroon_up.iloc[-2] if len(aroon_up) > 1 else 0
+        down_prev = aroon_down.iloc[-2] if len(aroon_down) > 1 else 0
+
+        # Check for recent crossover (last 3 days)
+        if len(aroon_up) >= 3:
+            up_3 = aroon_up.iloc[-3]
+            down_3 = aroon_down.iloc[-3]
+            recent_bullish_cross = (up_now > down_now and up_3 <= down_3)
+        else:
+            recent_bullish_cross = False
+
+        # Scoring
+        if up_now > 70 and down_now < 30:
+            return 2.0  # Strong uptrend
+        elif recent_bullish_cross:
+            return 1.5  # New uptrend forming
+        elif up_now > 50 and (up_now > up_prev):
+            return 1.0  # Uptrend strengthening
+        elif down_now > 70 and up_now < 30:
+            return -2.0  # Strong downtrend
+        elif down_now > up_now:
+            return -1.0  # Downtrend
+        else:
+            return 0.0  # Neutral
+
+    def calculate_keltner(self, window: int = 20, atr_mult: float = 2.0) -> float:
+        """
+        Calculate Keltner Channel score.
+
+        Keltner Channels use ATR instead of standard deviation (vs Bollinger Bands).
+        More stable and reliable for breakout detection.
+
+        Formula:
+            Middle Line = EMA(Close, window)
+            Upper Band = Middle + (ATR * multiplier)
+            Lower Band = Middle - (ATR * multiplier)
+
+        Scoring:
+        • +2.0 if price breaking above upper band
+        • +1.0 if price > upper band
+        • +0.5 if price > middle line
+        • -2.0 if price breaking below lower band
+        • -1.0 if price < lower band
+        • -0.5 if price < middle line
+        • 0.0 if price at middle line
+
+        Args:
+            window: EMA and ATR period (default: 20)
+            atr_mult: ATR multiplier for bands (default: 2.0)
+
+        Returns:
+            float: Score from -2.0 to +2.0 based on price position vs Keltner
+        """
+        if len(self.days) < window + 5:
+            return 0.0
+
+        kc = KeltnerChannel(
+            high=self.days['high'],
+            low=self.days['low'],
+            close=self.days['close'],
+            window=window,
+            window_atr=window,
+            multiplier=atr_mult
+        )
+
+        upper = kc.keltner_channel_hband()
+        middle = kc.keltner_channel_mband()
+        lower = kc.keltner_channel_lband()
+
+        # Current and previous price positions
+        price_now = self.days['close'].iloc[-1]
+        price_prev = self.days['close'].iloc[-2] if len(self.days) > 1 else price_now
+
+        upper_now = upper.iloc[-1]
+        lower_now = lower.iloc[-1]
+        middle_now = middle.iloc[-1]
+
+        upper_prev = upper.iloc[-2] if len(upper) > 1 else upper_now
+        lower_prev = lower.iloc[-2] if len(lower) > 1 else lower_now
+
+        # Check for breakouts (crossing bands)
+        breaking_above = (price_now > upper_now and price_prev <= upper_prev)
+        breaking_below = (price_now < lower_now and price_prev >= lower_prev)
+
+        # Scoring
+        if breaking_above:
+            return 2.0  # Breakout above
+        elif price_now > upper_now:
+            return 1.0  # Above upper band
+        elif price_now > middle_now:
+            return 0.5  # Above middle
+        elif breaking_below:
+            return -2.0  # Breakdown below
+        elif price_now < lower_now:
+            return -1.0  # Below lower band
+        elif price_now < middle_now:
+            return -0.5  # Below middle
+        else:
+            return 0.0  # At middle line
 
     def get_score(self, enabled_sub_indicators: Optional[list[str]] = None, aggregation: str = "sum") -> IndicatorScore:
         """
@@ -416,7 +642,10 @@ class TrendIndicator(Indicator):
             'heiken_ashi': (self.calculate_heiken_ashi, 'HEIKEN_ASHI_MULTIPLIER'),
             'adx': (self.calculate_dmi_adx, 'ADX_MULTIPLIER'),
             'donchian': (self.calculate_donchian, 'DONCHIAN_MULTIPLIER'),
-            'supertrend': (self.calculate_supertrend, 'SUPERTREND_MULTIPLIER')
+            'supertrend': (self.calculate_supertrend, 'SUPERTREND_MULTIPLIER'),
+            'ttm_squeeze': (self.calculate_ttm_squeeze, 'TTM_SQUEEZE_MULTIPLIER'),
+            'aroon': (self.calculate_aroon, 'AROON_MULTIPLIER'),
+            'keltner': (self.calculate_keltner, 'KELTNER_MULTIPLIER')
         }
 
         for name, (func, weight_key) in sub_map.items():

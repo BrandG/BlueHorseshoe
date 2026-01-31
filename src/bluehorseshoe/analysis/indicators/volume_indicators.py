@@ -32,7 +32,7 @@ Methods:
 from typing import Optional
 import numpy as np
 import pandas as pd
-from ta.volume import OnBalanceVolumeIndicator, ChaikinMoneyFlowIndicator, MFIIndicator #pylint: disable=import-error
+from ta.volume import OnBalanceVolumeIndicator, ChaikinMoneyFlowIndicator, MFIIndicator, AccDistIndexIndicator, ForceIndexIndicator #pylint: disable=import-error
 from ta.volatility import AverageTrueRange # pylint: disable=import-error
 
 from bluehorseshoe.analysis.indicators.indicator import Indicator, IndicatorScore
@@ -257,6 +257,156 @@ class VolumeIndicator(Indicator):
             default=0
         ).item()
 
+    def calculate_force_index(self, window: int = 13) -> float:
+        """
+        Calculate Elder's Force Index score.
+
+        Force Index combines price change and volume to measure the "power"
+        behind price moves. Created by Dr. Alexander Elder.
+
+        Formula:
+            Force Index = (Close - Previous Close) × Volume
+            Smoothed with EMA(13)
+
+        Scoring:
+        • +2.0 if Force Index > 0 and accelerating (strong buying power)
+        • +1.0 if Force Index > 0 and rising (buying power)
+        • -2.0 if Force Index < 0 and accelerating (strong selling power)
+        • -1.0 if Force Index < 0 and falling (selling power)
+        • 0.0 otherwise
+
+        Args:
+            window: EMA smoothing period (default: 13 days)
+
+        Returns:
+            float: Score from -2.0 to +2.0 based on Force Index
+        """
+        if len(self.days) < window + 5:
+            return 0.0
+
+        # Calculate Force Index using ta library
+        fi = ForceIndexIndicator(
+            close=self.days['close'],
+            volume=self.days['volume'],
+            window=window
+        )
+        force_index = fi.force_index()
+
+        if force_index.empty:
+            return 0.0
+
+        # Get current and previous values
+        fi_now = force_index.iloc[-1]
+        fi_prev = force_index.iloc[-2] if len(force_index) > 1 else 0
+        fi_prev2 = force_index.iloc[-3] if len(force_index) > 2 else 0
+
+        if pd.isna(fi_now) or pd.isna(fi_prev):
+            return 0.0
+
+        # Check if accelerating (trend strengthening)
+        acceleration = (fi_now - fi_prev) - (fi_prev - fi_prev2)
+
+        # Scoring
+        if fi_now > 0:
+            if acceleration > 0:
+                return 2.0  # Strong bullish acceleration
+            elif fi_now > fi_prev:
+                return 1.0  # Bullish momentum
+            else:
+                return 0.5  # Bullish but weakening
+
+        elif fi_now < 0:
+            if acceleration < 0:
+                return -2.0  # Strong bearish acceleration
+            elif fi_now < fi_prev:
+                return -1.0  # Bearish momentum
+            else:
+                return -0.5  # Bearish but weakening
+
+        return 0.0
+
+    def calculate_ad_line(self, window: int = 10) -> float:
+        """
+        Calculate Accumulation/Distribution Line score.
+
+        A/D Line measures cumulative money flow volume and is more sensitive
+        to intraday price action than OBV. Created by Marc Chaikin.
+
+        Formula:
+            Money Flow Multiplier = [(Close - Low) - (High - Close)] / (High - Low)
+            Money Flow Volume = Money Flow Multiplier × Volume
+            A/D Line = Cumulative sum of Money Flow Volume
+
+        Scoring:
+        • +2.0 if A/D rising over last 10 days (sustained accumulation)
+        • +1.5 if A/D divergence: price down but A/D up (bullish)
+        • +1.0 if A/D rising over last 5 days
+        • -2.0 if A/D falling over last 10 days (sustained distribution)
+        • -1.5 if A/D divergence: price up but A/D down (bearish)
+        • -1.0 if A/D falling over last 5 days
+        • 0.0 otherwise
+
+        Args:
+            window: Lookback for trend analysis (default: 10 days)
+
+        Returns:
+            float: Score from -2.0 to +2.0 based on A/D Line trend
+        """
+        if len(self.days) < window + 5:
+            return 0.0
+
+        # Calculate A/D Line using ta library
+        ad = AccDistIndexIndicator(
+            high=self.days['high'],
+            low=self.days['low'],
+            close=self.days['close'],
+            volume=self.days['volume']
+        )
+        ad_line = ad.acc_dist_index()
+
+        if ad_line.empty:
+            return 0.0
+
+        # Get values for trend analysis
+        ad_now = ad_line.iloc[-1]
+        ad_5days_ago = ad_line.iloc[-(window//2 + 1)] if len(ad_line) > window//2 else ad_line.iloc[0]
+        ad_10days_ago = ad_line.iloc[-(window + 1)] if len(ad_line) > window else ad_line.iloc[0]
+
+        # Get price trend for divergence detection
+        price_now = self.days['close'].iloc[-1]
+        price_10days_ago = self.days['close'].iloc[-(window + 1)] if len(self.days) > window else self.days['close'].iloc[0]
+
+        if pd.isna(ad_now) or pd.isna(ad_5days_ago) or pd.isna(ad_10days_ago):
+            return 0.0
+
+        # Calculate A/D trends
+        ad_trend_10 = ad_now - ad_10days_ago
+        ad_trend_5 = ad_now - ad_5days_ago
+        price_trend = price_now - price_10days_ago
+
+        # Divergence detection
+        bullish_divergence = (price_trend < 0 and ad_trend_10 > 0)  # Price down, A/D up
+        bearish_divergence = (price_trend > 0 and ad_trend_10 < 0)  # Price up, A/D down
+
+        # Scoring
+        if ad_trend_10 > 0:
+            if bullish_divergence:
+                return 2.0  # Bullish divergence (very strong)
+            else:
+                return 2.0  # Sustained accumulation
+        elif ad_trend_5 > 0:
+            return 1.0  # Recent accumulation
+
+        elif ad_trend_10 < 0:
+            if bearish_divergence:
+                return -2.0  # Bearish divergence (very weak)
+            else:
+                return -2.0  # Sustained distribution
+        elif ad_trend_5 < 0:
+            return -1.0  # Recent distribution
+
+        return 0.0
+
     def get_score(self, enabled_sub_indicators: Optional[list[str]] = None, aggregation: str = "sum") -> IndicatorScore:
         """
         Returns a score based on the volume indicators.
@@ -271,7 +421,9 @@ class VolumeIndicator(Indicator):
             'atr_spike': (self.score_atr_spike, 'ATR_SPIKE_MULTIPLIER'),
             'avg_volume': (self.calculate_avg_volume, None),
             'mfi': (self.calculate_mfi, 'MFI_MULTIPLIER'),
-            'vwap': (self.calculate_vwap, 'VWAP_MULTIPLIER')
+            'vwap': (self.calculate_vwap, 'VWAP_MULTIPLIER'),
+            'force_index': (self.calculate_force_index, 'FORCE_INDEX_MULTIPLIER'),
+            'ad_line': (self.calculate_ad_line, 'AD_LINE_MULTIPLIER')
         }
 
         for name, (func, weight_key) in sub_map.items():
