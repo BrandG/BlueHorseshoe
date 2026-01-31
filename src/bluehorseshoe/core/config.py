@@ -46,6 +46,9 @@ DEFAULT_WEIGHTS = {
         'BB_MULTIPLIER': 1.0,
         'MA_DIST_MULTIPLIER': 1.0,
         'CANDLESTICK_MULTIPLIER': 1.0
+    },
+    'price_action': {
+        'GAP_MULTIPLIER': 1.0
     }
 }
 

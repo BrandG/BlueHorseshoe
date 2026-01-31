@@ -26,6 +26,7 @@ from bluehorseshoe.analysis.indicators.candlestick_indicators import Candlestick
 from bluehorseshoe.analysis.indicators.limit_indicators import LimitIndicator
 from bluehorseshoe.analysis.indicators.momentum_indicators import MomentumIndicator
 from bluehorseshoe.analysis.indicators.moving_average_indicators import MovingAverageIndicator
+from bluehorseshoe.analysis.indicators.price_action_indicators import PriceActionIndicator
 from bluehorseshoe.analysis.indicators.trend_indicators import TrendIndicator
 from bluehorseshoe.analysis.indicators.volume_indicators import VolumeIndicator
 
@@ -242,7 +243,8 @@ class TechnicalAnalyzer:
             "limit": LimitIndicator,
             "candlestick": CandlestickIndicator,
             "moving_average": MovingAverageIndicator,
-            "momentum": MomentumIndicator
+            "momentum": MomentumIndicator,
+            "price_action": PriceActionIndicator
         }
 
         components = {}

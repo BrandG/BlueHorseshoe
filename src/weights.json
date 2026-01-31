@@ -36,5 +36,8 @@
     "BB_MULTIPLIER": 0.0,
     "MA_DIST_MULTIPLIER": 0.0,
     "CANDLESTICK_MULTIPLIER": 0.0
+  },
+  "price_action": {
+    "GAP_MULTIPLIER": 0.0
   }
 }
