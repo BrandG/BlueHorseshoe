@@ -15,7 +15,8 @@
     "MACD_SIGNAL_MULTIPLIER": 0.0,
     "BB_MULTIPLIER": 0.0,
     "WILLIAMS_R_MULTIPLIER": 0.0,
-    "CCI_MULTIPLIER": 0.0
+    "CCI_MULTIPLIER": 0.0,
+    "RS_MULTIPLIER": 1.0
   },
   "volume": {
     "OBV_MULTIPLIER": 0.0,

@@ -40,7 +40,7 @@ from bluehorseshoe.analysis.market_regime import MarketRegime
 from bluehorseshoe.analysis.ml_overlay import MLInference
 from bluehorseshoe.analysis.ml_stop_loss import StopLossInference
 from bluehorseshoe.analysis.technical_analyzer import TechnicalAnalyzer
-from bluehorseshoe.core.config import Settings, get_settings
+from bluehorseshoe.core.config import Settings, get_settings, weights_config
 from bluehorseshoe.core.scores import ScoreManager
 from bluehorseshoe.core.symbols import get_symbol_name_list, get_symbols_from_mongo
 from bluehorseshoe.data.historical_data import load_historical_data
@@ -366,7 +366,8 @@ class SwingTrader:
             return None
 
         # Apply Relative Strength (RS) Bonus
-        if ctx.benchmark_df is not None:
+        rs_multiplier = weights_config.get_weights('momentum').get('RS_MULTIPLIER', 1.0)
+        if ctx.benchmark_df is not None and rs_multiplier != 0.0:
             rs_ratio = self.calculate_relative_strength(df, ctx.benchmark_df)
             if rs_ratio > 1.10:
                 rs_bonus = 5.0
@@ -374,6 +375,7 @@ class SwingTrader:
                 rs_bonus = 2.0
             else:
                 rs_bonus = -2.0
+            rs_bonus *= rs_multiplier
             score_components["rs_index"] = rs_bonus
             score_components["total"] += rs_bonus
 
