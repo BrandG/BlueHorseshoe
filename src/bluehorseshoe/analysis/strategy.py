@@ -34,7 +34,10 @@ from bluehorseshoe.analysis.constants import (
     ATR_WINDOW,
     MIN_RR_RATIO_BASELINE, MIN_RR_RATIO_MEAN_REVERSION,
     MAX_RISK_PERCENT,
-    REQUIRE_WEEKLY_UPTREND
+    REQUIRE_WEEKLY_UPTREND,
+    SIGNAL_STRENGTH_THRESHOLDS,
+    ENTRY_DISCOUNT_BY_SIGNAL,
+    ENABLE_DYNAMIC_ENTRY
 )
 from bluehorseshoe.analysis.market_regime import MarketRegime
 from bluehorseshoe.analysis.ml_overlay import MLInference
@@ -149,18 +152,75 @@ class SwingTrader:
             return df.iloc[-1]['close'] * 0.02
         return atr
 
-    def _determine_baseline_entry(self, last_row: pd.Series, ema9: float, atr: float) -> float:
+    @staticmethod
+    def _classify_signal_strength(score: float) -> str:
         """
-        Determine entry price using optimized ATR discount.
-        Method: Limit Buy at Close - (0.2 * ATR) to capture intraday noise.
+        Classify technical score into strength tier.
+
+        Args:
+            score: Technical score (typically 0-100+)
+
+        Returns:
+            Signal strength classification: EXTREME, HIGH, MEDIUM, LOW, or WEAK
+        """
+        thresholds = SIGNAL_STRENGTH_THRESHOLDS
+        if score >= thresholds['EXTREME']:
+            return 'EXTREME'
+        elif score >= thresholds['HIGH']:
+            return 'HIGH'
+        elif score >= thresholds['MEDIUM']:
+            return 'MEDIUM'
+        elif score >= thresholds['LOW']:
+            return 'LOW'
+        else:
+            return 'WEAK'
+
+    @staticmethod
+    def _get_dynamic_atr_discount(technical_score: float) -> float:
+        """
+        Calculate dynamic ATR discount based on signal strength.
+
+        Args:
+            technical_score: Technical score (0-100+)
+
+        Returns:
+            ATR multiplier (0.05 - 0.50) for entry calculation
+        """
+        if not ENABLE_DYNAMIC_ENTRY:
+            return 0.20  # Revert to original default
+
+        signal_class = SwingTrader._classify_signal_strength(technical_score)
+        return ENTRY_DISCOUNT_BY_SIGNAL.get(signal_class, 0.20)
+
+    def _determine_baseline_entry(
+        self,
+        last_row: pd.Series,
+        ema9: float,
+        atr: float,
+        technical_score: float = 0.0
+    ) -> tuple[float, float, str]:
+        """
+        Determine entry price using dynamic ATR discount based on signal strength.
+
+        Args:
+            last_row: Latest price data
+            ema9: 9-period EMA (kept for compatibility, not currently used)
+            atr: Average True Range
+            technical_score: Technical score for signal quality (default 0.0 for backward compat)
+
+        Returns:
+            Tuple of (entry_price, atr_discount_used, signal_strength)
         """
         last_close = last_row['close']
 
-        # Optimized Entry: Close - 0.2 * ATR
-        # This has been backtested to outperform Market/EMA9 entries significantly (4x PnL).
-        entry_price = last_close - (0.2 * atr)
+        # Get dynamic ATR discount based on signal strength
+        atr_discount = self._get_dynamic_atr_discount(technical_score)
+        signal_strength = self._classify_signal_strength(technical_score)
 
-        return entry_price
+        # Calculate entry price
+        entry_price = last_close - (atr_discount * atr)
+
+        return entry_price, atr_discount, signal_strength
 
     def calculate_baseline_setup(self, df: pd.DataFrame, ml_stop_multiplier: float = 2.0) -> Dict[str, float]:
         """
@@ -180,8 +240,8 @@ class SwingTrader:
         swing_low_5 = df['low'].rolling(window=5).min().iloc[-1]
         swing_high_20 = df['high'].rolling(window=20).max().iloc[-1]
 
-        # 3. Entry Logic
-        entry_price = self._determine_baseline_entry(last_row, ema9, atr)
+        # 3. Entry Logic (using default score=0 which gives MEDIUM/0.20 discount)
+        entry_price, _, _ = self._determine_baseline_entry(last_row, ema9, atr, technical_score=0.0)
 
         # 4. Stop Loss & Take Profit
         atr_stop = entry_price - (ml_stop_multiplier * atr)
@@ -347,15 +407,50 @@ class SwingTrader:
             # print(f"DEBUG: {symbol} - Baseline failed weekly uptrend")
             return None
 
+        # *** STEP 1: Calculate score FIRST ***
         score_components = self.technical_analyzer.calculate_baseline_score(
             df,
             enabled_indicators=ctx.enabled_indicators,
             aggregation=ctx.aggregation
         )
+        technical_score = score_components.get("total", 0.0)
 
+        # *** STEP 2: Get dynamic entry parameters ***
+        last_row = df.iloc[-1]
+        ema9 = df['close'].ewm(span=9).mean().iloc[-1]
+        atr = self._calculate_atr(df)
+
+        entry_price, atr_discount_used, signal_strength = self._determine_baseline_entry(
+            last_row, ema9, atr, technical_score
+        )
+
+        # *** STEP 3: Calculate baseline setup with ML stop ***
         ml_stop_multiplier = 2.0
         baseline_setup = self.calculate_baseline_setup(df, ml_stop_multiplier=ml_stop_multiplier)
 
+        # *** STEP 4: Override entry price with dynamic calculation ***
+        baseline_setup['entry_price'] = entry_price
+
+        # *** STEP 5: Recalculate risk/reward with new entry ***
+        stop_loss = baseline_setup['stop_loss']
+        take_profit = baseline_setup['take_profit']
+        risk = entry_price - stop_loss
+        reward = take_profit - entry_price
+        baseline_setup['rr_ratio'] = reward / risk if risk > 0 else 0
+
+        # Recalculate is_realistic with new entry
+        last_close = last_row['close']
+        risk_pct = (entry_price - stop_loss) / entry_price if entry_price > 0 else 0
+        baseline_setup['is_realistic'] = (
+            (abs((last_close / entry_price) - 1) <= 0.15) and
+            (risk_pct <= MAX_RISK_PERCENT)
+        )
+
+        # *** STEP 6: Add new metadata fields ***
+        baseline_setup['atr_discount_used'] = atr_discount_used
+        baseline_setup['signal_strength'] = signal_strength
+
+        # Validation checks
         if not baseline_setup['is_realistic'] or baseline_setup['rr_ratio'] < MIN_RR_RATIO_BASELINE:
             # print(f"DEBUG: {symbol} - Baseline failed setup checks: realistic={baseline_setup['is_realistic']}, rr={baseline_setup['rr_ratio']}")
             return None
@@ -550,7 +645,9 @@ class SwingTrader:
                         "take_profit": setup["take_profit"],
                         "ml_win_prob": r["baseline_ml_prob"],
                         "stop_multiplier": r.get("stop_multiplier", 2.0),
-                        "components": r["baseline_components"]
+                        "components": r["baseline_components"],
+                        "atr_discount_used": setup.get("atr_discount_used", 0.20),
+                        "signal_strength": setup.get("signal_strength", "MEDIUM")
                     }
                 })
             if r['mr_score'] > 0:

@@ -55,3 +55,30 @@ MIN_REL_VOLUME = 0.8  # Must be at least average volume
 
 # Multi-Timeframe Alignment
 REQUIRE_WEEKLY_UPTREND = False
+
+# ============================================
+# Dynamic Entry Strategy Configuration
+# ============================================
+
+# Signal Strength Classification Thresholds
+# Data-driven thresholds based on actual score distribution (Feb 2026)
+# These represent: EXTREME (top 1%), HIGH (top 5%), MEDIUM (top 20%), LOW (top 40%)
+SIGNAL_STRENGTH_THRESHOLDS = {
+    'EXTREME': 20,    # Score >= 20 (top 1% of signals)
+    'HIGH': 14.5,     # Score >= 14.5 (top 5% of signals)
+    'MEDIUM': 7,      # Score >= 7 (top 20% of signals)
+    'LOW': 2          # Score >= 2 (top 40% of signals)
+    # WEAK: Score < 2 (bottom 60% of signals)
+}
+
+# Entry Discount by Signal Strength (ATR multipliers)
+ENTRY_DISCOUNT_BY_SIGNAL = {
+    'EXTREME': 0.05,   # At near-market for best setups
+    'HIGH': 0.10,      # Slight discount
+    'MEDIUM': 0.20,    # Current default
+    'LOW': 0.35,       # Conservative
+    'WEAK': 0.50       # Very conservative
+}
+
+# Feature flag to enable/disable dynamic entry
+ENABLE_DYNAMIC_ENTRY = True  # Set to False to revert to 0.2 ATR default
