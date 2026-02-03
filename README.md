@@ -1,66 +1,89 @@
-# BlueHorseshoe Overview
+# BlueHorseshoe
 
-This project intends to:
+BlueHorseshoe is a quantitative trading and analysis system built in Python. It focuses on swing-trading strategies using technical indicators, backtesting historical data, and generating predictive reports.
 
-    1. Pick stocks that (absent news like earnings, market crashes, meme stocks, or wars) behave consistently and have a tendancy to have deltas (high - low) that are greater than 1%.
+## Overview
 
-    2. For the best of that list, find price points to buy and sell for the following day.
+The system implements two primary scoring strategies:
+1.  **Baseline (Trend-Following):** Rewards momentum, strength, and confirmed breakouts while penalizing overextension.
+2.  **Mean Reversion (Dip Buying):** Rewards oversold conditions (e.g., RSI < 30, Price < Bollinger Band Lower) and potential exhaustion reversals.
 
-    3. Generate a "Top 10" report, with the best ten stocks, and their given price points. Maybe other information like candlestick data, news, etc.
+## Technology Stack
 
+-   **Language:** Python 3.12
+-   **Database:** MongoDB 7
+-   **Task Queue:** Celery with Redis
+-   **Analysis:** TA-Lib, NumPy, Pandas, Scikit-learn
+-   **Server/API:** Uvicorn/FastAPI
+-   **Containerization:** Docker & Docker Compose
 
-# Basic Outline
+## Quick Start
 
-Note: all data files can be found here -> https://drive.google.com/drive/folders/14My1XapqqfbYN8uKK98oIsWSVb9YRuOy?usp=drive_link
+The entire system is containerized. Ensure you have Docker and Docker Compose installed.
 
-(I've put expected testable constants in the list with asterisks)
+1.  **Clone the repository:**
+    ```bash
+    git clone <repository-url>
+    cd BlueHorseshoe
+    ```
 
-    1.   Get latest data
+2.  **Configure Environment:**
+    Copy `.env.example` to `docker/.env` and populate it with your API keys (AlphaVantage) and configuration.
+    ```bash
+    cp .env.example docker/.env
+    # Edit docker/.env
+    ```
 
-        A. Get the list of all symbols.
+3.  **Start Services:**
+    ```bash
+    cd docker
+    docker compose up -d
+    ```
 
-        B. For each symbol (maybe batch of symbols)
+## Usage
 
-            1. Open the data file and load into memory.
+All Python execution is performed through the `bluehorseshoe` container.
 
-            2. Make net call
+**Main Command Wrapper:**
+```bash
+docker exec bluehorseshoe python src/main.py [flags]
+```
 
-            3. Add all entries that are not already in memory (maybe just overwrite memory version?)
+### CLI Commands
 
-            4. Write out the data
+| Flag | Description | Example |
+|------|-------------|---------|
+| `-u` | **Update** recent historical data for tracked symbols. | `... -u` |
+| `-b` | **Backfill** full historical data for all symbols. | `... -b` |
+| `-p` | **Predict** potential entry/exit points for the next trading day. | `... -p` |
+| `-r` | **Regenerate** a report from a specific date's saved scores. | `... -r 2026-01-20` |
+| `-t` | **Backtest** strategies over a historical range. | `... -t 2025-12-01 --end 2026-01-01` |
+| `-i` | **Intraday** check for a specific trade (requires yfinance). | `... -i SYMBOL ENTRY STOP TARGET` |
+| `-d` | **Debug** run internal test routines. | `... -d` |
 
-    2.   Build new models. For each symbol:
+### Common Workflows
 
-        A. Load the data
+*   **Daily Update & Report:**
+    ```bash
+    docker exec bluehorseshoe python src/main.py -u
+    docker exec bluehorseshoe python src/main.py -p
+    ```
 
-        B. For each date:
+*   **Run Backtest:**
+    ```bash
+    docker exec bluehorseshoe python src/main.py -t 2025-06-01 --end 2025-12-31 --strategy baseline
+    ```
 
-            1. **Stability Score**
+## Project Structure
 
-                a. Get the standard deviation (amount that it strays from its average midpoint (open-close)  during that day) *(daterange)
+*   `src/bluehorseshoe/analysis/`: Strategy logic, indicators, backtesting, and weight optimization.
+*   `src/bluehorseshoe/core/`: Database connections, global state, and configuration.
+*   `src/bluehorseshoe/data/`: Market API integrations and historical data management.
+*   `src/bluehorseshoe/reporting/`: Generation of performance reports and trading candidates.
+*   `docker/`: Docker configuration and environment files.
 
-                b. Get a "stability score" by combining the size of the stdev and the ratio of midpoints that are within the stdev.
+## Developer Notes
 
-                c. (Maybe use other methods like ARIMA to determine stability)
-
-            2. **Prediction Score**
-
-                a. Rescaled Range Analysis. Get the Hurst exponent. Tells the general direction
-
-                b. Validate RRA. Compare the next day's midpoint to the value created by the current day added to the Hurst exponent.
-
-                c. Get the measurement of how close the next day's high and low are to the midpoint +-0.5%
-
-        C. Combine the stability score and prediction score (possibly with multipliers), and get the mean value for all of the dates tested. Store that in a global record to choose the best symbols.
-
-    3.   Create report
-
-        A. Load the "best symbols" list.
-
-        B. Find the top N entries, and load the recent data for them. For each of those entries:
-
-            1. Get the RRA prediction for the midpoint and find the +-0.5% values.
-
-            2. Get the "pain" and "profit" prices (where to drop out with a profit, possibly to exceed the 0.5%, and where to get out before losing too much money)
-
-            3. Write out the graph of recent data, along with the predicted buy, sell, pain, and profit values. *(pain threshold, profit threshold)
+*   **Testing:** Run tests using `docker exec bluehorseshoe pytest`.
+*   **Linting:** Run `docker exec bluehorseshoe ./lint.sh` to enforce code quality.
+*   **Logs:** Logs are written to `src/logs/`.
