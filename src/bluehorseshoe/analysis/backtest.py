@@ -8,6 +8,8 @@ past data and verifying results against subsequent price action.
 
 import logging
 import os
+import csv
+from pathlib import Path
 import concurrent.futures
 from functools import partial
 from dataclasses import dataclass
@@ -261,6 +263,7 @@ class Backtester:
         results = []
         score_key = "baseline_score" if options.strategy == "baseline" else "mr_score"
         setup_key = "baseline_setup" if options.strategy == "baseline" else "mr_setup"
+        ml_prob_key = "baseline_ml_prob" if options.strategy == "baseline" else "mr_ml_prob"
 
         for pred in top_predictions:
             # Flatten strategy-specific setup for evaluate_prediction
@@ -270,12 +273,13 @@ class Backtester:
             pred['take_profit'] = setup.get('take_profit')
 
             eval_result = self.evaluate_prediction(pred, target_date)
+
+            # Add prediction metadata to result for CSV logging
+            eval_result[score_key] = pred.get(score_key, 0.0)
+            eval_result[ml_prob_key] = pred.get(ml_prob_key, 0.0)
+
             results.append(eval_result)
 
-            score_key = "baseline_score" if options.strategy == "baseline" else "mr_score"
-            setup_key = "baseline_setup" if options.strategy == "baseline" else "mr_setup"
-            ml_prob_key = "baseline_ml_prob" if options.strategy == "baseline" else "mr_ml_prob"
-            
             score_val = pred.get(score_key, 0.0)
             ml_prob = pred.get(ml_prob_key, 0.0)
 
@@ -293,6 +297,59 @@ class Backtester:
             success_count = sum(1 for r in valid_results if r['status'] in ['success', 'closed_profit'])
             win_rate = (success_count / len(valid_results)) * 100
             ReportSingleton().write(f"Summary: {success_count}/{len(valid_results)} profitable ({win_rate:.2f}%) | Avg PnL: {avg_pnl:.2f}%")
+
+    def _log_results_to_csv(self, results: List[Dict], target_date: str, options: BacktestOptions) -> None:
+        """Log backtest results to CSV file for analysis."""
+        log_path = Path('src/logs/backtest_log.csv')
+        file_exists = log_path.exists()
+
+        # Ensure logs directory exists
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+
+        score_key = "baseline_score" if options.strategy == "baseline" else "mr_score"
+        ml_prob_key = "baseline_ml_prob" if options.strategy == "baseline" else "mr_ml_prob"
+
+        with open(log_path, 'a', newline='', encoding='utf-8') as csvfile:
+            fieldnames = [
+                'date', 'symbol', 'strategy', 'score', 'ml_prob',
+                'entry', 'stop_loss', 'take_profit', 'exit_price',
+                'exit_date', 'days_held', 'status', 'outcome', 'profit_loss'
+            ]
+            writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+
+            if not file_exists:
+                writer.writeheader()
+
+            for result in results:
+                # Calculate outcome and P&L
+                if result.get('entry') and result.get('exit_price'):
+                    pnl = ((result['exit_price'] / result['entry']) - 1) * 100
+                    if result['status'] in ['success', 'closed_profit']:
+                        outcome = 'WIN'
+                    elif result['status'] in ['stopped_out', 'closed_loss']:
+                        outcome = 'LOSS'
+                    else:
+                        outcome = 'TIMEOUT'
+                else:
+                    pnl = 0.0
+                    outcome = 'NO_ENTRY'
+
+                writer.writerow({
+                    'date': target_date,
+                    'symbol': result.get('symbol', ''),
+                    'strategy': options.strategy,
+                    'score': result.get(score_key, 0.0),
+                    'ml_prob': result.get(ml_prob_key, 0.0),
+                    'entry': result.get('entry', ''),
+                    'stop_loss': result.get('stop_loss', ''),
+                    'take_profit': result.get('take_profit', ''),
+                    'exit_price': result.get('exit_price', ''),
+                    'exit_date': result.get('exit_date', ''),
+                    'days_held': result.get('days_held', 0),
+                    'status': result.get('status', ''),
+                    'outcome': outcome,
+                    'profit_loss': round(pnl, 2)
+                })
 
     def run_backtest(self, target_date: str, options: BacktestOptions = None):
         """Runs a backtest for a specific historical date and returns results."""
@@ -316,6 +373,9 @@ class Backtester:
         results = self._evaluate_candidates(top_predictions, target_date, options)
 
         self._print_summary(results)
+
+        # Log results to CSV for analysis
+        self._log_results_to_csv(results, target_date, options)
 
         return results
 
