@@ -5,6 +5,9 @@ Phase 3A: Isolated Indicator Testing
 Tests each of the 8 Phase 3 indicators in isolation at multiple weight levels
 to determine standalone performance and optimal weights.
 
+Uses random sample of 1,000 symbols per backtest for statistical significance
+while maintaining reasonable execution time.
+
 Usage:
     python src/run_phase3_testing.py --indicator RS --weight 1.0 --runs 20
     python src/run_phase3_testing.py --indicator all --runs 20
@@ -18,6 +21,7 @@ import subprocess
 import random
 from datetime import datetime, timedelta
 from pathlib import Path
+from pymongo import MongoClient
 
 # Phase 3 indicator configurations
 PHASE3_INDICATORS = {
@@ -136,6 +140,27 @@ def create_test_config(indicator_code, weight):
     return config
 
 
+def get_random_symbols(sample_size=1000):
+    """Get random sample of symbols from MongoDB."""
+    # Use the container's internal MongoDB connection
+    mongo_uri = os.getenv('MONGO_URI', 'mongodb://mongo:27017')
+    mongo_db = os.getenv('MONGO_DB', 'bluehorseshoe')
+
+    client = MongoClient(mongo_uri)
+    db = client[mongo_db]
+
+    # Get all symbols from the symbols collection
+    all_symbols = list(db.symbols.find({}, {'symbol': 1, '_id': 0}))
+    symbol_list = [s['symbol'] for s in all_symbols]
+
+    client.close()
+
+    # Return random sample
+    if len(symbol_list) <= sample_size:
+        return symbol_list
+    return random.sample(symbol_list, sample_size)
+
+
 def generate_random_dates(start_date, end_date, num_dates):
     """Generate random dates between start and end."""
     start = datetime.strptime(start_date, '%Y-%m-%d')
@@ -150,33 +175,34 @@ def generate_random_dates(start_date, end_date, num_dates):
     return dates
 
 
-def run_backtest(date):
-    """Run a single backtest for the given date."""
-    cmd = ['docker', 'exec', 'bluehorseshoe', 'python', 'src/main.py', '-t', date]
+def run_backtest(date, symbols):
+    """Run a single backtest for the given date with specified symbols."""
+    symbols_str = ','.join(symbols)
+    cmd = ['python', 'src/main.py', '-t', date, '--symbols', symbols_str]
 
     try:
-        # Increased timeout for full backtests (30 minutes for 10K+ symbols)
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=1800)
+        # 30 minutes timeout - backtests can take longer with symbol filtering
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=1800, cwd='/workspaces/BlueHorseshoe')
         return result.returncode == 0
     except subprocess.TimeoutExpired:
         print(f"    ⚠️  Backtest timeout for {date}")
         return False
 
 
-def test_indicator(indicator_code, weight, num_runs, start_date, end_date):
+def test_indicator(indicator_code, weight, num_runs, start_date, end_date, sample_size=1000):
     """Test a single indicator at a specific weight."""
     indicator_info = PHASE3_INDICATORS[indicator_code]
     indicator_name = indicator_info['name']
 
     print(f"\n{'='*80}")
     print(f"Testing: {indicator_name} at {weight}x weight")
-    print(f"Runs: {num_runs}")
+    print(f"Runs: {num_runs} | Sample size: {sample_size} symbols")
     print(f"{'='*80}")
 
     # Create and save test config
     config = create_test_config(indicator_code, weight)
-    config_path = Path('/root/BlueHorseshoe/src/weights.json')
-    backup_path = Path('/root/BlueHorseshoe/src/weights.json.phase3_backup')
+    config_path = Path('/workspaces/BlueHorseshoe/src/weights.json')
+    backup_path = Path('/workspaces/BlueHorseshoe/src/weights.json.phase3_backup')
 
     # Backup current config
     if config_path.exists():
@@ -192,12 +218,17 @@ def test_indicator(indicator_code, weight, num_runs, start_date, end_date):
     # Generate random test dates
     test_dates = generate_random_dates(start_date, end_date, num_runs)
 
+    # Get random symbol sample (same symbols for all runs to ensure consistency)
+    print(f"Selecting {sample_size} random symbols...", end=' ', flush=True)
+    test_symbols = get_random_symbols(sample_size)
+    print(f"✓ ({len(test_symbols)} symbols)")
+
     # Run backtests
     successful_runs = 0
     for i, date in enumerate(test_dates, 1):
         print(f"  Run {i}/{num_runs}: {date}...", end=' ', flush=True)
 
-        if run_backtest(date):
+        if run_backtest(date, test_symbols):
             print("✅")
             successful_runs += 1
         else:
@@ -225,6 +256,8 @@ def main():
                        help='Weight to test (omit to test all weights for indicator)')
     parser.add_argument('--runs', type=int, default=20,
                        help='Number of backtest runs per configuration (default: 20)')
+    parser.add_argument('--sample-size', type=int, default=1000,
+                       help='Number of random symbols to test per backtest (default: 1000)')
     parser.add_argument('--start-date', type=str, default='2024-01-01',
                        help='Start date for random backtest dates (default: 2024-01-01)')
     parser.add_argument('--end-date', type=str, default='2026-01-27',
@@ -247,6 +280,7 @@ def main():
     print(f"#")
     print(f"# Indicators: {len(indicators_to_test)}")
     print(f"# Runs per config: {args.runs}")
+    print(f"# Sample size: {args.sample_size} symbols per backtest")
     print(f"# Date range: {args.start_date} to {args.end_date}")
     print(f"{'#'*80}\n")
 
@@ -266,7 +300,8 @@ def main():
                 weight,
                 args.runs,
                 args.start_date,
-                args.end_date
+                args.end_date,
+                sample_size=args.sample_size
             )
 
             total_tests += args.runs

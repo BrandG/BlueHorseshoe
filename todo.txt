@@ -13,12 +13,103 @@
 - [x] **Formalize Mean Reversion:** Update `TechnicalAnalyzer` to explicitly reward oversold conditions (RSI < 30, Price < Lower BB).
 - [x] **Optimize Entry Timing:** COMPLETED. Implemented ATR-based limit entry (`Close - 0.2 * ATR`). Experiment showed ~4x PnL improvement over Market entry.
 - [x] **Comparative Backtest:** Run strict comparison: Baseline (Trend) vs. Mean Reversion over 6-month window.
-- [ ] **Indicator Expansion:**
+- [x] **Dynamic Entry Strategy:** Implemented signal strength-based ATR discounts (0.05x-0.50x) for adaptive entry timing.
+- [x] **Indicator Expansion:**
     - [x] Williams %R
     - [x] Money Flow Index (MFI)
     - [x] Commodity Channel Index (CCI)
     - [x] Donchian Channels
     - [x] SuperTrend
+    - [x] Phase 3 Indicators: RS (Relative Strength), GAP Analysis, VWAP, TTM Squeeze, Aroon, Keltner, Force Index, A/D Line
+
+### Phase 3A: Priority Indicator Testing (In Progress)
+- [ ] **Run Phase 3A Testing:** Test RS, GAP, VWAP in isolation (240 backtests, ~40-50 hours) - Started Feb 3, 2026
+- [ ] **Analyze Phase 3A Results:** Calculate Sharpe ratios, identify winners vs Phase 2 baseline (0.310)
+- [ ] **Commit Phase 3A Infrastructure:** Add testing scripts and analysis tools to git
+- [ ] **Daily Signal Monitoring:** Run `check_daily_performance.sh` to track dynamic entry strategy performance
+
+### Phase 3B: Combination Testing (After 3A)
+- [ ] **Test Remaining Indicators:** Run isolated tests for TTM, Aroon, Keltner, Force Index, A/D Line (if 3A shows promise)
+- [ ] **Multi-Indicator Combinations:** Test winning indicators in combination (e.g., RS + VWAP)
+- [ ] **Deploy Optimal Configuration:** Update production weights with winning indicator combination
+
+### Phase 3C: Moving Average Crossover Strategy
+- [ ] **Implement 10/20 SMA Crossover:** Add short-term moving average crossover indicator for trend detection
+- [ ] **Crossover Timing Logic:** Reward recent crossovers (last 1-5 days) vs stale signals
+- [ ] **Test SMA Crossover:** Run isolated Phase 3 testing (4 weights × 20 runs) to validate performance
+- [ ] **Refine MACD Crossover Detection:** Improve existing MACD to detect FRESH crossovers (last 1-3 days) vs current state (Phase 1: Sharpe -1.534, failed)
+- [ ] **MACD + Volume Confirmation:** Require RVOL >1.5x on crossover day to filter weak signals
+- [ ] **Retest MACD Crossover:** Run Phase 3 isolated testing with timing-based approach
+- [ ] **Integration:** Add to production if refined approach significantly improves over Phase 1 baseline
+
+### Phase 3D: Enhanced Candlestick Pattern Recognition
+- [ ] **Implement Pin Bar Detection:** Recognize Hammer (bullish reversal at support) and Shooting Star (bearish reversal at resistance)
+- [ ] **Pin Bar Validation:** Require small body (<1/3 of range), long wick (>2x body), and contextual placement (support/resistance levels)
+- [ ] **Implement Engulfing Patterns:** Detect Bullish Engulfing (reversal from downtrend) and Bearish Engulfing (reversal from uptrend)
+- [ ] **Volume Confirmation:** Enhance pattern reliability with volume spike validation (>1.5x avg volume)
+- [ ] **Test Candlestick Patterns:** Run isolated Phase 3 testing for Pin Bar and Engulfing patterns
+- [ ] **Mean Reversion Integration:** Add patterns to mean reversion strategy scoring (complement existing RSI/BB signals)
+
+### Phase 3E: Relative Volume (RVOL) Breakout Filter
+- [ ] **Implement RVOL Calculation:** Calculate current volume vs 20-day average volume ratio
+- [ ] **RVOL Scoring:** Reward high relative volume (>1.5x = +5, >2.0x = +10, >3.0x = +15)
+- [ ] **Breakout Validation:** Integrate RVOL with Donchian/SuperTrend breakout signals (require RVOL >1.5x for breakouts)
+- [ ] **Volume Surge Detection:** Flag unusual volume spikes (>3x average) as potential catalyst-driven moves
+- [ ] **Test RVOL Indicator:** Run isolated Phase 3 testing to quantify impact on Sharpe ratio
+- [ ] **Filter Integration:** Add as requirement for baseline strategy: only trade signals with RVOL >1.5x (reduce false breakouts)
+
+### Phase 3F: Advanced Technical Indicators (High Priority)
+- [ ] **Divergence Detection System:**
+    - Implement RSI divergence: Price makes new high/low but RSI doesn't (reversal signal)
+    - Implement MACD histogram divergence: Weakening momentum detection
+    - Implement OBV divergence: Volume not confirming price move
+    - Score: +10 for bullish divergence (mean reversion entry), -5 for bearish divergence (exit warning)
+- [ ] **Fibonacci Retracement Levels:**
+    - Calculate key retracement levels (23.6%, 38.2%, 50%, 61.8%, 78.6%) from recent swing high/low
+    - Score bonus (+8-12) if price within 1% of key fib level (institutional support/resistance)
+    - Higher scores for 50% and 61.8% (golden ratio - most watched levels)
+- [ ] **Sector Relative Strength:**
+    - Map stocks to sector ETFs (XLF, XLK, XLE, XLV, etc.)
+    - Calculate: Stock_RS = (Stock % change) / (Sector ETF % change) over 20 days
+    - Score bonus if stock outperforms sector by >5% AND sector outperforms SPY (leadership in strong sector)
+- [ ] **Daily Pivot Points:**
+    - Calculate Classic Pivots: PP = (H + L + C) / 3, R1/R2, S1/S2
+    - Score bonus if price bouncing off S1/S2 (support hold) or breaking above R1/R2 (resistance break)
+    - Used by day traders - creates natural support/resistance zones
+- [ ] **Weekly Trend Confirmation (Multi-Timeframe):**
+    - Calculate weekly 20/50 EMA on weekly timeframe
+    - Require weekly trend alignment: Reduce daily signal score by 50% if weekly trend is opposite
+    - Prevents fighting major trend with daily countertrend trades
+- [ ] **Test Phase 3F Indicators:** Run isolated testing for each indicator to validate Sharpe improvement
+
+### Phase 3G: Advanced Filters & Regime Detection (Medium Priority)
+- [ ] **ATR Percentile (Volatility Regime Filter):**
+    - Calculate current ATR vs 200-day ATR range: ATR_Percentile = (Current - Min) / (Max - Min)
+    - Filter out low-vol stocks (<20th percentile - dead/tight ranges)
+    - Prefer 50-80th percentile (normal tradeable volatility)
+    - Caution on >80th percentile (high vol - bigger moves but riskier)
+- [ ] **Earnings Date Proximity Filter:**
+    - Fetch next earnings date for each symbol
+    - Strategy A (Conservative): Reduce score by 50% if earnings within 3 days (uncertainty)
+    - Strategy B (Aggressive): Target stocks 1-3 days before earnings for volatility plays
+    - Implement as configurable filter based on risk appetite
+- [ ] **Short Interest Integration:**
+    - Fetch short interest % of float from data provider
+    - For long trades: Bonus score if SI% 15-25% (squeeze potential)
+    - For Phase 6 shorts: Avoid if SI% >20% (squeeze risk)
+    - Flag extreme SI% >30% for special squeeze-play strategy
+- [ ] **Test Phase 3G Filters:** Validate impact on win rate and risk-adjusted returns
+
+### Phase 3H: Advanced Volume & Alternative Indicators (Future Research)
+- [ ] **Schaff Trend Cycle (STC):**
+    - Implement STC as enhanced MACD alternative (combines MACD + Stochastic smoothing)
+    - Test vs failed MACD from Phase 1 (Sharpe -1.534) - STC may filter noise better
+    - Run isolated Phase 3 testing if MACD crossover refinement also fails
+- [ ] **Volume Profile / VPOC (Volume Point of Control):**
+    - Calculate price level with highest volume over lookback period (institutional support)
+    - Score bonus if price near VPOC (high liquidity zone for entry/exit)
+    - More complex implementation - requires volume-at-price data aggregation
+    - Consider as Phase 4+ enhancement after core indicators validated
 
 ## Phase 4: SaaS Transformation & Automation
 - [x] **Web Interface:** Migrate from CLI-only to FastAPI/Uvicorn architecture.
@@ -37,9 +128,30 @@
 - [ ] **Verify Backfill Completion:** Monitor the background process initiated on Jan 20 to ensure all 10,000+ symbols are restored.
 - [ ] **Feature Engineering:** Re-run feature generation after backfill completes.
 
+## Phase 6: Short Selling Strategy (Future)
+- [ ] **Market Regime Detection:** Enhance regime logic to identify bear markets and high-volatility environments optimal for shorts
+- [ ] **Inverse Indicator Scoring:** Create short-specific scoring system (reward bearish signals: death cross, RSI >70, breakdown below support)
+- [ ] **Breakdown Trading Strategy:**
+    - Short stocks breaking below key support (200 SMA, Donchian lower band, prior lows)
+    - Require bearish confirmation: falling moving averages, negative MACD, distribution volume
+    - Entry: Below support with RVOL >1.5x (panic selling/institutional exit)
+- [ ] **Backside/Dead Cat Bounce Strategy:**
+    - Identify parabolic runs: RSI >80, price >3 std dev from mean, vertical price action
+    - Detect exhaustion: bearish divergence (RSI lower high, price higher high), volume climax
+    - Short lower highs: after initial crash, wait for weak bounce to resistance, short at lower high
+    - Stop loss: Above previous swing high
+- [ ] **Short-Specific Risk Management:**
+    - Tighter stops (shorts have unlimited loss potential): 5-7% max loss vs 10% for longs
+    - Position sizing: Reduce size by 30-50% vs long positions (higher risk)
+    - Borrow rate filter: Skip hard-to-borrow stocks with >5% annual borrow rate
+- [ ] **Backtest Short Strategies:** Test breakdown and dead cat bounce signals over historical data
+- [ ] **Short Squeeze Detection:** Implement filters to avoid high-short-interest squeeze candidates
+- [ ] **Bear Market Backtesting:** Validate performance during 2022 bear market, COVID crash, etc.
+
 ## Future Roadmap
 - [ ] **Portfolio Allocation:** Implement Kelly Criterion / Volatility Sizing.
 - [ ] **ML Overlay v2.0:** Retrain models with deep history once backfill is complete.
+- [ ] **Long/Short Portfolio:** After Phase 6, combine long and short signals for market-neutral strategy
 
 ## Completed Tasks
 - [x] **UI Polish:** Refactored "Top 5" lists to use vertical Grid layout for better alignment.
