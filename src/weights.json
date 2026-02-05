@@ -27,7 +27,7 @@
     "ATR_BAND_MULTIPLIER": 0.0,
     "ATR_SPIKE_MULTIPLIER": 0.0,
     "MFI_MULTIPLIER": 0.0,
-    "VWAP_MULTIPLIER": 0.0,
+    "VWAP_MULTIPLIER": 2.0,
     "FORCE_INDEX_MULTIPLIER": 0.0,
     "AD_LINE_MULTIPLIER": 0.0
   },
@@ -44,6 +44,6 @@
     "CANDLESTICK_MULTIPLIER": 0.0
   },
   "price_action": {
-    "GAP_MULTIPLIER": 0.0
+    "GAP_MULTIPLIER": 1.5
   }
 }
