@@ -22,6 +22,7 @@ services:
       context: ..
       dockerfile: docker/Dockerfile.bluehorseshoe
     container_name: bluehorseshoe
+    restart: unless-stopped
     ports:
       - "8001:80"
     environment:
@@ -50,6 +51,7 @@ services:
       context: ..
       dockerfile: docker/Dockerfile.bluehorseshoe
     container_name: bluehorseshoe_worker
+    restart: unless-stopped
     command: celery -A bluehorseshoe.api.celery_app worker --loglevel=info
     environment:
       MONGO_URI: "mongodb://mongo:27017"
@@ -77,6 +79,7 @@ services:
       context: ..
       dockerfile: docker/Dockerfile.bluehorseshoe
     container_name: bluehorseshoe_beat
+    restart: unless-stopped
     command: celery -A bluehorseshoe.api.celery_app beat --loglevel=info
     environment:
       MONGO_URI: "mongodb://mongo:27017"
