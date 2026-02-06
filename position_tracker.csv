@@ -1,0 +1,22 @@
+Account Size,2000,Risk Per Trade %,1.0,Max Positions,5,Max Total Risk %,5.0
+Date,Symbol,Entry,Stop,Target,Risk/Share,Shares,Position Cost,Risk $,Risk %,Target Gain $,Target Gain %,R/R Ratio,Status,Exit Price,Actual P/L,Actual %,Notes
+2026-02-05,Example,75.34,70.43,80.45,4.91,4,301.36,19.64,0.98,20.44,1.02,1.04,OPEN,,,,ML Win% 60.7%
+,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,
+
+INSTRUCTIONS:
+1. Update Account Size in cell B1 as you add capital
+2. Set your Risk Per Trade % in cell D1 (recommend 0.5-1.0%)
+3. For each new trade fill in: Date Symbol Entry Stop Target
+4. Formula for Shares = (Account Size × Risk%) / (Entry - Stop) rounded down
+5. Track Status: OPEN CLOSED WIN LOSS
+6. Update Exit Price and Actual P/L when closed
+7. Keep total Risk $ across open positions under Max Total Risk %
+
+QUICK REFERENCE:
+- $2000 account × 1% risk = $20 max risk per trade
+- With 5 positions max at 1% each = 5% total risk max
+- Position sizes will be $300-500 typically
+- Never exceed 5% total portfolio risk with all open positions combined

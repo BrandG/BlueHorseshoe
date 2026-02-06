@@ -123,6 +123,57 @@ class HTMLReporter:
             summary { cursor: pointer; outline: none; list-style: none; }
             summary::-webkit-details-marker { display: none; }
             .sparkline-container { text-align: center; padding: 10px; background: var(--bg-color); margin-top: 5px; border-radius: 4px; }
+
+            /* Share Calculator Styles */
+            .calculator-widget {
+                background: var(--container-bg);
+                padding: 10px 0;
+            }
+            .calc-inputs {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 15px;
+                margin-bottom: 15px;
+            }
+            .calc-input-group {
+                display: flex;
+                flex-direction: column;
+            }
+            .calc-input-group label {
+                font-weight: bold;
+                margin-bottom: 5px;
+                color: var(--text-color);
+            }
+            .calc-input-group input {
+                padding: 10px;
+                border: 1px solid var(--border-color);
+                border-radius: 4px;
+                font-size: 1em;
+                background: var(--bg-color);
+                color: var(--text-color);
+            }
+            .calc-result {
+                background: var(--bg-color);
+                padding: 15px;
+                border-radius: 4px;
+                margin-top: 15px;
+            }
+            .calc-result-row {
+                display: flex;
+                justify-content: space-between;
+                padding: 8px 0;
+                border-bottom: 1px solid var(--border-color);
+            }
+            .calc-result-row:last-child {
+                border-bottom: none;
+            }
+            .calc-result-label {
+                color: var(--secondary-text);
+            }
+            .calc-result-value {
+                font-weight: bold;
+                color: var(--heading-color);
+            }
         </style>
         <script>
             function toggleTheme() {
@@ -132,7 +183,7 @@ class HTMLReporter:
                 body.setAttribute('data-theme', newTheme);
                 localStorage.setItem('theme', newTheme);
             }
-            
+
             // Apply saved theme on load
             window.onload = function() {
                 const savedTheme = localStorage.getItem('theme');
@@ -140,6 +191,57 @@ class HTMLReporter:
                     document.body.setAttribute('data-theme', savedTheme);
                 }
             }
+
+            // Share Calculator
+            function calculateShares() {
+                const amount = parseFloat(document.getElementById('calc-amount').value);
+                const price = parseFloat(document.getElementById('calc-price').value);
+
+                if (isNaN(amount) || isNaN(price) || price <= 0) {
+                    document.getElementById('calc-result').innerHTML = '<div class="calc-result-row"><span style="color: var(--badge-bear);">Please enter valid amounts</span></div>';
+                    return;
+                }
+
+                const fractionalShares = amount / price;
+                const wholeShares = Math.floor(fractionalShares);
+                const costWhole = wholeShares * price;
+                const costFractional = fractionalShares * price;
+                const leftover = amount - costWhole;
+
+                document.getElementById('calc-result').innerHTML = `
+                    <div class="calc-result-row">
+                        <span class="calc-result-label">Fractional Shares:</span>
+                        <span class="calc-result-value">${fractionalShares.toFixed(3)} shares</span>
+                    </div>
+                    <div class="calc-result-row">
+                        <span class="calc-result-label">Whole Shares:</span>
+                        <span class="calc-result-value">${wholeShares} shares</span>
+                    </div>
+                    <div class="calc-result-row">
+                        <span class="calc-result-label">Cost (Fractional):</span>
+                        <span class="calc-result-value">$${costFractional.toFixed(2)}</span>
+                    </div>
+                    <div class="calc-result-row">
+                        <span class="calc-result-label">Cost (Whole):</span>
+                        <span class="calc-result-value">$${costWhole.toFixed(2)}</span>
+                    </div>
+                    <div class="calc-result-row">
+                        <span class="calc-result-label">Leftover (Whole):</span>
+                        <span class="calc-result-value">$${leftover.toFixed(2)}</span>
+                    </div>
+                `;
+            }
+
+            // Auto-calculate on input
+            document.addEventListener('DOMContentLoaded', function() {
+                const amountInput = document.getElementById('calc-amount');
+                const priceInput = document.getElementById('calc-price');
+
+                if (amountInput && priceInput) {
+                    amountInput.addEventListener('input', calculateShares);
+                    priceInput.addEventListener('input', calculateShares);
+                }
+            });
         </script>
         """
 
@@ -264,6 +366,27 @@ class HTMLReporter:
             f"<td>{regime.get('spy_ma200', 'N/A')}</td></tr>",
             "</table>",
             f"<p><strong>Commentary:</strong> {regime.get('commentary', 'No commentary available.')}</p>",
+            "</details>",
+
+            # Share Calculator Widget (Collapsible)
+            "<details>",
+            "<summary style='cursor:pointer; font-size: 1.5em; font-weight: bold; color: var(--heading-color); padding-bottom: 10px;'>💰 Quick Share Calculator</summary>",
+            "<hr style='border: 0; border-bottom: 2px solid var(--border-color); margin: 0 0 20px 0;'>",
+            "<div class='calculator-widget'>",
+            "<div class='calc-inputs'>",
+            "<div class='calc-input-group'>",
+            "<label for='calc-amount'>Investment Amount ($)</label>",
+            "<input type='number' id='calc-amount' placeholder='200' step='0.01' min='0'>",
+            "</div>",
+            "<div class='calc-input-group'>",
+            "<label for='calc-price'>Entry Price ($)</label>",
+            "<input type='number' id='calc-price' placeholder='75.34' step='0.01' min='0.01'>",
+            "</div>",
+            "</div>",
+            "<div id='calc-result' class='calc-result'>",
+            "<div class='calc-result-row'><span class='calc-result-label'>Enter amounts above to calculate shares</span></div>",
+            "</div>",
+            "</div>",
             "</details>",
 
             # Top 5 Lists (Side-by-Side)
