@@ -72,6 +72,36 @@ PHASE3_INDICATORS = {
         'multiplier': 'AD_LINE_MULTIPLIER',
         'name': 'A/D Line',
         'weights': [0.5, 1.0, 1.5, 2.0]
+    },
+    'MACD': {
+        'category': 'momentum',
+        'multiplier': 'MACD_MULTIPLIER',
+        'name': 'MACD',
+        'weights': [0.5, 1.0, 1.5, 2.0]
+    },
+    'MACD_SIGNAL': {
+        'category': 'momentum',
+        'multiplier': 'MACD_SIGNAL_MULTIPLIER',
+        'name': 'MACD Signal',
+        'weights': [0.5, 1.0, 1.5, 2.0]
+    },
+    'RISE_FALL': {
+        'category': 'candlestick',
+        'multiplier': 'RISE_FALL_3_METHODS_MULTIPLIER',
+        'name': 'Rise/Fall Three Methods',
+        'weights': [0.5, 1.0, 1.5, 2.0]
+    },
+    'THREE_SOLDIERS': {
+        'category': 'candlestick',
+        'multiplier': 'THREE_WHITE_SOLDIERS_MULTIPLIER',
+        'name': 'Three White Soldiers',
+        'weights': [0.5, 1.0, 1.5, 2.0]
+    },
+    'BELT_HOLD': {
+        'category': 'candlestick',
+        'multiplier': 'BELT_HOLD_MULTIPLIER',
+        'name': 'Belt Hold',
+        'weights': [0.5, 1.0, 1.5, 2.0]
     }
 }
 

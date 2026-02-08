@@ -1,0 +1,2 @@
+indicator_group,sharpe_ratio,win_rate,total_pnl,total_trades,avg_win,avg_loss,profit_factor,beats_baseline,estimated_completion
+MACD+MACD_SIGNAL,-0.7946666198903296,0.4658151765589782,-202.79999999999995,1331,2.072,-2.092039381153305,0.86365836605174,False,107.99624496922091

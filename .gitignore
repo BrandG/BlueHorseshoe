@@ -20,3 +20,6 @@ docker/.env
 src/logs/*.log
 src/logs/*.html
 src/logs/*.txt
+src/logs/backtest_log.csv
+src/logs/backtest_log_fixed.csv
+celerybeat-schedule
