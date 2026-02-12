@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>BlueHorseshoe Report - 2026-02-10</title>
+
+        <style>
+            :root {
+                --bg-color: #f4f4f9;
+                --container-bg: #fff;
+                --text-color: #333;
+                --heading-color: #2c3e50;
+                --border-color: #eee;
+                --table-header-bg: #34495e;
+                --table-header-text: #fff;
+                --table-row-hover: #f5f5f5;
+                --table-border: #ddd;
+                --card-shadow: rgba(0,0,0,0.1);
+                --badge-bull: #27ae60;
+                --badge-bear: #c0392b;
+                --badge-neutral: #f39c12;
+                --link-color: #2c3e50;
+                --link-hover: #3498db;
+                --secondary-text: #777;
+            }
+            [data-theme="dark"] {
+                --bg-color: #1a1a1a;
+                --container-bg: #2d2d2d;
+                --text-color: #e0e0e0;
+                --heading-color: #ecf0f1;
+                --border-color: #444;
+                --table-header-bg: #2c3e50;
+                --table-header-text: #ecf0f1;
+                --table-row-hover: #3d3d3d;
+                --table-border: #444;
+                --card-shadow: rgba(0,0,0,0.5);
+                --badge-bull: #2ecc71;
+                --badge-bear: #e74c3c;
+                --badge-neutral: #f1c40f;
+                --link-color: #bdc3c7;
+                --link-hover: #3498db;
+                --secondary-text: #aaa;
+            }
+
+            body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: var(--bg-color); color: var(--text-color); margin: 0; padding: 20px; transition: background-color 0.3s, color 0.3s; }
+            .container { max-width: 1200px; margin: 0 auto; background: var(--container-bg); padding: 20px; box-shadow: 0 0 10px var(--card-shadow); border-radius: 8px; transition: background-color 0.3s; }
+            h1, h2, h3 { color: var(--heading-color); border-bottom: 2px solid var(--border-color); padding-bottom: 10px; }
+            table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+            th, td { padding: 12px; text-align: left; border-bottom: 1px solid var(--table-border); }
+            th { background-color: var(--table-header-bg); color: var(--table-header-text); }
+            tr:hover { background-color: var(--table-row-hover); }
+            .badge { padding: 5px 10px; border-radius: 4px; color: #fff; font-weight: bold; font-size: 0.9em; }
+            .badge-bull { background-color: var(--badge-bull); }
+            .badge-bear { background-color: var(--badge-bear); }
+            .badge-neutral { background-color: var(--badge-neutral); }
+            .score-high { color: var(--badge-bull); font-weight: bold; }
+            .score-med { color: var(--badge-neutral); font-weight: bold; }
+            .score-low { color: var(--badge-bear); font-weight: bold; }
+            .footer { margin-top: 40px; font-size: 0.8em; color: var(--secondary-text); text-align: center; }
+            .chart-container { display: flex; flex-wrap: wrap; gap: 20px; justify-content: center; }
+            .chart-box { border: 1px solid var(--border-color); padding: 10px; border-radius: 4px; background: var(--container-bg); }
+            img { max-width: 100%; height: auto; }
+            .top-lists-wrapper { display: flex; gap: 20px; margin: 20px 0; }
+            .top-list { flex: 1; background: var(--container-bg); border: 1px solid var(--border-color); border-radius: 8px; padding: 15px; box-shadow: 0 2px 4px var(--card-shadow); }
+            .top-list h3 { border-bottom: 2px solid var(--border-color); margin-top: 0; padding-bottom: 10px; color: var(--heading-color); font-size: 1.2em; }
+            
+            .top-list-row { 
+                display: grid; 
+                grid-template-columns: 120px 80px 100px 1fr; 
+                align-items: center; 
+                padding: 10px 0; 
+                border-bottom: 1px solid var(--border-color);
+                width: 100%;
+                font-family: 'Consolas', 'Monaco', monospace;
+                font-size: 0.95em;
+            }
+            .top-list-row:hover { background-color: var(--table-row-hover); }
+            .top-list-row:last-child { border-bottom: none; }
+            
+            .top-list-header-grid { 
+                display: grid; 
+                grid-template-columns: 120px 80px 100px 1fr; 
+                font-weight: bold; 
+                color: var(--secondary-text); 
+                font-size: 0.8em; 
+                text-transform: uppercase; 
+                border-bottom: 2px solid var(--border-color); 
+                padding-bottom: 8px; 
+                margin-bottom: 5px; 
+            }
+            
+            .symbol-link { text-decoration: none; color: var(--link-color); transition: color 0.2s; }
+            .symbol-link:hover { color: var(--link-hover); text-decoration: underline; }
+            
+            /* Toggle Button */
+            .theme-toggle { position: fixed; top: 20px; right: 20px; padding: 10px 15px; background: var(--table-header-bg); color: var(--table-header-text); border: none; border-radius: 5px; cursor: pointer; font-weight: bold; box-shadow: 0 2px 5px rgba(0,0,0,0.2); z-index: 1000; }
+            .theme-toggle:hover { opacity: 0.9; }
+
+            /* Collapsible Styles */
+            details { width: 100%; }
+            summary { cursor: pointer; outline: none; list-style: none; }
+            summary::-webkit-details-marker { display: none; }
+            .sparkline-container { text-align: center; padding: 10px; background: var(--bg-color); margin-top: 5px; border-radius: 4px; }
+
+            /* Share Calculator Styles */
+            .calculator-widget {
+                background: var(--container-bg);
+                padding: 10px 0;
+            }
+            .calc-inputs {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 15px;
+                margin-bottom: 15px;
+            }
+            .calc-input-group {
+                display: flex;
+                flex-direction: column;
+            }
+            .calc-input-group label {
+                font-weight: bold;
+                margin-bottom: 5px;
+                color: var(--text-color);
+            }
+            .calc-input-group input {
+                padding: 10px;
+                border: 1px solid var(--border-color);
+                border-radius: 4px;
+                font-size: 1em;
+                background: var(--bg-color);
+                color: var(--text-color);
+            }
+            .calc-result {
+                background: var(--bg-color);
+                padding: 15px;
+                border-radius: 4px;
+                margin-top: 15px;
+            }
+            .calc-result-row {
+                display: flex;
+                justify-content: space-between;
+                padding: 8px 0;
+                border-bottom: 1px solid var(--border-color);
+            }
+            .calc-result-row:last-child {
+                border-bottom: none;
+            }
+            .calc-result-label {
+                color: var(--secondary-text);
+            }
+            .calc-result-value {
+                font-weight: bold;
+                color: var(--heading-color);
+            }
+        </style>
+        <script>
+            function toggleTheme() {
+                const body = document.body;
+                const currentTheme = body.getAttribute('data-theme');
+                const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+                body.setAttribute('data-theme', newTheme);
+                localStorage.setItem('theme', newTheme);
+            }
+
+            // Apply saved theme on load
+            window.onload = function() {
+                const savedTheme = localStorage.getItem('theme');
+                if (savedTheme) {
+                    document.body.setAttribute('data-theme', savedTheme);
+                }
+            }
+
+            // Share Calculator
+            function calculateShares() {
+                const amount = parseFloat(document.getElementById('calc-amount').value);
+                const price = parseFloat(document.getElementById('calc-price').value);
+
+                if (isNaN(amount) || isNaN(price) || price <= 0) {
+                    document.getElementById('calc-result').innerHTML = '<div class="calc-result-row"><span style="color: var(--badge-bear);">Please enter valid amounts</span></div>';
+                    return;
+                }
+
+                const fractionalShares = amount / price;
+                const wholeShares = Math.floor(fractionalShares);
+                const costWhole = wholeShares * price;
+                const costFractional = fractionalShares * price;
+                const leftover = amount - costWhole;
+
+                document.getElementById('calc-result').innerHTML = `
+                    <div class="calc-result-row">
+                        <span class="calc-result-label">Fractional Shares:</span>
+                        <span class="calc-result-value">${fractionalShares.toFixed(3)} shares</span>
+                    </div>
+                    <div class="calc-result-row">
+                        <span class="calc-result-label">Whole Shares:</span>
+                        <span class="calc-result-value">${wholeShares} shares</span>
+                    </div>
+                    <div class="calc-result-row">
+                        <span class="calc-result-label">Cost (Fractional):</span>
+                        <span class="calc-result-value">$${costFractional.toFixed(2)}</span>
+                    </div>
+                    <div class="calc-result-row">
+                        <span class="calc-result-label">Cost (Whole):</span>
+                        <span class="calc-result-value">$${costWhole.toFixed(2)}</span>
+                    </div>
+                    <div class="calc-result-row">
+                        <span class="calc-result-label">Leftover (Whole):</span>
+                        <span class="calc-result-value">$${leftover.toFixed(2)}</span>
+                    </div>
+                `;
+            }
+
+            // Auto-calculate on input
+            document.addEventListener('DOMContentLoaded', function() {
+                const amountInput = document.getElementById('calc-amount');
+                const priceInput = document.getElementById('calc-price');
+
+                if (amountInput && priceInput) {
+                    amountInput.addEventListener('input', calculateShares);
+                    priceInput.addEventListener('input', calculateShares);
+                }
+            });
+        </script>
+        
+</head>
+<body>
+<button class='theme-toggle' onclick='toggleTheme()'>Toggle Dark Mode</button>
+<div class='container'>
+<h1>BlueHorseshoe Daily Report <small style='font-size:0.5em; color:#777'>2026-02-10</small></h1>
+<details>
+<summary style='cursor:pointer; font-size: 1.5em; font-weight: bold; color: var(--heading-color); padding-bottom: 10px;'>Market Regime: <span class="badge badge-neutral">Neutral</span></summary>
+<hr style='border: 0; border-bottom: 2px solid var(--border-color); margin: 0 0 20px 0;'>
+<table>
+<tr><th>Status</th><th>SPY Price</th><th>SPY MA50</th><th>SPY MA200</th></tr>
+<tr><td><span class="badge badge-neutral">Neutral</span></td>
+<td>692.12</td>
+<td>685.2258868450934</td>
+<td>648.8391368791869</td></tr>
+</table>
+<p><strong>Commentary:</strong> No commentary available.</p>
+</details>
+<details>
+<summary style='cursor:pointer; font-size: 1.5em; font-weight: bold; color: var(--heading-color); padding-bottom: 10px;'>💰 Quick Share Calculator</summary>
+<hr style='border: 0; border-bottom: 2px solid var(--border-color); margin: 0 0 20px 0;'>
+<div class='calculator-widget'>
+<div class='calc-inputs'>
+<div class='calc-input-group'>
+<label for='calc-amount'>Investment Amount ($)</label>
+<input type='number' id='calc-amount' placeholder='200' step='0.01' min='0'>
+</div>
+<div class='calc-input-group'>
+<label for='calc-price'>Entry Price ($)</label>
+<input type='number' id='calc-price' placeholder='75.34' step='0.01' min='0.01'>
+</div>
+</div>
+<div id='calc-result' class='calc-result'>
+<div class='calc-result-row'><span class='calc-result-label'>Enter amounts above to calculate shares</span></div>
+</div>
+</div>
+</details>
+<div class='top-lists-wrapper'>
+<div class='top-list'>
+<h3>Top 5 Baseline (Trend)</h3>
+<div class='top-list-header-grid'><span>Symbol</span> <span>Score</span> <span>ML</span> <span>Levels</span></div>
+<details><summary>
+            <div class='top-list-row'>
+                <span><a href='https://finance.yahoo.com/quote/DHF' target='_blank' class='symbol-link'><b>DHF</b></a>:<small>NYSE</small></span>
+                <span><b>9.0</b></span>
+                <span style='color:#777'>ML:0%</span>
+                <span>E:<b>$0.00</b> S:<b style='color:var(--badge-bear)'>$0.00</b> T:<b style='color:var(--badge-bull)'>$0.00</b></span>
+            </div>
+        </summary><div class='sparkline-container'><img src='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAN0AAABzCAYAAAAc0geEAAAAOnRFWHRTb2Z0d2FyZQBNYXRwbG90bGliIHZlcnNpb24zLjEwLjgsIGh0dHBzOi8vbWF0cGxvdGxpYi5vcmcvwVt1zgAAAAlwSFlzAAALEwAACxMBAJqcGAAAAx5JREFUeJzt3bFOU2EYx+GD6UBo8CLYGAgO3ACzMV4AAw5sEOIdyCU0pGwOMnABDs7eAEMJg5sXocE4kNTBSBRb7UfP+Z8e+jwb8AW+BH5pgZeXlfF4PK6AmCdtXwCWjeggTHQQJjoIEx2EiQ7CRAdhooMw0UGY6CBMdBDWa/sC0KSnR8+rr9+/zXR2fXWt+jL80PCNPNLxyM0aXOnZeYgOwkQHYaKDMNFBmOggTHQQJjoIEx2EiQ7CRAdhooMwA89zqGOYdjQYVlenZzN/zO3jw+rZ66OZz48Gw6LzNG/FhueHWznYLTo/fvtx5rPnG5vV/udPpVdq7P10VZOfo4fy9BLCRAdhooMw0UGY6CBMdBAmOggTHYSJDsJEB2Gig7DWB57bGsitY1h5fXWt6H006WJrp7q9uZn4tvONzT9e7vX71d71ZaP3YbrWo7s6PWslujo2/05bwb1ysBsZnP3dtODmPUv9PL2EMNFBmOggTHQQJjoIEx2EiQ7CRAdhooMw0S2o7ePDtq9AQ0S3oCyIfbweTXQn798VnS8ZQC4dVn7zYr/ofB16/X4jZ6lf6xue69pAXMeQcRuDyjTLhmdAdJAmOggTHYS1/pfjpf61ZuH+N83T1ixM08ZPHVk+nXukq2PNwjQnL18V3gbKdS466DrRQZjoIEx0ECY6CIv+ymA0GFZXp2d/vf7+BuKq+vmnLZMm7Rdpq/KyKN3CXcf27Mes9YFnFl/pUPoiDRkv0l1+8fQSwkQHYaKDMNFBmOjolNFg2PYV5iY6OmXSr5y6RnQQJjoIEx2EiQ7CRAdhnduRQnMutnaq25ubiW+bNJTe6/ervevLRu4ybTh+2l26NCBv4Jk7k76Y/2fSIHSTQ8Z1bARve5O3p5cQJjoIEx2EiQ7CRAdhooMw0UGY6CBMdBAmOggTHYSJjqXT9j//FB1Lp+1//ik6CBMdhIkOwkQHYaKDMNFBmOggTHQQJjoIEx2EiQ7CRMedXr9fy/mSTcmlW5W3jw+Lzi8iG54hzCMdhIkOwkQHYaKDMNFBmOggTHQQJjoIEx2EiQ7CfgBbu8d3J43NQQAAAABJRU5ErkJggg==' alt='DHF chart' /></div></details>
+<details><summary>
+            <div class='top-list-row'>
+                <span><a href='https://finance.yahoo.com/quote/FE' target='_blank' class='symbol-link'><b>FE</b></a>:<small>NYSE</small></span>
+                <span><b>9.0</b></span>
+                <span style='color:#777'>ML:0%</span>
+                <span>E:<b>$0.00</b> S:<b style='color:var(--badge-bear)'>$0.00</b> T:<b style='color:var(--badge-bull)'>$0.00</b></span>
+            </div>
+        </summary><div class='sparkline-container'><img src='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAN0AAABzCAYAAAAc0geEAAAAOnRFWHRTb2Z0d2FyZQBNYXRwbG90bGliIHZlcnNpb24zLjEwLjgsIGh0dHBzOi8vbWF0cGxvdGxpYi5vcmcvwVt1zgAAAAlwSFlzAAALEwAACxMBAJqcGAAAA4lJREFUeJzt3T9uFFcAx/ExcoFYwSHoKKKk4ALUCHEACijogqLcIOYGyIKOwi44gGVR5wIpQBR0OUQiohSRJoUlaxFee8fM/t6f+Xw62yvva75683bem90bx3EcgJgbpQcASyM6CBMdhIkOwkQHYaKDMNFBmOggTHQQJjoIEx2EdRPdh1evSw8BttJNdB8P35QeAo04ODkq+v7dRAfbenl6XPT9RQdhoquUNWq/RFcpa9R+iQ7CRAdhooMw0UGY6HbAJ49cZr/0AA5OjoaDx89KD2NWHw/fDD/9+qL0MBiG4c6Lh8Pf//7zze/3nj/45ne3b94a/nr9fudjKj7Tld4dQN8uCm6O136P4tHB0ogOwoqv6aZ698P94b8vXy782/Hde1/9vL9aDU8+/ZEYFmytuZluU3Df+1pIaS46aJ3oIEx0ECY6CBMdhEVvGdS4JWddj1vSqI+Zbo0taSREZ7qLZq695w+G8e3vyWHMxo16rqO5HSn7q9XWN733V6uNf5vjUteNeq6jueg2zRbHd+8NT//8vPX/qXH3OctgTQdhooMw0RHjMRZnREeMB+ieEV3nzC71EV3nzC71KR7db4+elh4CRBWPzl5Hlqa5m+O9mbKVbBhsJ+tB8ZmulNs3b+3ktVNN3R5mO1n7FjvT9bb5mnYsNrreOPHQjsVeXvZmKSceDk6OJr2+lmXEum5muh9/+Tn+nnMdM2J7L0+PJ33iXeMyopvoSnxLzlzHjFgWl5c7UGLWpR2i2wHfTcdlRFfY1LWetWH7ulnTtcq6cHnMdBBmpqNKm57WNgz1PJz4usx0axwzqsfUJ7C19MQ20a1xzIgE0UGY6CDMBynMrvYTD6XX7mY6Zlf7iYfSa3fRQZjomN2UrWpL3NZmTceVpn5Dra1tlzPTVaqm40G+oXZeoquU40H9cnnJuZ73O9bETMe5nvc71kR0VGnqk7lST/Kag8tLqrTpsrX0k7zmYKaDMNFBmOg6YRdIO6zpOmEXSDvMdBAmOppS+izcHERHzBz7SUufhZuD6Iixn/SM6CBMdBAmOggTHYSJDsJEx7mej9PUxDYwzvV8nKYmZrrO1fSAI86IrnNuSNdHdBAmOggTHYSJDsJEB2GigzDRQZjoIEx0ECY6CBMdhImOK/Xw2Lua7I3jOJYeBCyJmQ7CRAdhooMw0UGY6CBMdBAmOggTHYSJDsJEB2H/A+dv/EuPZLgGAAAAAElFTkSuQmCC' alt='FE chart' /></div></details>
+<details><summary>
+            <div class='top-list-row'>
+                <span><a href='https://finance.yahoo.com/quote/GNK' target='_blank' class='symbol-link'><b>GNK</b></a>:<small>NYSE</small></span>
+                <span><b>9.0</b></span>
+                <span style='color:#777'>ML:0%</span>
+                <span>E:<b>$0.00</b> S:<b style='color:var(--badge-bear)'>$0.00</b> T:<b style='color:var(--badge-bull)'>$0.00</b></span>
+            </div>
+        </summary><div class='sparkline-container'><img src='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAN0AAABzCAYAAAAc0geEAAAAOnRFWHRTb2Z0d2FyZQBNYXRwbG90bGliIHZlcnNpb24zLjEwLjgsIGh0dHBzOi8vbWF0cGxvdGxpYi5vcmcvwVt1zgAAAAlwSFlzAAALEwAACxMBAJqcGAAAA5xJREFUeJzt3TFuFUcAx+F5yIXlJ+cQdBQICi5AHUU5AAUp6LAQN8DcwIqcLgUuOACKUucCFI4o0uUQQUYUSEuHDH7PvI13/zO7+30d1kpeiffz7s7OzFt1XdcVIOZW7ROApREdhIkOwkQHYaKDMNFBmOggTHQQJjoIEx2EiQ7CRMfiHL95VfX3i47FefnHWdXfLzoIEx2EiQ7CRAdhooOwle0a2nT85lU5/vmXnY9/ffdB+XRxsdOxe+t1efTu7f88s2n54ejH8v7jh52OPdw/KP+d/jnyGZWyN/pv4FrXfSg2DW1v+2DsGlzfY6du1+D6HnsTbi8r6/sfnfpgMB7RQZjoKjvcPxj1eNrjma6ybQ/uqycPS/f7X+GzIcGVbgS1J9TSNle6G+gz8pgajqZ9rnQ30OJwNO0THYSJDsJEB2GigzDRQZjoIEx0ECY6CBMdhIkOwkQHYaK7pKXVAS9+elz7FBiJ6C6pvd32ZX02JWJaRAdhooMwi1hpUp/9KkuZ1iLh2Vzpzk9Oa58CA5rz1oSzie7vX3+rfQqwk8XeXm67fVk9eXjlZ1O6daF9s7nS9WV/E2pZbHRQi+iIaWnGT02iI6bGjJ8+29Cntqxf7EAKy7BpAKz2lvWiY3DXvdj+dnR4iSPDk4vu/OR06zu5s9t3vvr3vWdPy/3nR4nT4pLWR4Zrr+CYXHT3nx9tDOns9p3y+N9/KpwRU1N7BYeBFAgT3Q20ODJG+yZ3e9kSX+g4nsP9g96rDKaienTnJ6cGO7hizn/Qqt9eWh3A0lSPDpZGdBAmOggTHYQtNjrv2Kgl+srg9d0H5dPFxZWffztnspRS9tbr8ujd29HOZWmTbOei9rzJIUSvdJuCG+JYlqP2vMkhLPb2EmoRHYRFo9tbr0c5FqYkOpCyaWBkjuvg5vCwz3jcXo5gDg/7jEd0ECY6CKse3b1nT2ufAkRVj84C1vbZmXlY1aOjfS19F/sciA7CRDcTJh5MR/WNiRjGthUZfSYf9NkOvZTtW6L32clricumRMcXQ33Pt2VT15vN7aVXD0zFbKLz6oGpmE10MBWigzDRzZxn3faIbuY867ZHdBAmOggTHYSJDsJExxd950Eucd7kEFZd13W1T4K2zeHbT1viSgdhooMw0UGY6CBMdBAmOggTHYSJDsJEB2GigzDR8V2+5HJY5l5CmCsdhIkOwkQHYaKDMNFBmOggTHQQJjoIEx2EiQ7CPgMQduixcn+5zgAAAABJRU5ErkJggg==' alt='GNK chart' /></div></details>
+<details><summary>
+            <div class='top-list-row'>
+                <span><a href='https://finance.yahoo.com/quote/HIX' target='_blank' class='symbol-link'><b>HIX</b></a>:<small>NYSE</small></span>
+                <span><b>9.0</b></span>
+                <span style='color:#777'>ML:0%</span>
+                <span>E:<b>$0.00</b> S:<b style='color:var(--badge-bear)'>$0.00</b> T:<b style='color:var(--badge-bull)'>$0.00</b></span>
+            </div>
+        </summary><div class='sparkline-container'><img src='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAN0AAABzCAYAAAAc0geEAAAAOnRFWHRTb2Z0d2FyZQBNYXRwbG90bGliIHZlcnNpb24zLjEwLjgsIGh0dHBzOi8vbWF0cGxvdGxpYi5vcmcvwVt1zgAAAAlwSFlzAAALEwAACxMBAJqcGAAAAyBJREFUeJzt3TFu02AcxmEHZagalUN064DagQt0RogDMJShW6uqN4AjRFW6sXTgCMxcgCEVAxuHABUxIJkNCjhprNivHed5Ziv51OYnW8o/3zcqy7IsgJhHXS8Ato3oIEx0ECY6CBMdhIkOwkQHYaKDMNFBmOggTHQQNu56AX0yn86Ko8vzrpdBgx6fPyu+/fi+0rV7O7vF19n7llfkTveX26vrrpdAw1YNru616xAdhIkOwkQHYaKDMNFBmOggTHQQJroWzKezrpdAj422dTew+XS28pfhhxdnlZMq7548LX7e3a30GuPJpHj56WOtNbK+0elxrevLtx9aWskfWzsGdnR5/l9IN/sHxcmXzyu/xqrB1b2WYfN4CWGigzDRQZjoIEx0ECY6CBMdhIkOwqJfjpvggPCdzgQHeLyEONFBmOggTHQ95Td5wyW6nrLx7XCJDsJEB2Gig7CN266hib1NmjKeTGpN2FRZNqVzs39Q+TrbMKlTZ3qpKBb/XfZ2dmud2pOwcdFV7W1SFPX3N2lCEx/+upM32zKp09Tfperoq9HpcWQDokU8XkKY6CBMdBAmunsOL866XgJbQHT3OG+cBNFBmOggTHQQtnFfjlOtT/vP9GktVV4/P4m+37/c6QaiT/vP9GktVd68eBV/z/tEB2GigzDRQZjoIEx0ECY6CBMdhIkOwqLRLdonZN1ri8LPcoam7v+/7vVdio6BtTnu42c5w7Los9LFXjhN83gJYaKDMNFBmOggTHQQJjoIEx2EiQ7CRAdhoqNxxv2WsxsYjWtzhGsI437udBAmOggTHYSJDsJEB2Gi40Hz6azrJQyK6HjQ7dV110sYFNFBmC/HOzaeTGqdXNPmBjzLjri62T+oXEv6mKshEF3H+vShrXtsVRfHXA2Bx0sIEx2EiQ7CRAdhooMw0UGY6CBMdBAmOn5r+3iqIexv0oRRWZZl14tgfVVjWsvU2atkCMdT9Yk7HYSJDsJEB2GigzDRQZjoIEx0ECY6CBPdQDgpZ3OYSIEwdzoIEx2EiQ7CRAdhooMw0UGY6CBMdBAmOggTHYT9AmeRySPX6LmmAAAAAElFTkSuQmCC' alt='HIX chart' /></div></details>
+<details><summary>
+            <div class='top-list-row'>
+                <span><a href='https://finance.yahoo.com/quote/NHS' target='_blank' class='symbol-link'><b>NHS</b></a>:<small>NYSE MKT</small></span>
+                <span><b>9.0</b></span>
+                <span style='color:#777'>ML:0%</span>
+                <span>E:<b>$0.00</b> S:<b style='color:var(--badge-bear)'>$0.00</b> T:<b style='color:var(--badge-bull)'>$0.00</b></span>
+            </div>
+        </summary><div class='sparkline-container'><img src='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAN0AAABzCAYAAAAc0geEAAAAOnRFWHRTb2Z0d2FyZQBNYXRwbG90bGliIHZlcnNpb24zLjEwLjgsIGh0dHBzOi8vbWF0cGxvdGxpYi5vcmcvwVt1zgAAAAlwSFlzAAALEwAACxMBAJqcGAAAA4ZJREFUeJzt3TFqFFEcx/FZSRFc4iHSWYgWXiC1iAewiEW6BPEG6g1CSDoLU3gAEWsvYBGxsPMQimIhjJUQ3U3YSWZ/b97M59MZluyw8s08/vNmZ9a2bdsAMTdKHwBMjeggTHQQJjoIEx2EiQ7CRAdhooMw0UGY6CBMdBAmOibnxdvXRd9fdEzOy3enRd9fdBAmOggTHYTN3MTKmN06eNB8//Vzpddubd5svh2/X/MROdMxcqsG1/W11yE6CBMdhIkOwkQHYaI75+zwuPQhDJLPpV+iO+fT0UnpQxgkn0u/RAdhooMw0UGY6CBMdCNX+oZNFolu5ErfsMki0UGY6CBMdBC2UfoASnlz537z+8ePhZ+fbt9e+NnGfN48/vxx5d99dnjc3Ht2cK3j6+qymzVnezv//Dt1sybLTfZMtyy4Pl7bNGW2TQ3xZk2Wm2x0UIroIEx0ECY6CJvs9LIPF01Am2ZxCtp1AlrC2eHxhUOgZVPdu0/3O01pS0x1h0h017DOCWgJ954dLI3idPt2s/v1y7V//6ejE9E1lpcQJzoIEx2EiQ7Cqhuk9PVAiI35fOXhxsZ8vvLx9aXrpG9r82anz2Wd1jnVHcMEtLro+tpjuOw/uq8pXR+6Tvou+uMy29tp2lcf+jqslax7X2vt0VleQpjoIEx0ECY6CKtukDI2XSZ9TVPHHs6hT4ZLE11hXad3NezhvOiPwpCmwyVZXkKY6Ii5+3S/9CEMguiIqf2idl+qi67LFqZ1b3eCq6hukDKk7U5wFdWd6aB2oius63WqEte1DED6Vd3ycmxquKZlANIvZzoIE905XZdRXZZ6U9zuNARDnHZbXp7TdRlVw9Jw6pZNu0tPup3pmJznD3eLvr/omJwXj54UfX/RQZjoICw6SOnr6/OGzsVkLhM9003lEb0uJnMZy0sIEx2EiQ7CRAdhtoExSGP8asK/nOkYpDF+NeFfooMw0UGY6CBMdAPV11ay0rexsEh0A9XXVrLSt7GwSHQQJjoIEx2EiQ7CRhOdKd241PDN11c1a9u2jb3Z3k6n13sgCP8bw9cbjuZMB7UQHYSJDsJEB2GigzDRQZjoIEx0ECY6CItGN8SnYlKXMTwnIroNbOkBFH4qJqRZXkKY6CBMdBAmOggrHp2bT5ma4tNLmJriZzqYGtFBmOggTHQQJjoIEx2EiQ7CRAdhooMw0UHYH4ucAB/Cm4ZYAAAAAElFTkSuQmCC' alt='NHS chart' /></div></details>
+</div>
+<div class='top-list'>
+<h3>Top 5 Mean Reversion</h3>
+<div class='top-list-header-grid'><span>Symbol</span> <span>Score</span> <span>ML</span> <span>Levels</span></div>
+<div class='top-list-row'>No candidates found.</div>
+</div></div>
+<h2>Previous Day Performance <small style='font-size:0.6em; color:#777'>(Suggestions from 2026-02-09)</small></h2>
+<table>
+<tr><th>Symbol</th><th>Strategy</th><th>Setup (E/S/T)</th><th>Outcome</th><th>PnL</th></tr>
+<tr>
+<td><a href='https://finance.yahoo.com/quote/BWMX' target='_blank' class='symbol-link'><b>BWMX</b></a></td>
+<td>baseline</td>
+<td><small>E:$18.77 S:$17.23 T:$20.57</small></td>
+<td><span class='badge' style='background-color: #3498db;'>Active</span></td>
+<td style='font-weight:bold; color: #c0392b;'>-1.05%</td>
+</tr>
+<tr>
+<td><a href='https://finance.yahoo.com/quote/DFEM' target='_blank' class='symbol-link'><b>DFEM</b></a></td>
+<td>baseline</td>
+<td><small>E:$36.42 S:$35.36 T:$37.66</small></td>
+<td><span class='badge' style='background-color: #95a5a6;'>No Entry</span></td>
+<td style='font-weight:bold; color: #777;'>-</td>
+</tr>
+<tr>
+<td><a href='https://finance.yahoo.com/quote/EMF' target='_blank' class='symbol-link'><b>EMF</b></a></td>
+<td>baseline</td>
+<td><small>E:$19.87 S:$19.00 T:$20.82</small></td>
+<td><span class='badge' style='background-color: #95a5a6;'>No Entry</span></td>
+<td style='font-weight:bold; color: #777;'>-</td>
+</tr>
+<tr>
+<td><a href='https://finance.yahoo.com/quote/EWM' target='_blank' class='symbol-link'><b>EWM</b></a></td>
+<td>baseline</td>
+<td><small>E:$29.77 S:$29.02 T:$30.64</small></td>
+<td><span class='badge' style='background-color: #3498db;'>Active</span></td>
+<td style='font-weight:bold; color: #c0392b;'>-0.25%</td>
+</tr>
+</table>
+<h2>Top Candidates (10)</h2>
+<table>
+<tr><th>Symbol</th><th>Exchange</th><th>Strategy</th><th>Score</th><th>Close Price</th><th>Indicators</th></tr>
+<tr>
+<td><a href='https://finance.yahoo.com/quote/DHF' target='_blank' class='symbol-link'><strong>DHF</strong></a></td>
+<td><small>NYSE</small></td>
+<td>Baseline</td>
+<td class='score-low'>9.00</td>
+<td>0</td>
+<td><small>trend=1.0, volume=1.0, limit=4.0, moving_average=3.0</small></td>
+</tr>
+<tr>
+<td><a href='https://finance.yahoo.com/quote/FE' target='_blank' class='symbol-link'><strong>FE</strong></a></td>
+<td><small>NYSE</small></td>
+<td>Baseline</td>
+<td class='score-low'>9.00</td>
+<td>0</td>
+<td><small>trend=1.0, volume=1.0, limit=4.0, moving_average=3.0</small></td>
+</tr>
+<tr>
+<td><a href='https://finance.yahoo.com/quote/GNK' target='_blank' class='symbol-link'><strong>GNK</strong></a></td>
+<td><small>NYSE</small></td>
+<td>Baseline</td>
+<td class='score-low'>9.00</td>
+<td>0</td>
+<td><small>trend=1.0, volume=1.0, limit=4.0, moving_average=3.0</small></td>
+</tr>
+<tr>
+<td><a href='https://finance.yahoo.com/quote/HIX' target='_blank' class='symbol-link'><strong>HIX</strong></a></td>
+<td><small>NYSE</small></td>
+<td>Baseline</td>
+<td class='score-low'>9.00</td>
+<td>0</td>
+<td><small>trend=1.0, volume=1.0, limit=4.0, moving_average=3.0</small></td>
+</tr>
+<tr>
+<td><a href='https://finance.yahoo.com/quote/NHS' target='_blank' class='symbol-link'><strong>NHS</strong></a></td>
+<td><small>NYSE MKT</small></td>
+<td>Baseline</td>
+<td class='score-low'>9.00</td>
+<td>0</td>
+<td><small>trend=1.0, volume=1.0, limit=4.0, moving_average=3.0</small></td>
+</tr>
+<tr>
+<td><a href='https://finance.yahoo.com/quote/NVGS' target='_blank' class='symbol-link'><strong>NVGS</strong></a></td>
+<td><small>NYSE</small></td>
+<td>Baseline</td>
+<td class='score-low'>9.00</td>
+<td>0</td>
+<td><small>trend=1.0, volume=1.0, limit=4.0, moving_average=3.0</small></td>
+</tr>
+<tr>
+<td><a href='https://finance.yahoo.com/quote/ZAP' target='_blank' class='symbol-link'><strong>ZAP</strong></a></td>
+<td><small>NASDAQ</small></td>
+<td>Baseline</td>
+<td class='score-low'>9.00</td>
+<td>0</td>
+<td><small>trend=1.0, volume=1.0, limit=4.0, moving_average=3.0</small></td>
+</tr>
+<tr>
+<td><a href='https://finance.yahoo.com/quote/AEE' target='_blank' class='symbol-link'><strong>AEE</strong></a></td>
+<td><small>NYSE</small></td>
+<td>Baseline</td>
+<td class='score-low'>8.00</td>
+<td>0</td>
+<td><small>volume=1.0, limit=4.0, moving_average=3.0</small></td>
+</tr>
+<tr>
+<td><a href='https://finance.yahoo.com/quote/AHR' target='_blank' class='symbol-link'><strong>AHR</strong></a></td>
+<td><small>NYSE</small></td>
+<td>Baseline</td>
+<td class='score-low'>8.00</td>
+<td>0</td>
+<td><small>volume=1.0, limit=4.0, moving_average=3.0</small></td>
+</tr>
+<tr>
+<td><a href='https://finance.yahoo.com/quote/AQN' target='_blank' class='symbol-link'><strong>AQN</strong></a></td>
+<td><small>NYSE</small></td>
+<td>Baseline</td>
+<td class='score-low'>8.00</td>
+<td>0</td>
+<td><small>volume=1.0, limit=4.0, moving_average=3.0</small></td>
+</tr>
+</table>
+<div class='footer'>Generated by BlueHorseshoe v2.1 on 2026-02-11 13:00:39</div>
+</div></body></html>
