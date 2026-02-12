@@ -125,19 +125,38 @@ def generate_report_task(self, report_data: dict):
         regime = report_data.get('regime', {})
         candidates = report_data.get('candidates', [])
         charts = report_data.get('charts', [])
-        
+
+        # Calculate previous day's performance
+        trader = SwingTrader(
+            database=container.get_database(),
+            config=container.settings,
+            report_writer=None
+        )
+        prev_perf = trader.get_previous_performance(date)
+
+        # Generate full interactive report
         html_content = reporter.generate_report(
             date=date,
             regime=regime,
             candidates=candidates,
-            charts=charts
+            charts=charts,
+            previous_performance=prev_perf
         )
-        
-        filename = f"report_{date}.html"
-        saved_path = reporter.save(html_content, filename=filename)
-        
-        logger.info(f"Report generated: {saved_path}")
-        return {"status": "Report Generated", "path": saved_path}
+
+        # Generate email-friendly report (no JavaScript, no charts)
+        email_html = reporter.generate_email_report(
+            date=date,
+            regime=regime,
+            candidates=candidates,
+            previous_performance=prev_perf
+        )
+
+        # Save both versions
+        full_path, email_path = reporter.save_both(html_content, email_html, f"report_{date}")
+
+        logger.info(f"Full report generated: {full_path}")
+        logger.info(f"Email-friendly report generated: {email_path}")
+        return {"status": "Report Generated", "path": full_path, "email_path": email_path}
     except Exception as e:
         logger.error(f"Report generation failed: {e}", exc_info=True)
         raise e

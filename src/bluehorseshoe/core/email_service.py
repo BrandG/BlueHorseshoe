@@ -19,6 +19,9 @@ class EmailService:
     def send_report(self, report_path: str, subject: str = None):
         """
         Sends the HTML report in the email body AND as an attachment.
+
+        If an email-friendly version exists (report_YYYY-MM-DD_email.html),
+        it will be used for the email body. Otherwise, falls back to the full report.
         """
         if not self.smtp_user or not self.smtp_password or not self.recipient:
             logger.warning("Email configuration missing (SMTP_USER, SMTP_PASSWORD, or EMAIL_RECIPIENT). Skipping email.")
@@ -28,14 +31,23 @@ class EmailService:
             logger.error(f"Report file not found: {report_path}")
             return False
 
+        # Check if email-friendly version exists
+        email_friendly_path = report_path.replace('.html', '_email.html')
+        body_path = email_friendly_path if os.path.exists(email_friendly_path) else report_path
+
+        if body_path == email_friendly_path:
+            logger.info(f"Using email-friendly version for body: {email_friendly_path}")
+        else:
+            logger.info(f"Email-friendly version not found, using full report for body")
+
         try:
             msg = MIMEMultipart('mixed')
             msg['From'] = self.sender
             msg['To'] = self.recipient
             msg['Subject'] = subject or f"BlueHorseshoe Report - {os.path.basename(report_path)}"
 
-            # Read HTML content
-            with open(report_path, 'r', encoding='utf-8') as f:
+            # Read HTML content for body (email-friendly version if available)
+            with open(body_path, 'r', encoding='utf-8') as f:
                 html_content = f.read()
 
             # Create alternative part for text/html body
@@ -45,13 +57,13 @@ class EmailService:
             text_body = "This email contains an HTML report. Please use an HTML-compatible email client to view it."
             msg_alternative.attach(MIMEText(text_body, 'plain'))
 
-            # HTML body
+            # HTML body (simplified email-friendly version)
             msg_alternative.attach(MIMEText(html_content, 'html'))
 
             # Attach the alternative part
             msg.attach(msg_alternative)
 
-            # Also attach as a file
+            # Attach the full interactive report as a file
             with open(report_path, 'rb') as f:
                 part = MIMEApplication(f.read(), Name=os.path.basename(report_path))
                 part['Content-Disposition'] = f'attachment; filename="{os.path.basename(report_path)}"'

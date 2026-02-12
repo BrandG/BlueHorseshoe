@@ -186,6 +186,8 @@ if __name__ == "__main__":
                 regime_for_html['spy_ma200'] = spy_details.get('ema200', 'N/A')
 
                 reporter = HTMLReporter(database=ctx.db)
+
+                # Generate full interactive report
                 html_content = reporter.generate_report(
                     date=target_date,
                     regime=regime_for_html,
@@ -193,9 +195,21 @@ if __name__ == "__main__":
                     charts=report_data.get('charts', []),
                     previous_performance=prev_perf
                 )
-                saved_path = reporter.save(html_content, filename=f"report_{target_date}.html")
-                logging.info("HTML Report saved to %s", saved_path)
-                print(f"HTML Report generated: {saved_path}")
+
+                # Generate email-friendly report (no JavaScript, no charts)
+                email_html = reporter.generate_email_report(
+                    date=target_date,
+                    regime=regime_for_html,
+                    candidates=report_data.get('candidates', []),
+                    previous_performance=prev_perf
+                )
+
+                # Save both versions
+                full_path, email_path = reporter.save_both(html_content, email_html, f"report_{target_date}")
+                logging.info("HTML Report saved to %s", full_path)
+                logging.info("Email-friendly report saved to %s", email_path)
+                print(f"HTML Report generated: {full_path}")
+                print(f"Email-friendly report: {email_path}")
     elif "-r" in sys.argv:
         # Generate Report from saved scores
         logging.info("Regenerating report from saved scores...")
@@ -282,6 +296,8 @@ if __name__ == "__main__":
             prev_perf = trader.get_previous_performance(target_date)
 
             reporter = HTMLReporter(database=ctx.db)
+
+            # Generate full interactive report
             html_content = reporter.generate_report(
                 date=target_date,
                 regime=market_health,
@@ -289,9 +305,21 @@ if __name__ == "__main__":
                 charts=[],
                 previous_performance=prev_perf
             )
-            saved_path = reporter.save(html_content, filename=f"report_{target_date}.html")
-            logging.info("HTML Report regenerated at %s", saved_path)
-            print(f"HTML Report regenerated: {saved_path}")
+
+            # Generate email-friendly report (no JavaScript, no charts)
+            email_html = reporter.generate_email_report(
+                date=target_date,
+                regime=market_health,
+                candidates=top_candidates,
+                previous_performance=prev_perf
+            )
+
+            # Save both versions
+            full_path, email_path = reporter.save_both(html_content, email_html, f"report_{target_date}")
+            logging.info("HTML Report regenerated at %s", full_path)
+            logging.info("Email-friendly report regenerated at %s", email_path)
+            print(f"HTML Report regenerated: {full_path}")
+            print(f"Email-friendly report: {email_path}")
     elif "-t" in sys.argv:
         with create_cli_context() as ctx:
             try:

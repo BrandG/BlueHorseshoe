@@ -28,6 +28,6 @@ celery_app.conf.update(
 celery_app.conf.beat_schedule = {
     "daily-pipeline-weekday-morning": {
         "task": "bluehorseshoe.api.tasks.run_daily_pipeline",
-        "schedule": crontab(hour=8, minute=0, day_of_week='1-5'),
+        "schedule": crontab(hour=5, minute=0, day_of_week='1-5'),  # 05:00 UTC = Midnight EST
     },
 }
