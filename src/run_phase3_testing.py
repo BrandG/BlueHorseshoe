@@ -19,6 +19,7 @@ import json
 import argparse
 import subprocess
 import random
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from datetime import datetime, timedelta
 from pathlib import Path
 from pymongo import MongoClient
@@ -101,6 +102,49 @@ PHASE3_INDICATORS = {
         'category': 'candlestick',
         'multiplier': 'BELT_HOLD_MULTIPLIER',
         'name': 'Belt Hold',
+        'weights': [0.5, 1.0, 1.5, 2.0]
+    },
+    # Phase 3E - Advanced Momentum & Trend Indicators
+    'ADX': {
+        'category': 'trend',
+        'multiplier': 'ADX_MULTIPLIER',
+        'name': 'Average Directional Index',
+        'weights': [0.5, 1.0, 1.5, 2.0]
+    },
+    'STOCHASTIC': {
+        'category': 'momentum',
+        'multiplier': 'STOCHASTIC_MULTIPLIER',
+        'name': 'Stochastic Oscillator',
+        'weights': [0.5, 1.0, 1.5, 2.0]
+    },
+    'CCI': {
+        'category': 'momentum',
+        'multiplier': 'CCI_MULTIPLIER',
+        'name': 'Commodity Channel Index',
+        'weights': [0.5, 1.0, 1.5, 2.0]
+    },
+    'WILLIAMS_R': {
+        'category': 'momentum',
+        'multiplier': 'WILLIAMS_R_MULTIPLIER',
+        'name': 'Williams %R',
+        'weights': [0.5, 1.0, 1.5, 2.0]
+    },
+    'ICHIMOKU': {
+        'category': 'trend',
+        'multiplier': 'ICHIMOKU_MULTIPLIER',
+        'name': 'Ichimoku Cloud',
+        'weights': [0.5, 1.0, 1.5, 2.0]
+    },
+    'PSAR': {
+        'category': 'trend',
+        'multiplier': 'PSAR_MULTIPLIER',
+        'name': 'Parabolic SAR',
+        'weights': [0.5, 1.0, 1.5, 2.0]
+    },
+    'SUPERTREND': {
+        'category': 'trend',
+        'multiplier': 'SUPERTREND_MULTIPLIER',
+        'name': 'SuperTrend',
         'weights': [0.5, 1.0, 1.5, 2.0]
     }
 }
@@ -253,16 +297,30 @@ def test_indicator(indicator_code, weight, num_runs, start_date, end_date, sampl
     test_symbols = get_random_symbols(sample_size)
     print(f"✓ ({len(test_symbols)} symbols)")
 
-    # Run backtests
-    successful_runs = 0
-    for i, date in enumerate(test_dates, 1):
-        print(f"  Run {i}/{num_runs}: {date}...", end=' ', flush=True)
+    # Run backtests in parallel (use all CPU cores)
+    max_workers = os.cpu_count() or 4  # Use all available cores
+    print(f"Running {num_runs} backtests in parallel with {max_workers} workers...")
 
-        if run_backtest(date, test_symbols):
-            print("✅")
-            successful_runs += 1
-        else:
-            print("❌")
+    successful_runs = 0
+    with ProcessPoolExecutor(max_workers=max_workers) as executor:
+        # Submit all jobs
+        future_to_date = {
+            executor.submit(run_backtest, date, test_symbols): (i, date)
+            for i, date in enumerate(test_dates, 1)
+        }
+
+        # Process results as they complete
+        for future in as_completed(future_to_date):
+            i, date = future_to_date[future]
+            try:
+                success = future.result()
+                status = "✅" if success else "❌"
+                print(f"  Run {i}/{num_runs}: {date}... {status}")
+                if success:
+                    successful_runs += 1
+            except Exception as e:
+                print(f"  Run {i}/{num_runs}: {date}... ❌ (Error: {e})")
+
 
     # Restore original config
     if backup_path.exists():

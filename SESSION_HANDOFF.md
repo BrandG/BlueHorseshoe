@@ -1,595 +1,407 @@
-# Session Handoff - Ready for Monday Trading
+# Session Handoff - Phase 3E COMPLETE ✅
 
-**Date:** February 8, 2026 (Saturday) - Updated Evening
-**Status:** Data refreshed, Monday prediction ready, IJJ trade planned, Audit trail implemented
-
----
-
-## 🚀 Latest Session Updates (Saturday Evening)
-
-### Critical Fix: Data Freshness Issue Resolved ✅
-
-**Problem Identified:**
-- Initial prediction ran with stale data (Thursday 2026-02-05)
-- Should have been using Friday 2026-02-07 data for Monday trading
-
-**Resolution:**
-- ✅ Updated all 10,870 symbols through Friday 2026-02-07 (3 hours)
-- ✅ Re-ran prediction with fresh data for Monday 2026-02-09 (65 minutes)
-- ✅ Generated accurate report: `src/logs/report_2026-02-09.html`
-
-### Monday Trade Plan - IJJ (iShares S&P Mid-Cap 400 Value ETF)
-
-**Trade Details:**
-- **Symbol:** IJJ - #1 ranked setup
-- **Shares:** 7.05 (fractional)
-- **Entry:** $143.63 (limit order at market open)
-- **Stop Loss:** $138.79 (set immediately as GTC)
-- **Target:** $148.67
-- **Position Size:** $1,013 (100% of account)
-- **Risk:** $34.12 (3.4% of account)
-- **Potential Profit:** $35.53 (3.5%)
-- **ML Win Probability:** 85.9% ✨
-
-**Why IJJ:**
-- Ranked #1 by the 14-indicator system
-- Excellent ML win probability (85.9%)
-- Diversified ETF (400 mid-cap value stocks)
-- Less volatile than leveraged alternatives
-- Strong technical setup post-Friday close
-
-### Prediction Results for Monday 2026-02-09
-
-**Top 5 Candidates (Fresh Data):**
-1. **IJJ** - Score: 34.50 | ML Win: 85.9% ⭐ (SELECTED)
-2. **UDOW** - Score: 34.50 | ML Win: 85.9%
-3. **XMMO** - Score: 34.25 | ML Win: 82.9%
-4. **ATR** - Score: 34.00 | ML Win: 64.3%
-5. **BDX** - Score: 34.00 | ML Win: 79.6%
-
-**Candidates Found:** 3,011 scored opportunities
-
-### New Feature: Prediction Archival System 📚
-
-**Implemented complete audit trail system:**
-
-1. **PREDICTIONS_TRACKING.md** - Trade journal template
-   - Log predictions before trading
-   - Record actual execution details
-   - Track outcomes and P&L
-   - First entry: IJJ trade for Monday already logged
-
-2. **src/logs/README.md** - Archive documentation
-   - Policy: NEVER DELETE REPORTS
-   - Explains audit trail value
-   - Documents retention strategy
-
-3. **Historical Archive Committed**
-   - 13 prediction reports from Jan 17 - Feb 9, 2026
-   - All tracked in git (commit d79ece8)
-   - Provides proof of system recommendations
-   - Can demonstrate performance to others
-
-4. **.gitignore Updated**
-   - Removed `src/logs/*.html` exclusion
-   - All future reports auto-tracked in git
-   - Creates permanent, verifiable record
-
-**Purpose:** Build track record showing the system works. Every prediction preserved with timestamp, can't be altered retroactively.
-
-### Session Statistics
-
-**Time Invested Today:**
-- Phase 3 review & commit: 30 min
-- Data update (10,870 symbols): 3 hours
-- Fresh prediction run: 65 minutes
-- Position sizing analysis: 30 min
-- Archival system implementation: 45 min
-- **Total:** ~6 hours
-
-**Git Commits Pushed:**
-1. `b123e7e` - Phase 3C & 3D testing complete (11→14 indicators)
-2. `d79ece8` - Prediction archival system and audit trail
-
-**System Health:**
-- ✅ All Docker containers running
-- ✅ Data current through Friday 2026-02-07
-- ✅ 14 indicators active and validated
-- ✅ Fresh predictions ready for Monday
-- ✅ Audit trail in place
+**Date:** February 12, 2026 (Wednesday Evening)
+**Status:** 🎉 Phase 3E fully complete - 19 indicators deployed, all winners validated
 
 ---
 
-## 📋 Monday Morning Action Items
+## 🎉 Major Accomplishments (Feb 10-11)
 
-1. **Pre-Market (before 9:30 AM):**
-   - [ ] Review `src/logs/report_2026-02-09.html` one final time
-   - [ ] Check IJJ pre-market action for any red flags
-   - [ ] Confirm no major weekend news affecting markets
+### ✅ Deployed Phase 3E Q1+Q2 Winners (14 → 17 Indicators)
 
-2. **At Market Open (9:30 AM):**
-   - [ ] Enter IJJ: 7.05 shares @ $143.63 (or limit $143.70 max)
-   - [ ] **IMMEDIATELY set stop-loss at $138.79** (GTC order - critical!)
-   - [ ] Set target alert at $148.67
-   - [ ] Screenshot/note actual entry price
+**3 New Indicators Added to Production:**
+1. **ADX** at 1.0x (Trend) - Sharpe 1.252
+2. **Williams %R** at 1.0x (Momentum) - Sharpe 1.775 ⭐
+3. **CCI** at 1.0x (Momentum) - Sharpe 1.236
 
-3. **Post-Entry:**
-   - [ ] Update `PREDICTIONS_TRACKING.md` with actual entry details
-   - [ ] Note any slippage from target entry
-   - [ ] Set calendar reminder to check position at market close
+**Production System:** Now running with **17 validated indicators**
+- Updated: `src/weights.json`
+- Backup: `src/weights.json.phase3e_backup`
 
-4. **Position Management:**
-   - Check position at lunch (12:00 PM)
-   - If up 5%+ by end of day, consider trailing stop
-   - Max hold period: 3-5 days per swing trading rules
-   - Document outcome in tracking log when closed
+### ✅ Email Notifications Fully Working
+
+**Challenge Solved:** Server blocks all standard SMTP ports (25, 465, 587)
+**Solution:** Brevo (Sendinblue) on port 2525
+
+**Configuration:**
+- Provider: Brevo (300 emails/day free)
+- Server: smtp-relay.brevo.com
+- Port: 2525 (only unblocked port)
+- Domain: dailylitbits.com (fully authenticated with DKIM)
+- Sender: pages@dailylitbits.com (verified)
+- Recipient: brandg@gmail.com
+
+**Status:** ✅ Emails sending successfully in <1 second
+
+**Files:**
+- Config: `docker/.env`
+- Service: `src/bluehorseshoe/core/email_service.py`
+
+### ✅ Report Improvements
+
+**Changes Made:**
+1. **Top Candidates Table:** Limited from 50+ to **10 candidates**
+2. **Sorting:** Now uses Score (primary) + ML Confidence (secondary)
+3. **Configurable:** Easy to adjust via constants in `html_reporter.py`
+
+**Constants:**
+- `TOP_CANDIDATES_PER_STRATEGY = 5` (top 5 summary boxes)
+- `TOP_CANDIDATES_TABLE_LIMIT = 10` (main detailed table)
+
+**Files Modified:**
+- `src/bluehorseshoe/reporting/html_reporter.py`
 
 ---
 
-## 📊 System Performance Expectations
+## 🔄 Current Testing Status
 
-**Based on Backtesting:**
-- System Sharpe: ~1.1+ (excellent tier)
-- Top indicator: Three White Soldiers (Sharpe 1.635)
-- Expected win rate: 50-65% depending on indicator mix
+### Phase 3E Quarter 3 (Ichimoku + PSAR): ✅ COMPLETE
 
-**This Trade:**
-- ML predicts 85.9% win probability
-- Risk: 3.4% of account ($34.12)
-- Reward: 3.5% potential ($35.53)
-- R:R Ratio: ~1:1 (conservative target)
+**Completed:** Feb 12, 2026
+**Total Runs:** 160 backtests + 30 PSAR retest = 190 total
+**Logs:**
+- `src/logs/phase3e_q3_parallel.log`
+- `src/logs/psar_05_retest.log`
+- `src/logs/phase3e_q3_analysis.csv`
+- `src/logs/psar_05_combined_analysis.csv`
 
-**Reality Check:**
-- First live trade with 14-indicator system
-- Backtests are promising but unproven in live trading
-- Need 20-30 trades to build statistical confidence
-- Document everything for analysis
+**Results:**
+- **Ichimoku Cloud:** ❌ REJECTED (no valid weights beat baseline)
+- **PSAR 0.5x:** ✅ WINNER (Sharpe 1.936, 528 trades, 63.1% win rate)
+  - Would rank **#1 in entire system**
+  - +525% improvement over baseline
+  - Extra 30-run retest confirmed performance
+
+**Analysis:** See `PHASE3E_Q3_SUMMARY.md` for full results
+
+### Quarter 4 (SuperTrend): ⏳ READY TO START
+
+**Plan:** Test SuperTrend (final Q3 indicator)
+- 4 weights × 20 runs = 80 backtests
+- Estimated: 3-4 hours
+- Script ready: `src/run_phase3e_q4.sh`
+
+---
+
+## 📊 Phase 3E Winners Summary (ALL DEPLOYED)
+
+**All Winners Deployed:**
+
+| Indicator | Category | Weight | Sharpe | Win Rate | Trades | Rank | Status |
+|-----------|----------|--------|--------|----------|--------|------|--------|
+| **PSAR** ⭐ | Trend | 0.5x | **1.936** | 63.1% | 528 | **#1** | ✅ Deployed Q3 |
+| Williams %R ⭐ | Momentum | 1.0x | 1.775* | 71.4% | 58 | **#2** | ✅ Deployed Q2 |
+| **SuperTrend** ⭐ | Trend | 1.5x | **1.284** | 61.3% | 80 | **#7** | ✅ Deployed Q4 |
+| ADX ⭐ | Trend | 1.0x | 1.252 | 57.1% | 63 | **#8** | ✅ Deployed Q1 |
+| CCI ⭐ | Momentum | 1.0x | 1.236 | 62.5% | 64 | - | ✅ Deployed Q2 |
+
+*Williams %R: Conservative Sharpe (outliers removed), original was 2.005
+⭐ = New from Phase 3E
+
+**System Growth:** 14 → 17 (Q1+Q2) → **19 indicators** (Q3+Q4)
+
+**Rejected:**
+- Stochastic (Q1) - Failed to beat baseline
+- Ichimoku Cloud (Q3) - No valid weights beat baseline
+
+**Alternative Weights Tested (Not Deployed):**
+- Williams %R at 2.0x: Sharpe 1.273 (64 trades) - Valid but 1.0x is better
+- Williams %R at 0.5x: Sharpe 0.704 (36 trades) - Valid but 1.0x is better
+
+---
+
+## 📈 Production System Status (17 Indicators)
+
+### Current Configuration (`src/weights.json`)
+
+**Trend (6):**
+- ADX: 1.0x ⭐ NEW
+- Heiken Ashi: 1.5x
+- Donchian: 1.5x
+- TTM Squeeze: 2.0x
+- Aroon: 1.0x
+- Keltner: 1.5x
+
+**Momentum (3):**
+- Williams %R: 1.0x ⭐ NEW
+- CCI: 1.0x ⭐ NEW
+- RS: 1.0x
+
+**Volume (3):**
+- VWAP: 2.0x
+- Force Index: 1.5x
+- AD Line: 1.0x
+
+**Candlestick (4):**
+- Rise/Fall 3 Methods: 1.5x
+- Three White Soldiers: 0.5x
+- Marubozu: 1.0x
+- Belt Hold: 1.0x
+
+**Price Action (1):**
+- GAP: 1.5x
+
+### Performance Tiers
+
+| Tier | Sharpe Range | Count |
+|------|--------------|-------|
+| Elite (>1.4) | 1.485 - 1.775 | 5 |
+| Excellent (1.2-1.4) | 1.237 - 1.252 | 3 |
+| Good (0.8-1.2) | - | - |
+| Baseline | 0.310 | - |
+
+**Top 5 Performers:**
+1. Williams %R (1.0x) - 1.775 ⭐ NEW
+2. Three White Soldiers (0.5x) - 1.635
+3. Keltner Channels (1.5x) - 1.529
+4. GAP Analysis (1.5x) - 1.485
+5. TTM Squeeze (2.0x) - 1.471
+
+---
+
+## 🤖 Automated Daily Pipeline (8:00 AM UTC)
+
+### Workflow
+1. **Market Data Update** (~1.5 hours)
+   - Updates all 10,870 symbols
+   - Last 100 datapoints per symbol
+
+2. **Prediction** (~50-55 minutes)
+   - Runs with 17 indicators
+   - Generates scores for all symbols
+   - Saves to MongoDB `scores` collection
+
+3. **Report Generation** (~2 seconds)
+   - Creates HTML report with top 10 candidates
+   - Sorted by Score → ML Confidence
+   - File: `src/logs/report_YYYY-MM-DD.html`
+
+4. **Email Notification** (~1 second)
+   - Sends via Brevo (port 2525)
+   - To: brandg@gmail.com
+   - From: pages@dailylitbits.com
+
+### Configuration
+- Scheduler: Celery Beat
+- Task: `run_daily_pipeline`
+- Schedule: Weekdays at 08:00 UTC
+- Containers: bluehorseshoe, bluehorseshoe_worker, bluehorseshoe_beat
 
 ---
 
 ## 🎯 Next Session Priorities
 
-1. **After IJJ Trade Closes:**
-   - Document outcome in PREDICTIONS_TRACKING.md
-   - Analyze what worked / didn't work
-   - Calculate actual P&L vs predicted
+### 1. Run Q4 Testing (SuperTrend) - IMMEDIATE
 
-2. **Tuesday Prediction (if needed):**
-   - Run fresh prediction for next trading day
-   - Compare candidates to see consistency
-   - Build sample size for system validation
+```bash
+cd /root/BlueHorseshoe/src
+nohup ./run_phase3e_q4.sh > logs/phase3e_q4.log 2>&1 &
+```
 
-3. **Optional - Phase 3E:**
-   - Test remaining indicators (Stochastic, ADX, CCI, Williams %R, Ichimoku, PSAR, SuperTrend)
-   - Not urgent - current 14 indicators are solid
-   - Consider after building live trading confidence
+**Expected:** 3-4 hours, 80 backtests
 
-4. **System Enhancements:**
-   - Build out mean reversion strategy weights
-   - Test RVOL (Relative Volume) filter
-   - Document Phase 3 learnings
+### 2. Analyze Q4 Results
+
+**After Q4 Completes:**
+```bash
+# Create and run analysis
+docker exec bluehorseshoe python src/analyze_phase3e_q4.py
+```
+
+### 3. Final Phase 3E Deployment
+
+**Deploy All Winners Together:**
+- Q1: ADX 1.0x ✅ (already deployed)
+- Q2: Williams %R 1.0x, CCI 1.0x ✅ (already deployed)
+- Q3: PSAR 0.5x ⏳ (pending)
+- Q4: TBD ⏳ (pending)
+
+**Update `weights.json`:**
+- Add PSAR at 0.5x
+- Add Q4 winners (if any)
+- Expected final count: 18-20 indicators
+
+### 4. Future: Confirmation Indicator Testing 📋
+
+**Post-Phase 3E Enhancement Plan:**
+
+After all isolation testing is complete and production weights are optimized, test "confirmation" indicators that failed isolation to see if they improve ensemble performance.
+
+**Methodology:**
+1. Establish baseline with production weights on 50 random dates
+2. For each confirmation indicator (Ichimoku, RSI, MACD, etc.):
+   - Add to production weights at low weight (0.3x, 0.5x, 0.7x)
+   - Run same 50 dates
+   - Compare metrics (Sharpe, win rate, P&L)
+3. Deploy only if Sharpe improves by ≥0.10
+
+**Documentation:** See `FUTURE_TESTING_CONFIRMATION_INDICATORS.md`
+
+**Candidate Indicators:**
+- Ichimoku Cloud (failed isolation, might work as filter)
+- RSI (not yet tested in isolation)
+- MACD (not yet tested in isolation)
+- OBV, CMF, MFI (volume confirmations)
+
+**Timeline:** Post-Phase 3E completion, estimated 2-3 days compute time
+**Priority:** Medium (system optimization, not critical)
 
 ---
 
 ## 🔧 Technical Notes
 
-**Data Pipeline:**
-- Data update frequency: `-u` flag updates last 100 days
-- Run before each prediction for latest closes
-- Takes ~3 hours for full symbol list (10,870 symbols)
-- Rate limited to 2 calls/second (AlphaVantage)
+### Email Configuration Journey
 
-**Prediction Pipeline:**
-- Takes ~60 minutes for 10,870 symbols
-- Saves 3,000-3,500 candidates to MongoDB
-- Generates HTML report automatically
-- All reports now tracked in git
+**Problem:** Server blocks standard SMTP ports
+- Port 25: ✗ Blocked
+- Port 465: ✗ Blocked
+- Port 587: ✗ Blocked
+- Port 2525: ✅ Open!
 
-**Important Files:**
-- Fresh prediction: `src/logs/report_2026-02-09.html`
-- Trade journal: `src/logs/PREDICTIONS_TRACKING.md`
-- Current weights: `src/weights.json`
-- Backups: `src/weights.json.phase3d_*`
+**Solutions Attempted:**
+1. ~~SendGrid (trial expired, free plan lacks SMTP)~~
+2. ~~Gmail (can't send "from" @gmail via 3rd party)~~
+3. ✅ **Brevo with port 2525** - WORKING
 
----
+**Critical Steps for Brevo:**
+1. Sign up for free account
+2. Authenticate domain (DKIM CNAME records)
+3. Verify sender email
+4. Get SMTP credentials
+5. Use port 2525 (not 587)
+6. Restart containers: `docker compose stop worker beat && docker compose up -d worker beat`
 
-# Previous Sessions
+### Report Customization
 
-## Phase 3 Testing Complete - 14 Indicators Deployed
+**File:** `src/bluehorseshoe/reporting/html_reporter.py`
 
-**Date:** February 8, 2026 (Morning)
-**Status:** Phase 3C & 3D complete, Production system upgraded to 14 indicators
-
----
-
-## 🎉 Major Accomplishments This Session
-
-### 1. **Phase 3C Testing Complete** ❌ DO NOT DEPLOY
-
-**Testing Details:**
-- Indicators: MACD, MACD_SIGNAL
-- Total backtests: 160 (2 indicators × 4 weights × 20 runs)
-- Trades analyzed: 1,600 across 148 unique dates
-- Runtime: 11+ hours
-- Status: ✅ Completed
-
-**Results:**
-- **Sharpe Ratio: -0.795** (NEGATIVE - massive underperformance)
-- Win Rate: 46.58% (below breakeven)
-- Total P&L: -202.80% (significant losses)
-- Profit Factor: 0.86 (losing more than winning)
-
-**Verdict:** ❌ **DO NOT DEPLOY** - MACD indicators actively hurt performance
-**Recommendation:** Keep MACD_MULTIPLIER and MACD_SIGNAL_MULTIPLIER at 0.0
-
-### 2. **Phase 3D Testing Complete** ✅ DEPLOYED TO PRODUCTION
-
-**Testing Details:**
-- Indicators: Rise/Fall Three Methods, Three White Soldiers, Belt Hold
-- Total backtests: 240 (3 indicators × 4 weights × 20 runs)
-- Trades analyzed: 4,600 across 339 unique dates
-- Runtime: 19 hours 4 minutes
-- Status: ✅ Completed with 100% success rate
-
-**Outstanding Results:**
-
-| Rank | Indicator | Weight | Sharpe | vs Baseline | Win Rate | Trades |
-|------|-----------|--------|--------|-------------|----------|--------|
-| 🥇 | **Three White Soldiers** | **0.5x** | **1.635** | **+428%** | 57.0% | 298 |
-| 🥈 | **Rise/Fall Three Methods** | **1.5x** | **1.237** | **+299%** | 65.6% | 122 |
-| 🥉 | **Belt Hold** | **1.0x** | **1.181** | **+281%** | 56.6% | 447 |
-
-**Verdict:** ✅ **DEPLOYED TO PRODUCTION** - All three patterns beat baseline significantly
-**Three White Soldiers is now the 2nd best indicator in the system!**
-
-### 3. **Production System Upgraded: 11 → 14 Indicators**
-
-**weights.json updated with Phase 3D winners:**
-- `THREE_WHITE_SOLDIERS_MULTIPLIER: 0.5` (NEW - Sharpe 1.635)
-- `RISE_FALL_3_METHODS_MULTIPLIER: 1.5` (NEW - Sharpe 1.237)
-- `BELT_HOLD_MULTIPLIER: 1.0` (NEW - Sharpe 1.181)
-
-**Backup created:** `weights.json.phase3d_deployed`
-
-### 4. **Container System Enhanced**
-
-**Auto-restart policies activated:**
-- ✅ `bluehorseshoe: restart: unless-stopped`
-- ✅ `worker: restart: unless-stopped`
-- ✅ `beat: restart: unless-stopped`
-
-**Benefits:**
-- Prevents 29-hour downtime (like we experienced)
-- Auto-starts on system reboot
-- Respects manual stops
-
-**Fixed:** Missing `pydantic-settings` module after container restart
-
-### 5. **Analysis Scripts Created**
-
-**New analysis tools:**
-- `analyze_phase3c.py` - Analyzed MACD performance (negative results)
-- `analyze_phase3d_corrected.py` - Analyzed candlestick patterns (excellent results)
-
-**Logs organized:**
-- `phase3a_backtest_log.csv` (262KB)
-- `phase3b_backtest_log.csv` (438KB)
-- `phase3c_backtest_log.csv` (177KB)
-- `phase3d_backtest_log.csv` (4,600 trades)
-
----
-
-## 📊 Current Production System (14 Indicators)
-
-### Complete Configuration
-
-```json
-{
-  "trend": {
-    "HEIKEN_ASHI_MULTIPLIER": 1.5,
-    "DONCHIAN_MULTIPLIER": 1.5,
-    "TTM_SQUEEZE_MULTIPLIER": 2.0,
-    "AROON_MULTIPLIER": 1.0,
-    "KELTNER_MULTIPLIER": 1.5
-  },
-  "momentum": {
-    "RS_MULTIPLIER": 1.0
-  },
-  "volume": {
-    "VWAP_MULTIPLIER": 2.0,
-    "FORCE_INDEX_MULTIPLIER": 1.5,
-    "AD_LINE_MULTIPLIER": 1.0
-  },
-  "candlestick": {
-    "RISE_FALL_3_METHODS_MULTIPLIER": 1.5,
-    "THREE_WHITE_SOLDIERS_MULTIPLIER": 0.5,
-    "MARUBOZU_MULTIPLIER": 1.0,
-    "BELT_HOLD_MULTIPLIER": 1.0
-  },
-  "price_action": {
-    "GAP_MULTIPLIER": 1.5
-  }
-}
+**Key Constants (Lines 17-19):**
+```python
+TOP_CANDIDATES_PER_STRATEGY = 5   # Quick summary boxes
+TOP_CANDIDATES_TABLE_LIMIT = 10   # Main detailed table
 ```
 
-### Performance Rankings (Top 10)
+**Sorting Logic (Lines 339-342, 470-473):**
+```python
+# Sort by (score, ml_prob) tuple - both descending
+key=lambda x: (x.get('score', 0), x.get('ml_prob', 0))
+```
 
-| Rank | Indicator | Weight | Sharpe | Status |
-|------|-----------|--------|--------|--------|
-| 1 | **Three White Soldiers** | 0.5x | **1.635** | Elite ⭐ |
-| 2 | **Keltner Channels** | 1.5x | **1.529** | Elite ⭐ |
-| 3 | **GAP Analysis** | 1.5x | **1.485** | Elite ⭐ |
-| 4 | **TTM Squeeze** | 2.0x | **1.471** | Elite ⭐ |
-| 5 | **Rise/Fall 3 Methods** | 1.5x | **1.237** | Excellent |
-| 6 | **Belt Hold** | 1.0x | **1.181** | Excellent |
-| 7 | **VWAP** | 2.0x | **1.151** | Excellent |
-| 8 | **A/D Line** | 1.0x | **0.972** | Good |
-| 9-14 | Heiken Ashi, Donchian, Aroon, RS, Force Index, Marubozu | Various | Various | Good |
+### Phase 3E Testing Framework
 
-**System Average Sharpe:** Expected ~1.1+ (up from 1.014)
-**Elite-tier indicators (>1.5):** 4 (Three White Soldiers, Keltner, GAP, TTM)
+**Statistical Validity Rules:**
+- ✅ Valid: ≥30 trades (reliable Sharpe)
+- ❌ Invalid: <30 trades (too much noise)
+
+**Examples:**
+- Stochastic 0.5x: Sharpe 5.509, only 10 trades → INVALID
+- CCI 1.5x: Sharpe 2.084, only 26 trades → INVALID
+- Williams %R 1.0x: Sharpe 1.775, 58 trades → VALID ✅
+
+**Scripts:**
+- `src/run_phase3e_q1.sh` - ADX, Stochastic (complete)
+- `src/run_phase3e_q2.sh` - CCI, Williams %R (complete)
+- `src/run_phase3e_q3.sh` - Ichimoku, PSAR (running)
+- `src/run_phase3e_q4.sh` - SuperTrend (ready)
+
+**Analysis:**
+- `src/analyze_phase3e_q1.py` (complete)
+- `src/analyze_phase3e_q2.py` (complete)
+- `src/analyze_phase3e_q3.py` (create after Q3 completes)
 
 ---
 
-## 📈 Phase 3 Complete Summary
+## 📁 Important Files
 
-### Phase 3A Results (Completed Feb 5)
-**Indicators Tested:** RS, GAP, VWAP
-**Deployed:** GAP (1.5x), VWAP (2.0x)
-**Best Performer:** GAP at 1.5x (Sharpe 1.485)
+### Modified Today
+- `src/weights.json` - Deployed 3 new indicators
+- `src/bluehorseshoe/reporting/html_reporter.py` - Report improvements
+- `docker/.env` - Brevo email configuration
 
-### Phase 3B Results (Completed Feb 6)
-**Indicators Tested:** TTM, Aroon, Keltner, Force Index, A/D Line
-**Deployed:** All 5 indicators at optimal weights
-**Best Performer:** Keltner at 1.5x (Sharpe 1.529)
-
-### Phase 3C Results (Completed Feb 7) ❌
-**Indicators Tested:** MACD, MACD_SIGNAL
-**Deployed:** NONE
-**Result:** Sharpe -0.795 (DO NOT DEPLOY)
-
-### Phase 3D Results (Completed Feb 8) ✅
-**Indicators Tested:** Rise/Fall 3 Methods, Three White Soldiers, Belt Hold
-**Deployed:** All 3 at optimal weights
-**Best Performer:** Three White Soldiers at 0.5x (Sharpe 1.635)
-
-### Overall Phase 3 Stats
-- **Total indicators tested:** 13
-- **Indicators deployed:** 10 (77% success rate)
-- **Total backtests run:** ~640
-- **Total trades analyzed:** ~10,000+
-- **Testing time:** ~60+ hours
-- **Result:** System enhanced from 11 to 14 indicators
-
----
-
-## 🔧 System Health
-
-### Docker Containers (All Healthy)
-```
-bluehorseshoe        Up 1 day    (API server, restart: unless-stopped)
-bluehorseshoe_worker Up 1 day    (Celery, restart: unless-stopped)
-bluehorseshoe_beat   Up 1 day    (Scheduler, restart: unless-stopped)
-mongo                Up 3+ days  (Database, restart: always)
-redis                Up 3+ days  (Cache, restart: always)
-```
-
-### Celery Tasks
-- ✅ predict_task
-- ✅ update_market_data_task
-- ✅ run_daily_pipeline (8:00 AM weekdays)
-
-### Recent System Activity
-- Feb 7 14:00 UTC: Containers restarted, auto-restart policies activated
-- Feb 7 14:11 UTC: Phase 3D testing started
-- Feb 8 09:15 UTC: Phase 3D completed successfully
-- Feb 8 09:30 UTC: Production weights updated to 14 indicators
-
----
-
-## 📁 File Structure
-
-### Analysis & Results
-```
-src/logs/
-├── phase3a_backtest_log.csv (262KB)
-├── phase3a_analysis_corrected.csv
-├── phase3b_backtest_log.csv (438KB)
-├── phase3b_analysis_corrected.csv
-├── phase3c_backtest_log.csv (177KB)
-├── phase3c_analysis.csv
-├── phase3d_backtest_log.csv (4,600 trades)
-├── phase3d_analysis_corrected.csv
-└── phase3d_test_run.log (full test log with configurations)
-```
+### Logs & Reports
+- `src/logs/phase3e_q3_rerun.log` - Q3 testing (in progress)
+- `src/logs/report_2026-02-10.html` - Latest report (10 candidates)
+- `src/logs/backtest_log.csv` - All backtest results
 
 ### Configuration Backups
-```
-src/
-├── weights.json (CURRENT - 14 indicators)
-├── weights.json.phase3d_deployed (backup of current)
-├── weights.json.phase3d_backup (11 indicators - before Phase 3D)
-└── weights.json.phase1_production_backup (original)
-```
-
-### Root Directory (Clean)
-```
-Root/
-├── CLAUDE.md, GEMINI.md, README.md, LICENSE
-├── lint.sh, pytest.sh
-├── position_sizer.py
-├── position_sizer_enhanced.py
-├── quick_size.py
-└── position_tracker.csv
-```
-
----
-
-## 🎯 Next Steps & Recommendations
-
-### Immediate Actions
-
-1. **✅ DONE: Run test prediction with 14 indicators**
-   ```bash
-   docker exec bluehorseshoe python src/main.py -p
-   ```
-   Verify new candlestick patterns work correctly
-
-2. **Monitor live trading performance**
-   - Continue building 20-30 trade sample
-   - Compare to backtested Sharpe ~1.1+
-   - Use position sizing tools for every trade
-
-3. **Consider Phase 3E (Optional)**
-   **Remaining untested indicators:**
-   - Advanced momentum: Stochastic, ADX, CCI, Williams %R
-   - Advanced trend: Ichimoku, PSAR, SuperTrend
-   - Candlestick: Additional patterns (if any remain)
-
-   **Note:** Current 14 indicators already provide excellent coverage. Phase 3E is optional enhancement, not critical.
-
-### Future Enhancements
-
-**System Improvements:**
-- Build out mean reversion strategy weights (currently minimal)
-- Test RVOL (Relative Volume) filter
-- Explore alternative entry timing strategies
-- Consider sector rotation indicators
-
-**Live Trading:**
-- Document live trade results vs backtested expectations
-- Build confidence in system with 20-30 trade sample
-- Consider graduated position sizing as confidence grows
-
-**Code Quality:**
-- Continue comprehensive test coverage
-- Document Phase 3 learnings
-- Create Phase 3 summary report for documentation
+- `src/weights.json.phase3e_backup` - Pre-deployment backup (14 indicators)
+- `docker/.env` - Email settings (Brevo)
 
 ---
 
 ## 🚀 Quick Commands
 
-### Daily Operations
+### Check Q3 Progress
 ```bash
-# Run prediction with new 14-indicator system
+tail -50 /root/BlueHorseshoe/src/logs/phase3e_q3_rerun.log
+ps aux | grep run_phase3_testing | grep -v grep
+```
+
+### Test Email
+```bash
+docker exec bluehorseshoe python -c "
+from bluehorseshoe.api.tasks import send_email_task
+result = send_email_task.delay({'path': 'src/logs/report_2026-02-10.html'})
+print(f'Queued: {result.id}')
+"
+```
+
+### Generate Fresh Prediction
+```bash
 docker exec bluehorseshoe python src/main.py -p
-
-# Position sizing (auto-calculation)
-docker exec bluehorseshoe python position_sizer_enhanced.py \
-  --account 2000 --risk 1.0 --symbol AAPL --strategy baseline
-
-# Quick calculator
-python quick_size.py
-
-# Check latest report
-ls -lh src/graphs/report_*.html | tail -1
 ```
 
 ### Container Management
 ```bash
-# Check status (should show restart: unless-stopped)
-docker ps --format "table {{.Names}}\t{{.Status}}"
-docker inspect bluehorseshoe --format '{{.HostConfig.RestartPolicy.Name}}'
-
-# Restart if needed
-cd docker && docker compose restart bluehorseshoe worker beat
-
-# Check Celery health
-docker exec bluehorseshoe_worker celery -A bluehorseshoe.api.celery_app inspect active
-```
-
-### Analysis & Testing
-```bash
-# Run backtest on specific date
-docker exec bluehorseshoe python src/main.py -t 2026-02-08
-
-# Review Phase 3 results
-cat src/logs/phase3d_analysis_corrected.csv
-
-# Compare all indicators
-docker exec bluehorseshoe python src/compare_all_indicators.py
+docker ps
+cd docker && docker compose ps
+docker compose restart worker beat  # After .env changes
 ```
 
 ---
 
-## 📝 Important Notes
+## 🎉 Session Accomplishments (Feb 12)
 
-### Phase 3 Learnings
+**Wednesday Evening - PHASE 3E COMPLETE:**
+- ✅ Phase 3E Q3 complete (160 backtests) - PSAR 0.5x winner
+- ✅ PSAR 0.5x retest (30 additional runs) - Sharpe 1.936 validated
+- ✅ Phase 3E Q4 complete (80 backtests) - SuperTrend 1.5x winner
+- ✅ **Deployed PSAR 0.5x + SuperTrend 1.5x** (17 → 19 indicators)
+- ✅ System now has #1 and #2 ranked indicators
+- ✅ Created comprehensive deployment summary (PHASE3E_DEPLOYMENT_SUMMARY.md)
+- ✅ Documented future confirmation indicator testing plan
+- ✅ Test prediction running successfully with 19 indicators
 
-**What Worked:**
-- Systematic testing with 1,000 symbol samples
-- 20 runs per configuration for statistical significance
-- Proper daily portfolio returns for Sharpe calculation
-- Test run logs to map dates to configurations
-- Candlestick patterns (3 of 3 beat baseline significantly)
-- Trend indicators (Keltner, TTM, GAP all elite)
-- Volume indicators (VWAP, Force Index, A/D Line all positive)
+**Previous (Feb 10-11):**
+- ✅ Deployed 3 Phase 3E winners (ADX, Williams %R, CCI)
+- ✅ Fixed email notifications (Brevo + port 2525)
+- ✅ Verified dailylitbits.com domain with DKIM
+- ✅ Limited report to 10 top candidates
+- ✅ Improved sorting (Score → ML Confidence)
 
-**What Didn't Work:**
-- MACD indicators (both MACD and MACD_SIGNAL underperformed dramatically)
-- Some weight configurations within good indicators (weight matters!)
-
-**Key Insight:** Not all technical indicators add value. Empirical testing is essential. Our systematic Phase 3 approach successfully identified winners and losers.
-
-### Position Sizing Reminder
-
-**Account Risk %** = % of total capital willing to lose per trade
-- Conservative: 0.5-1.0%
-- Moderate: 1.0-2.0%
-- Aggressive: 2.0-3.0%
-
-**Formula:**
-```
-Account Risk ($) = Account Size × Account Risk %
-Risk per Share = Entry Price - Stop Price
-Shares to Buy = Account Risk ($) / Risk per Share
-```
-
-### Sharpe Ratio Context
-
-**Industry Benchmarks:**
-- < 0.5: Below average
-- 0.5-1.0: Good
-- 1.0-1.5: Excellent (BlueHorseshoe system)
-- 1.5-2.0: Elite (Top hedge funds)
-- > 2.0: Exceptional (extremely rare)
-
-**BlueHorseshoe Performance:**
-- System Average: ~1.1+ (Excellent tier)
-- Top Indicator: Three White Soldiers 1.635 (Elite tier)
-- 4 Elite indicators (>1.5 Sharpe)
-- 10 Good+ indicators (>0.5 Sharpe)
+**Earlier (Feb 8-10):**
+- ✅ Phase 3E Q1 complete (ADX winner)
+- ✅ Phase 3E Q2 complete (Williams %R, CCI winners)
+- ✅ Phase 3D complete (3 candlestick patterns)
+- ✅ Monday prediction generated (IJJ mystery solved)
 
 ---
 
-## 🎉 Session Summary
+## 📋 Open Tasks
 
-**Major Milestones:**
-- ✅ Phase 3C completed (MACD testing - negative results)
-- ✅ Phase 3D completed (Candlestick patterns - excellent results)
-- ✅ Production system upgraded: 11 → 14 indicators
-- ✅ Three White Soldiers (1.635 Sharpe) now 2nd best indicator
-- ✅ Auto-restart policies activated (prevents downtime)
-- ✅ System tested and validated with 14 indicators
-
-**Phase 3 Complete:**
-- 13 indicators tested over 4 phases (A, B, C, D)
-- 10 indicators deployed to production
-- System performance enhanced significantly
-- All weights empirically optimized
-
-**System Status:**
-- ✅ 14 indicators deployed (up from 11)
-- ✅ Average Sharpe ~1.1+ (excellent tier)
-- ✅ 4 elite-tier indicators (Sharpe > 1.5)
-- ✅ Celery healthy with auto-restart protection
-- ✅ Position sizing tools production-ready
-- ✅ Live trading active with excellent early results
-
-**Ready for production use with enhanced 14-indicator system!** 🚀
+1. 📊 **Monitor 19-indicator system** - Observe performance for 1-2 weeks
+2. 📋 **Confirmation testing** - Future enhancement (see FUTURE_TESTING_CONFIRMATION_INDICATORS.md)
+3. 📝 **Email-optimized template** - Future enhancement (nice to have)
+4. 🎯 **System optimization** - Fine-tune weights based on live performance (optional)
 
 ---
 
-**Last Updated:** February 8, 2026 - 10:00 UTC
-**Next Session:** Monitor live trading, consider optional Phase 3E, or focus on system refinements
+**System Status:** ✅ All healthy - 19 indicators deployed and running
+**Data Status:** ✅ Current through Friday 2026-02-07
+**Testing Status:** ✅ Phase 3E COMPLETE (all 4 quarters)
+**Production System:** ✅ **19 indicators** with #1 (PSAR) and #2 (Williams %R) ranked
+**Email Pipeline:** ✅ Fully automated and working
+**Phase 3E Results:** 4 winners from 7 indicators tested (57% success rate)
+
+**Last Updated:** February 12, 2026 - 18:10 UTC
+**Next Action:** Monitor system performance, consider confirmation testing when ready
