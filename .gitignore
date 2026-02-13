@@ -18,8 +18,8 @@ src/logs/fail_script.log
 .env
 docker/.env
 src/logs/*.log
-# src/logs/*.html - REMOVED: We want to track prediction reports for audit trail
 src/logs/*.txt
 src/logs/backtest_log.csv
 src/logs/backtest_log_fixed.csv
 celerybeat-schedule
+src/models/*
