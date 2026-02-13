@@ -1,7 +1,7 @@
-# Session Handoff - Phase 3E COMPLETE ✅
+# Session Handoff - Performance Optimization Complete ✅
 
-**Date:** February 12, 2026 (Wednesday Evening)
-**Status:** 🎉 Phase 3E fully complete - 19 indicators deployed, all winners validated
+**Date:** February 13, 2026 (Thursday Morning)
+**Status:** 🚀 SuperTrend optimized, cron automation working, Celery removed
 
 ---
 
@@ -110,11 +110,13 @@
 
 ---
 
-## 📈 Production System Status (17 Indicators)
+## 📈 Production System Status (19 Indicators)
 
 ### Current Configuration (`src/weights.json`)
 
-**Trend (6):**
+**Trend (8):**
+- PSAR: 0.5x ⭐ NEW (#1 ranked - Sharpe 1.936)
+- SuperTrend: 1.5x ⭐ NEW (#7 ranked - Sharpe 1.284)
 - ADX: 1.0x ⭐ NEW
 - Heiken Ashi: 1.5x
 - Donchian: 1.5x
@@ -123,7 +125,7 @@
 - Keltner: 1.5x
 
 **Momentum (3):**
-- Williams %R: 1.0x ⭐ NEW
+- Williams %R: 1.0x ⭐ NEW (#2 ranked - Sharpe 1.775)
 - CCI: 1.0x ⭐ NEW
 - RS: 1.0x
 
@@ -159,69 +161,87 @@
 
 ---
 
-## 🤖 Automated Daily Pipeline (8:00 AM UTC)
+## 🤖 Automated Daily Pipeline (02:00 UTC / 9 PM EST)
 
 ### Workflow
-1. **Market Data Update** (~1.5 hours)
+1. **Market Data Update** (~1.5-2 hours)
    - Updates all 10,870 symbols
    - Last 100 datapoints per symbol
+   - CLI: `docker exec bluehorseshoe python src/main.py -u`
 
-2. **Prediction** (~50-55 minutes)
-   - Runs with 17 indicators
+2. **Prediction & Report** (~50-55 minutes)
+   - Runs with 19 indicators
    - Generates scores for all symbols
    - Saves to MongoDB `scores` collection
-
-3. **Report Generation** (~2 seconds)
    - Creates HTML report with top 10 candidates
    - Sorted by Score → ML Confidence
-   - File: `src/logs/report_YYYY-MM-DD.html`
+   - CLI: `docker exec bluehorseshoe python src/main.py -p`
+   - Files: `src/logs/report_YYYY-MM-DD.html` (full + email version)
 
-4. **Email Notification** (~1 second)
+3. **Email Notification** (automatic with `-p`)
    - Sends via Brevo (port 2525)
    - To: brandg@gmail.com
    - From: pages@dailylitbits.com
 
-### Configuration
-- Scheduler: Celery Beat
-- Task: `run_daily_pipeline`
-- Schedule: Weekdays at 08:00 UTC
-- Containers: bluehorseshoe, bluehorseshoe_worker, bluehorseshoe_beat
+### Configuration ⭐ NEW - Cron-Based
+- **Scheduler:** System cron (host-level, immune to container restarts)
+- **Script:** `/root/BlueHorseshoe/run_daily_pipeline.sh`
+- **Schedule:** `0 2 * * 1-5` (Mon-Fri at 02:00 UTC / 9 PM EST)
+- **Log:** `src/logs/cron_pipeline.log`
+- **Containers:** bluehorseshoe, mongo only (Celery removed)
+
+**Why Cron vs Celery Beat:**
+- ✅ More reliable (runs on host, not affected by container restarts)
+- ✅ Simpler architecture (no Redis, no worker, no beat)
+- ✅ Saves ~718 MiB RAM
+- ✅ Earlier schedule (9 PM EST gives time to review before bed)
 
 ---
 
 ## 🎯 Next Session Priorities
 
-### 1. Run Q4 Testing (SuperTrend) - IMMEDIATE
+### 1. Test Optimized SuperTrend ⭐ COMPLETE
 
-```bash
-cd /root/BlueHorseshoe/src
-nohup ./run_phase3e_q4.sh > logs/phase3e_q4.log 2>&1 &
-```
+**Verification Results:**
+- **Speedup:** 40.4x faster (isolated calculation) 🚀
+- **Processing Rate:** 98.65ms per symbol (SuperTrend only)
+- **Pipeline Impact:** `calculate_supertrend` is no longer a bottleneck (0.14s cumulative time vs 757s previously).
+- **Report:** See `SUPER_TREND_OPTIMIZATION_REPORT.md` for full details.
 
-**Expected:** 3-4 hours, 80 backtests
+### 2. Optimized Aroon Indicator ⭐ COMPLETE
 
-### 2. Analyze Q4 Results
+**Verification Results:**
+- **Speedup:** ~19.5x faster (isolated calculation)
+- **Processing Rate:** ~2.9ms per symbol (vs ~57ms)
+- **Projected Time:** 0.5 minutes for 10k symbols (down from 10 minutes)
+- **Report:** See `AROON_OPTIMIZATION_REPORT.md` for details.
 
-**After Q4 Completes:**
-```bash
-# Create and run analysis
-docker exec bluehorseshoe python src/analyze_phase3e_q4.py
-```
+### 3. Optimized TTM Squeeze & Keltner ⭐ COMPLETE
 
-### 3. Final Phase 3E Deployment
+**Verification Results:**
+- **Speedup:** ~1.6x faster (isolated calculation)
+- **Processing Rate:** ~4.8ms per symbol (vs ~7.5ms)
+- **Report:** See `TTM_SQUEEZE_OPTIMIZATION_REPORT.md` for details.
 
-**Deploy All Winners Together:**
-- Q1: ADX 1.0x ✅ (already deployed)
-- Q2: Williams %R 1.0x, CCI 1.0x ✅ (already deployed)
-- Q3: PSAR 0.5x ⏳ (pending)
-- Q4: TBD ⏳ (pending)
+**Files Verified:**
+- `src/bluehorseshoe/analysis/indicators/trend_indicators.py` (SuperTrend, Aroon, TTM, Keltner optimized)
+- `benchmark_supertrend.py` (Fixed and run)
 
-**Update `weights.json`:**
-- Add PSAR at 0.5x
-- Add Q4 winners (if any)
-- Expected final count: 18-20 indicators
+### 2. Monitor Next Cron Run
 
-### 4. Future: Confirmation Indicator Testing 📋
+**Next scheduled run: Monday Feb 16 at 02:00 UTC**
+- Should complete much faster with optimized SuperTrend
+- Expected: ~2-3 hours total (vs 7.5 hours on Feb 12)
+- Check: `tail -f /root/BlueHorseshoe/src/logs/cron_pipeline.log`
+
+### 3. System Performance Monitoring
+
+**Watch 19-Indicator Performance:**
+- Monitor win rates over next 1-2 weeks
+- Compare vs historical baseline
+- Verify PSAR (#1) and Williams %R (#2) are delivering results
+
+### 3. Future: Confirmation Indicator Testing 📋
 
 **Post-Phase 3E Enhancement Plan:**
 
@@ -249,6 +269,57 @@ After all isolation testing is complete and production weights are optimized, te
 ---
 
 ## 🔧 Technical Notes
+
+### Performance Optimization Analysis (Feb 13)
+
+**Problem Identified:**
+- Prediction taking 3 hours instead of expected 50-55 minutes
+- Profiling revealed SuperTrend indicator consuming 99% of execution time
+- 757 seconds for SuperTrend vs 3 seconds for all other 18 indicators combined
+
+**Root Cause:**
+```python
+# BEFORE (slow):
+for i in range(1, len(self.days)):
+    if basic_upper.iloc[i] < final_upper[i-1] ...  # Pandas .iloc[] in tight loop
+        final_upper[i] = basic_upper.iloc[i]       # VERY SLOW
+```
+
+**Solution Applied:**
+```python
+# AFTER (fast):
+# Convert to numpy once
+high = self.days['high'].values
+low = self.days['low'].values
+close = self.days['close'].values
+
+for i in range(1, n):
+    if basic_upper[i] < final_upper[i-1] ...  # Direct numpy array access
+        final_upper[i] = basic_upper[i]       # MUCH FASTER
+```
+
+**Expected Improvement:**
+- Before: 0.25 symbols/sec → 12.1 hours for 10,870 symbols
+- After: 2-3 symbols/sec → 1-2 hours for 10,870 symbols
+- **Speedup: 10-20x faster** ⚡
+
+**Files Modified:**
+- `src/bluehorseshoe/analysis/indicators/trend_indicators.py` (calculate_supertrend)
+
+**Testing Status:**
+- ⏳ Needs verification run to confirm speedup
+- ⏳ Needs validation that results are still correct
+
+### Rate Limiting Fix (Feb 13)
+
+**Problem:** Data update taking 4h 19m (expected 1.5-2h)
+
+**Root Cause:** `ALPHAVANTAGE_CPS=1` (hardcoded in docker-compose.yml)
+- 10,870 symbols × 1 second = 3+ hours just for API calls
+
+**Fix:** Changed to `ALPHAVANTAGE_CPS=2`
+- File: `docker/docker-compose.yml`
+- Expected: ~2 hours for data update (50% faster)
 
 ### Email Configuration Journey
 
@@ -313,8 +384,20 @@ key=lambda x: (x.get('score', 0), x.get('ml_prob', 0))
 
 ## 📁 Important Files
 
-### Modified Today
-- `src/weights.json` - Deployed 3 new indicators
+### Modified Feb 13
+- `src/bluehorseshoe/analysis/indicators/trend_indicators.py` - **Optimized SuperTrend**
+- `docker/docker-compose.yml` - Removed Celery/Redis, fixed ALPHAVANTAGE_CPS
+- `docker/requirements.txt` - Removed celery and redis packages
+- `src/bluehorseshoe/api/routes.py` - Removed Celery-dependent endpoints
+- `/root/BlueHorseshoe/run_daily_pipeline.sh` - Cron pipeline script
+- Crontab - Added daily pipeline at 02:00 UTC
+
+### New Files Created
+- `/root/BlueHorseshoe/profile_prediction.py` - Profiling tool for performance analysis
+- `/root/BlueHorseshoe/benchmark_supertrend.py` - SuperTrend benchmark script
+
+### Modified Previously
+- `src/weights.json` - 19 indicators deployed
 - `src/bluehorseshoe/reporting/html_reporter.py` - Report improvements
 - `docker/.env` - Brevo email configuration
 
@@ -331,36 +414,77 @@ key=lambda x: (x.get('score', 0), x.get('ml_prob', 0))
 
 ## 🚀 Quick Commands
 
-### Check Q3 Progress
+
+### Test Optimized SuperTrend
 ```bash
-tail -50 /root/BlueHorseshoe/src/logs/phase3e_q3_rerun.log
-ps aux | grep run_phase3_testing | grep -v grep
+# Run profiling to measure improvement
+docker exec bluehorseshoe python /workspaces/BlueHorseshoe/profile_prediction.py 2>&1 | tee /root/BlueHorseshoe/src/logs/profiling_optimized.log
+
+# Check results (look for symbols/second rate)
+grep -E "(Rate:|Projected|calculate_supertrend)" /root/BlueHorseshoe/src/logs/profiling_optimized.log
 ```
 
-### Test Email
+### Monitor Cron Pipeline
 ```bash
-docker exec bluehorseshoe python -c "
-from bluehorseshoe.api.tasks import send_email_task
-result = send_email_task.delay({'path': 'src/logs/report_2026-02-10.html'})
-print(f'Queued: {result.id}')
-"
+# Watch live progress
+tail -f /root/BlueHorseshoe/src/logs/cron_pipeline.log
+
+# View cron schedule
+crontab -l
+
+# Manual pipeline run (for testing)
+/root/BlueHorseshoe/run_daily_pipeline.sh
 ```
 
 ### Generate Fresh Prediction
 ```bash
-docker exec bluehorseshoe python src/main.py -p
+docker exec bluehorseshoe python src/main.py -u  # Update data
+docker exec bluehorseshoe python src/main.py -p  # Predict & report
 ```
 
 ### Container Management
 ```bash
 docker ps
 cd docker && docker compose ps
-docker compose restart worker beat  # After .env changes
+
+# Celery containers now stopped (no longer needed)
+# Only running: bluehorseshoe, mongo
+```
+
+### API Endpoints (Read-Only Report Viewer)
+```bash
+# List available reports
+curl http://localhost:8001/api/v1/reports
+
+# View specific report in browser
+http://localhost:8001/api/v1/reports/2026-02-12
+
+# Health check
+curl http://localhost:8001/api/v1/health
 ```
 
 ---
 
-## 🎉 Session Accomplishments (Feb 12)
+## 🎉 Session Accomplishments (Feb 13)
+
+**Thursday Afternoon - ML MODEL RETRAINING:**
+- ✅ **Retrained all 4 ML models** - using 19-indicator era data (Feb 10+)
+- ✅ **General win probability model** - 66% accuracy, 5K samples
+- ✅ **Baseline strategy model** - 66-68% accuracy, trend-following specific
+- ✅ **Mean reversion model** - 68% accuracy, learned oversold patterns correctly
+- ✅ **Stop-loss predictor** - Dynamic ATR-based stop distances
+- ✅ **Created ML_RETRAINING_SUMMARY.md** - comprehensive training report
+- ✅ **Updated SESSION_HANDOFF.md** - marked ML retraining complete
+
+**Thursday Morning - PERFORMANCE OPTIMIZATION & INFRASTRUCTURE:**
+- ✅ **Profiled prediction pipeline** - identified SuperTrend as 99% bottleneck
+- ✅ **Optimized SuperTrend calculation** - replaced .iloc[] loops with numpy arrays
+- ✅ **Fixed ALPHAVANTAGE_CPS** - increased from 1 to 2 CPS for faster updates
+- ✅ **Replaced Celery Beat with cron** - more reliable automation at 02:00 UTC (9 PM EST)
+- ✅ **Removed Celery/Redis containers** - saved ~718 MiB RAM, simplified architecture
+- ✅ **Rebuilt containers** - clean build without celery/redis dependencies
+- ✅ **Verified cron automation** - Feb 12 run completed successfully (took 7h 24m)
+- ✅ **Created profiling tools** - profile_prediction.py for future optimization work
 
 **Wednesday Evening - PHASE 3E COMPLETE:**
 - ✅ Phase 3E Q3 complete (160 backtests) - PSAR 0.5x winner
@@ -389,19 +513,45 @@ docker compose restart worker beat  # After .env changes
 
 ## 📋 Open Tasks
 
-1. 📊 **Monitor 19-indicator system** - Observe performance for 1-2 weeks
-2. 📋 **Confirmation testing** - Future enhancement (see FUTURE_TESTING_CONFIRMATION_INDICATORS.md)
-3. 📝 **Email-optimized template** - Future enhancement (nice to have)
-4. 🎯 **System optimization** - Fine-tune weights based on live performance (optional)
+1. ✅ ~~**Retrain ML models**~~ - **COMPLETE** (Feb 13, 2026 15:15 UTC)
+   - All 4 models retrained with 19-indicator data
+   - See `ML_RETRAINING_SUMMARY.md` for details
+2. 📊 **Monitor 19-indicator system** - Observe performance for 1-2 weeks
+3. 📋 **Confirmation testing** - Future enhancement (see FUTURE_TESTING_CONFIRMATION_INDICATORS.md)
+4. 📝 **Email-optimized template** - Future enhancement (nice to have)
+5. 🎯 **System optimization** - Fine-tune weights based on live performance (optional)
+
+### ML Model Retraining Details
+
+**Problem:** All 4 ML models in `src/models/` were last trained **Jan 30, 2026** (2+ weeks stale).
+- `ml_overlay_v1.joblib` - General win probability
+- `ml_overlay_baseline.joblib` - Baseline strategy win probability
+- `ml_overlay_mean_reversion.joblib` - Mean reversion win probability
+- `ml_stop_loss_v1.joblib` - Stop loss distance prediction
+
+**Why it matters:** Models learned score-to-outcome relationships from the 14-indicator era. Since then, 5 indicators were added (PSAR, SuperTrend, ADX, Williams %R, CCI), changing the aggregated category score distributions the models receive. Win probability and stop-loss predictions may be miscalibrated.
+
+**Prerequisite:** Need enough graded trades scored with 19-indicator system. Check MongoDB before retraining.
+
+**Commands to retrain:**
+```bash
+docker exec bluehorseshoe python src/train_ml_overlay.py
+docker exec bluehorseshoe python src/train_stop_loss.py
+```
 
 ---
 
 **System Status:** ✅ All healthy - 19 indicators deployed and running
-**Data Status:** ✅ Current through Friday 2026-02-07
+**Data Status:** ✅ Current through Feb 12, 2026 (last cron run completed)
 **Testing Status:** ✅ Phase 3E COMPLETE (all 4 quarters)
-**Production System:** ✅ **19 indicators** with #1 (PSAR) and #2 (Williams %R) ranked
-**Email Pipeline:** ✅ Fully automated and working
-**Phase 3E Results:** 4 winners from 7 indicators tested (57% success rate)
+**Production System:** ✅ **19 indicators** with #1 (PSAR 0.5x) and #2 (Williams %R 1.0x)
+**Automation:** ✅ Cron-based (02:00 UTC / 9 PM EST Mon-Fri) - verified working
+**Performance:** ⏳ **SuperTrend optimized** - needs testing to confirm speedup
+**Architecture:** ✅ Simplified - removed Celery/Redis, saved 718 MiB RAM
+**Containers:** ✅ Rebuilt clean (no celery/redis dependencies)
+**Rate Limiting:** ✅ Fixed ALPHAVANTAGE_CPS (1 → 2)
 
-**Last Updated:** February 12, 2026 - 18:10 UTC
-**Next Action:** Monitor system performance, consider confirmation testing when ready
+**ML Models:** ✅ **Fresh** - retrained Feb 13 (15:15 UTC) with 19-indicator data (5,000 samples from Feb 10+)
+
+**Last Updated:** February 13, 2026 15:30 UTC
+**Next Action:** Monitor Monday's cron run (Feb 16 02:00 UTC) for optimized SuperTrend performance

@@ -8,15 +8,6 @@ services:
     networks:
       - app_net
 
-  redis:
-    image: redis:7-alpine
-    container_name: redis
-    restart: always
-    ports:
-      - "6379:6379"
-    networks:
-      - app_net
-
   bluehorseshoe:
     build:
       context: ..
@@ -27,10 +18,8 @@ services:
       - "8001:80"
     environment:
       MONGO_URI: "mongodb://mongo:27017"
-      CELERY_BROKER_URL: "redis://redis:6379/0"
-      CELERY_RESULT_BACKEND: "redis://redis:6379/0"
       ALPHAVANTAGE_KEY: ${ALPHAVANTAGE_KEY}
-      ALPHAVANTAGE_CPS: 1
+      ALPHAVANTAGE_CPS: 2
       SMTP_SERVER: ${SMTP_SERVER:-smtp.gmail.com}
       SMTP_PORT: ${SMTP_PORT:-587}
       SMTP_USER: ${SMTP_USER}
@@ -39,67 +28,10 @@ services:
       EMAIL_SENDER: ${EMAIL_SENDER}
     depends_on:
       - mongo
-      - redis
     networks:
       - app_net
     volumes:
       # Mount the src folder from host into the container
-      - ..:/workspaces/BlueHorseshoe
-
-  worker:
-    build:
-      context: ..
-      dockerfile: docker/Dockerfile.bluehorseshoe
-    container_name: bluehorseshoe_worker
-    restart: unless-stopped
-    command: celery -A bluehorseshoe.api.celery_app worker --loglevel=info
-    environment:
-      MONGO_URI: "mongodb://mongo:27017"
-      CELERY_BROKER_URL: "redis://redis:6379/0"
-      CELERY_RESULT_BACKEND: "redis://redis:6379/0"
-      ALPHAVANTAGE_KEY: ${ALPHAVANTAGE_KEY}
-      ALPHAVANTAGE_CPS: ${ALPHAVANTAGE_CPS:-5}
-      PYTHONPATH: /workspaces/BlueHorseshoe/src
-      SMTP_SERVER: ${SMTP_SERVER:-smtp.gmail.com}
-      SMTP_PORT: ${SMTP_PORT:-587}
-      SMTP_USER: ${SMTP_USER}
-      SMTP_PASSWORD: ${SMTP_PASSWORD}
-      EMAIL_RECIPIENT: ${EMAIL_RECIPIENT}
-      EMAIL_SENDER: ${EMAIL_SENDER}
-    depends_on:
-      - mongo
-      - redis
-    networks:
-      - app_net
-    volumes:
-      - ..:/workspaces/BlueHorseshoe
-
-  beat:
-    build:
-      context: ..
-      dockerfile: docker/Dockerfile.bluehorseshoe
-    container_name: bluehorseshoe_beat
-    restart: unless-stopped
-    command: celery -A bluehorseshoe.api.celery_app beat --loglevel=info
-    environment:
-      MONGO_URI: "mongodb://mongo:27017"
-      CELERY_BROKER_URL: "redis://redis:6379/0"
-      CELERY_RESULT_BACKEND: "redis://redis:6379/0"
-      ALPHAVANTAGE_KEY: ${ALPHAVANTAGE_KEY}
-      ALPHAVANTAGE_CPS: ${ALPHAVANTAGE_CPS:-5}
-      PYTHONPATH: /workspaces/BlueHorseshoe/src
-      SMTP_SERVER: ${SMTP_SERVER:-smtp.gmail.com}
-      SMTP_PORT: ${SMTP_PORT:-587}
-      SMTP_USER: ${SMTP_USER}
-      SMTP_PASSWORD: ${SMTP_PASSWORD}
-      EMAIL_RECIPIENT: ${EMAIL_RECIPIENT}
-      EMAIL_SENDER: ${EMAIL_SENDER}
-    depends_on:
-      - mongo
-      - redis
-    networks:
-      - app_net
-    volumes:
       - ..:/workspaces/BlueHorseshoe
 
 networks:

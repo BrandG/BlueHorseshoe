@@ -295,10 +295,11 @@ class VolumeIndicator(Indicator):
         if force_index.empty:
             return 0.0
 
-        # Get current and previous values
-        fi_now = force_index.iloc[-1]
-        fi_prev = force_index.iloc[-2] if len(force_index) > 1 else 0
-        fi_prev2 = force_index.iloc[-3] if len(force_index) > 2 else 0
+        # Get current and previous values using numpy for speed
+        fi_vals = force_index.values
+        fi_now = fi_vals[-1]
+        fi_prev = fi_vals[-2] if len(fi_vals) > 1 else 0
+        fi_prev2 = fi_vals[-3] if len(fi_vals) > 2 else 0
 
         if pd.isna(fi_now) or pd.isna(fi_prev):
             return 0.0
@@ -367,14 +368,16 @@ class VolumeIndicator(Indicator):
         if ad_line.empty:
             return 0.0
 
-        # Get values for trend analysis
-        ad_now = ad_line.iloc[-1]
-        ad_5days_ago = ad_line.iloc[-(window//2 + 1)] if len(ad_line) > window//2 else ad_line.iloc[0]
-        ad_10days_ago = ad_line.iloc[-(window + 1)] if len(ad_line) > window else ad_line.iloc[0]
+        # Get values for trend analysis using numpy for speed
+        ad_vals = ad_line.values
+        ad_now = ad_vals[-1]
+        ad_5days_ago = ad_vals[-(window//2 + 1)] if len(ad_vals) > window//2 else ad_vals[0]
+        ad_10days_ago = ad_vals[-(window + 1)] if len(ad_vals) > window else ad_vals[0]
 
         # Get price trend for divergence detection
-        price_now = self.days['close'].iloc[-1]
-        price_10days_ago = self.days['close'].iloc[-(window + 1)] if len(self.days) > window else self.days['close'].iloc[0]
+        close_vals = self.days['close'].values
+        price_now = close_vals[-1]
+        price_10days_ago = close_vals[-(window + 1)] if len(close_vals) > window else close_vals[0]
 
         if pd.isna(ad_now) or pd.isna(ad_5days_ago) or pd.isna(ad_10days_ago):
             return 0.0

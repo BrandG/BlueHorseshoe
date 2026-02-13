@@ -147,10 +147,10 @@ class SwingTrader:
                 close=df['close'],
                 window=ATR_WINDOW
             ).average_true_range()
-        atr = df.iloc[-1]['ATR']
+        atr = df['ATR'].values[-1]
         if pd.isna(atr):
-            return df.iloc[-1]['close'] * 0.02
-        return atr
+            return df['close'].values[-1] * 0.02
+        return float(atr)
 
     @staticmethod
     def _classify_signal_strength(score: float) -> str:
@@ -302,17 +302,8 @@ class SwingTrader:
         # 1. EMA 20 for Target (The "Mean")
         ema20 = df['close'].ewm(span=20).mean().iloc[-1]
 
-        # 2. Volatility (ATR)
-        if 'ATR' not in df.columns:
-            df['ATR'] = AverageTrueRange(
-                high=df['high'],
-                low=df['low'],
-                close=df['close'],
-                window=ATR_WINDOW
-            ).average_true_range()
-        atr = df.iloc[-1]['ATR']
-        if pd.isna(atr):
-            atr = last_close * 0.02
+        # 2. Volatility (ATR) - reuse cached calculation
+        atr = self._calculate_atr(df)
 
         # 3. Entry is current close
         entry_price = last_close

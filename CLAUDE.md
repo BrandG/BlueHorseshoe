@@ -192,3 +192,6 @@ Test fixtures in `test_*.py` files include:
 - **Logs:** `src/logs/` directory
 - **Reports:** `src/graphs/` directory
 - **Docker Config:** `docker/docker-compose.yml`, `docker/Dockerfile.bluehorseshoe`
+
+## Session management
+- **Context Counting** Every response is appended with a count that starts at the first message per session, and increments every time a response is given.

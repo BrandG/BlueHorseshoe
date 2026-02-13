@@ -33,22 +33,23 @@ class MovingAverageIndicator(Indicator):
 
     def calculate_wma(self) -> pd.Series:
         """
-        Calculates a Weighted Moving Average (WMA) for the given DataFrame.
+        Calculates a Weighted Moving Average (WMA) using vectorized numpy convolution.
 
-        :param df:         DataFrame containing price data
-        :param window:     Lookback period for the WMA (e.g., 20)
-        :param price_col:  The column name containing prices (default 'Close')
-        :return:           A Pandas Series containing the WMA
+        :return: A Pandas Series containing the WMA
         """
-        # The weights are 1, 2, ..., window
-        weights = np.arange(1, 20 + 1)
+        window = 20
+        weights = np.arange(1, window + 1, dtype=float)
+        weights /= weights.sum()
 
-        # Use rolling apply with a custom function that does the weighted average
-        def wma_function(x):
-            return np.dot(x, weights) / weights.sum()
+        close = self.days['close'].values
+        if len(close) < window:
+            return pd.Series(np.full(len(close), np.nan), index=self.days.index)
 
-        wma_series = self.days['close'].rolling(window=20).apply(wma_function, raw=True)
-        return wma_series
+        wma = np.convolve(close, weights[::-1], mode='valid')
+
+        result = np.full(len(close), np.nan)
+        result[window - 1:] = wma
+        return pd.Series(result, index=self.days.index)
 
     def calculate_vwma(self) -> pd.Series:
         """
