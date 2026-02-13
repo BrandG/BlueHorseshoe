@@ -385,14 +385,22 @@ key=lambda x: (x.get('score', 0), x.get('ml_prob', 0))
 ## 📁 Important Files
 
 ### Modified Feb 13
+- `src/bluehorseshoe/analysis/grading_engine.py` - **Added MFE tracking** (max_high, mfe_atr)
+- `src/bluehorseshoe/analysis/strategy.py` - **Integrated ML profit target prediction**
+- `src/bluehorseshoe/api/routes.py` - **Styled HTML reports page**, email report endpoint
 - `src/bluehorseshoe/analysis/indicators/trend_indicators.py` - **Optimized SuperTrend**
 - `docker/docker-compose.yml` - Removed Celery/Redis, fixed ALPHAVANTAGE_CPS
 - `docker/requirements.txt` - Removed celery and redis packages
-- `src/bluehorseshoe/api/routes.py` - Removed Celery-dependent endpoints
 - `/root/BlueHorseshoe/run_daily_pipeline.sh` - Cron pipeline script
 - Crontab - Added daily pipeline at 02:00 UTC
 
-### New Files Created
+### New Files Created (Feb 13)
+- `src/bluehorseshoe/analysis/ml_profit_target.py` - **ML profit target model** (~300 lines)
+- `src/train_profit_target.py` - **Training script** for profit target models
+- `src/tests/test_profit_target.py` - **Unit tests** for profit target (8 tests)
+- `verify_profit_target.py` - **Verification script** for implementation
+- `ML_PROFIT_TARGET_IMPLEMENTATION.md` - **Full documentation** of ML profit target system
+- `API_REPORTS_UPDATE.md` - **Documentation** for styled HTML reports page
 - `/root/BlueHorseshoe/profile_prediction.py` - Profiling tool for performance analysis
 - `/root/BlueHorseshoe/benchmark_supertrend.py` - SuperTrend benchmark script
 
@@ -453,11 +461,14 @@ cd docker && docker compose ps
 
 ### API Endpoints (Read-Only Report Viewer)
 ```bash
-# List available reports
-curl http://localhost:8001/api/v1/reports
+# NEW: Styled HTML reports page
+http://localhost:8001/api/v1/reports
 
-# View specific report in browser
+# View specific report
 http://localhost:8001/api/v1/reports/2026-02-12
+
+# NEW: View email version
+http://localhost:8001/api/v1/reports/2026-02-12/email
 
 # Health check
 curl http://localhost:8001/api/v1/health
@@ -466,6 +477,28 @@ curl http://localhost:8001/api/v1/health
 ---
 
 ## 🎉 Session Accomplishments (Feb 13)
+
+**Thursday Evening - ML PROFIT TARGET MODEL:**
+- ✅ **Implemented ML Profit Target Prediction** - Dynamic profit targets based on predicted MFE
+- ✅ **Enhanced grading engine** - Tracks max_high and calculates mfe_atr (Maximum Favorable Excursion)
+- ✅ **Created ProfitTargetTrainer** - Trains RandomForestRegressor on MFE in ATR units
+- ✅ **Created ProfitTargetInference** - Predicts adaptive profit multipliers (75% safety factor)
+- ✅ **Integrated into strategy** - Both baseline and mean reversion use ML profit targets
+- ✅ **3 strategy-specific models** - v1, baseline, mean_reversion (ready to train)
+- ✅ **Training script created** - `src/train_profit_target.py` for model training
+- ✅ **Full test coverage** - 8 unit tests passing, all existing tests still pass
+- ✅ **Automatic fallback** - Uses fixed multipliers (3.0x baseline, 2.0x MR) until models trained
+- ✅ **Documentation complete** - ML_PROFIT_TARGET_IMPLEMENTATION.md with full details
+
+**Thursday Evening - API IMPROVEMENTS:**
+- ✅ **Styled HTML reports page** - Transformed `/api/v1/reports` from JSON to beautiful HTML
+- ✅ **Modern gradient design** - Purple/blue gradients with card-based layout
+- ✅ **Interactive report cards** - Hover effects, metadata display (size, updated time)
+- ✅ **Clickable links** - Direct links to view full and email report versions
+- ✅ **Email report endpoint** - New `/api/v1/reports/{date}/email` endpoint
+- ✅ **Stats dashboard** - Shows unique dates, total reports, latest report
+- ✅ **Mobile responsive** - Works on all devices with adaptive layout
+- ✅ **Documentation complete** - API_REPORTS_UPDATE.md with screenshots
 
 **Thursday Afternoon - ML MODEL RETRAINING:**
 - ✅ **Retrained all 4 ML models** - using 19-indicator era data (Feb 10+)
@@ -516,10 +549,15 @@ curl http://localhost:8001/api/v1/health
 1. ✅ ~~**Retrain ML models**~~ - **COMPLETE** (Feb 13, 2026 15:15 UTC)
    - All 4 models retrained with 19-indicator data
    - See `ML_RETRAINING_SUMMARY.md` for details
-2. 📊 **Monitor 19-indicator system** - Observe performance for 1-2 weeks
-3. 📋 **Confirmation testing** - Future enhancement (see FUTURE_TESTING_CONFIRMATION_INDICATORS.md)
-4. 📝 **Email-optimized template** - Future enhancement (nice to have)
-5. 🎯 **System optimization** - Fine-tune weights based on live performance (optional)
+2. 🎯 **Train ML Profit Target Models** - After sufficient data accumulates (~7-14 days)
+   - Run: `docker exec bluehorseshoe python src/train_profit_target.py 10000`
+   - Generates 3 models: v1, baseline, mean_reversion
+   - Currently using fixed fallback: 3.0x baseline, 2.0x mean reversion
+   - See `ML_PROFIT_TARGET_IMPLEMENTATION.md` for details
+3. 📊 **Monitor 19-indicator system** - Observe performance for 1-2 weeks
+4. 📋 **Confirmation testing** - Future enhancement (see FUTURE_TESTING_CONFIRMATION_INDICATORS.md)
+5. 📝 **Email-optimized template** - Future enhancement (nice to have)
+6. 🎯 **System optimization** - Fine-tune weights based on live performance (optional)
 
 ### ML Model Retraining Details
 
@@ -552,6 +590,8 @@ docker exec bluehorseshoe python src/train_stop_loss.py
 **Rate Limiting:** ✅ Fixed ALPHAVANTAGE_CPS (1 → 2)
 
 **ML Models:** ✅ **Fresh** - retrained Feb 13 (15:15 UTC) with 19-indicator data (5,000 samples from Feb 10+)
+**ML Profit Targets:** ✅ **Implemented** - Ready to train models after ~7-14 days data accumulation
+**API Reports:** ✅ **Styled HTML** - Beautiful gradient design with interactive cards and links
 
-**Last Updated:** February 13, 2026 15:30 UTC
+**Last Updated:** February 13, 2026 Evening
 **Next Action:** Monitor Monday's cron run (Feb 16 02:00 UTC) for optimized SuperTrend performance

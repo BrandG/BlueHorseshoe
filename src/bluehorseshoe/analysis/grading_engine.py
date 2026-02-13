@@ -30,6 +30,7 @@ class TradeResult:
     exit_price: float
     exit_date: str
     max_gain: float
+    max_high: float
     min_low: float
     days_held: int
 
@@ -60,6 +61,10 @@ class GradingEngine:
         min_low = min(all_lows) if len(all_lows) > 0 else params.entry_price
         min_low = min(min_low, params.entry_price)
 
+        all_highs = future_data['high'].values
+        max_high = max(all_highs) if len(all_highs) > 0 else params.entry_price
+        max_high = max(max_high, params.entry_price)
+
         for _, day in future_data.iterrows():
             high = day['high']
             low = day['low']
@@ -87,6 +92,7 @@ class GradingEngine:
             exit_price=exit_price,
             exit_date=exit_date,
             max_gain=max_gain,
+            max_high=max_high,
             min_low=min_low,
             days_held=days_held
         )
@@ -202,6 +208,7 @@ class GradingEngine:
 
         pnl = ((sim.exit_price / params.entry_price) - 1) * 100
         mae_atr = (params.entry_price - sim.min_low) / atr if atr > 0 else 0
+        mfe_atr = (sim.max_high - params.entry_price) / atr if atr > 0 else 0
 
         return {
             'symbol': params.symbol,
@@ -216,6 +223,7 @@ class GradingEngine:
             'pnl': pnl,
             'max_gain': sim.max_gain,
             'mae_atr': mae_atr,
+            'mfe_atr': mfe_atr,
             'days_held': sim.days_held
         }
 

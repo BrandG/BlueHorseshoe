@@ -42,6 +42,7 @@ from bluehorseshoe.analysis.constants import (
 from bluehorseshoe.analysis.market_regime import MarketRegime
 from bluehorseshoe.analysis.ml_overlay import MLInference
 from bluehorseshoe.analysis.ml_stop_loss import StopLossInference
+from bluehorseshoe.analysis.ml_profit_target import ProfitTargetInference
 from bluehorseshoe.analysis.technical_analyzer import TechnicalAnalyzer
 from bluehorseshoe.core.config import Settings, get_settings, weights_config
 from bluehorseshoe.core.scores import ScoreManager
@@ -68,6 +69,7 @@ class SwingTrader:
         config: Optional[Settings] = None,
         ml_inference: Optional[MLInference] = None,
         stop_loss_inference: Optional[StopLossInference] = None,
+        profit_target_inference: Optional[ProfitTargetInference] = None,
         report_writer: Optional[ReportWriter] = None
     ):
         """
@@ -78,6 +80,7 @@ class SwingTrader:
             config: Settings instance. If None, loads from environment.
             ml_inference: MLInference instance. If None, creates new instance.
             stop_loss_inference: StopLossInference instance. If None, creates new instance.
+            profit_target_inference: ProfitTargetInference instance. If None, creates new instance.
             report_writer: ReportWriter instance for logging. If None, uses legacy ReportSingleton.
         """
         # Store injected dependencies
@@ -89,6 +92,7 @@ class SwingTrader:
         self.technical_analyzer = TechnicalAnalyzer()
         self.ml_inference = ml_inference if ml_inference is not None else MLInference(database=database)
         self.stop_loss_inference = stop_loss_inference if stop_loss_inference is not None else StopLossInference(database=database)
+        self.profit_target_inference = profit_target_inference if profit_target_inference is not None else ProfitTargetInference(database=database)
 
         # Create ScoreManager with injected database
         if database is not None:
@@ -222,12 +226,12 @@ class SwingTrader:
 
         return entry_price, atr_discount, signal_strength
 
-    def calculate_baseline_setup(self, df: pd.DataFrame, ml_stop_multiplier: float = 2.0) -> Dict[str, float]:
+    def calculate_baseline_setup(self, df: pd.DataFrame, ml_stop_multiplier: float = 2.0, ml_profit_multiplier: float = 3.0) -> Dict[str, float]:
         """
         Calculate structural prices for Baseline (Trend) strategy:
         Entry = Pullback to EMA + Bullish candle close
         Stop = Below recent swing low or ml_stop_multiplier * ATR
-        Target = Prior high or 3.0 * ATR
+        Target = Prior high or ml_profit_multiplier * ATR
         """
         last_row = df.iloc[-1]
         last_close = last_row['close']
@@ -250,7 +254,7 @@ class SwingTrader:
         # Default to safest stop (widest)
         stop_loss = min(swing_stop, atr_stop)
 
-        take_profit = max(swing_high_20, entry_price + (3.0 * atr))
+        take_profit = max(swing_high_20, entry_price + (ml_profit_multiplier * atr))
 
         # 5. Risk Calculation
         risk = entry_price - stop_loss
@@ -289,12 +293,12 @@ class SwingTrader:
             'is_realistic': (abs((last_close / entry_price) - 1) <= 0.15) and (risk_pct <= MAX_RISK_PERCENT)
         }
 
-    def calculate_mean_reversion_setup(self, df: pd.DataFrame, ml_stop_multiplier: float = 1.5) -> Dict[str, float]:
+    def calculate_mean_reversion_setup(self, df: pd.DataFrame, ml_stop_multiplier: float = 1.5, ml_profit_multiplier: float = 2.0) -> Dict[str, float]:
         """
         Calculate structural prices for Mean Reversion (Dip) strategy:
         Entry = Current Close (Buying extreme weakness)
         Stop = ml_stop_multiplier * ATR (Tighter stop for fast reversals)
-        Target = Reversion to 20-day EMA
+        Target = Reversion to 20-day EMA or ml_profit_multiplier * ATR
         """
         last_row = df.iloc[-1]
         last_close = last_row['close']
@@ -311,8 +315,8 @@ class SwingTrader:
         # 4. Stop Loss: ml_stop_multiplier * ATR below entry
         stop_loss = entry_price - (ml_stop_multiplier * atr)
 
-        # 5. Take Profit: EMA 20
-        take_profit = max(ema20, entry_price + (2.0 * atr))
+        # 5. Take Profit: EMA 20 or ml_profit_multiplier * ATR
+        take_profit = max(ema20, entry_price + (ml_profit_multiplier * atr))
 
         # 6. Reward-to-Risk
         reward = take_profit - entry_price
@@ -415,14 +419,22 @@ class SwingTrader:
             last_row, ema9, atr, technical_score
         )
 
-        # *** STEP 3: Calculate baseline setup with ML stop ***
-        ml_stop_multiplier = 2.0
-        baseline_setup = self.calculate_baseline_setup(df, ml_stop_multiplier=ml_stop_multiplier)
+        # *** STEP 3: Predict ML profit target multiplier ***
+        ml_profit_multiplier = self.profit_target_inference.predict_profit_target_multiplier(
+            symbol,
+            score_components,
+            target_date=str(yesterday['date'])[:10],
+            strategy="baseline"
+        )
 
-        # *** STEP 4: Override entry price with dynamic calculation ***
+        # *** STEP 4: Calculate baseline setup with ML stop & profit ***
+        ml_stop_multiplier = 2.0
+        baseline_setup = self.calculate_baseline_setup(df, ml_stop_multiplier=ml_stop_multiplier, ml_profit_multiplier=ml_profit_multiplier)
+
+        # *** STEP 5: Override entry price with dynamic calculation ***
         baseline_setup['entry_price'] = entry_price
 
-        # *** STEP 5: Recalculate risk/reward with new entry ***
+        # *** STEP 6: Recalculate risk/reward with new entry ***
         stop_loss = baseline_setup['stop_loss']
         take_profit = baseline_setup['take_profit']
         risk = entry_price - stop_loss
@@ -437,9 +449,10 @@ class SwingTrader:
             (risk_pct <= MAX_RISK_PERCENT)
         )
 
-        # *** STEP 6: Add new metadata fields ***
+        # *** STEP 7: Add new metadata fields ***
         baseline_setup['atr_discount_used'] = atr_discount_used
         baseline_setup['signal_strength'] = signal_strength
+        baseline_setup['profit_multiplier'] = ml_profit_multiplier
 
         # Validation checks
         if not baseline_setup['is_realistic'] or baseline_setup['rr_ratio'] < MIN_RR_RATIO_BASELINE:
@@ -478,7 +491,8 @@ class SwingTrader:
             "components": score_components,
             "setup": baseline_setup,
             "ml_prob": ml_prob,
-            "stop_multiplier": ml_stop_multiplier
+            "stop_multiplier": ml_stop_multiplier,
+            "profit_multiplier": ml_profit_multiplier
         }
 
     def _process_mr(self, df: pd.DataFrame, symbol: str, yesterday: dict, ctx: StrategyContext) -> Optional[Dict]:
@@ -497,7 +511,15 @@ class SwingTrader:
             target_date=str(yesterday['date'])[:10]
         )
 
-        mr_setup = self.calculate_mean_reversion_setup(df, ml_stop_multiplier=ml_stop_multiplier_mr)
+        # Predict ML Profit Target Multiplier
+        ml_profit_multiplier_mr = self.profit_target_inference.predict_profit_target_multiplier(
+            symbol,
+            score_components_mr,
+            target_date=str(yesterday['date'])[:10],
+            strategy="mean_reversion"
+        )
+
+        mr_setup = self.calculate_mean_reversion_setup(df, ml_stop_multiplier=ml_stop_multiplier_mr, ml_profit_multiplier=ml_profit_multiplier_mr)
         if not mr_setup['is_realistic'] or mr_setup['rr_ratio'] < MIN_RR_RATIO_MEAN_REVERSION:
             return None
 
@@ -513,12 +535,16 @@ class SwingTrader:
             strategy="mean_reversion"
         )
 
+        # Add profit multiplier to setup metadata
+        mr_setup['profit_multiplier'] = ml_profit_multiplier_mr
+
         return {
             "score": score_components_mr.pop("total", 0.0),
             "components": score_components_mr,
             "setup": mr_setup,
             "ml_prob": ml_prob_mr,
-            "stop_multiplier": ml_stop_multiplier_mr
+            "stop_multiplier": ml_stop_multiplier_mr,
+            "profit_multiplier": ml_profit_multiplier_mr
         }
 
     def process_symbol(self, symbol: str, ctx: StrategyContext) -> Optional[Dict]:
