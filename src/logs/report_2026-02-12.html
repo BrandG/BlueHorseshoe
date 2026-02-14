@@ -225,16 +225,17 @@
 <body>
 <button class='theme-toggle' onclick='toggleTheme()'>Toggle Dark Mode</button>
 <div class='container'>
-<h1>BlueHorseshoe Daily Report <small style='font-size:0.5em; color:#777'>2026-02-12</small></h1>
+<h1>BlueHorseshoe Daily Report</h1>
+<p style='color:#777; margin-top:-10px; margin-bottom: 20px;'>Data As Of: <strong>2026-02-12</strong> &bull; Prediction For: <strong>Next Trading Day</strong></p>
 <details>
-<summary style='cursor:pointer; font-size: 1.5em; font-weight: bold; color: var(--heading-color); padding-bottom: 10px;'>Market Regime: <span class="badge badge-neutral">Neutral</span></summary>
+<summary style='cursor:pointer; font-size: 1.5em; font-weight: bold; color: var(--heading-color); padding-bottom: 10px;'>Market Regime: <span class="badge badge-bear">Bearish</span></summary>
 <hr style='border: 0; border-bottom: 2px solid var(--border-color); margin: 0 0 20px 0;'>
 <table>
 <tr><th>Status</th><th>SPY Price</th><th>SPY MA50</th><th>SPY MA200</th></tr>
-<tr><td><span class="badge badge-neutral">Neutral</span></td>
-<td>N/A</td>
-<td>N/A</td>
-<td>N/A</td></tr>
+<tr><td><span class="badge badge-bear">Bearish</span></td>
+<td>681.27</td>
+<td>685.3244807055244</td>
+<td>649.58662606254</td></tr>
 </table>
 <p><strong>Commentary:</strong> No commentary available.</p>
 </details>
@@ -263,44 +264,44 @@
 <div class='top-list-header-grid'><span>Symbol</span> <span>Score</span> <span>ML</span> <span>Levels</span></div>
 <details><summary>
             <div class='top-list-row'>
-                <span><a href='https://finance.yahoo.com/quote/OHI' target='_blank' class='symbol-link'><b>OHI</b></a>:<small>NYSE</small></span>
-                <span><b>10.5</b></span>
-                <span style='color:#777'>ML:61%</span>
-                <span>E:<b>$46.57</b> S:<b style='color:var(--badge-bear)'>$44.10</b> T:<b style='color:var(--badge-bull)'>$49.46</b></span>
+                <span><a href='https://finance.yahoo.com/quote/SLF' target='_blank' class='symbol-link'><b>SLF</b></a>:<small>NYSE</small></span>
+                <span><b>36.0</b></span>
+                <span style='color:#777'>ML:39%</span>
+                <span>E:<b>$68.70</b> S:<b style='color:var(--badge-bear)'>$65.73</b> T:<b style='color:var(--badge-bull)'>$71.79</b></span>
             </div>
-        </summary><div class='sparkline-container'><img src='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAN0AAABzCAYAAAAc0geEAAAAOnRFWHRTb2Z0d2FyZQBNYXRwbG90bGliIHZlcnNpb24zLjEwLjgsIGh0dHBzOi8vbWF0cGxvdGxpYi5vcmcvwVt1zgAAAAlwSFlzAAALEwAACxMBAJqcGAAAA51JREFUeJzt3TGOFEcAhtEeawLECB9isw0sHPgCxBbyARysAzIQ8g0MN0BoyRwwgQ9gIce+gAOQAzIOYQvLgaVxsPIKszO99E71X93V72UsLU0l31bvdHXVarfb7Tog5rPaA4ClER2EiQ7CRAdhooMw0UGY6CBMdBAmOggTHYSJDsJEx+I8+fll1c8XHYvz9NW26ueLDsJEB2GigzDRQZjoIEx0ELayRwot+/zR192ff//1SdfeuXW7++P8l5FHZKajcZ8a3NBrjyE6CBMdhIkOwkQHYaKDMNFBmOggTHQQJjoIE13jam9NwFWia1ztrQm4SnQQJjoIEx2EiQ7CRMe1Xj87rz2EpqxrD4Dp+OmLr7p/3r/f+39vnr+48rP1ZtN9+/tvYw+rOWY6Lh0KrtT1XBAdhImOWWlhhY2/6RrRt+vV6sG9//07tevVGJ6+2nZPvvmu9jCOYqZrxBR3vWI/Mx2TNGTm7rrDs/edW7cH7XuZIDomaehsfOj6fSGuHtzrdj/+eqNxleD2ksX54f5Z1c8XHZfWm82o109F7S9i3F5y6dDqku3JaXf27m14NO0y00GY6Ihp4cF2CaIjxtYRF0THJA19ZpZ6xlaCL1K41t3HD+OfeWiZWu1nbCWY6bjWl98/qj2EpogOwtxeUtxS3ni4KTMds1J7CVcJq91ut6s9CI63b+V9nxpfRrTwJUgJZjoIEx2EiQ7CREdMC1+ClCA6Ymq/xzYVooMw0UGY6CBMdBAmOggTHYSJDsJE9wEnjpLQTHQldprad9oolDa7V3v6XpD8WN8Lkn1H/X5sDsf8zuHVHi7MbqYrdSTUkKN7HfNLSbOLDuZOdBAmOggTHYSJDsJE14ghe/nPad//FkU3my3xjG2KB7eP4fWz80HbmS9tw9Y5i0ZX4hlbywdLfOjN8xfOEGiU20sIEx2EOUBkBEP+HutbA7o9Ob3yszmsA6WfmW4EQ95WGLqu0zrQ+TPTHWHILGWG4j+LnenWm83R13pTgZtY7Ey3b9YZ+myshPVmMyjIIb8smKZmoiuxT/7Q4IYEcyiWQ7ec25PT7uzd20HjYR6aia7GPvmC4SYW+zcd1CI6CBPdRN19/LD2EBiJ6CbKYud2iQ7CRAdhooOwaHS2FIDww/F9b3239sY3XMftJYSJbgSesdGnenQlFipPjWds9JndUVkwd9VnOlga0UGY6CBMdBAmOggTHYSJDsJEB2GigzDRQdi/aav/axYkoT0AAAAASUVORK5CYII=' alt='OHI chart' /></div></details>
+        </summary><div class='sparkline-container'><img src='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAN0AAABzCAYAAAAc0geEAAAAOnRFWHRTb2Z0d2FyZQBNYXRwbG90bGliIHZlcnNpb24zLjEwLjgsIGh0dHBzOi8vbWF0cGxvdGxpYi5vcmcvwVt1zgAAAAlwSFlzAAALEwAACxMBAJqcGAAAA5xJREFUeJzt3T9uFFcAx/HnyIXllTkEHUWUFLkANYo4QApS0MWKcoOYGyBkuhR2wQEsRJ0LpAClSJdDgEAUkTZFlIiYncXDzvze23mfT2d75H1a7Xff7Px5e7Ber9cFiPmi9gCgN6KDMNFBmOggTHQQJjoIEx2EiQ7CRAdhooMw0UGY6OjO2dVF1ccXHd159Pyy6uMfuMuAJbt1eq+8ef/uRtueHB2X1+cvZh6RmY6Fu2lwY7fdheggTHQQJjoIEx2EiQ7CRAdhooMw0UGY6CBMdBAmOggTHYSJDsJEB2GigzDRQZjoIEx0ECY6CBMdhIkOwkQHYaKDMNFBmOggTHQQJjoIEx2LdnJ0PMu2u/CtPXTn4OHdsv7l12qPb6aDMNFBmOggTHQQJjoIEx2EiQ7CRAdhoqM7P3/7oOrjuyIFwsx0ECa6GZxdXdQeAg0T3QwePb+sPQQaJrqFa2nWbWksNYlu4aaYdV8+Pp9gJPYA/nVYewBs9vLxefn6p9PawyillPLqydNRY7l1eq+8ef9u498OHt79388nR8fl9fmLG//vlp6XzyW6Ro19oU/h2ZfflL/evt34t8vbdz763eFqVb77/bePfj8U3CZjti2lzvMyNdHxn6Hgptp+jKneAFokuh3MuRvVu5beAKYmuh3MuRs1ljeA/eHo5UK09AbAdqKDMLuXlU11wODk6PjGM1hqfUc2E11lUx0wGPqMVnuNx891uFqNem4OV6sZRzMt0VW25BfXLoYO/zs5zs6GXlyXt++UB3/+ER5N+/Y9uFIcSFm8GndJt/j9AS0x0y3c2f3v44859Pny7OqiynhaY6YjRnD/EN0HWrrf66sff6g9BGYiug+0dL9XjQMGY4+M9nIkdWrdrga27VrF64auVbx+TeOn7OP5slIcSZ1atzPdFNcq9nKUzq7utLqd6eacpfb1KhAyup3poBbRQZjoIGwx0bV0jg22WUx0LZ1jg20WEx3si+oXPI+9P8oCPOy76jPdqydPR20/1QI8vZzYpj3VZ7pahi7rmuKkdu1v+qRt1We6lkwVi1tY2CZ6Gdi2la+uG1r1qpeLjFmu6Ew3ZgGeoW19FmPf7d1nuqUtNUd/fKaDMNFBmOggLBrdmDU1xq6/4dwY+6L6nePW36A3di8hTHQQJjoIEx2EiQ7CRAdh1aOzejC9qX6eDnpTfaaD3ogOwkQHYaKDMNFBmOggTHQQJjoIEx2EiQ7C/gYc1hk8UVecvwAAAABJRU5ErkJggg==' alt='SLF chart' /></div></details>
 <details><summary>
             <div class='top-list-row'>
-                <span><a href='https://finance.yahoo.com/quote/ST' target='_blank' class='symbol-link'><b>ST</b></a>:<small>NYSE</small></span>
-                <span><b>10.5</b></span>
-                <span style='color:#777'>ML:47%</span>
-                <span>E:<b>$37.00</b> S:<b style='color:var(--badge-bear)'>$34.37</b> T:<b style='color:var(--badge-bull)'>$39.97</b></span>
+                <span><a href='https://finance.yahoo.com/quote/RTX' target='_blank' class='symbol-link'><b>RTX</b></a>:<small>NYSE</small></span>
+                <span><b>35.8</b></span>
+                <span style='color:#777'>ML:32%</span>
+                <span>E:<b>$200.90</b> S:<b style='color:var(--badge-bear)'>$189.17</b> T:<b style='color:var(--badge-bull)'>$213.11</b></span>
             </div>
-        </summary><div class='sparkline-container'><img src='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAN0AAABzCAYAAAAc0geEAAAAOnRFWHRTb2Z0d2FyZQBNYXRwbG90bGliIHZlcnNpb24zLjEwLjgsIGh0dHBzOi8vbWF0cGxvdGxpYi5vcmcvwVt1zgAAAAlwSFlzAAALEwAACxMBAJqcGAAAA5dJREFUeJzt3TFuFUcAx+F9kQvLljkEHUUERS5AHUU5AAUp6LAQN4hzA4RMlwIXOQBC1LlAClCKdDlEIqIUkTZFJPRk73tm83b/szvzfaVZ8bb5aebNm53d9H3fd0DMF6VvAFojOggTHYSJDsJEB2GigzDRQZjoIEx0ECY6CBMdhImO5ly8eV3080VHc354e1X080UHYaKDsI3n6ajZnfOvuz///uuzrj07Pun+uHw38x0Z6ajc5wY39tpDiA7CRAdhooMw0UGY6CBMdBAmOggTHYSJDsJEt1ClHz9hPqJbqNKPnzAf0UGY6CBMdBAmOggTHatSw6qu6LjV+xeXpW/hkxpWdUXHrT68fFX6FqoiOmJKTA3Pjk9mufYQR5FPge6/qeHFt99FP3PooKHNk4dd/+PP0fvYZqSDMCMdi7Tv6LzNk4c3/pY6Pm8KRroZLGm1b63GHoeXOj5vCka6GXx4+ap78Py89G0UM2aU2jVCnR2fjAoptQgyBdExuSkOeN01VSy9CDIF00ua8/03j4t+vpGusJoXDJYq/bPFdUa6wmpcMFjiD9JLYqTjk/cvLndu+bq6e+/G3+4/ezq4YFTz97EpiG7LxZvXxaceJT14fj4Y0dXde93j338rcEd1Mr3cUsMO9uv8Zrg8oqvckp4QKL1quBSi41b3nz2d5P9peeq+zXe6A/z05VfdPx8/Dv7b9YWHo9PT7tGvv9y4bg07L1reXTMH0R1gV3BjrrXS1x7TSwgTHatSw2KM6FiVGhZjmv1Ot2vPo/2OzK3ZkW6Kx0/g/2g2Oiil2ellbcZsVt61UZkM0VXCZuX1ML2EMNEd4Oj0dJZrqZvp5QGG9lJ2nSkd+xnpIEx0C1XDdieGiW6hatjuxDDRQZjoIEx0EFZNdE69Yi2KRzfVK3GXdOoV7BP9cXzXM2xD5016ho1aRUc6z7DlTXV8HtMpPr1kXh7hWR7RQZjoIEx0ECa6GVi8YB/RzcDiBftEf6cb87KMXS/KcAAPa7fp+74vegMTvShj7NPaQ4fK7uNlHkzF9BLCmo1uzHveSrwTjno1ezDR0L5O74QjodmRDkoRHYSJbosTuEgQ3RYncJEgOggTHYSJDsKqic7OftaimuhsbGYtqokO1kJ0ECY6CBMdhIkOwkQHYaKDMNFBmOggrHh0nmGjNcWP4IPWFB/poDWigzDRQZjoIEx0ECY6CBMdhIkOwkQHYaKDsH8BD2X2arhBf2MAAAAASUVORK5CYII=' alt='ST chart' /></div></details>
+        </summary><div class='sparkline-container'><img src='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAN0AAABzCAYAAAAc0geEAAAAOnRFWHRTb2Z0d2FyZQBNYXRwbG90bGliIHZlcnNpb24zLjEwLjgsIGh0dHBzOi8vbWF0cGxvdGxpYi5vcmcvwVt1zgAAAAlwSFlzAAALEwAACxMBAJqcGAAAA4ZJREFUeJzt3TFu1FgAx2HPaoooo3AIOgq0W3ABaoQ4AAUUdIvQ3mDDDaIo6ShIwQEQouYCFIko6DjEoiAKJG+BdhVpZsIY7P97tr+vnFiaV+Q3bzx+z160bds2QMxvpQcAcyM6CBMdhIkOwkQHYaKDMNFBmOggTHQQJjoIEx2EiW4A50cnpYdAxUQ3gIvj09JDoGKigzDRQZjoIEx0ELawc/znvbp9p/l2ebnTscvVqnn44f3AI2IMzHS/YNfguh7LtIkOwkQHYaKDMNFdcfj6ZekhMAOiu+L5m7PSQ2AGRAdhooMw0UGY6CBMdBAmOggTHYQtSw+glBtP7zWfv35Ze33x5O7aawd7+80/J28Tw2IGZjvTbQquj2PhR2YbHZQiOggTHYSJDsJEB2GigzDRQZjoIEx0ECY6Zqf0vXBmG93B3v4gx1K/0vfCmcyC58PXL5vDB493Pn7TAubFk7tN++Jdj6OCdcVnur6m+tKfXrCr4tGJhbkZ3dfLbfvgmmZ9L5x9cNS4b7L4TNeVfXB0UeP/S3Smq/FTZ+q6/sDE8KIzXY2fOlf9ff9R/D2H5py5PqP7ejkkMwIJooMw0UGY6CBsdNFZM5l3fnRSegiTMrqL49suI1g3OZyL49Pmj7+elh7GZIxuppsLs8t0ia5SF8enpYfAQEQHYaKDMNFBmOggTHSMSumbCvVhdNfp2Gwum3ufvzkb/cJ00U1EH9umXt2+03y7vNz4t7Obt9ZeW65WzcMP73d+X76Lfr20hKtu24Lr63i+i850bnsHfkiBONFBmOggrHh0U7wZEFyneHRjv+YCXRWPDuZGdBA2meicG7JJjQsyJrMMbO7nhgd7+zsvBZvTap8a15hOJroSlqvVzkuhlqvVoGOp8Z+LzUT3C7Yt9j27eat59OljeDSMheiI6fIEoS5blZpmXNuVJvNDCvXr8gShrk9tGtOzCM10hdW0h63LOep/x9Od6PjftpjPj07c4blHoitsDD/GCK5fzukgTHRUqesF/DFd8Pf1kipN+elMZjoIM9PRu7ncg/NnmekYlSnsJjHT0bshz8emsJvETAdhoqvU78/+LD0EBiK6SlkFMl2iG4BZiuuIbgBmKa4jOggTHYSJDsJEB2GigzDRQZjoiJnCYuU+LNq2bUsPAubETAdhooMw0UGY6CBMdBAmOggTHYSJDsJEB2Gig7B/AVnr8HNDEnwXAAAAAElFTkSuQmCC' alt='RTX chart' /></div></details>
 <details><summary>
             <div class='top-list-row'>
-                <span><a href='https://finance.yahoo.com/quote/CGDG' target='_blank' class='symbol-link'><b>CGDG</b></a>:<small>NYSE ARCA</small></span>
-                <span><b>9.5</b></span>
-                <span style='color:#777'>ML:85%</span>
-                <span>E:<b>$37.76</b> S:<b style='color:var(--badge-bear)'>$36.96</b> T:<b style='color:var(--badge-bull)'>$38.70</b></span>
+                <span><a href='https://finance.yahoo.com/quote/EXC' target='_blank' class='symbol-link'><b>EXC</b></a>:<small>NASDAQ</small></span>
+                <span><b>35.5</b></span>
+                <span style='color:#777'>ML:73%</span>
+                <span>E:<b>$47.50</b> S:<b style='color:var(--badge-bear)'>$44.87</b> T:<b style='color:var(--badge-bull)'>$50.23</b></span>
             </div>
-        </summary><div class='sparkline-container'><img src='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAN0AAABzCAYAAAAc0geEAAAAOnRFWHRTb2Z0d2FyZQBNYXRwbG90bGliIHZlcnNpb24zLjEwLjgsIGh0dHBzOi8vbWF0cGxvdGxpYi5vcmcvwVt1zgAAAAlwSFlzAAALEwAACxMBAJqcGAAAA6JJREFUeJzt3TFuE2kcxuHJykWUUfYQ6VIgKLgANUIcgCJb0BEhbkC4AYqSbgtccACEtt4LUBBR0HEIUFZbIHk7FMmO41mP3++bmecpnVH8JdLP//F4xrO3WCwWDRDzW+kFwNSIDsJEB2GigzDRQZjoIEx0ECY6CBMdhIkOwkQHYaJjcs4+vCv6/KJjct58nBd9/j1XGTBmZx/ebRzZ6ycnzdnTP3a7oEZ0TNDe80fN4s+/iz2/3UsIEx2EiQ7CRAdhooMw0TEon99elF7C1kTHoFydX5ZewtZEB2Gig7BZ6QXAKu/vPWx+Xl+v/Nn86HjpsVnbNs++fNrod79+crLV2rblNDCqtCqsu5x8+7qDlfTP7iVVmrXtTrcvyaRjUOZHx4OZaLcx6RiU+y9flF7C1kRHTB9XbD94dbr9QgoTHTGlr9iuheggTHQQ5uglvfv99HHz499/Ntr2cP+g+X7x145XVBeTjt5tGlzXbcdCdBAmOggTHYSJDsJEB2GigzDR0bvD/YOdbDsWPhwnpvQ9BGph0kGY6LhTXzdRLP3dJLWwe8md7Bb2S3T80uVE5aaZ5snKfbB7yS9dTz6e4snKfRAdhIkOwkQHYaKDMNFBmOggTHQQJjoIEx2EiQ7CRAdhooMw0UGY6CCseHSf316UXgJEFY/u6vyy9BIgqnh0MDWigzDRVcp73fESXaW81x2vWfLJ3t972Py8vl56fH50vPTYrG2bZ18+JZYFUdFJtyq4PraFIYlOOpbdNv2bJr8HcLh/0Pl7L+lOdIV1nei73APwxbEZ0d3LWdvuZNsh6/p3TuX/MmbFv1Z9fnTcnHz7WnIJVfJ/GS8fGdzQ191pYB3R3fDm47z0EnrnQ/b6TPZAym13qNl7/mjpsSHfnebq/LJ58Oq09DK4YTSTrusrepdD413vTmO6sM5ooqvptKma1kJ9RhMdDIXoIGxwB1K6nDblpGlqNLhJ56Rphm5wk64mNU3dmtbCeoObdDWpaerWtBbWm2x0XS5LKXEJy/2XL+LPScZkdy9rP8PEWSTjNdlJ1weXKvF/THbS9eG2gxEuy2Gd4pOu63sX04WhKz7pur53MV1Wm7XtxkclvRiVVTw6+uHFaDiK717C1IgOwkQ3cj5kr4/oRs6H7PURHYSJDsJEB2GigzDRQdhoonNonKEYTXQ1HRr3AsA6xe/aA1MzmkkHQyE6CBMdhIkOwkQHYaKDMNFBmOggTHQQJjoI+w/wdQB7GzLqgwAAAABJRU5ErkJggg==' alt='CGDG chart' /></div></details>
+        </summary><div class='sparkline-container'><img src='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAN0AAABzCAYAAAAc0geEAAAAOnRFWHRTb2Z0d2FyZQBNYXRwbG90bGliIHZlcnNpb24zLjEwLjgsIGh0dHBzOi8vbWF0cGxvdGxpYi5vcmcvwVt1zgAAAAlwSFlzAAALEwAACxMBAJqcGAAAA4ZJREFUeJzt3bFO3VYAx+FDxYC4Ig+RLUPVDn2BzlHUB+iQDN2Kqr5B4Q2iiG4duEMeAKHMeYEMiTp060MkSpSh0u2AUqXlAte1/T/28fdtIAtb4B/HPj6Gvc1msylAzBe1DwCWRnQQJjoIEx2EiQ7CRAdhooMw0UGY6CBMdBAmOggTHYtzcnFedf+iY3FOL9dV9y86CBMdhIkOwkQHYaKDMNFBmOggTHQQJjoIEx2EiQ7CRAdhooOwPX9WnZbdO35Y3n38sNO2RweH5e3Zi5GPyEhH43YNruu2fYgOwkQHYaKDMNFBmOggTHQQJjoIEx2EiQ7CRAdhooMw0UGY6CBMdBAmOggTHYSJDsJEB2GigzDRQZjoIEx0ECY6CBMdhIkOwkQHYaKDMNHRtKODw1G27cN/7WFx9n74tmx+e1lt/0Y6CBMdhIkOwkQHYaKDMNFBmOggTHQQJjoIEx2EiQ7CRAdhooOwZqJ7/fSs99c4uTjvfyBwh9m92vP8y2/KX+/f77Tt/mpVvv/91c5fu/YrH2ScXJyXk++eVNv/7Ea6XYPrui3LUTO4UkrZr7p3FqXLCNPliqaU7lc1NVUf6dxHLcfp5XrnbbtepczpqiY60t07fljeffxw7fPbfhhHB4fl7dmLxGFBVHSk2xbcENvCnFS/vISlMZHC4G66jSjl6rHM55Z4G2Gka1yNiSq3EbcTXeO6zBiSIboRDLEkben2V6tRt6/JPV0Ptz3AffPs1399PKeHt1Nw0/dqff9BefznH+GjGVY0uqODw52v4VN/V76PKS1JW8rkxVc//Vj7EHqLRrftB22R8Xa1F+VO1dc/H9c+hN5cXk7U6eW6U3Q3jVxD/FJ7/fSsiZN9KkykcKf/3p/Sj5GOf9w2MbS+/+Da50wO/T/Vo/vl0ePah1BVlwmQUsadBGl5Zf+UVI+u1mTBTSd7+kTvuiJjzBUc+6tV53fYtmltlnpo1aPrqsuJcdsDU0uVrhvq2diYkzotmF10Q50YfhtTy+yiG8pUHg53if/T9szbYqObCpdiy+M5HTFLn6n+RHTcaaj1jpa1XWkmuhYWwn5uSqOCJWDDaia61k6MoUaFKcXLlWaiYzuXdNMjuh66vK08pzebGdfs/oHIHLTwdjPjMdJBmOhG0NpMKsNyeQlhRjoIEx2EiQ7CRAdhooMw0UGY6CBMdBAmOggTHYT9DaWMBizHZ9MkAAAAAElFTkSuQmCC' alt='EXC chart' /></div></details>
 <details><summary>
             <div class='top-list-row'>
-                <span><a href='https://finance.yahoo.com/quote/CGNG' target='_blank' class='symbol-link'><b>CGNG</b></a>:<small>NYSE ARCA</small></span>
-                <span><b>9.5</b></span>
-                <span style='color:#777'>ML:85%</span>
-                <span>E:<b>$34.65</b> S:<b style='color:var(--badge-bear)'>$33.57</b> T:<b style='color:var(--badge-bull)'>$35.91</b></span>
+                <span><a href='https://finance.yahoo.com/quote/NPKI' target='_blank' class='symbol-link'><b>NPKI</b></a>:<small>NYSE</small></span>
+                <span><b>34.5</b></span>
+                <span style='color:#777'>ML:40%</span>
+                <span>E:<b>$14.60</b> S:<b style='color:var(--badge-bear)'>$13.28</b> T:<b style='color:var(--badge-bull)'>$15.95</b></span>
             </div>
-        </summary><div class='sparkline-container'><img src='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAN0AAABzCAYAAAAc0geEAAAAOnRFWHRTb2Z0d2FyZQBNYXRwbG90bGliIHZlcnNpb24zLjEwLjgsIGh0dHBzOi8vbWF0cGxvdGxpYi5vcmcvwVt1zgAAAAlwSFlzAAALEwAACxMBAJqcGAAAA6tJREFUeJzt3T1uHVUYBuC5yIXlK7MIdy4iKLKB1AixAIpQpCNC7ACzg8iyuxRxkQVEiJoNUMSioGMRICOKSENBQ5x7b3Jy575nzpzn6WyPNKd5/c3Md35W4ziOAxDzSe0BQG+EDsKEDsKEDsKEDsKEDsKEDsKEDsKEDsKEDsKEDsKEju5cvHpR9f5CR3d+/Omm6v2FDsJWlvawZJ8+/WL465+/P+ja0+OT4c+rnw88IpWOhfvQwJVeuw+hY9FOj08Ocu0+PF7SndWTR8P4/Jdq91fpIEzoIEzoIEzoIEzoaMrrZ1e1h7A3oaMpt5fXtYewt6PaA4BNXj54OLy5u9v4t5uz83d+d7ReD1//9uuhhzUJlY6Yktn92wI31fU1CR0xtWf3z4XQQZh3Oia3a2b/6smjt35OzeyfE5WOyU0xs/9ovS66Z+n1NVWvdK+fXQ2ff/+09jCYmW1fIm/OzofHf/weHs20qle6JfRdaMsPXz6uev9opdvWe2m970JbLr76pur9o5WupJfSUt+FnM+++7b2EPZW/fESSizh/V/oIEzoIEzoIEzoIEzoICwaupKpOi1N64ES0eb4pmb3Eqb13GdqG7t4vDwAU9vYReggTOggrPrSnqnUeI8q2Tynpwncp8cnRcdT9WYxobu9vI6HzgTuzbatBL949aL6DP85aC50qku7BO4/zb3TqS60rrnQkVeyXyXv19zj5SH1/s6xaxevTXtW9riT1xRUuv/pfTPU0jO3U2d0L41KV9muD0Ob+DjUPpWusiXv2c9m3Va6be8v93cgHgbvLkyr20o3xS7E8DG6DR3UInQQJnQQJnQQJnR7sOcLH6PblsEUlnycE4ej0kGY0EGY0EGY0EGY0EGY0EFY9dCVHmerN0brqvfpSrfN0xujddUrHfRG6CBM6CBM6CBM6CBsMaErbT3wrtITdHo8cWcK1VsGU5nTccOt/gOw41nGYirdnMzpHwDz023oSh6NPEYxpcU8Xpbq5VGqxgm17NZtpevF7eV17SFwj9BBmNBBmNBVVrr8yHKl9nX7IWUuLFXqj0oHYUIHYUIHYUIHYUIHYUIHYUIHYfp0C/HywcPhzd3dxr/dnJ2/9fPRer21P8jhqXQLsS1w+17L9IRuplpdfc77Cd1MWQO3XEIHYUK3EA5WacdqHMex9iA4HKsV5kelgzChgzChgzChWzj9vvnxIQXCVDoIEzoIEzoIEzoIEzoIEzoIEzoIEzoIEzoIEzoI+xcUrfXg2Z7ArQAAAABJRU5ErkJggg==' alt='CGNG chart' /></div></details>
+        </summary><div class='sparkline-container'><img src='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAN0AAABzCAYAAAAc0geEAAAAOnRFWHRTb2Z0d2FyZQBNYXRwbG90bGliIHZlcnNpb24zLjEwLjgsIGh0dHBzOi8vbWF0cGxvdGxpYi5vcmcvwVt1zgAAAAlwSFlzAAALEwAACxMBAJqcGAAAA79JREFUeJzt3T9uFFccwPHZaAvEiBzCnQsUCi5AHUU5QAqnoMNC3ABzAwuZLoW34AAWSp0LpHCUgo5DEDmiQJoUCGJgx+xoZ37v3+fTGY93X7FfveW9+bMahmHogDDfpR4AtEZ0EEx0EEx0EEx0EEx0EEx0EEx0EEx0EEx0EEx0EEx0NOfk4jzp+4uO5jx7tUn6/qKDYKKDYCvX01Gz749/7P559+9Ox965dbt7e/b7wiMy0xEoxQLGrsFNPXYfoiNM6gWMXIgOgokOgokuU5enZ6mHwEJEl6m/nr9IPQQWIjoIJjoIJjqqdufW7UWO3cc65F0ac3l61t17cpx6GHTd1jNMVg8fdMNvfyQYzQdmugVYBOEmooNgvl4m9vLu/e791dXW320ODr/6t3Xfd7/8/efSw2JBotvDlGDGYhn7+zFTjyc/vl7uYUoAYuEj0UEw0UEw0UEw0UEw0e1h3feLHEvdbBnsYWy/bHNw2B29eR08mjacXJx3Jz//mnoYezHTUZQa7rMiOggmOggmOggmOggmOr4p9aOlamPLgG969mozaZn+pucHrB4++OznsecHTHmNm15nm6c/He103FLMdMwux+cHXJd6n89Md00NG6+1GJu1Ut/fZA5mumtq2HjNQY534MqJmY7Z1TxLzcFMB8FEB8FEB8FEB8EspPDJkhvS/M9MxydTN6pTbGzXQHQQTHQQTHQQrNmFlLFFAwsGLK3ZmS73M+GpV7PRUabU18LNIXl0l6dnqYdAQWq49Cp5dB4VTGuSRwetEd0Cfnj8KPUQyJjoFnDvyXHqIZAx0UGwaqJzb0ZKUU10biq0nS2Z/FQTHdvZkslPs+de1ubl3fvd+6urrb/bHBx+9vO670cfaMnyQqMb+2B8+aHoOh+MqcaC2/dY5hf69dIHI29Tb/za4o1i5xA60637fueY1n2/8Gj4kpvExgiNbtvXxc3BYXf05vXOrzHHE2FIo4YrBOZQ3OplbdfBTZ3RU3wDmCuWGq4QmIPVy8TGFoumfgNYkljmVdxMB6UTHQQTHQQTHQQTHQQTHQRrNrranos9Zf/O2T5pNbtPt+1MlZOL82L3pErY7+OD4ma6JWeoUoOjLMXNdE7KpXTFzXRQOtFBMNFBMNFBMNFBMNFBMNFBMNFBsGqic9MbSlFNdE7hohTVRAelEF3lPBU2P6LL1FyxeCpsfkSXKbHUS3QQTHQQLHl0/qNPa1bDMAypBwEtST7TQWtEB8FEB8FEB8FEB8FEB8FEB8FEB8FEB8FEB8H+AzwO+nhdV3yUAAAAAElFTkSuQmCC' alt='NPKI chart' /></div></details>
 <details><summary>
             <div class='top-list-row'>
-                <span><a href='https://finance.yahoo.com/quote/CGXU' target='_blank' class='symbol-link'><b>CGXU</b></a>:<small>NYSE ARCA</small></span>
-                <span><b>9.5</b></span>
-                <span style='color:#777'>ML:85%</span>
-                <span>E:<b>$32.39</b> S:<b style='color:var(--badge-bear)'>$31.25</b> T:<b style='color:var(--badge-bull)'>$33.73</b></span>
+                <span><a href='https://finance.yahoo.com/quote/AEE' target='_blank' class='symbol-link'><b>AEE</b></a>:<small>NYSE</small></span>
+                <span><b>34.0</b></span>
+                <span style='color:#777'>ML:77%</span>
+                <span>E:<b>$109.25</b> S:<b style='color:var(--badge-bear)'>$104.70</b> T:<b style='color:var(--badge-bull)'>$113.98</b></span>
             </div>
-        </summary><div class='sparkline-container'><img src='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAN0AAABzCAYAAAAc0geEAAAAOnRFWHRTb2Z0d2FyZQBNYXRwbG90bGliIHZlcnNpb24zLjEwLjgsIGh0dHBzOi8vbWF0cGxvdGxpYi5vcmcvwVt1zgAAAAlwSFlzAAALEwAACxMBAJqcGAAAA4pJREFUeJzt3TGOHEUAhtEZtMFqR8shnDmwIPAFHFsWByAwgTMsxA1YboAskxF4Ax/AQsRcgABEQMYhQIsILDUBQmhhpnfK0/1XV/V72VolTwf9Tff0VNVsh2EYNkDMe7UPANZGdBAmOggTHYSJDsJEB2GigzDRQZjoIEx0ECY6CBMdq3P15lXV1xcdq/Plt9dVX190ECY6CNtaT0fP3n/+ePP7n38cNfby/GLz28vvZj4iVzo6d2xwpWNPITq6dnl+McvYU7i9ZHW2zx5thm++r/b6rnQQJjoIEx2EndU+ANjn9YOHm7c3N0ePP9vtNh///MOMRzQdVzoWqSS4dxlfk+ggTHTE1J7dvxSiI6b27P6lqB7dj1+9rH0IEFU9up9efF37EFiZL548rfr6vjJgcmMz+7fPHt36+9DM/rPdrvgrg2NdffTJ0WPnEJ17WfLdS0vfu3Dbf8O6S8k8yOt79zdPf/2l9JAWJXp7WfLO1dL3LlCi+mc6KPHBZ5/WPoSTiY6mfPj589qHcDLRQZjoIEx0ECY6CBMdhIkOwkQHYdHoSubHlYyFlkQnPO+bS9nDXDoo4fZyBtYIMqab6JZ0olsjyJhuonOi04puooNWiG6hlnS7zLRs13CCsZXw1/fu3/r70Er4sf9j3y2zFfXtay66KU70qUyxEr7nnYzZr7nbS1s+0LrmooPWiY47lW6HvsSfHF6S5j7TzenqzavqeyLWNLZf5b4t0Q/tWbnv3/jXaqM7dIKVnFy9ORTcVOP522pvL0tOmENjrZrgXaz2SjeFQ19HWDnBmNVe6aAW0UGY6CBMdBAmOgirHl0Pv8ICJapH18OvsECJ6tHB2ogOwkQHYaKDMNFBWHPRmdlP65pbZWBmP61r7koHrRPdDMyyYUw30S3pRDfLhjHdRNfqiV76sMfDofY19yBlKpfnF0fvkzLnNnEeDK3PaqNbw+5epUreiP4ZT7nVRsf/eSPK6OYzHbRCdBAmOggTHYSJrnN+Rnl5RNe5fT+hTF2iW6glTWtjWqJbqFantXE30UGY6CBMdBAmOggTHYRth2EYah8Ep3v94OHm7c3NUWPPdruD6/iYnytdJ44NrnQs0xMdhIkOwkQHYaLrhO3m2+HpZefsKrY8rnQQJjoIEx2EiQ7CRNc5K9CXx9NLCHOlgzDRQZjoIEx0ECY6CBMdhIkOwkQHYaKDMNFB2F/M8vICFUBRJgAAAABJRU5ErkJggg==' alt='CGXU chart' /></div></details>
+        </summary><div class='sparkline-container'><img src='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAN0AAABzCAYAAAAc0geEAAAAOnRFWHRTb2Z0d2FyZQBNYXRwbG90bGliIHZlcnNpb24zLjEwLjgsIGh0dHBzOi8vbWF0cGxvdGxpYi5vcmcvwVt1zgAAAAlwSFlzAAALEwAACxMBAJqcGAAAA35JREFUeJzt3bFuHEUAx+E95MLyybxDUpECQZEXSI0QD5AiFOmIEG+Q+AmIgtMh4SvoE1mpeQEkElHQ8RCgIAqkpQsiubO82dn/7O58X2dndTeK/NPszu3Nbvq+7zsg5oPaA4DWiA7CRAdhooMw0UGY6CBMdBAmOggTHYSJDsJEB2GiozmPnl9UfX/R0Zyzy13V9xcdhIkOwkQHYaKDMNFBmOggTHQQJjoIEx2EiQ7CNva9ZM0+fPBZ9+fff13r2NPjk+6P8xcTj8hMx8pdN7ihx44hOggTHYSJDsJEB2GigzDRQZjoIEx0ECY6Vu30+GSSY8dwGxjN2dy/0/Xf/1Tt/c10ECY6CBMdhIkOwkQHYaKDMNFBmOggTHQQJjoIEx2EiQ7CRAdhooMw0UGY6CBMdBAmOprz8PN7Vd9fdMQ8en4xj9f44svRrzGG6Ig5u9zN4jVqEx2EiQ7CRLdyLx+f1x4CbxHdyr168rT2EHjLUe0BwD5XPSt8c//OO79LPS+8BDMdszT0+d+p54WXYKajuCGz1JJmqFJEN1MvH593n37z4NrH//jx7e6f16/3/tvu5q3//Xy03XZ3f/151PiuMmTWWdIMVYrTy5kaugByKLixx1Ke6CZQ4lal1g19bFXqMVclOL2cwNnlrvr9fUt36Dqv9mOuShBdZUOuxbpu+usxpuf0srKh11eux5ZPdBAmupU42m4nOZbyXNOtxKHrvN3NW929338Lj2Y6tb/1XYLoeOOqRZ19aizqrGFVWHQjlLjd6Wi7HfyHPhWLOhmiq2yNp4WnxyfXvr1rSR9qlyK6Edb8Ae4Y/l+uZvUSwkQ3U598/VXtITAR0c3UkK/1LMUalvtLEN0ElvrHNXRldOjxa1juL6JfiV++/W70azx89sP4gczMxY2PZvEa/Gc1q5evnjwddEp26DO2fTsIt7ilANNp9vSylS0FSizIWNQpq9noWlFiQWaNizo1iQ7CRAdh1RdSlrzVHLyPaHSHgtm33dyhYGw1x9JFTy8FA+HobCkA4dPLfaeLS/7eGLwPq5cQJjoIEx2EiQ7CRAdhooMw0UGY6CBscdG5q4Wlq/4tg6HWuCMybVncTHfI0C0Fhmzn3eLW30xn0/d9X3MAZihaU32ms+kNrak+00Frqs900BrRQZjoIEx0ECY6CBMdhIkOwkQHYaKDMNFB2L/S91hmNsp1ogAAAABJRU5ErkJggg==' alt='AEE chart' /></div></details>
 </div>
 <div class='top-list'>
 <h3>Top 5 Mean Reversion</h3>
@@ -311,85 +312,85 @@
 <table>
 <tr><th>Symbol</th><th>Exchange</th><th>Strategy</th><th>Score</th><th>Close Price</th><th>Indicators</th></tr>
 <tr>
-<td><a href='https://finance.yahoo.com/quote/OHI' target='_blank' class='symbol-link'><strong>OHI</strong></a></td>
+<td><a href='https://finance.yahoo.com/quote/SLF' target='_blank' class='symbol-link'><strong>SLF</strong></a></td>
 <td><small>NYSE</small></td>
 <td>Baseline</td>
-<td class='score-low'>10.50</td>
-<td>46.56582527086161</td>
-<td><small>trend=2.5, volume=1.0, limit=4.0, moving_average=3.0</small></td>
+<td class='score-low'>36.00</td>
+<td>68.6993393811629</td>
+<td><small>trend=17.0, volume=10.0, limit=3.0, moving_average=3.0, momentum=-3.0, price_action=3.0, penalty_rsi=-2.0, rs_index=5.0</small></td>
 </tr>
 <tr>
-<td><a href='https://finance.yahoo.com/quote/ST' target='_blank' class='symbol-link'><strong>ST</strong></a></td>
+<td><a href='https://finance.yahoo.com/quote/RTX' target='_blank' class='symbol-link'><strong>RTX</strong></a></td>
 <td><small>NYSE</small></td>
 <td>Baseline</td>
-<td class='score-low'>10.50</td>
-<td>36.999780794582165</td>
-<td><small>trend=2.5, volume=1.0, limit=4.0, moving_average=3.0</small></td>
+<td class='score-low'>35.75</td>
+<td>200.90053711911935</td>
+<td><small>trend=14.8, volume=8.0, limit=4.0, candlestick=1.0, moving_average=3.0, rs_index=5.0</small></td>
 </tr>
 <tr>
-<td><a href='https://finance.yahoo.com/quote/CGDG' target='_blank' class='symbol-link'><strong>CGDG</strong></a></td>
-<td><small>NYSE ARCA</small></td>
+<td><a href='https://finance.yahoo.com/quote/EXC' target='_blank' class='symbol-link'><strong>EXC</strong></a></td>
+<td><small>NASDAQ</small></td>
 <td>Baseline</td>
-<td class='score-low'>9.50</td>
-<td>37.76070194720905</td>
-<td><small>trend=1.5, volume=1.0, limit=4.0, moving_average=3.0</small></td>
+<td class='score-low'>35.50</td>
+<td>47.49639459692575</td>
+<td><small>trend=19.5, volume=10.0, limit=3.0, moving_average=3.0, momentum=-3.0, price_action=3.0, penalty_rsi=-2.0, rs_index=2.0</small></td>
 </tr>
 <tr>
-<td><a href='https://finance.yahoo.com/quote/CGNG' target='_blank' class='symbol-link'><strong>CGNG</strong></a></td>
-<td><small>NYSE ARCA</small></td>
+<td><a href='https://finance.yahoo.com/quote/NPKI' target='_blank' class='symbol-link'><strong>NPKI</strong></a></td>
+<td><small>NYSE</small></td>
 <td>Baseline</td>
-<td class='score-low'>9.50</td>
-<td>34.646154696930424</td>
-<td><small>trend=1.5, volume=1.0, limit=4.0, moving_average=3.0</small></td>
+<td class='score-low'>34.50</td>
+<td>14.60359839793046</td>
+<td><small>trend=13.8, volume=10.0, limit=4.0, moving_average=3.0, momentum=-2.0, price_action=0.8, rs_index=5.0</small></td>
 </tr>
 <tr>
-<td><a href='https://finance.yahoo.com/quote/CGXU' target='_blank' class='symbol-link'><strong>CGXU</strong></a></td>
-<td><small>NYSE ARCA</small></td>
+<td><a href='https://finance.yahoo.com/quote/AEE' target='_blank' class='symbol-link'><strong>AEE</strong></a></td>
+<td><small>NYSE</small></td>
 <td>Baseline</td>
-<td class='score-low'>9.50</td>
-<td>32.39118431558873</td>
-<td><small>trend=1.5, volume=1.0, limit=4.0, moving_average=3.0</small></td>
+<td class='score-low'>34.00</td>
+<td>109.24719792436098</td>
+<td><small>trend=18.0, volume=10.0, limit=3.0, moving_average=3.0, momentum=-3.0, price_action=3.0, penalty_rsi=-2.0, rs_index=2.0</small></td>
+</tr>
+<tr>
+<td><a href='https://finance.yahoo.com/quote/KIM' target='_blank' class='symbol-link'><strong>KIM</strong></a></td>
+<td><small>NYSE</small></td>
+<td>Baseline</td>
+<td class='score-low'>34.00</td>
+<td>22.298288897347362</td>
+<td><small>trend=16.0, volume=10.0, limit=3.0, candlestick=1.0, moving_average=3.0, momentum=-1.0, rs_index=2.0</small></td>
+</tr>
+<tr>
+<td><a href='https://finance.yahoo.com/quote/HXL' target='_blank' class='symbol-link'><strong>HXL</strong></a></td>
+<td><small>NYSE</small></td>
+<td>Baseline</td>
+<td class='score-low'>33.75</td>
+<td>88.82233585070443</td>
+<td><small>trend=13.5, volume=10.0, limit=2.0, moving_average=3.0, momentum=-2.0, price_action=2.2, rs_index=5.0</small></td>
 </tr>
 <tr>
 <td><a href='https://finance.yahoo.com/quote/DTCR' target='_blank' class='symbol-link'><strong>DTCR</strong></a></td>
 <td><small>NASDAQ</small></td>
 <td>Baseline</td>
-<td class='score-low'>9.50</td>
-<td>25.454081703101537</td>
-<td><small>trend=1.5, volume=1.0, limit=4.0, moving_average=3.0</small></td>
+<td class='score-low'>33.50</td>
+<td>26.009911823934285</td>
+<td><small>trend=14.5, volume=9.0, limit=3.0, moving_average=3.0, momentum=-2.0, price_action=3.0, penalty_rsi=-2.0, rs_index=5.0</small></td>
 </tr>
 <tr>
-<td><a href='https://finance.yahoo.com/quote/EWD' target='_blank' class='symbol-link'><strong>EWD</strong></a></td>
-<td><small>NYSE ARCA</small></td>
-<td>Baseline</td>
-<td class='score-low'>9.50</td>
-<td>54.403739250539736</td>
-<td><small>trend=1.5, volume=1.0, limit=4.0, moving_average=3.0</small></td>
-</tr>
-<tr>
-<td><a href='https://finance.yahoo.com/quote/EWM' target='_blank' class='symbol-link'><strong>EWM</strong></a></td>
-<td><small>NYSE ARCA</small></td>
-<td>Baseline</td>
-<td class='score-low'>9.50</td>
-<td>29.917843497702965</td>
-<td><small>trend=1.5, volume=1.0, limit=4.0, moving_average=3.0</small></td>
-</tr>
-<tr>
-<td><a href='https://finance.yahoo.com/quote/FLGB' target='_blank' class='symbol-link'><strong>FLGB</strong></a></td>
-<td><small>NYSE ARCA</small></td>
-<td>Baseline</td>
-<td class='score-low'>9.50</td>
-<td>36.10866050776724</td>
-<td><small>trend=1.5, volume=1.0, limit=4.0, moving_average=3.0</small></td>
-</tr>
-<tr>
-<td><a href='https://finance.yahoo.com/quote/FPF' target='_blank' class='symbol-link'><strong>FPF</strong></a></td>
+<td><a href='https://finance.yahoo.com/quote/SKM' target='_blank' class='symbol-link'><strong>SKM</strong></a></td>
 <td><small>NYSE</small></td>
 <td>Baseline</td>
-<td class='score-low'>9.50</td>
-<td>18.942941532258526</td>
-<td><small>trend=1.5, volume=1.0, limit=4.0, moving_average=3.0</small></td>
+<td class='score-low'>33.50</td>
+<td>30.731638570596264</td>
+<td><small>trend=16.5, volume=10.0, limit=3.0, moving_average=3.0, momentum=-2.0, price_action=3.0, penalty_rsi=-5.0, rs_index=5.0</small></td>
+</tr>
+<tr>
+<td><a href='https://finance.yahoo.com/quote/XWIN' target='_blank' class='symbol-link'><strong>XWIN</strong></a></td>
+<td><small>NASDAQ</small></td>
+<td>Baseline</td>
+<td class='score-low'>33.25</td>
+<td>6.258832528301355</td>
+<td><small>trend=13.2, volume=10.0, limit=3.0, candlestick=1.0, moving_average=3.0, momentum=-2.0, rs_index=5.0</small></td>
 </tr>
 </table>
-<div class='footer'>Generated by BlueHorseshoe v2.1 on 2026-02-12 07:47:44</div>
+<div class='footer'>Generated by BlueHorseshoe v2.1 on 2026-02-14 01:56:33</div>
 </div></body></html>

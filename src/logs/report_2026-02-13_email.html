@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset='UTF-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1.0'>
+<title>BlueHorseshoe Report - 2026-02-13</title>
+
+        <style>
+            body { font-family: Arial, Helvetica, sans-serif; background-color: #f4f4f9; color: #333; margin: 0; padding: 20px; }
+            .container { max-width: 700px; margin: 0 auto; background: #fff; padding: 20px; }
+            h1 { color: #2c3e50; border-bottom: 3px solid #3498db; padding-bottom: 10px; margin-top: 0; }
+            h2 { color: #2c3e50; border-bottom: 2px solid #eee; padding-bottom: 8px; margin-top: 30px; }
+            h3 { color: #34495e; margin-bottom: 10px; }
+            table { width: 100%; border-collapse: collapse; margin: 15px 0; }
+            th, td { padding: 10px; text-align: left; border: 1px solid #ddd; }
+            th { background-color: #34495e; color: #fff; font-weight: bold; }
+            tr:nth-child(even) { background-color: #f9f9f9; }
+            .badge { padding: 4px 8px; border-radius: 3px; color: #fff; font-weight: bold; font-size: 0.85em; display: inline-block; }
+            .badge-bull { background-color: #27ae60; }
+            .badge-bear { background-color: #c0392b; }
+            .badge-neutral { background-color: #f39c12; }
+            .score-high { color: #27ae60; font-weight: bold; }
+            .score-med { color: #f39c12; font-weight: bold; }
+            .score-low { color: #c0392b; font-weight: bold; }
+            .strategy-section { margin: 25px 0; padding: 15px; background-color: #f8f9fa; border-left: 4px solid #3498db; }
+            .footer { margin-top: 30px; font-size: 0.85em; color: #777; text-align: center; padding-top: 15px; border-top: 1px solid #ddd; }
+            a { color: #2c3e50; text-decoration: none; }
+            a:hover { color: #3498db; text-decoration: underline; }
+            .small-text { font-size: 0.85em; color: #777; }
+        </style>
+        
+</head>
+<body>
+<div class='container'>
+<h1>BlueHorseshoe Daily Report</h1>
+<p class='small-text'>Data As Of: <strong>2026-02-13</strong> | Prediction For: <strong>Next Trading Day</strong></p>
+<h2>Market Regime</h2>
+<table>
+<tr><th>Status</th><th>SPY Price</th><th>SPY MA50</th><th>SPY MA200</th></tr>
+<tr><td><span class="badge badge-bear">Bearish</span></td>
+<td>681.75</td>
+<td>685.1843049915822</td>
+<td>649.906659634057</td></tr>
+</table>
+<div class='strategy-section'>
+<h3>Top 5 Baseline (Trend Following)</h3>
+<table>
+<tr><th>Symbol</th><th>Score</th><th>ML Confidence</th><th>Entry</th><th>Stop</th><th>Target</th></tr>
+<tr>
+<td><a href='https://finance.yahoo.com/quote/AD' target='_blank'><strong>AD</strong></a></td>
+<td class='score-low'>4.0</td>
+<td>75%</td>
+<td>$50.04</td>
+<td style='color:#c0392b;font-weight:bold'>$46.70 <span class='small-text'>(-6.7%)</span></td>
+<td style='color:#27ae60;font-weight:bold'>$55.06 <span class='small-text'>(+10.0%)</span></td>
+</tr>
+<tr>
+<td><a href='https://finance.yahoo.com/quote/CAAP' target='_blank'><strong>CAAP</strong></a></td>
+<td class='score-low'>4.0</td>
+<td>67%</td>
+<td>$27.44</td>
+<td style='color:#c0392b;font-weight:bold'>$25.35 <span class='small-text'>(-7.6%)</span></td>
+<td style='color:#27ae60;font-weight:bold'>$29.89 <span class='small-text'>(+8.9%)</span></td>
+</tr>
+<tr>
+<td><a href='https://finance.yahoo.com/quote/DIBS' target='_blank'><strong>DIBS</strong></a></td>
+<td class='score-low'>4.2</td>
+<td>66%</td>
+<td>$5.19</td>
+<td style='color:#c0392b;font-weight:bold'>$4.69 <span class='small-text'>(-9.6%)</span></td>
+<td style='color:#27ae60;font-weight:bold'>$5.95 <span class='small-text'>(+14.5%)</span></td>
+</tr>
+<tr>
+<td><a href='https://finance.yahoo.com/quote/DXCM' target='_blank'><strong>DXCM</strong></a></td>
+<td class='score-low'>4.5</td>
+<td>44%</td>
+<td>$68.62</td>
+<td style='color:#c0392b;font-weight:bold'>$63.04 <span class='small-text'>(-8.1%)</span></td>
+<td style='color:#27ae60;font-weight:bold'>$74.46 <span class='small-text'>(+8.5%)</span></td>
+</tr>
+<tr>
+<td><a href='https://finance.yahoo.com/quote/EPU' target='_blank'><strong>EPU</strong></a></td>
+<td class='score-low'>4.5</td>
+<td>64%</td>
+<td>$85.29</td>
+<td style='color:#c0392b;font-weight:bold'>$79.79 <span class='small-text'>(-6.5%)</span></td>
+<td style='color:#27ae60;font-weight:bold'>$93.37 <span class='small-text'>(+9.5%)</span></td>
+</tr>
+</table>
+</div>
+<div class='strategy-section'>
+<h3>Top 5 Mean Reversion</h3>
+<p>No candidates found for this strategy.</p>
+</div>
+<h2>Previous Day Performance</h2>
+<p class='small-text'>Suggestions from: <strong>2026-02-12</strong></p>
+<table>
+<tr><th>Symbol</th><th>Strategy</th><th>Entry</th><th>Stop</th><th>Target</th><th>Outcome</th><th>PnL</th></tr>
+<tr>
+<td><a href='https://finance.yahoo.com/quote/SLF' target='_blank'><strong>SLF</strong></a></td>
+<td>baseline</td>
+<td>$68.70</td>
+<td>$65.73</td>
+<td>$71.79</td>
+<td><span class="badge" style="background-color:#3498db">Active</span></td>
+<td style='color:#27ae60;font-weight:bold'>0.36%</td>
+</tr>
+<tr>
+<td><a href='https://finance.yahoo.com/quote/RTX' target='_blank'><strong>RTX</strong></a></td>
+<td>baseline</td>
+<td>$200.90</td>
+<td>$189.17</td>
+<td>$213.11</td>
+<td><span class="badge" style="background-color:#3498db">Active</span></td>
+<td style='color:#c0392b;font-weight:bold'>-0.42%</td>
+</tr>
+<tr>
+<td><a href='https://finance.yahoo.com/quote/EXC' target='_blank'><strong>EXC</strong></a></td>
+<td>baseline</td>
+<td>$47.50</td>
+<td>$44.87</td>
+<td>$50.23</td>
+<td><span class="badge" style="background-color:#3498db">Active</span></td>
+<td style='color:#27ae60;font-weight:bold'>2.07%</td>
+</tr>
+<tr>
+<td><a href='https://finance.yahoo.com/quote/AEE' target='_blank'><strong>AEE</strong></a></td>
+<td>baseline</td>
+<td>$109.25</td>
+<td>$104.70</td>
+<td>$113.98</td>
+<td><span class="badge" style="background-color:#3498db">Active</span></td>
+<td style='color:#27ae60;font-weight:bold'>1.58%</td>
+</tr>
+<tr>
+<td><a href='https://finance.yahoo.com/quote/KIM' target='_blank'><strong>KIM</strong></a></td>
+<td>baseline</td>
+<td>$22.30</td>
+<td>$21.23</td>
+<td>$23.41</td>
+<td><span class="badge" style="background-color:#95a5a6">No Entry</span></td>
+<td style='color:#777'>-</td>
+</tr>
+</table>
+<h2>All Top Candidates (10)</h2>
+<table>
+<tr><th>Symbol</th><th>Strategy</th><th>Score</th><th>ML</th><th>Price</th><th>Top Indicators</th></tr>
+<tr>
+<td><a href='https://finance.yahoo.com/quote/AD' target='_blank'><strong>AD</strong></a></td>
+<td>Baseline</td>
+<td class='score-low'>4.0</td>
+<td>75%</td>
+<td>$50.04</td>
+<td class='small-text'>trend=1.2, volume=-2.0, momentum=-1.0 (+2 more)</td>
+</tr>
+<tr>
+<td><a href='https://finance.yahoo.com/quote/CAAP' target='_blank'><strong>CAAP</strong></a></td>
+<td>Baseline</td>
+<td class='score-low'>4.0</td>
+<td>67%</td>
+<td>$27.44</td>
+<td class='small-text'>trend=3.8, volume=-5.8, moving_average=-1.0 (+2 more)</td>
+</tr>
+<tr>
+<td><a href='https://finance.yahoo.com/quote/DIBS' target='_blank'><strong>DIBS</strong></a></td>
+<td>Baseline</td>
+<td class='score-low'>4.2</td>
+<td>66%</td>
+<td>$5.19</td>
+<td class='small-text'>trend=2.8, volume=-3.5, moving_average=-2.0 (+2 more)</td>
+</tr>
+<tr>
+<td><a href='https://finance.yahoo.com/quote/DXCM' target='_blank'><strong>DXCM</strong></a></td>
+<td>Baseline</td>
+<td class='score-low'>4.5</td>
+<td>44%</td>
+<td>$68.62</td>
+<td class='small-text'>trend=-0.8, limit=1.0, moving_average=-2.0 (+3 more)</td>
+</tr>
+<tr>
+<td><a href='https://finance.yahoo.com/quote/EPU' target='_blank'><strong>EPU</strong></a></td>
+<td>Baseline</td>
+<td class='score-low'>4.5</td>
+<td>64%</td>
+<td>$85.29</td>
+<td class='small-text'>trend=0.8, volume=-0.5, moving_average=-1.0 (+3 more)</td>
+</tr>
+<tr>
+<td><a href='https://finance.yahoo.com/quote/NTNX' target='_blank'><strong>NTNX</strong></a></td>
+<td>Baseline</td>
+<td class='score-low'>4.5</td>
+<td>48%</td>
+<td>$41.11</td>
+<td class='small-text'>trend=-4.2, volume=8.0, limit=1.0 (+4 more)</td>
+</tr>
+<tr>
+<td><a href='https://finance.yahoo.com/quote/PNR' target='_blank'><strong>PNR</strong></a></td>
+<td>Baseline</td>
+<td class='score-low'>4.0</td>
+<td>61%</td>
+<td>$100.32</td>
+<td class='small-text'>trend=2.8, volume=1.2, moving_average=2.0 (+1 more)</td>
+</tr>
+<tr>
+<td><a href='https://finance.yahoo.com/quote/FEM' target='_blank'><strong>FEM</strong></a></td>
+<td>Baseline</td>
+<td class='score-low'>17.8</td>
+<td>58%</td>
+<td>$30.43</td>
+<td class='small-text'>trend=6.8, volume=5.8, moving_average=3.0 (+4 more)</td>
+</tr>
+<tr>
+<td><a href='https://finance.yahoo.com/quote/BWA' target='_blank'><strong>BWA</strong></a></td>
+<td>Baseline</td>
+<td class='score-low'>16.5</td>
+<td>62%</td>
+<td>$62.31</td>
+<td class='small-text'>trend=12.5, volume=7.8, limit=-2.0 (+6 more)</td>
+</tr>
+<tr>
+<td><a href='https://finance.yahoo.com/quote/AHLT' target='_blank'><strong>AHLT</strong></a></td>
+<td>Baseline</td>
+<td class='score-low'>5.0</td>
+<td>69%</td>
+<td>$28.10</td>
+<td class='small-text'>rs_index=5.0</td>
+</tr>
+</table>
+<div class='footer'>Generated by BlueHorseshoe v2.1 on 2026-02-14 14:37:37<br>
+Full interactive report attached.</div>
+</div></body></html>
