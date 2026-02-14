@@ -286,8 +286,28 @@ if __name__ == "__main__":
                     "reasons": [f"{k}={v:.1f}" for k, v in meta.get('components', {}).items() if v != 0]
                 })
 
-            # Sort and Limit
-            candidates.sort(key=lambda x: x['score'], reverse=True)
+            # Wide Barbell Filter: Keep scores 4-6 OR 12+ (same as strategy.py)
+            candidates = [
+                c for c in candidates
+                if (4.0 <= c['score'] <= 6.0) or (c['score'] >= 12.0)
+            ]
+            logging.info("Wide Barbell Filter (regenerate): %d candidates after filtering", len(candidates))
+
+            # Expected P&L sorting (same as strategy.py)
+            EXPECTED_PNL_BY_SCORE = {
+                4.0: 1.88, 4.5: 1.88, 5.0: 0.82, 5.5: 0.82, 6.0: 0.44,
+                12.0: 0.22, 13.0: 0.19, 14.0: 0.39, 15.0: 0.83,
+                16.0: 0.24, 17.0: 0.73, 18.0: 0.94
+            }
+
+            def get_expected_pnl(candidate):
+                score_key = round(candidate['score'] * 2) / 2
+                return EXPECTED_PNL_BY_SCORE.get(score_key, candidate['score'] * 0.05)
+
+            candidates.sort(key=get_expected_pnl, reverse=True)
+            logging.info("Sorted %d candidates by expected P&L (top score: %.1f)",
+                        len(candidates), candidates[0]['score'] if candidates else 0)
+
             top_candidates = candidates[:50]
 
             # 5. Generate Report

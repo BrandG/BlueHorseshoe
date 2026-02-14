@@ -305,16 +305,20 @@ class HTMLReporter:
         # ML Attitude derived from probability
         prob = c.get('ml_prob', 0.0)
         attitude = f"ML:{prob*100:.0f}%"
-        
+
         symbol = c['symbol']
         url = f"https://finance.yahoo.com/quote/{symbol}"
-        
-        # Format prices
+
+        # Format prices with percentage gain/loss
         entry = c.get('close', 0)
         stop = c.get('stop_loss', 0)
         target = c.get('target', 0)
-        
-        price_info = f"E:<b>${entry:.2f}</b> S:<b style='color:var(--badge-bear)'>${stop:.2f}</b> T:<b style='color:var(--badge-bull)'>${target:.2f}</b>"
+
+        # Calculate percentages
+        stop_pct = ((stop - entry) / entry * 100) if entry > 0 else 0
+        target_pct = ((target - entry) / entry * 100) if entry > 0 else 0
+
+        price_info = f"E:<b>${entry:.2f}</b> S:<b style='color:var(--badge-bear)'>${stop:.2f}</b> <small>({stop_pct:+.1f}%)</small> T:<b style='color:var(--badge-bull)'>${target:.2f}</b> <small>({target_pct:+.1f}%)</small>"
         
         summary_html = f"""
             <div class='top-list-row'>
@@ -336,14 +340,11 @@ class HTMLReporter:
         """
         Builds the complete HTML string.
         """
-        # Filter top candidates for each strategy (sort by score, then ML confidence)
+        # Filter top candidates for each strategy (preserve Expected P&L sorting from strategy.py)
+        # DO NOT re-sort here - candidates are already sorted by Expected P&L in strategy.py
         top_n = self.TOP_CANDIDATES_PER_STRATEGY
-        baseline_top = sorted([c for c in candidates if c.get('strategy') == 'Baseline'],
-                              key=lambda x: (x.get('score', 0), x.get('ml_prob', 0)),
-                              reverse=True)[:top_n]
-        meanrev_top = sorted([c for c in candidates if c.get('strategy') == 'MeanRev'],
-                            key=lambda x: (x.get('score', 0), x.get('ml_prob', 0)),
-                            reverse=True)[:top_n]
+        baseline_top = [c for c in candidates if c.get('strategy') == 'Baseline'][:top_n]
+        meanrev_top = [c for c in candidates if c.get('strategy') == 'MeanRev'][:top_n]
 
         # Generate Sparklines
         for c in baseline_top:
@@ -362,7 +363,8 @@ class HTMLReporter:
             "<body>",
             "<button class='theme-toggle' onclick='toggleTheme()'>Toggle Dark Mode</button>",
             "<div class='container'>",
-            f"<h1>BlueHorseshoe Daily Report <small style='font-size:0.5em; color:#777'>{date}</small></h1>",
+            f"<h1>BlueHorseshoe Daily Report</h1>",
+            f"<p style='color:#777; margin-top:-10px; margin-bottom: 20px;'>Data As Of: <strong>{date}</strong> &bull; Prediction For: <strong>Next Trading Day</strong></p>",
 
             # Market Regime Section
             "<details>",
@@ -468,9 +470,8 @@ class HTMLReporter:
             html.append("</table>")
 
         # Candidates Section - limit to top N by score (primary), then ML confidence (secondary)
-        top_candidates = sorted(candidates,
-                               key=lambda x: (x.get('score', 0), x.get('ml_prob', 0)),
-                               reverse=True)[:self.TOP_CANDIDATES_TABLE_LIMIT]
+        # Preserve Expected P&L sorting from strategy.py - do NOT re-sort
+        top_candidates = candidates[:self.TOP_CANDIDATES_TABLE_LIMIT]
         html.append(f"<h2>Top Candidates ({len(top_candidates)})</h2>")
         html.append("<table>")
         html.append("<tr><th>Symbol</th><th>Exchange</th><th>Strategy</th><th>Score</th><th>Close Price</th><th>Indicators</th></tr>")
@@ -528,14 +529,11 @@ class HTMLReporter:
         Returns:
             Email-friendly HTML string
         """
-        # Filter top candidates for each strategy (sort by score, then ML confidence)
+        # Filter top candidates for each strategy (preserve Expected P&L sorting from strategy.py)
+        # DO NOT re-sort here - candidates are already sorted by Expected P&L in strategy.py
         top_n = self.TOP_CANDIDATES_PER_STRATEGY
-        baseline_top = sorted([c for c in candidates if c.get('strategy') == 'Baseline'],
-                              key=lambda x: (x.get('score', 0), x.get('ml_prob', 0)),
-                              reverse=True)[:top_n]
-        meanrev_top = sorted([c for c in candidates if c.get('strategy') == 'MeanRev'],
-                            key=lambda x: (x.get('score', 0), x.get('ml_prob', 0)),
-                            reverse=True)[:top_n]
+        baseline_top = [c for c in candidates if c.get('strategy') == 'Baseline'][:top_n]
+        meanrev_top = [c for c in candidates if c.get('strategy') == 'MeanRev'][:top_n]
 
         # Inline CSS optimized for email clients
         email_css = """
@@ -576,7 +574,7 @@ class HTMLReporter:
             "<body>",
             "<div class='container'>",
             f"<h1>BlueHorseshoe Daily Report</h1>",
-            f"<p class='small-text'>Report Date: <strong>{date}</strong></p>",
+            f"<p class='small-text'>Data As Of: <strong>{date}</strong> | Prediction For: <strong>Next Trading Day</strong></p>",
         ]
 
         # Market Regime Section (simplified, no collapsible)
@@ -625,13 +623,17 @@ class HTMLReporter:
                 stop = c.get('stop_loss', 0)
                 target = c.get('target', 0)
 
+                # Calculate percentages
+                stop_pct = ((stop - entry) / entry * 100) if entry > 0 else 0
+                target_pct = ((target - entry) / entry * 100) if entry > 0 else 0
+
                 html.append("<tr>")
                 html.append(f"<td><a href='{url}' target='_blank'><strong>{symbol}</strong></a></td>")
                 html.append(f"<td class='{score_cls}'>{score:.1f}</td>")
                 html.append(f"<td>{ml_prob*100:.0f}%</td>")
                 html.append(f"<td>${entry:.2f}</td>")
-                html.append(f"<td style='color:#c0392b;font-weight:bold'>${stop:.2f}</td>")
-                html.append(f"<td style='color:#27ae60;font-weight:bold'>${target:.2f}</td>")
+                html.append(f"<td style='color:#c0392b;font-weight:bold'>${stop:.2f} <span class='small-text'>({stop_pct:+.1f}%)</span></td>")
+                html.append(f"<td style='color:#27ae60;font-weight:bold'>${target:.2f} <span class='small-text'>({target_pct:+.1f}%)</span></td>")
                 html.append("</tr>")
             html.append("</table>")
         else:
@@ -664,13 +666,17 @@ class HTMLReporter:
                 stop = c.get('stop_loss', 0)
                 target = c.get('target', 0)
 
+                # Calculate percentages
+                stop_pct = ((stop - entry) / entry * 100) if entry > 0 else 0
+                target_pct = ((target - entry) / entry * 100) if entry > 0 else 0
+
                 html.append("<tr>")
                 html.append(f"<td><a href='{url}' target='_blank'><strong>{symbol}</strong></a></td>")
                 html.append(f"<td class='{score_cls}'>{score:.1f}</td>")
                 html.append(f"<td>{ml_prob*100:.0f}%</td>")
                 html.append(f"<td>${entry:.2f}</td>")
-                html.append(f"<td style='color:#c0392b;font-weight:bold'>${stop:.2f}</td>")
-                html.append(f"<td style='color:#27ae60;font-weight:bold'>${target:.2f}</td>")
+                html.append(f"<td style='color:#c0392b;font-weight:bold'>${stop:.2f} <span class='small-text'>({stop_pct:+.1f}%)</span></td>")
+                html.append(f"<td style='color:#27ae60;font-weight:bold'>${target:.2f} <span class='small-text'>({target_pct:+.1f}%)</span></td>")
                 html.append("</tr>")
             html.append("</table>")
         else:
@@ -727,9 +733,8 @@ class HTMLReporter:
             html.append("</table>")
 
         # Top Candidates Table - simplified
-        top_candidates = sorted(candidates,
-                               key=lambda x: (x.get('score', 0), x.get('ml_prob', 0)),
-                               reverse=True)[:self.TOP_CANDIDATES_TABLE_LIMIT]
+        # Preserve Expected P&L sorting from strategy.py - do NOT re-sort
+        top_candidates = candidates[:self.TOP_CANDIDATES_TABLE_LIMIT]
 
         html.append(f"<h2>All Top Candidates ({len(top_candidates)})</h2>")
         html.append("<table>")

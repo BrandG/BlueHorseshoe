@@ -1,13 +1,315 @@
-# Session Handoff - Performance Optimization Complete ✅
+# Session Handoff - Critical Bug Fixes Complete! 🐛✅
 
-**Date:** February 13, 2026 (Thursday Morning)
-**Status:** 🚀 SuperTrend optimized, cron automation working, Celery removed
+**Date:** February 14, 2026 (Friday Afternoon)
+**Status:** ✅ Expected P&L sorting FIXED | ✅ MR profit targets FIXED | ✅ Baseline profit targets FIXED | 🎯 Three-Strategy Framework Documented
 
 ---
 
-## 🎉 Major Accomplishments (Feb 10-11)
+## 🔥 Current Session (Feb 14 Afternoon) - THREE MAJOR BUG FIXES
+
+### ✅ BUG FIX #1: Expected P&L Sorting Not Working
+
+**Problem Discovered:** Report showed scores of 36, 35.5 at top instead of 4.5!
+- Wide Barbell filter worked (kept 4-6 OR 12+)
+- Expected P&L sorting in `strategy.py` worked (top score 4.2)
+- BUT `html_reporter.py` was RE-SORTING by score, undoing the Expected P&L order!
+
+**Root Cause:**
+1. `strategy.py` sorted candidates by Expected P&L ✅
+2. `html_reporter.py` re-sorted by `(score, ml_prob)` DESC ❌
+3. Result: High scores shown first, low scores (best trades!) buried at bottom
+
+**Files Fixed:**
+- `src/bluehorseshoe/reporting/html_reporter.py` (lines 339-346, 469-471, 725-727)
+  - Removed ALL re-sorting logic
+  - Now preserves Expected P&L order from strategy.py
+- `src/main.py` (lines 289-291)
+  - Fixed `-r` regenerate path to apply Wide Barbell filter
+  - Added Expected P&L sorting to regenerate path
+  - Now both prediction and regenerate paths work identically
+
+**Verification:**
+```bash
+docker exec bluehorseshoe python src/main.py -r 2026-02-13
+# Top 5 now show: ALC (4.5), ARTY (4.5), BAI (4.5), BOOT (4.5), BTAL (4.5) ✅
+```
+
+### ✅ BUG FIX #2: Mean Reversion Targets Above 52-Week High
+
+**Problem Discovered:** MR profit targets set ABOVE 52-week highs (unrealistic!)
+- User observation: "All target values are greater than 52-week high"
+- For dip-buying trades, expecting price to exceed yearly high in 3 days is absurd
+
+**Root Cause:** Line 328 in `strategy.py`:
+```python
+take_profit = max(ema20, entry_price + (ml_profit_multiplier * atr))
+```
+
+**Why This Failed:**
+- Stock falls from $16 to $10 (oversold)
+- EMA20 still at $15 (reflecting recent higher prices)
+- `max($15, $11)` = $15 → Target set near 52-week high of $16!
+- Expecting FULL reversion to EMA in 3 days is unrealistic
+
+**Solution Implemented:** Combination approach
+1. **Partial reversion** - 60% back to EMA (not 100%)
+2. **ATR-based target** - Volatility-based realistic move
+3. **Resistance cap** - 98% of 20-day high (don't target above recent resistance)
+4. **Takes MINIMUM** - Most conservative/realistic target
+
+**New Logic:**
+```python
+# 60% reversion (if below EMA)
+partial_reversion = entry_price + (ema20 - entry_price) * 0.6
+
+# ATR-based
+atr_target = entry_price + (ml_profit_multiplier * atr)
+
+# Resistance cap
+resistance_cap = df['high'].tail(20).max() * 0.98
+
+# Most conservative
+take_profit = min(partial_reversion, atr_target, resistance_cap)
+```
+
+**Files Modified:**
+- `src/bluehorseshoe/analysis/strategy.py` (lines 305-343)
+  - Updated `calculate_mean_reversion_setup()`
+  - Replaced `max()` with combination `min()` approach
+  - Updated docstring to reflect new logic
+
+**Impact:**
+- MR targets now realistic (2-5% bounce, not full reversion)
+- Won't set targets above recent resistance
+- Better risk/reward ratios for dip buying
+
+### ✅ BUG FIX #3: Baseline Targets Above 20-Day High
+
+**Problem Discovered:** After fixing MR, investigated Baseline targets - SAME ISSUE!
+- ALL 4 examples had targets ABOVE the 20-day high
+- ARTY target $54.99 was 0.4% ABOVE 52-week high ($54.79) - expecting new yearly high in 3 days!
+- Similar unrealistic expectations as MR strategy
+
+**Analysis Results:**
+```
+Symbol   Entry    Target   Gain%    20d High   Target vs 20d   Status
+ALC      $78.60   $83.49   6.2%     $82.14     +1.6%          ⚠️ ABOVE 20D HIGH
+ARTY     $50.51   $54.99   8.9%     $54.79     +0.4%          ⚠️ ABOVE 52W HIGH
+BAI      $34.17   $37.34   9.3%     $36.19     +3.2%          ⚠️ ABOVE 20D HIGH
+BTAL     $13.98   $14.81   5.9%     $14.74     +0.4%          ⚠️ ABOVE 20D HIGH
+```
+
+**Root Cause:** Line 266 in `strategy.py`:
+```python
+take_profit = max(swing_high_20, entry_price + (ml_profit_multiplier * atr))
+```
+
+**Why This Failed:**
+- Using `max()` GUARANTEES targets at or above 20-day high
+- For 3-day swing trades, expecting breakouts above recent resistance is unrealistic
+- Even trend-following needs realistic targets for short holding periods
+
+**Solution Implemented:** Conservative capping approach
+1. **ATR-based target** - Volatility-based realistic move
+2. **Resistance cap** - 98% of 20-day high (stay below recent resistance)
+3. **Takes MINIMUM** - Most conservative/realistic target
+
+**New Logic:**
+```python
+# ATR-based target
+atr_target = entry_price + (ml_profit_multiplier * atr)
+
+# Resistance cap (don't exceed recent high)
+resistance_cap = swing_high_20 * 0.98
+
+# Most conservative
+take_profit = min(atr_target, resistance_cap)
+```
+
+**Files Modified:**
+- `src/bluehorseshoe/analysis/strategy.py` (lines 259-270)
+  - Updated `calculate_baseline_setup()`
+  - Replaced `max()` with `min()` approach
+  - Added resistance_cap calculation
+
+**Before/After Impact:**
+```
+Symbol   OLD Target   OLD Gain%   NEW Target   NEW Gain%   Change
+ALC      $82.81       5.4%        $80.50       2.4%        -2.8%  ✓ Realistic
+ARTY     $55.29       9.5% 52w!   $53.69       6.3%        -2.9%  ✓ Realistic
+BAI      $37.46       9.6%        $35.47       3.8%        -5.3%  ✓ Realistic
+BTAL     $14.79       5.8%        $14.45       3.4%        -2.3%  ✓ Realistic
+```
+
+**Impact:**
+- All targets now BELOW 20-day high (more achievable)
+- Targets still positive (2.4% to 6.3%) - realistic for swing trading
+- ARTY no longer expects new 52-week high in 3 days
+- Better risk/reward ratios won't reject good setups
+
+**Key Insight:**
+Both MR and Baseline suffered from the SAME design flaw - using `max()` to set aggressive targets. The fix for both is the same: use `min()` with conservative resistance caps appropriate for 3-day holding periods.
+
+### 🎯 Strategic Framework Documentation
+
+**Created comprehensive guides:**
+1. **BASELINE_VS_MEAN_REVERSION_DESIGN.md**
+   - How same indicators are interpreted oppositely
+   - RSI <30: Baseline penalty vs MR reward
+   - Design philosophy for each strategy
+
+2. **THREE_STRATEGY_FRAMEWORK.md**
+   - User's vision: Baseline LONG, MR LONG, Baseline SHORT
+   - Separation of MR shorts vs True shorts
+   - Roadmap for future implementation
+   - Current status: 2 strategies (both LONG only)
+
+**Key Insights from User:**
+- Low Baseline scores (4-5) are accidentally capturing MR setups
+- Need to separate strategies properly
+- Indicator redundancy may be diluting signal
+- Future: Add SHORT strategy (trend-following down)
+
+---
+
+## 🎯 Previous Session (Feb 14 Early Morning)
+
+### ✅ Wide Barbell Score Filter - DEPLOYED TO PRODUCTION
+
+**Filter Logic:** Accept only scores (4-6 OR 12+), reject mediocre middle (7-11)
+
+---
+
+## 🎯 Current Activity (Feb 13 Late Evening)
+
+### ⏳ ML Profit Target Training - Backfill In Progress
+
+**Background Task Running:** Generating historical predictions for ML model training
+- **Process ID:** b4232a6
+- **Start Time:** ~22:30 UTC (10:30 PM EST)
+- **Expected Completion:** ~01:30 UTC (9:30 PM EST) - **2.5-3 hours total**
+- **Output:** `/tmp/claude-0/-root-BlueHorseshoe/tasks/b4232a6.output`
+
+**Configuration:**
+- **Dates:** 25 trading dates (Jan 6 - Feb 7, 2026)
+- **Symbols:** 100 random symbols per date (avoiding alphabetical bias)
+- **Expected Samples:** ~2,500 graded trades for training
+- **Strategy:** Random sampling instead of alphabetical to ensure market diversity
+
+**Progress Monitoring:**
+```bash
+# Live progress
+tail -f /tmp/claude-0/-root-BlueHorseshoe/tasks/b4232a6.output
+
+# Check completed dates
+ls -1 /workspaces/BlueHorseshoe/src/logs/report_2026-01-*.html | wc -l
+```
+
+**Next Steps After Completion:**
+1. Train 3 profit target models: `docker exec bluehorseshoe python src/train_profit_target.py 5000`
+2. Verify models created: `ls -lh src/models/ml_profit_target_*.joblib`
+3. Test with prediction: `docker exec bluehorseshoe python src/main.py -p --limit 10`
+4. If successful, schedule full production backfill (5,000 samples) for Friday night
+
+**File Changes:**
+- Modified: `backfill_predictions.py` - Added random symbol selection (lines 20, 69-71)
+- Using: `BACKFILL_PREDICTIONS_GUIDE.md` and `QUICK_ML_TRAINING.md` for reference
+
+---
+
+## 🎯 Current Activity (Feb 14 Early Morning)
+
+### ✅ Wide Barbell Score Filter - DEPLOYED TO PRODUCTION
+
+**Filter Logic:** Accept only scores (4-6 OR 12+), reject mediocre middle (7-11)
+
+**Implementation:**
+- **File:** `src/bluehorseshoe/analysis/strategy.py` (lines 863-870)
+- **Status:** ✅ Live in production
+- **First Run:** Tonight's automated prediction (02:00 UTC / 9 PM EST)
+
+**Expected Performance:**
+- Avg P&L: 0.28% → **0.55%** (+100% improvement!)
+- Win Rate: 56% → **60%** (+4%)
+- Candidates: ~240 → **~70** (higher quality, lower volume)
+- System projection: 0.94% → **1.22%** avg P&L
+
+**What to Watch:**
+- Tonight's email report should show only scores 4-6 and 12+
+- Log message: "Wide Barbell Filter: X candidates after filtering"
+- Validate performance improvement matches backtest predictions
+
+**Documentation:**
+- Full deployment: `WIDE_BARBELL_DEPLOYMENT.md`
+- Discovery report: `SCORE_45_DISCOVERY_REPORT.md`
+- Test results: `src/logs/score_filter_test_results.csv`
+
+### ⏳ ML Profit Target Training - ONGOING
+
+**Background Task Running:** Generating historical predictions for ML model training
+- **Process ID:** b4232a6
+- **Start Time:** Feb 13, ~22:30 UTC (10:30 PM EST)
+- **Expected Completion:** ~01:30 UTC (9:30 PM EST Friday) - **2.5-3 hours total**
+- **Output:** `/tmp/claude-0/-root-BlueHorseshoe/tasks/b4232a6.output`
+
+**Configuration:**
+- **Dates:** 25 trading dates (Jan 6 - Feb 7, 2026)
+- **Symbols:** 100 random symbols per date (avoiding alphabetical bias)
+- **Expected Samples:** ~2,500 graded trades for training
+- **Strategy:** Random sampling to ensure market diversity
+
+**Progress Monitoring:**
+```bash
+# Live progress
+tail -f /tmp/claude-0/-root-BlueHorseshoe/tasks/b4232a6.output
+
+# Check completed dates
+ls -1 /workspaces/BlueHorseshoe/src/logs/report_2026-01-*.html | wc -l
+```
+
+**Next Steps After Completion:**
+1. Train 3 profit target models: `docker exec bluehorseshoe python src/train_profit_target.py 5000`
+2. Verify models created: `ls -lh src/models/ml_profit_target_*.joblib`
+3. Test with prediction: `docker exec bluehorseshoe python src/main.py -p --limit 10`
+4. If successful, schedule full production backfill (5,000 samples) for Friday night
+
+**File Changes:**
+- Modified: `backfill_predictions.py` - Added random symbol selection
+- Using: `BACKFILL_PREDICTIONS_GUIDE.md` and `QUICK_ML_TRAINING.md` for reference
+
+---
+
+## 🎉 Major Accomplishments (Feb 10-14)
+
+### ✅ Wide Barbell Score Filter Deployed (Feb 14) 🔥 BREAKTHROUGH
+
+**Discovery:** Score performance is U-shaped, not linear
+- Low scores (4-5): 64.3% win rate, +0.96% avg P&L (contrarian edge)
+- Mid scores (7-9): 51.4% win rate, +0.04% avg P&L (mediocre)
+- High scores (12+): 63%+ win rate, good P&L (exceptional setups)
+
+**Action Taken:** Deployed Wide Barbell filter (4-6 OR 12+)
+- Rejects scores 7-11 (the losing middle)
+- Expected impact: +0.28% avg P&L improvement
+- System projection: 0.94% → 1.22% (26% closer to 2% goal!)
+
+**Files:**
+- Deployed: `src/bluehorseshoe/analysis/strategy.py` (lines 863-870)
+- Analysis: `SCORE_45_DISCOVERY_REPORT.md`
+- Deployment: `WIDE_BARBELL_DEPLOYMENT.md`
+- Testing: `src/logs/score_filter_test_results.csv`
+
+### ✅ Deployed Phase 3E Q3+Q4 Winners (17 → 19 Indicators)
+
+**2 New Indicators Added to Production:**
+1. **PSAR** at 0.5x (Trend) - Sharpe 1.936 - **#1 RANKED** ⭐
+2. **SuperTrend** at 1.5x (Trend) - Sharpe 1.284 - **#7 RANKED** ⭐
+
+**Production System:** Now running with **19 validated indicators**
 
 ### ✅ Deployed Phase 3E Q1+Q2 Winners (14 → 17 Indicators)
+
+**3 Indicators Added Previously:**
 
 **3 New Indicators Added to Production:**
 1. **ADX** at 1.0x (Trend) - Sharpe 1.252
@@ -509,6 +811,13 @@ curl http://localhost:8001/api/v1/health
 - ✅ **Created ML_RETRAINING_SUMMARY.md** - comprehensive training report
 - ✅ **Updated SESSION_HANDOFF.md** - marked ML retraining complete
 
+**Thursday Late Evening - ML PROFIT TARGET TRAINING:**
+- ✅ **Modified backfill script** - Added random symbol sampling to avoid alphabetical bias
+- ⏳ **Running backfill (IN PROGRESS)** - 25 dates × 100 random symbols = ~2,500 samples
+- ⏳ **ETA ~01:30 UTC** - Quick test run to validate infrastructure before full production run
+- 📋 **Next: Train models** - Friday morning after backfill completes
+- 📋 **Then: Full production run** - Friday night (5,000 samples) if quick test succeeds
+
 **Thursday Morning - PERFORMANCE OPTIMIZATION & INFRASTRUCTURE:**
 - ✅ **Profiled prediction pipeline** - identified SuperTrend as 99% bottleneck
 - ✅ **Optimized SuperTrend calculation** - replaced .iloc[] loops with numpy arrays
@@ -544,20 +853,140 @@ curl http://localhost:8001/api/v1/health
 
 ---
 
-## 📋 Open Tasks
+## 📋 Task Roadmap - Path to 2% Goal
 
-1. ✅ ~~**Retrain ML models**~~ - **COMPLETE** (Feb 13, 2026 15:15 UTC)
+### ✅ Recently Completed (Feb 13-14, 2026)
+
+1. **✅ Score 4-5 Discovery Analysis** (Feb 13)
+   - Discovered inverted performance curve: low scores (4-5) outperform mid scores (7-9)
+   - 630 trades analyzed: 64.3% win rate, +0.96% avg P&L
+   - Statistically significant (p < 0.000001)
+   - See: `SCORE_45_DISCOVERY_REPORT.md`
+
+2. **✅ Score Filter Testing** (Feb 13-14)
+   - Tested 8 different score filter configurations
+   - Wide Barbell (4-6 OR 12+) selected as winner
+   - Expected: +0.28% improvement, 1,433 trades (29.4% volume)
+   - See: `src/logs/score_filter_test_results.csv`
+
+3. **✅ Wide Barbell Filter Deployment** (Feb 14)
+   - Filter deployed to production in `strategy.py`
+   - Accepts scores 4-6 OR 12+, rejects 7-11
+   - Expected impact: 0.94% → 1.22% avg P&L
+   - See: `WIDE_BARBELL_DEPLOYMENT.md`
+
+4. **✅ ML Model Retraining** (Feb 13)
    - All 4 models retrained with 19-indicator data
-   - See `ML_RETRAINING_SUMMARY.md` for details
-2. 🎯 **Train ML Profit Target Models** - After sufficient data accumulates (~7-14 days)
-   - Run: `docker exec bluehorseshoe python src/train_profit_target.py 10000`
-   - Generates 3 models: v1, baseline, mean_reversion
-   - Currently using fixed fallback: 3.0x baseline, 2.0x mean reversion
-   - See `ML_PROFIT_TARGET_IMPLEMENTATION.md` for details
-3. 📊 **Monitor 19-indicator system** - Observe performance for 1-2 weeks
-4. 📋 **Confirmation testing** - Future enhancement (see FUTURE_TESTING_CONFIRMATION_INDICATORS.md)
-5. 📝 **Email-optimized template** - Future enhancement (nice to have)
-6. 🎯 **System optimization** - Fine-tune weights based on live performance (optional)
+   - See: `ML_RETRAINING_SUMMARY.md`
+
+### ⏳ In Progress
+
+**ML Profit Target Training** (Started Feb 13, 22:30 UTC)
+- **Phase 1 (Current):** Quick test backfill - 25 dates × 100 random symbols (~2,500 samples)
+  - Status: Running (ETA ~01:30 UTC / 9:30 PM EST Friday)
+  - Task ID: b4232a6
+  - Modified `backfill_predictions.py` for random sampling
+- **Phase 2 (Friday AM):** Train models on quick test data
+  - Run: `docker exec bluehorseshoe python src/train_profit_target.py 5000`
+  - Generates 3 models: v1, baseline, mean_reversion
+- **Phase 3 (Friday Night):** Full production backfill - 25 dates × all symbols (~5,000 samples)
+  - Only if Phase 1 validates successfully
+  - Takes ~20-25 hours, run overnight Friday→Saturday
+- **Phase 4 (Saturday):** Retrain models on full production data
+- Currently using fixed fallback: 3.0x baseline, 2.0x mean reversion
+- See: `ML_PROFIT_TARGET_IMPLEMENTATION.md`, `QUICK_ML_TRAINING.md`
+
+### 🔴 High Priority - Next Up (Major Impact on 2% Goal)
+
+**1. Weight Reoptimization for P&L >2% (vs Sharpe optimization)**
+- **Goal:** Optimize weights to maximize avg P&L, not Sharpe ratio
+- **Expected Impact:** +0.30-0.60% avg P&L
+- **Time:** 24-48 hours compute
+- **Why:** Current weights optimized for risk-adjusted returns, not raw P&L
+- **Method:** Grid search with objective: maximize avg_pnl where win_rate ≥55%
+- **Files:** `src/bluehorseshoe/analysis/optimizer.py`, `src/weights.json`
+- **When:** After ML Profit Target models trained (Friday+)
+- **Priority:** HIGH - Directly targets 2% goal
+
+**2. Backtest Longer Holding Periods (5-7 days vs current 3)**
+- **Goal:** Test if letting winners run longer improves P&L
+- **Expected Impact:** +0.20-0.40% avg P&L
+- **Time:** 3-5 hours (50 dates × 4 hold periods)
+- **Why:** May be exiting too early on strong trends
+- **Method:** Backtest 3, 5, 7, 10 day holds on same dates, compare results
+- **Files:** `src/bluehorseshoe/analysis/backtest.py`, `src/bluehorseshoe/analysis/constants.py`
+- **When:** Can run anytime (independent task)
+- **Priority:** HIGH - Quick win, low risk
+
+**3. Mean Reversion System Validation**
+- **Goal:** Validate Mean Reversion strategy performance
+- **Expected Impact:** Diversification, uncorrelated returns
+- **Time:** 8-12 hours (comprehensive backtest)
+- **Why:** Under-tested compared to Baseline, may work in different conditions
+- **Method:** Run 50+ date backtest, compare vs Baseline, optimize weights
+- **Files:** `src/bluehorseshoe/analysis/technical_analyzer.py`, `src/weights.json`
+- **When:** Can run anytime
+- **Priority:** MEDIUM - Complementary strategy
+
+### 🟡 Medium Priority - Tactical Improvements
+
+**4. Allow High-Confidence Trades (score 14+) to Run Longer**
+- **Goal:** Dynamic hold periods based on signal quality
+- **Expected Impact:** +0.20-0.30% avg P&L
+- **Depends On:** Task #2 (longer holding periods backtest)
+- **Method:** Score 14+: 7-10 days, Score 10-13: 5 days, Score 6-9: 3 days
+- **Files:** `src/bluehorseshoe/analysis/backtest.py`, `strategy.py`
+- **Priority:** MEDIUM - Needs validation from Task #2 first
+
+**5. Implement Dynamic Position Sizing (based on signal quality)**
+- **Goal:** Scale position size by score + ML probability
+- **Expected Impact:** +0.40-0.70% avg P&L from better capital allocation
+- **Risk:** Significant change to risk management, needs careful testing
+- **Method:** 3x size (Score 14+ AND ML >70%), 2x (Score 12+ AND ML >60%), 1x baseline
+- **Files:** `src/bluehorseshoe/analysis/backtest.py`, `strategy.py`, `constants.py`
+- **Priority:** MEDIUM - High impact but needs thorough validation
+
+**6. Market Regime-Based Aggression (bull/bear adaptation)**
+- **Goal:** Adjust strategy based on market conditions
+- **Expected Impact:** +0.30-0.50% avg P&L from regime alignment
+- **Method:** Bull market: aggressive targets/holds, Bear: conservative
+- **Files:** `src/bluehorseshoe/analysis/market_regime.py`, `strategy.py`, `constants.py`
+- **Priority:** MEDIUM - Good diversification
+
+**7. Test Confirmation Indicators (RSI, MACD as filters)**
+- **Goal:** Test if RSI/MACD improve results as filters (not scorers)
+- **Expected Impact:** +0.20-0.40% avg P&L if filters work
+- **Method:** 50 dates baseline, add filters, compare
+- **Files:** `src/bluehorseshoe/analysis/indicators/momentum_indicators.py`, `strategy.py`
+- **When:** After higher priority items
+- **Priority:** MEDIUM - May or may not help
+- **See:** `FUTURE_TESTING_CONFIRMATION_INDICATORS.md`
+
+### 🟢 Lower Priority - Complex Refactors
+
+**8. Implement Tiered Profit Taking (50% at 2%, 50% at trail)**
+- **Goal:** Scale out positions to lock profits while catching runners
+- **Expected Impact:** +0.30-0.50% avg P&L
+- **Complexity:** Requires backtest engine refactor for partial exits
+- **Method:** Exit 50% at first target, trail remaining 50% with stop
+- **Files:** `src/bluehorseshoe/analysis/backtest.py`, `grading_engine.py`
+- **Priority:** LOW - Complex implementation, uncertain benefit
+- **Note:** Phase 4 feature
+
+**9. Add Market Orders for High-Confidence Signals (score 12+)**
+- **Goal:** Guarantee fills on best signals
+- **Expected Impact:** +0.10-0.30% from higher fill rate
+- **Trade-off:** Worse entry price (slippage) vs guaranteed entry
+- **Method:** Score 12+ AND ML >65%: market order, else: limit order
+- **Files:** `src/bluehorseshoe/analysis/backtest.py`, `strategy.py`
+- **Priority:** LOW - Needs real-world validation, backtest may not capture slippage
+- **Note:** Consider after live trading starts
+
+### 📊 Monitoring & Observation
+
+- **Monitor 19-indicator system** - Track performance for 1-2 weeks
+- **Monitor Wide Barbell filter** - Validate +0.28% improvement materializes
+- **Email-optimized template** - Future enhancement (nice to have)
 
 ### ML Model Retraining Details
 
@@ -590,8 +1019,15 @@ docker exec bluehorseshoe python src/train_stop_loss.py
 **Rate Limiting:** ✅ Fixed ALPHAVANTAGE_CPS (1 → 2)
 
 **ML Models:** ✅ **Fresh** - retrained Feb 13 (15:15 UTC) with 19-indicator data (5,000 samples from Feb 10+)
-**ML Profit Targets:** ✅ **Implemented** - Ready to train models after ~7-14 days data accumulation
+**ML Profit Targets:** ⏳ **TRAINING IN PROGRESS** - Backfilling 2,500 samples (ETA ~01:30 UTC)
 **API Reports:** ✅ **Styled HTML** - Beautiful gradient design with interactive cards and links
 
-**Last Updated:** February 13, 2026 Evening
-**Next Action:** Monitor Monday's cron run (Feb 16 02:00 UTC) for optimized SuperTrend performance
+**Last Updated:** February 14, 2026 Early Morning (00:45 UTC)
+
+**Next Actions:**
+1. **Now:** Monitor tonight's prediction (02:00 UTC) - first run with Wide Barbell filter
+2. **Friday AM:** Check backfill completion (task b4232a6), train ML profit target models
+3. **Friday:** Start Task #1 (Weight reoptimization) or Task #2 (Longer holding periods)
+4. **Weekend:** Full production backfill for ML training if Phase 1 succeeds
+
+**Current Status:** 🟢 All systems operational, Wide Barbell filter deployed and ready

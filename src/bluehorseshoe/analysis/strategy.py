@@ -50,6 +50,15 @@ from bluehorseshoe.core.symbols import get_symbol_name_list, get_symbols_from_mo
 from bluehorseshoe.data.historical_data import load_historical_data
 from bluehorseshoe.reporting.report_generator import ReportWriter, ReportSingleton
 
+# Expected P&L by score based on historical backtest analysis (11,960 trades)
+# This maps score values to their historical average profit/loss performance
+# Used for ranking candidates by expected profitability rather than signal strength
+EXPECTED_PNL_BY_SCORE = {
+    4.0: 1.88, 4.5: 1.88, 5.0: 0.82, 5.5: 0.82, 6.0: 0.44,
+    12.0: 0.22, 13.0: 0.19, 14.0: 0.39, 15.0: 0.83,
+    16.0: 0.24, 17.0: 0.73, 18.0: 0.94
+}
+
 @dataclass
 class StrategyContext:
     """Encapsulates common parameters for strategy processing."""
@@ -254,7 +263,13 @@ class SwingTrader:
         # Default to safest stop (widest)
         stop_loss = min(swing_stop, atr_stop)
 
-        take_profit = max(swing_high_20, entry_price + (ml_profit_multiplier * atr))
+        # 4b. Profit Target (use conservative approach)
+        # For 3-day swing trades, don't expect breakouts above recent resistance
+        atr_target = entry_price + (ml_profit_multiplier * atr)
+        resistance_cap = swing_high_20 * 0.98  # Stay below 20-day high resistance
+
+        # Take minimum (most conservative/realistic for 3-day holds)
+        take_profit = min(atr_target, resistance_cap)
 
         # 5. Risk Calculation
         risk = entry_price - stop_loss
@@ -298,7 +313,11 @@ class SwingTrader:
         Calculate structural prices for Mean Reversion (Dip) strategy:
         Entry = Current Close (Buying extreme weakness)
         Stop = ml_stop_multiplier * ATR (Tighter stop for fast reversals)
-        Target = Reversion to 20-day EMA or ml_profit_multiplier * ATR
+        Target = Conservative combination:
+                 - 60% reversion to EMA (partial mean reversion)
+                 - ATR-based target
+                 - Capped at 98% of 20-day high (recent resistance)
+                 - Takes MINIMUM of all three (most realistic)
         """
         last_row = df.iloc[-1]
         last_close = last_row['close']
@@ -315,8 +334,23 @@ class SwingTrader:
         # 4. Stop Loss: ml_stop_multiplier * ATR below entry
         stop_loss = entry_price - (ml_stop_multiplier * atr)
 
-        # 5. Take Profit: EMA 20 or ml_profit_multiplier * ATR
-        take_profit = max(ema20, entry_price + (ml_profit_multiplier * atr))
+        # 5. Take Profit: Combination approach for realistic MR targets
+        # 5a. Partial reversion to EMA (60% of the distance back to mean)
+        if entry_price < ema20:
+            partial_reversion = entry_price + (ema20 - entry_price) * 0.6
+        else:
+            # If already at/above EMA, use ATR-based target
+            partial_reversion = entry_price + (ml_profit_multiplier * atr)
+
+        # 5b. ATR-based target
+        atr_target = entry_price + (ml_profit_multiplier * atr)
+
+        # 5c. Recent resistance cap (don't target above recent highs)
+        recent_high_20 = df['high'].tail(20).max()
+        resistance_cap = recent_high_20 * 0.98  # Stay 2% below recent high for safety
+
+        # 5d. Take the minimum to be conservative (most realistic target)
+        take_profit = min(partial_reversion, atr_target, resistance_cap)
 
         # 6. Reward-to-Risk
         reward = take_profit - entry_price
@@ -860,8 +894,26 @@ class SwingTrader:
                     "reasons": [f"{k}={v:.1f}" for k, v in r['mr_components'].items() if v != 0]
                 })
 
-        # Sort by score desc
-        candidates.sort(key=lambda x: x['score'], reverse=True)
+        # Wide Barbell Filter: Keep scores 4-6 OR 12+
+        # This filter removes the mediocre middle scores (7-11) that underperform
+        # Based on backtest analysis showing scores 4-6 and 12+ significantly outperform
+        candidates = [
+            c for c in candidates
+            if (4.0 <= c['score'] <= 6.0) or (c['score'] >= 12.0)
+        ]
+        logging.info("Wide Barbell Filter: %d candidates after filtering (scores 4-6 or 12+)", len(candidates))
+
+        # Sort by Expected P&L (not score) to put best historical performers first
+        # This ensures score 4-5 trades (1.88% avg P&L) rank above score 12-13 (0.19-0.22% avg P&L)
+        def get_expected_pnl(candidate):
+            score_key = round(candidate['score'] * 2) / 2  # Round to nearest 0.5
+            return EXPECTED_PNL_BY_SCORE.get(score_key, candidate['score'] * 0.05)  # Fallback for unmapped scores
+
+        candidates.sort(key=get_expected_pnl, reverse=True)
+        logging.info("Sorted %d candidates by expected P&L (top score: %.1f, expected P&L: %.2f%%)",
+                     len(candidates),
+                     candidates[0]['score'] if candidates else 0,
+                     get_expected_pnl(candidates[0]) if candidates else 0)
 
         return {
             "regime": market_health,
