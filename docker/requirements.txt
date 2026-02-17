@@ -12,8 +12,6 @@ pytest-mock>=3.14.0
 mplfinance>=0.12.10b0
 fastapi
 uvicorn[standard]
-celery
-redis
 yfinance
 ta-lib
 pandas_ta

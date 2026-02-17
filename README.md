@@ -12,7 +12,6 @@ The system implements two primary scoring strategies:
 
 -   **Language:** Python 3.12
 -   **Database:** MongoDB 7
--   **Task Queue:** Celery with Redis
 -   **Analysis:** TA-Lib, NumPy, Pandas, Scikit-learn
 -   **Server/API:** Uvicorn/FastAPI
 -   **Containerization:** Docker & Docker Compose

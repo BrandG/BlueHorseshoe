@@ -22,4 +22,3 @@ src/logs/*.log
 src/logs/*.txt
 src/logs/backtest_log.csv
 src/logs/backtest_log_fixed.csv
-celerybeat-schedule

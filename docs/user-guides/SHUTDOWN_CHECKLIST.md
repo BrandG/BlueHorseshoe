@@ -18,11 +18,8 @@
   - `src/logs/phase3e_q2.log`
 
 ### Docker Containers
-- bluehorseshoe (main app)
+- bluehorseshoe (main app + API)
 - mongo (database)
-- redis (task queue)
-- bluehorseshoe_worker (Celery worker)
-- bluehorseshoe_beat (Celery scheduler)
 
 ---
 
@@ -61,14 +58,10 @@ docker ps
 Expected containers:
 - bluehorseshoe
 - mongo
-- redis
-- bluehorseshoe_worker
-- bluehorseshoe_beat
 
 ### 3. Check Logs (Optional)
 ```bash
 docker logs bluehorseshoe --tail 50
-docker logs bluehorseshoe_worker --tail 50
 ```
 
 ### 4. Verify Data Integrity

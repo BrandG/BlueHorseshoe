@@ -1,8 +1,7 @@
 import logging
 import datetime
 import numpy as np
-from celery import chain
-from bluehorseshoe.api.celery_app import celery_app
+import uuid
 from bluehorseshoe.analysis.strategy import SwingTrader
 from bluehorseshoe.core.container import create_app_container
 from bluehorseshoe.data.historical_data import build_all_symbols_history, BackfillConfig
@@ -10,6 +9,17 @@ from bluehorseshoe.reporting.html_reporter import HTMLReporter
 from bluehorseshoe.core.email_service import EmailService
 
 logger = logging.getLogger(__name__)
+
+# In-memory task status store
+task_store: dict[str, dict] = {}
+
+
+def new_task_id() -> str:
+    """Generate a new task ID and initialize its status."""
+    tid = str(uuid.uuid4())
+    task_store[tid] = {"status": "PENDING"}
+    return tid
+
 
 def convert_numpy(obj):
     """
@@ -27,157 +37,134 @@ def convert_numpy(obj):
         return [convert_numpy(i) for i in obj]
     return obj
 
-@celery_app.task(bind=True)
-def update_market_data_task(self):
+
+def update_market_data_task(task_id: str | None = None):
     """
-    Task to update recent historical data for all symbols.
+    Update recent historical data for all symbols.
     Creates a task-scoped container for dependency management.
     """
-    logger.info(f"Task {self.request.id}: Starting market data update...")
+    logger.info(f"Task {task_id}: Starting market data update...")
+    if task_id:
+        task_store[task_id] = {"status": "PROGRESS", "step": "update_market_data"}
     container = create_app_container()
     try:
-        # Test database connection
         container.get_mongo_client().server_info()
-
-        # Run update for recent data (compact mode)
         build_all_symbols_history(BackfillConfig(recent=True), database=container.get_database())
         logger.info("Market data update completed.")
         return "Data Updated"
     except Exception as e:
         logger.error(f"Market update failed: {e}", exc_info=True)
-        raise e
+        raise
     finally:
         container.close()
 
-@celery_app.task(bind=True)
-def predict_task(self, target_date: str = None, indicators: list = None, aggregation: str = "sum", previous_result=None):
+
+def predict_task(target_date: str = None, indicators: list = None, aggregation: str = "sum", task_id: str | None = None):
     """
-    Background task to run SwingTrader prediction.
-    Accepts `previous_result` to allow chaining, though it ignores it.
+    Run SwingTrader prediction.
     If target_date is None, defaults to latest available.
     Creates a task-scoped container for dependency management.
     """
-    # If chained from update_task, previous_result might be "Data Updated"
-    logger.info(f"Task {self.request.id}: Starting prediction for {target_date or 'latest'}")
+    logger.info(f"Task {task_id}: Starting prediction for {target_date or 'latest'}")
+    if task_id:
+        task_store[task_id] = {"status": "PROGRESS", "step": "predict"}
 
     def progress_callback(current, total, percent):
-        self.update_state(
-            state='PROGRESS',
-            meta={
-                'current': current,
-                'total': total,
-                'percent': percent,
-                'status': f'Processing symbols... {percent:.1f}%'
+        if task_id:
+            task_store[task_id] = {
+                "status": "PROGRESS",
+                "step": "predict",
+                "progress": {
+                    "current": current,
+                    "total": total,
+                    "percent": percent,
+                    "status": f"Processing symbols... {percent:.1f}%",
+                },
             }
-        )
 
     container = create_app_container()
     try:
-        # Test database connection
         container.get_mongo_client().server_info()
-
-        # Create SwingTrader with injected dependencies
         trader = SwingTrader(
             database=container.get_database(),
             config=container.settings,
-            report_writer=None  # No report writer for background tasks (uses stdout)
+            report_writer=None,
         )
-
-        # Note: SwingTrader automatically handles target_date=None by finding latest
         report_data = trader.swing_predict(
             target_date=target_date,
             enabled_indicators=indicators,
             aggregation=aggregation,
-            progress_callback=progress_callback
+            progress_callback=progress_callback,
         )
-
         clean_data = convert_numpy(report_data)
-
-        # Inject the date into the result if not present, for the reporter
         if target_date:
-            clean_data['date'] = target_date
-        elif not clean_data.get('date'):
-             # Try to extract from regime or candidates if possible, or use today
-             clean_data['date'] = str(datetime.date.today())
-
-        logger.info(f"Task {self.request.id}: Prediction completed successfully.")
+            clean_data["date"] = target_date
+        elif not clean_data.get("date"):
+            clean_data["date"] = str(datetime.date.today())
+        logger.info(f"Task {task_id}: Prediction completed successfully.")
         return clean_data
-
     except Exception as e:
         logger.error(f"Prediction failed: {e}", exc_info=True)
-        raise e
+        raise
     finally:
         container.close()
 
-@celery_app.task(bind=True)
-def generate_report_task(self, report_data: dict):
+
+def generate_report_task(report_data: dict, task_id: str | None = None):
     """
-    Generates HTML report from prediction results.
+    Generate HTML report from prediction results.
     Creates a task-scoped container for dependency management.
     """
-    logger.info(f"Task {self.request.id}: Generating HTML report...")
+    logger.info(f"Task {task_id}: Generating HTML report...")
+    if task_id:
+        task_store[task_id] = {"status": "PROGRESS", "step": "generate_report"}
     container = create_app_container()
     try:
         reporter = HTMLReporter(database=container.get_database())
+        date = report_data.get("date", str(datetime.date.today()))
+        regime = report_data.get("regime", {})
+        candidates = report_data.get("candidates", [])
+        charts = report_data.get("charts", [])
 
-        # Extract data
-        date = report_data.get('date', str(datetime.date.today()))
-        regime = report_data.get('regime', {})
-        candidates = report_data.get('candidates', [])
-        charts = report_data.get('charts', [])
-
-        # Calculate previous day's performance
         trader = SwingTrader(
             database=container.get_database(),
             config=container.settings,
-            report_writer=None
+            report_writer=None,
         )
         prev_perf = trader.get_previous_performance(date)
-
-        # Generate full interactive report
         html_content = reporter.generate_report(
-            date=date,
-            regime=regime,
-            candidates=candidates,
-            charts=charts,
-            previous_performance=prev_perf
+            date=date, regime=regime, candidates=candidates,
+            charts=charts, previous_performance=prev_perf,
         )
-
-        # Generate email-friendly report (no JavaScript, no charts)
         email_html = reporter.generate_email_report(
-            date=date,
-            regime=regime,
-            candidates=candidates,
-            previous_performance=prev_perf
+            date=date, regime=regime, candidates=candidates,
+            previous_performance=prev_perf,
         )
-
-        # Save both versions
         full_path, email_path = reporter.save_both(html_content, email_html, f"report_{date}")
-
         logger.info(f"Full report generated: {full_path}")
         logger.info(f"Email-friendly report generated: {email_path}")
         return {"status": "Report Generated", "path": full_path, "email_path": email_path}
     except Exception as e:
         logger.error(f"Report generation failed: {e}", exc_info=True)
-        raise e
+        raise
     finally:
         container.close()
 
-@celery_app.task(bind=True)
-def send_email_task(self, report_info: dict):
+
+def send_email_task(report_info: dict, task_id: str | None = None):
     """
-    Sends the generated report via email.
+    Send the generated report via email.
     """
-    logger.info(f"Task {self.request.id}: Sending email report...")
+    logger.info(f"Task {task_id}: Sending email report...")
+    if task_id:
+        task_store[task_id] = {"status": "PROGRESS", "step": "send_email"}
     try:
         report_path = report_info.get("path")
         if not report_path:
-             logger.warning("No report path provided to email task.")
-             return "No Report Path"
-        
+            logger.warning("No report path provided to email task.")
+            return "No Report Path"
         email_service = EmailService()
         success = email_service.send_report(report_path)
-        
         if success:
             logger.info("Email sent successfully.")
             return "Email Sent"
@@ -186,21 +173,23 @@ def send_email_task(self, report_info: dict):
             return "Email Failed"
     except Exception as e:
         logger.error(f"Email task failed: {e}", exc_info=True)
-        # We don't raise here to avoid failing the whole chain if just email fails
         return f"Email Error: {e}"
 
-@celery_app.task
-def run_daily_pipeline():
+
+def run_daily_pipeline(task_id: str | None = None):
     """
-    Orchestrator task that chains Update -> Predict -> Report -> Email.
+    Sequential pipeline: Update -> Predict -> Report -> Email.
     """
-    # We leave target_date as None so it picks the latest data (which we just updated)
-    # Use .si() (immutable) for predict_task so it doesn't receive "Data Updated" as an arg
-    workflow = chain(
-        update_market_data_task.s(),
-        predict_task.si(target_date=None),
-        generate_report_task.s(),
-        send_email_task.s()
-    )
-    workflow.apply_async()
     logger.info("Daily pipeline triggered.")
+    try:
+        update_market_data_task(task_id=task_id)
+        report_data = predict_task(target_date=None, task_id=task_id)
+        report_info = generate_report_task(report_data, task_id=task_id)
+        send_email_task(report_info, task_id=task_id)
+        if task_id:
+            task_store[task_id] = {"status": "SUCCESS", "result": "Pipeline complete"}
+        logger.info("Daily pipeline completed successfully.")
+    except Exception as e:
+        logger.error(f"Daily pipeline failed: {e}", exc_info=True)
+        if task_id:
+            task_store[task_id] = {"status": "FAILURE", "error": str(e)}

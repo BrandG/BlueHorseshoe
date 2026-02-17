@@ -43,10 +43,9 @@ BlueHorseshoe is a quantitative swing trading system that:
 
 - **Language:** Python 3.12
 - **Database:** MongoDB 7 (stores historical data and scores)
-- **Task Queue:** Celery + Redis (async background jobs for API)
-- **API:** FastAPI + Uvicorn
+- **API:** FastAPI + Uvicorn (async background jobs via BackgroundTasks)
 - **Analysis:** TA-Lib, pandas_ta, NumPy, Pandas, Scikit-learn
-- **Containerization:** Docker + Docker Compose (4 containers: bluehorseshoe, mongo, redis, worker, beat)
+- **Containerization:** Docker + Docker Compose (2 containers: bluehorseshoe, mongo)
 
 ## Architecture Overview
 
@@ -86,8 +85,7 @@ BlueHorseshoe is a quantitative swing trading system that:
 **`src/bluehorseshoe/api/`** - FastAPI server:
 - `main.py`: FastAPI app with lifespan management (DI container)
 - `routes.py`: Endpoints for predictions, backtests, scores
-- `tasks.py`: Celery tasks for async processing
-- `celery_app.py`: Celery configuration
+- `tasks.py`: Background task functions for async processing
 
 **`src/bluehorseshoe/reporting/`** - Report generation:
 - `html_reporter.py`: `HTMLReporter` generates interactive HTML reports with charts

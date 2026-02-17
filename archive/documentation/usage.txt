@@ -137,11 +137,10 @@ docker exec bluehorseshoe python src/main.py -b
 
 ---
 
-## Automated Scheduler
-The system runs a daily pipeline automatically via Celery Beat.
-*   **Schedule:** Weekdays at 08:00 UTC (3:00 AM EST).
+## Manual Pipeline Trigger
+The full daily pipeline can be triggered via the API.
 *   **Pipeline:** Updates Data -> Runs Prediction -> Generates Report -> Sends Email.
-*   **Manual Trigger:** Use `POST /api/v1/pipeline/run` to trigger this full chain on-demand.
-*   **Logs:** Check `docker logs bluehorseshoe_worker` for progress.
+*   **Trigger:** Use `POST /api/v1/pipeline/run` to trigger this full chain on-demand.
+*   **Logs:** Check `docker logs bluehorseshoe` for progress.
 
 ```
