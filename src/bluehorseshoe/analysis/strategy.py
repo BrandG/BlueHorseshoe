@@ -646,8 +646,8 @@ class SwingTrader:
         Chunking prevents OOM by limiting how much preloaded data is in memory.
         """
         io_workers = min(4, os.cpu_count() or 4)
-        cpu_workers = max(1, min(os.cpu_count() or 2, 2))  # Cap at 2 to limit memory
-        chunk_size = 500
+        cpu_workers = max(1, min(os.cpu_count() or 2, 3))  # Cap at 3 for better CPU utilization
+        chunk_size = 350
 
         self._write_report(f"Yesterday was {'not ' if not self.config.holiday_mode else ''}a holiday.")
         if ctx.target_date:
