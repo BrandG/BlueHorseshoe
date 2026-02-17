@@ -31,77 +31,54 @@ class MovingAverageIndicator(Indicator):
         self.required_cols = ['close', 'volume']
         super().__init__(data)
 
-    def calculate_wma(self) -> pd.Series:
+    def calculate_wma(self, window: int = 20) -> float:
         """
-        Calculates a Weighted Moving Average (WMA) for the given DataFrame.
+        Calculates the current Weighted Moving Average (WMA) value.
 
-        :param df:         DataFrame containing price data
-        :param window:     Lookback period for the WMA (e.g., 20)
-        :param price_col:  The column name containing prices (default 'Close')
-        :return:           A Pandas Series containing the WMA
+        :param window: Lookback period for the WMA (default 20)
+        :return:       The WMA value for the most recent bar, or NaN if insufficient data
         """
-        # The weights are 1, 2, ..., window
-        weights = np.arange(1, 20 + 1)
+        if len(self.days) < window:
+            return float('nan')
 
-        # Use rolling apply with a custom function that does the weighted average
-        def wma_function(x):
-            return np.dot(x, weights) / weights.sum()
+        close = self.days['close'].values[-window:]
+        weights = np.arange(1, window + 1, dtype=float)
+        return np.dot(close, weights) / weights.sum()
 
-        wma_series = self.days['close'].rolling(window=20).apply(wma_function, raw=True)
-        return wma_series
-
-    def calculate_vwma(self) -> pd.Series:
+    def calculate_vwma(self, window: int = 20) -> float:
         """
-        Calculates a Volume-Weighted Moving Average (VWMA) over the specified window.
+        Calculates the current Volume-Weighted Moving Average (VWMA) value.
 
-        :param df:          DataFrame with columns for price and volume
-        :param window:      Lookback period (e.g., 20)
-        :param price_col:   The column name for price (default 'Close')
-        :param volume_col:  The column name for volume (default 'Volume')
-        :return:            A Pandas Series for the VWMA
+        :param window: Lookback period (default 20)
+        :return:       The VWMA value for the most recent bar, or NaN if insufficient data
         """
-        # Rolling sum of (Price * Volume) / rolling sum of Volume
-        pv = self.days['close'] * self.days['volume']
-        rolling_pv = pv.rolling(window=20).sum()
-        rolling_vol = self.days['volume'].rolling(window=20).sum() + 1e-10  # Avoid division by zero
+        if len(self.days) < window:
+            return float('nan')
 
-        return rolling_pv / rolling_vol
+        close = self.days['close'].values[-window:]
+        volume = self.days['volume'].values[-window:]
+        vol_sum = volume.sum()
+        if vol_sum == 0:
+            return float('nan')
+        return (close * volume).sum() / vol_sum
 
     def calculate_ma_score(self) -> float:
         """
-        Example scoring function that:
+        Scoring function that:
         1) Calculates a 20-bar WMA
         2) Calculates a 20-bar VWMA
-        3) Scores how the last bar's 'Close' relates to these weighted averages
+        3) Scores how the last bar's close relates to these weighted averages
         """
         score = 0.0
+        close_price = self.days['close'].values[-1]
 
-        # 1) Calculate WMA over last 20 bars
-        wma_20 = self.calculate_wma()
+        wma_val = self.calculate_wma()
+        if not np.isnan(wma_val):
+            score += 1.0 if close_price > wma_val else -1.0
 
-        # 2) Calculate VWMA over last 20 bars
-        vwma_20 = self.calculate_vwma()
-
-        # We'll examine the latest row (if it exists)
-        if len(self.days) < 1:
-            return score  # Not enough data
-
-        # Grab the last bar's values
-        last_row = self.days.iloc[-1]
-        close_price = last_row['close']
-
-        # 3) Score logic: +1 if above WMA, +1 if above VWMA
-        if pd.notna(wma_20.iloc[-1]):
-            if close_price > wma_20.iloc[-1]:
-                score += 1
-            else:
-                score -= 1  # or 0, depending on your preference
-
-        if pd.notna(vwma_20.iloc[-1]):
-            if close_price > vwma_20.iloc[-1]:
-                score += 1
-            else:
-                score -= 1  # or 0
+        vwma_val = self.calculate_vwma()
+        if not np.isnan(vwma_val):
+            score += 1.0 if close_price > vwma_val else -1.0
 
         return score
 
