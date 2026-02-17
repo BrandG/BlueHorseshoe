@@ -42,6 +42,7 @@ from bluehorseshoe.analysis.constants import (
 )
 from bluehorseshoe.analysis.market_regime import MarketRegime
 from bluehorseshoe.analysis.ml_overlay import MLInference
+from bluehorseshoe.analysis.ml_profit_target import ProfitTargetInference
 from bluehorseshoe.analysis.ml_stop_loss import StopLossInference
 from bluehorseshoe.analysis.technical_analyzer import TechnicalAnalyzer
 from bluehorseshoe.core.config import Settings, get_settings, weights_config
@@ -70,6 +71,7 @@ class SwingTrader:
         config: Optional[Settings] = None,
         ml_inference: Optional[MLInference] = None,
         stop_loss_inference: Optional[StopLossInference] = None,
+        profit_target_inference: Optional[ProfitTargetInference] = None,
         report_writer: Optional[ReportWriter] = None
     ):
         """
@@ -80,6 +82,7 @@ class SwingTrader:
             config: Settings instance. If None, loads from environment.
             ml_inference: MLInference instance. If None, creates new instance.
             stop_loss_inference: StopLossInference instance. If None, creates new instance.
+            profit_target_inference: ProfitTargetInference instance. If None, creates new instance.
             report_writer: ReportWriter instance for logging. If None, uses legacy ReportSingleton.
         """
         # Store injected dependencies
@@ -91,6 +94,7 @@ class SwingTrader:
         self.technical_analyzer = TechnicalAnalyzer()
         self.ml_inference = ml_inference if ml_inference is not None else MLInference(database=database)
         self.stop_loss_inference = stop_loss_inference if stop_loss_inference is not None else StopLossInference(database=database)
+        self.profit_target_inference = profit_target_inference if profit_target_inference is not None else ProfitTargetInference(database=database)
 
         # Create ScoreManager with injected database
         if database is not None:
@@ -224,12 +228,12 @@ class SwingTrader:
 
         return entry_price, atr_discount, signal_strength
 
-    def calculate_baseline_setup(self, df: pd.DataFrame, ml_stop_multiplier: float = 2.0) -> Dict[str, float]:
+    def calculate_baseline_setup(self, df: pd.DataFrame, ml_stop_multiplier: float = 2.0, ml_target_multiplier: float = 3.0) -> Dict[str, float]:
         """
         Calculate structural prices for Baseline (Trend) strategy:
         Entry = Pullback to EMA + Bullish candle close
         Stop = Below recent swing low or ml_stop_multiplier * ATR
-        Target = Prior high or 3.0 * ATR
+        Target = Prior high or ml_target_multiplier * ATR
         """
         last_row = df.iloc[-1]
         last_close = last_row['close']
@@ -252,7 +256,7 @@ class SwingTrader:
         # Default to safest stop (widest)
         stop_loss = min(swing_stop, atr_stop)
 
-        take_profit = max(swing_high_20, entry_price + (3.0 * atr))
+        take_profit = max(swing_high_20, entry_price + (ml_target_multiplier * atr))
 
         # 5. Risk Calculation
         risk = entry_price - stop_loss
@@ -291,12 +295,12 @@ class SwingTrader:
             'is_realistic': (abs((last_close / entry_price) - 1) <= 0.15) and (risk_pct <= MAX_RISK_PERCENT)
         }
 
-    def calculate_mean_reversion_setup(self, df: pd.DataFrame, ml_stop_multiplier: float = 1.5) -> Dict[str, float]:
+    def calculate_mean_reversion_setup(self, df: pd.DataFrame, ml_stop_multiplier: float = 1.5, ml_target_multiplier: float = 2.0) -> Dict[str, float]:
         """
         Calculate structural prices for Mean Reversion (Dip) strategy:
         Entry = Current Close (Buying extreme weakness)
         Stop = ml_stop_multiplier * ATR (Tighter stop for fast reversals)
-        Target = Reversion to 20-day EMA
+        Target = Reversion to 20-day EMA or ml_target_multiplier * ATR
         """
         last_row = df.iloc[-1]
         last_close = last_row['close']
@@ -314,7 +318,7 @@ class SwingTrader:
         stop_loss = entry_price - (ml_stop_multiplier * atr)
 
         # 5. Take Profit: EMA 20
-        take_profit = max(ema20, entry_price + (2.0 * atr))
+        take_profit = max(ema20, entry_price + (ml_target_multiplier * atr))
 
         # 6. Reward-to-Risk
         reward = take_profit - entry_price
@@ -417,9 +421,14 @@ class SwingTrader:
             last_row, ema9, atr, technical_score
         )
 
-        # *** STEP 3: Calculate baseline setup with ML stop ***
+        # *** STEP 3: Calculate baseline setup with ML stop and target ***
         ml_stop_multiplier = 2.0
-        baseline_setup = self.calculate_baseline_setup(df, ml_stop_multiplier=ml_stop_multiplier)
+        ml_target_multiplier = self.profit_target_inference.predict_profit_target_multiplier(
+            symbol, score_components,
+            target_date=str(yesterday['date'])[:10],
+            strategy="baseline"
+        )
+        baseline_setup = self.calculate_baseline_setup(df, ml_stop_multiplier=ml_stop_multiplier, ml_target_multiplier=ml_target_multiplier)
 
         # *** STEP 4: Override entry price with dynamic calculation ***
         baseline_setup['entry_price'] = entry_price
@@ -480,7 +489,8 @@ class SwingTrader:
             "components": score_components,
             "setup": baseline_setup,
             "ml_prob": ml_prob,
-            "stop_multiplier": ml_stop_multiplier
+            "stop_multiplier": ml_stop_multiplier,
+            "target_multiplier": ml_target_multiplier
         }
 
     def _process_mr(self, df: pd.DataFrame, symbol: str, yesterday: dict, ctx: StrategyContext) -> Optional[Dict]:
@@ -499,7 +509,15 @@ class SwingTrader:
             target_date=str(yesterday['date'])[:10]
         )
 
-        mr_setup = self.calculate_mean_reversion_setup(df, ml_stop_multiplier=ml_stop_multiplier_mr)
+        # Predict ML Profit Target Multiplier
+        ml_target_multiplier_mr = self.profit_target_inference.predict_profit_target_multiplier(
+            symbol,
+            score_components_mr,
+            target_date=str(yesterday['date'])[:10],
+            strategy="mean_reversion"
+        )
+
+        mr_setup = self.calculate_mean_reversion_setup(df, ml_stop_multiplier=ml_stop_multiplier_mr, ml_target_multiplier=ml_target_multiplier_mr)
         if not mr_setup['is_realistic'] or mr_setup['rr_ratio'] < MIN_RR_RATIO_MEAN_REVERSION:
             return None
 
@@ -520,7 +538,8 @@ class SwingTrader:
             "components": score_components_mr,
             "setup": mr_setup,
             "ml_prob": ml_prob_mr,
-            "stop_multiplier": ml_stop_multiplier_mr
+            "stop_multiplier": ml_stop_multiplier_mr,
+            "target_multiplier": ml_target_multiplier_mr
         }
 
     def process_symbol(self, symbol: str, ctx: StrategyContext) -> Optional[Dict]:
@@ -661,6 +680,11 @@ class SwingTrader:
             'mean_reversion': 'src/models/ml_overlay_mean_reversion.joblib',
         }
         stop_loss_path = 'src/models/ml_stop_loss_v1.joblib'
+        profit_target_paths = {
+            'general': 'src/models/ml_profit_target_v1.joblib',
+            'baseline': 'src/models/ml_profit_target_baseline.joblib',
+            'mean_reversion': 'src/models/ml_profit_target_mean_reversion.joblib',
+        }
 
         all_results = []
         total_symbols = len(symbols)
@@ -671,7 +695,7 @@ class SwingTrader:
         # Use 'fork' context for memory efficiency (copy-on-write sharing).
         # Workers never access MongoDB, so inherited connections are harmless.
         mp_ctx = multiprocessing.get_context('fork')
-        pool_initargs = (overlay_paths, stop_loss_path, shared_ctx)
+        pool_initargs = (overlay_paths, stop_loss_path, profit_target_paths, shared_ctx)
 
         # Recreate the pool every N chunks to release accumulated worker memory
         # (Python's allocator doesn't return freed pages to the OS)
@@ -772,7 +796,8 @@ class SwingTrader:
             prob_key = 'baseline_ml_prob' if 'baseline' in strategy_key else 'mr_ml_prob'
             self._write_report(
                 f"{res['symbol']} - Entry: {setup['entry_price']:.2f} | "
-                f"Stop: {setup['stop_loss']:.2f} (SL Mult: {res.get('stop_multiplier', 0):.1f}) | Exit: {setup['take_profit']:.2f} | "
+                f"Stop: {setup['stop_loss']:.2f} (SL Mult: {res.get('stop_multiplier', 0):.1f}) | "
+                f"Exit: {setup['take_profit']:.2f} (TP Mult: {res.get('target_multiplier', 0):.1f}) | "
                 f"Score: {res[strategy_key]:.2f} | ML Win%: {res[prob_key]*100:.1f}% - Name: {res['name']}"
             )
 
@@ -793,6 +818,7 @@ class SwingTrader:
                         "take_profit": setup["take_profit"],
                         "ml_win_prob": r["baseline_ml_prob"],
                         "stop_multiplier": r.get("stop_multiplier", 2.0),
+                        "target_multiplier": r.get("target_multiplier", 3.0),
                         "components": r["baseline_components"],
                         "atr_discount_used": setup.get("atr_discount_used", 0.20),
                         "signal_strength": setup.get("signal_strength", "MEDIUM")
@@ -812,6 +838,7 @@ class SwingTrader:
                         "take_profit": setup["take_profit"],
                         "ml_win_prob": r["mr_ml_prob"],
                         "stop_multiplier": r.get("stop_multiplier", 1.5),
+                        "target_multiplier": r.get("target_multiplier", 2.0),
                         "components": r["mr_components"]
                     }
                 })
@@ -1012,7 +1039,7 @@ class SwingTrader:
 _worker_state = {}  # Populated by _init_worker, one copy per worker process
 
 
-def _init_worker(overlay_paths, stop_loss_path, shared_ctx):
+def _init_worker(overlay_paths, stop_loss_path, profit_target_paths, shared_ctx):
     """
     Initializer for ProcessPoolExecutor workers.
     Called once per worker process to:
@@ -1038,6 +1065,7 @@ def _init_worker(overlay_paths, stop_loss_path, shared_ctx):
         'aggregation': shared_ctx.get('aggregation', 'sum'),
         'ml_overlay': {'models': {}, 'encoders': {}, 'features': {}},
         'ml_stop_loss': {'model': None, 'encoders': {}, 'features': []},
+        'ml_profit_target': {'models': {}, 'encoders': {}, 'features': {}},
     }
 
     # Load ML overlay models (general + strategy-specific)
@@ -1060,6 +1088,17 @@ def _init_worker(overlay_paths, stop_loss_path, shared_ctx):
             _worker_state['ml_stop_loss']['features'] = data.get('features', [])
         except Exception as e:  # pylint: disable=broad-exception-caught
             logging.warning("Worker: failed to load ML stop loss %s: %s", stop_loss_path, e)
+
+    # Load ML profit target models (general + strategy-specific)
+    for key, path in profit_target_paths.items():
+        if path and os.path.exists(path):
+            try:
+                data = joblib.load(path)
+                _worker_state['ml_profit_target']['models'][key] = data['model']
+                _worker_state['ml_profit_target']['encoders'][key] = data.get('encoders', {})
+                _worker_state['ml_profit_target']['features'][key] = data.get('features', [])
+            except Exception as e:  # pylint: disable=broad-exception-caught
+                logging.warning("Worker: failed to load ML profit target %s: %s", path, e)
 
 
 def _worker_ml_predict_probability(components, overview, sentiment, strategy="general"):
@@ -1133,6 +1172,48 @@ def _worker_ml_predict_stop_loss(components, overview, sentiment):
     return max(1.5, predicted_mae + 0.5)
 
 
+def _worker_ml_predict_profit_target(components, overview, sentiment, strategy="general"):
+    """Predict profit target ATR multiplier using pre-loaded ML models. No DB access."""
+    pt = _worker_state.get('ml_profit_target', {})
+    model_key = strategy if strategy in pt.get('models', {}) else "general"
+    model = pt.get('models', {}).get(model_key)
+
+    # Fallback defaults per strategy
+    fallback = 3.0 if strategy == "baseline" else 2.0
+    if model is None:
+        return fallback
+
+    # Build features from pre-loaded data (no DB queries)
+    feat = build_ml_features(components, overview, sentiment)
+
+    # Encode categorical features
+    encoders = pt.get('encoders', {}).get(model_key, {})
+    for col in ['Sector', 'Industry']:
+        le = encoders.get(col)
+        val = str(feat.get(col, 'Unknown'))
+        if le:
+            try:
+                feat[col] = le.transform([val])[0]
+            except ValueError:
+                feat[col] = 0
+        else:
+            feat[col] = 0
+
+    # Prepare inference DataFrame
+    df_inf = pd.DataFrame([feat])
+    model_features = pt.get('features', {}).get(model_key, [])
+    for f in model_features:  # pylint: disable=invalid-name
+        if f not in df_inf.columns:
+            df_inf[f] = 0.0
+    df_inf = df_inf[model_features].fillna(0)
+
+    predicted_mfe = float(model.predict(df_inf)[0])
+
+    # Apply safety factor and clamp
+    recommended_multiplier = predicted_mfe * 0.75
+    return max(1.5, min(2.5, recommended_multiplier))
+
+
 def _worker_process_baseline(trader, df, yesterday, benchmark_df, market_health,
                               enabled_indicators, aggregation, overview, sentiment):
     """
@@ -1162,9 +1243,12 @@ def _worker_process_baseline(trader, df, yesterday, benchmark_df, market_health,
         last_row, ema9, atr, technical_score
     )
 
-    # Step 3: Baseline setup with fixed stop multiplier
+    # Step 3: Baseline setup with fixed stop multiplier and ML target
     ml_stop_multiplier = 2.0
-    baseline_setup = trader.calculate_baseline_setup(df, ml_stop_multiplier=ml_stop_multiplier)
+    ml_target_multiplier = _worker_ml_predict_profit_target(
+        score_components, overview, sentiment, strategy="baseline"
+    )
+    baseline_setup = trader.calculate_baseline_setup(df, ml_stop_multiplier=ml_stop_multiplier, ml_target_multiplier=ml_target_multiplier)
 
     # Step 4: Override entry price with dynamic calculation
     baseline_setup['entry_price'] = entry_price
@@ -1219,7 +1303,8 @@ def _worker_process_baseline(trader, df, yesterday, benchmark_df, market_health,
         "components": score_components,
         "setup": baseline_setup,
         "ml_prob": ml_prob,
-        "stop_multiplier": ml_stop_multiplier
+        "stop_multiplier": ml_stop_multiplier,
+        "target_multiplier": ml_target_multiplier
     }
 
 
@@ -1239,7 +1324,12 @@ def _worker_process_mr(trader, df, yesterday, enabled_indicators, aggregation,
         score_components_mr, overview, sentiment
     )
 
-    mr_setup = trader.calculate_mean_reversion_setup(df, ml_stop_multiplier=ml_stop_multiplier_mr)
+    # ML profit target multiplier (using worker's pre-loaded models, no DB)
+    ml_target_multiplier_mr = _worker_ml_predict_profit_target(
+        score_components_mr, overview, sentiment, strategy="mean_reversion"
+    )
+
+    mr_setup = trader.calculate_mean_reversion_setup(df, ml_stop_multiplier=ml_stop_multiplier_mr, ml_target_multiplier=ml_target_multiplier_mr)
     if not mr_setup['is_realistic'] or mr_setup['rr_ratio'] < MIN_RR_RATIO_MEAN_REVERSION:
         return None
 
@@ -1257,7 +1347,8 @@ def _worker_process_mr(trader, df, yesterday, enabled_indicators, aggregation,
         "components": score_components_mr,
         "setup": mr_setup,
         "ml_prob": ml_prob_mr,
-        "stop_multiplier": ml_stop_multiplier_mr
+        "stop_multiplier": ml_stop_multiplier_mr,
+        "target_multiplier": ml_target_multiplier_mr
     }
 
 

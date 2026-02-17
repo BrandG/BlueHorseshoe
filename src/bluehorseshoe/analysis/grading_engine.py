@@ -202,6 +202,7 @@ class GradingEngine:
 
         pnl = ((sim.exit_price / params.entry_price) - 1) * 100
         mae_atr = (params.entry_price - sim.min_low) / atr if atr > 0 else 0
+        mfe_atr = (sim.max_gain / 100) * params.entry_price / atr if atr > 0 and sim.max_gain > 0 else 0
 
         return {
             'symbol': params.symbol,
@@ -216,6 +217,7 @@ class GradingEngine:
             'pnl': pnl,
             'max_gain': sim.max_gain,
             'mae_atr': mae_atr,
+            'mfe_atr': mfe_atr,
             'days_held': sim.days_held
         }
 

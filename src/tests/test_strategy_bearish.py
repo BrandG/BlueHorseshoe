@@ -37,6 +37,7 @@ def test_process_baseline_bearish_regime(sample_data, mocker):
     
     # Mock dependencies
     trader.ml_inference.predict_probability = MagicMock(return_value=0.6)
+    trader.profit_target_inference.predict_profit_target_multiplier = MagicMock(return_value=3.0)
     
     # Context with Bearish regime
     ctx = StrategyContext(
