@@ -106,8 +106,10 @@ if __name__ == "__main__":
             except (ValueError, IndexError):
                 pass # Will default to all symbols
 
+        active_only = "--active-only" in sys.argv
+
         with create_cli_context() as ctx:
-            build_all_symbols_history(BackfillConfig(recent=True, symbols=symbols_filter), database=ctx.db)
+            build_all_symbols_history(BackfillConfig(recent=True, symbols=symbols_filter, active_only=active_only), database=ctx.db)
             logging.info("Recent historical data updated.")
     elif "-b" in sys.argv:
         resume = "--resume" in sys.argv

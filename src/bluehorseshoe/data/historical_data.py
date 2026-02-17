@@ -12,6 +12,7 @@ from bluehorseshoe.core.config import get_settings
 from bluehorseshoe.core.symbols import get_symbol_list
 from bluehorseshoe.core.scores import ScoreManager
 from bluehorseshoe.analysis.technical_analyzer import TechnicalAnalyzer
+from bluehorseshoe.analysis.constants import MIN_STOCK_PRICE, MAX_STOCK_PRICE, MIN_VOLUME_THRESHOLD
 
 
 # Rate Limit Configuration
@@ -181,6 +182,23 @@ def set_backfill_checkpoint(symbol, database):
     except PyMongoError as e:
         logging.error("Failed to set checkpoint: %s", e)
 
+def get_active_symbol_list(database):
+    """
+    Query historical_prices_recent to find symbols passing price and volume filters.
+    Returns a set of symbol strings that had a last close in the tradeable range
+    with sufficient average volume.
+    """
+    pipeline = [
+        {"$project": {"symbol": 1, "last_day": {"$arrayElemAt": ["$days", -1]}}},
+        {"$match": {
+            "last_day.close": {"$gte": MIN_STOCK_PRICE, "$lte": MAX_STOCK_PRICE},
+            "last_day.avg_volume_20": {"$gte": MIN_VOLUME_THRESHOLD}
+        }},
+        {"$project": {"symbol": 1, "_id": 0}}
+    ]
+    results = database["historical_prices_recent"].aggregate(pipeline)
+    return {doc["symbol"] for doc in results}
+
 @dataclass
 class BackfillConfig:
     """Configuration for historical data backfill."""
@@ -190,6 +208,7 @@ class BackfillConfig:
     symbols: Optional[List] = None
     resume: bool = False
     limit: Optional[int] = None
+    active_only: bool = False
 
 def build_all_symbols_history(config: Optional[BackfillConfig] = None, database=None):
     """
@@ -215,6 +234,12 @@ def build_all_symbols_history(config: Optional[BackfillConfig] = None, database=
     if symbol_list is None:
         logging.error("Symbol list is None.")
         return
+
+    if config.active_only and config.symbols is None:
+        active_symbols = get_active_symbol_list(database)
+        total_before = len(symbol_list)
+        symbol_list = [s for s in symbol_list if s['symbol'] in active_symbols]
+        logging.info("Active-only mode: updating %d of %d total symbols", len(symbol_list), total_before)
 
     skip = bool(starting_at)
     total_symbols = len(symbol_list)
