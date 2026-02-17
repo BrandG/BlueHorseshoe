@@ -149,9 +149,9 @@ class SwingTrader:
                 close=df['close'],
                 window=ATR_WINDOW
             ).average_true_range()
-        atr = df.iloc[-1]['ATR']
+        atr = df['ATR'].values[-1]
         if pd.isna(atr):
-            return df.iloc[-1]['close'] * 0.02
+            return df['close'].values[-1] * 0.02
         return atr
 
     @staticmethod
@@ -305,16 +305,7 @@ class SwingTrader:
         ema20 = df['close'].ewm(span=20).mean().iloc[-1]
 
         # 2. Volatility (ATR)
-        if 'ATR' not in df.columns:
-            df['ATR'] = AverageTrueRange(
-                high=df['high'],
-                low=df['low'],
-                close=df['close'],
-                window=ATR_WINDOW
-            ).average_true_range()
-        atr = df.iloc[-1]['ATR']
-        if pd.isna(atr):
-            atr = last_close * 0.02
+        atr = self._calculate_atr(df)
 
         # 3. Entry is current close
         entry_price = last_close
