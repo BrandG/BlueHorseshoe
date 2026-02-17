@@ -12,45 +12,45 @@ class TestSignalStrengthClassification:
     """Test signal strength tier classification."""
 
     def test_extreme_signal(self):
-        """Test EXTREME signal classification (80+)."""
-        assert SwingTrader._classify_signal_strength(85) == 'EXTREME'
-        assert SwingTrader._classify_signal_strength(80) == 'EXTREME'
-        assert SwingTrader._classify_signal_strength(100) == 'EXTREME'
+        """Test EXTREME signal classification (>=20)."""
+        assert SwingTrader._classify_signal_strength(25) == 'EXTREME'
+        assert SwingTrader._classify_signal_strength(20) == 'EXTREME'
+        assert SwingTrader._classify_signal_strength(50) == 'EXTREME'
 
     def test_high_signal(self):
-        """Test HIGH signal classification (60-79)."""
-        assert SwingTrader._classify_signal_strength(65) == 'HIGH'
-        assert SwingTrader._classify_signal_strength(60) == 'HIGH'
-        assert SwingTrader._classify_signal_strength(79) == 'HIGH'
+        """Test HIGH signal classification (14.5-19.99)."""
+        assert SwingTrader._classify_signal_strength(16) == 'HIGH'
+        assert SwingTrader._classify_signal_strength(14.5) == 'HIGH'
+        assert SwingTrader._classify_signal_strength(19) == 'HIGH'
 
     def test_medium_signal(self):
-        """Test MEDIUM signal classification (40-59)."""
-        assert SwingTrader._classify_signal_strength(45) == 'MEDIUM'
-        assert SwingTrader._classify_signal_strength(40) == 'MEDIUM'
-        assert SwingTrader._classify_signal_strength(59) == 'MEDIUM'
+        """Test MEDIUM signal classification (7-14.49)."""
+        assert SwingTrader._classify_signal_strength(10) == 'MEDIUM'
+        assert SwingTrader._classify_signal_strength(7) == 'MEDIUM'
+        assert SwingTrader._classify_signal_strength(14) == 'MEDIUM'
 
     def test_low_signal(self):
-        """Test LOW signal classification (20-39)."""
-        assert SwingTrader._classify_signal_strength(25) == 'LOW'
-        assert SwingTrader._classify_signal_strength(20) == 'LOW'
-        assert SwingTrader._classify_signal_strength(39) == 'LOW'
+        """Test LOW signal classification (2-6.99)."""
+        assert SwingTrader._classify_signal_strength(4) == 'LOW'
+        assert SwingTrader._classify_signal_strength(2) == 'LOW'
+        assert SwingTrader._classify_signal_strength(6) == 'LOW'
 
     def test_weak_signal(self):
-        """Test WEAK signal classification (<20)."""
-        assert SwingTrader._classify_signal_strength(15) == 'WEAK'
+        """Test WEAK signal classification (<2)."""
+        assert SwingTrader._classify_signal_strength(1.5) == 'WEAK'
         assert SwingTrader._classify_signal_strength(0) == 'WEAK'
-        assert SwingTrader._classify_signal_strength(19) == 'WEAK'
+        assert SwingTrader._classify_signal_strength(1.99) == 'WEAK'
 
     def test_boundary_values(self):
         """Test exact threshold boundaries."""
-        assert SwingTrader._classify_signal_strength(80) == 'EXTREME'
-        assert SwingTrader._classify_signal_strength(79.99) == 'HIGH'
-        assert SwingTrader._classify_signal_strength(60) == 'HIGH'
-        assert SwingTrader._classify_signal_strength(59.99) == 'MEDIUM'
-        assert SwingTrader._classify_signal_strength(40) == 'MEDIUM'
-        assert SwingTrader._classify_signal_strength(39.99) == 'LOW'
-        assert SwingTrader._classify_signal_strength(20) == 'LOW'
-        assert SwingTrader._classify_signal_strength(19.99) == 'WEAK'
+        assert SwingTrader._classify_signal_strength(20) == 'EXTREME'
+        assert SwingTrader._classify_signal_strength(19.99) == 'HIGH'
+        assert SwingTrader._classify_signal_strength(14.5) == 'HIGH'
+        assert SwingTrader._classify_signal_strength(14.49) == 'MEDIUM'
+        assert SwingTrader._classify_signal_strength(7) == 'MEDIUM'
+        assert SwingTrader._classify_signal_strength(6.99) == 'LOW'
+        assert SwingTrader._classify_signal_strength(2) == 'LOW'
+        assert SwingTrader._classify_signal_strength(1.99) == 'WEAK'
 
 
 class TestDynamicDiscountCalculation:
@@ -58,28 +58,28 @@ class TestDynamicDiscountCalculation:
 
     def test_extreme_discount(self):
         """Test EXTREME signal gets 0.05 discount."""
-        assert SwingTrader._get_dynamic_atr_discount(85) == 0.05
-        assert SwingTrader._get_dynamic_atr_discount(100) == 0.05
+        assert SwingTrader._get_dynamic_atr_discount(25) == 0.05
+        assert SwingTrader._get_dynamic_atr_discount(50) == 0.05
 
     def test_high_discount(self):
         """Test HIGH signal gets 0.10 discount."""
-        assert SwingTrader._get_dynamic_atr_discount(65) == 0.10
-        assert SwingTrader._get_dynamic_atr_discount(75) == 0.10
+        assert SwingTrader._get_dynamic_atr_discount(16) == 0.10
+        assert SwingTrader._get_dynamic_atr_discount(19) == 0.10
 
     def test_medium_discount(self):
         """Test MEDIUM signal gets 0.20 discount (default)."""
-        assert SwingTrader._get_dynamic_atr_discount(45) == 0.20
-        assert SwingTrader._get_dynamic_atr_discount(50) == 0.20
+        assert SwingTrader._get_dynamic_atr_discount(10) == 0.20
+        assert SwingTrader._get_dynamic_atr_discount(14) == 0.20
 
     def test_low_discount(self):
         """Test LOW signal gets 0.35 discount."""
-        assert SwingTrader._get_dynamic_atr_discount(25) == 0.35
-        assert SwingTrader._get_dynamic_atr_discount(30) == 0.35
+        assert SwingTrader._get_dynamic_atr_discount(4) == 0.35
+        assert SwingTrader._get_dynamic_atr_discount(6) == 0.35
 
     def test_weak_discount(self):
         """Test WEAK signal gets 0.50 discount."""
-        assert SwingTrader._get_dynamic_atr_discount(15) == 0.50
-        assert SwingTrader._get_dynamic_atr_discount(5) == 0.50
+        assert SwingTrader._get_dynamic_atr_discount(1.5) == 0.50
+        assert SwingTrader._get_dynamic_atr_discount(0.5) == 0.50
 
     def test_zero_score(self):
         """Test zero score defaults to WEAK."""
@@ -111,7 +111,7 @@ class TestEntryPriceCalculation:
         """Test EXTREME signal (0.05 discount) entry calculation."""
         last_row, ema9, atr = mock_data
         entry, discount, strength = trader._determine_baseline_entry(
-            last_row, ema9, atr, technical_score=85
+            last_row, ema9, atr, technical_score=25
         )
 
         assert entry == pytest.approx(100.0 - (0.05 * 2.0))  # 99.90
@@ -122,7 +122,7 @@ class TestEntryPriceCalculation:
         """Test HIGH signal (0.10 discount) entry calculation."""
         last_row, ema9, atr = mock_data
         entry, discount, strength = trader._determine_baseline_entry(
-            last_row, ema9, atr, technical_score=65
+            last_row, ema9, atr, technical_score=16
         )
 
         assert entry == pytest.approx(100.0 - (0.10 * 2.0))  # 99.80
@@ -133,7 +133,7 @@ class TestEntryPriceCalculation:
         """Test MEDIUM signal (0.20 discount - current default) entry calculation."""
         last_row, ema9, atr = mock_data
         entry, discount, strength = trader._determine_baseline_entry(
-            last_row, ema9, atr, technical_score=45
+            last_row, ema9, atr, technical_score=10
         )
 
         assert entry == pytest.approx(100.0 - (0.20 * 2.0))  # 99.60
@@ -144,7 +144,7 @@ class TestEntryPriceCalculation:
         """Test LOW signal (0.35 discount) entry calculation."""
         last_row, ema9, atr = mock_data
         entry, discount, strength = trader._determine_baseline_entry(
-            last_row, ema9, atr, technical_score=25
+            last_row, ema9, atr, technical_score=4
         )
 
         assert entry == pytest.approx(100.0 - (0.35 * 2.0))  # 99.30
@@ -155,7 +155,7 @@ class TestEntryPriceCalculation:
         """Test WEAK signal (0.50 discount) entry calculation."""
         last_row, ema9, atr = mock_data
         entry, discount, strength = trader._determine_baseline_entry(
-            last_row, ema9, atr, technical_score=15
+            last_row, ema9, atr, technical_score=1.5
         )
 
         assert entry == pytest.approx(100.0 - (0.50 * 2.0))  # 99.00
@@ -196,10 +196,10 @@ class TestConfigurationValues:
 
     def test_threshold_values(self):
         """Verify signal strength thresholds."""
-        assert SIGNAL_STRENGTH_THRESHOLDS['EXTREME'] == 80
-        assert SIGNAL_STRENGTH_THRESHOLDS['HIGH'] == 60
-        assert SIGNAL_STRENGTH_THRESHOLDS['MEDIUM'] == 40
-        assert SIGNAL_STRENGTH_THRESHOLDS['LOW'] == 20
+        assert SIGNAL_STRENGTH_THRESHOLDS['EXTREME'] == 20
+        assert SIGNAL_STRENGTH_THRESHOLDS['HIGH'] == 14.5
+        assert SIGNAL_STRENGTH_THRESHOLDS['MEDIUM'] == 7
+        assert SIGNAL_STRENGTH_THRESHOLDS['LOW'] == 2
 
     def test_discount_values(self):
         """Verify entry discount values."""
