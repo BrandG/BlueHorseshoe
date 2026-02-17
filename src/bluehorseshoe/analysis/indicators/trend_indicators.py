@@ -30,9 +30,9 @@ Methods:
 
 from typing import Optional
 import numpy as np
+from numpy.lib.stride_tricks import sliding_window_view
 import pandas as pd
-from ta.trend import PSARIndicator, AroonIndicator # pylint: disable=import-error
-from ta.volatility import DonchianChannel, AverageTrueRange, BollingerBands, KeltnerChannel # pylint: disable=import-error
+from ta.volatility import DonchianChannel # pylint: disable=import-error
 
 from bluehorseshoe.analysis.indicators.indicator import Indicator, IndicatorScore
 from bluehorseshoe.core.config import weights_config
@@ -82,49 +82,63 @@ class TrendIndicator(Indicator):
 
     def calculate_psar_score(self, step: float = 0.02, max_step: float = 0.2) -> float:
         """
-        Calculates a Parabolic SAR flip-based score for the latest row in 'df'.
+        Calculates a Parabolic SAR flip-based score using pure numpy.
 
-        Parabolic SAR flips if it moves from above price to below price (bullish)
-        or from below price to above price (bearish).
-
-        :param df:       DataFrame with columns ['High', 'Low', 'Close'].
         :param step:     The AF (acceleration factor) initial step, commonly 0.02.
         :param max_step: The maximum step for AF, commonly 0.2.
         :return:         A float representing the SAR-based score for the latest row.
         """
-
-        # Ensure we have enough data for at least 2 rows (to detect a flip)
         if len(self.days) < 2:
             return 0.0
 
-        # 1) Compute Parabolic SAR using the 'ta' library
-        psar_indicator = PSARIndicator(
-            high=self.days['high'],
-            low=self.days['low'],
-            close=self.days['close'],
-            step=step,
-            max_step=max_step,
-            fillna=True
-        )
+        high = self.days['high'].values
+        low = self.days['low'].values
+        close = self.days['close'].values
+        n = len(high)
 
-        # The library provides the psar values for each row
-        self.days['psar'] = psar_indicator.psar().astype(float)
+        # Initialize PSAR arrays
+        psar = np.empty(n)
+        bull = True
+        af = step
+        ep = high[0]
+        psar[0] = low[0]
 
-        # 2) Identify if there's a flip from yesterday to today
-        #    We'll see if SAR was above price vs. below price, day-to-day.
+        for i in range(1, n):
+            if bull:
+                psar[i] = psar[i - 1] + af * (ep - psar[i - 1])
+                psar[i] = min(psar[i], low[i - 1])
+                if i >= 2:
+                    psar[i] = min(psar[i], low[i - 2])
+                if low[i] < psar[i]:
+                    bull = False
+                    psar[i] = ep
+                    ep = low[i]
+                    af = step
+                else:
+                    if high[i] > ep:
+                        ep = high[i]
+                        af = min(af + step, max_step)
+            else:
+                psar[i] = psar[i - 1] + af * (ep - psar[i - 1])
+                psar[i] = max(psar[i], high[i - 1])
+                if i >= 2:
+                    psar[i] = max(psar[i], high[i - 2])
+                if high[i] > psar[i]:
+                    bull = True
+                    psar[i] = ep
+                    ep = high[i]
+                    af = step
+                else:
+                    if low[i] < ep:
+                        ep = low[i]
+                        af = min(af + step, max_step)
 
-        # Today's values
-        psar_above_today = self.days.iloc[-1]['psar'] > self.days.iloc[-1]['close']
+        # Flip detection on last two bars
+        psar_above_today = psar[-1] > close[-1]
+        psar_above_yesterday = psar[-2] > close[-2]
 
-        # Yesterday's values
-        psar_above_yesterday = self.days.iloc[-2]['psar'] > self.days.iloc[-2]['close']
-
-        # If Parabolic SAR was above price yesterday but is now below => bullish flip
         if psar_above_yesterday and not psar_above_today:
-            # e.g. +2 points for a bullish flip
             return 2.0
-
-        # If Parabolic SAR was below price yesterday but is now above => bearish flip
         return -2.0 if not psar_above_yesterday and psar_above_today else 0.0
 
     def calculate_ichimoku(self):
@@ -308,77 +322,80 @@ class TrendIndicator(Indicator):
 
     def calculate_supertrend(self, period: int = 10, multiplier: float = 3.0) -> float:
         """
-        Calculate SuperTrend score.
-        
-        SuperTrend is an ATR-based trailing stop indicator.
-        
+        Calculate SuperTrend score using numpy arrays for speed.
+
         Returns:
         • 2 if Bullish Crossover (Trend flipped to Green today)
         • 1 if Bullish (Green)
         • -2 if Bearish Crossover (Trend flipped to Red today)
         • -1 if Bearish (Red)
         """
-        if len(self.days) < period + 1:
-             return 0.0
+        n = len(self.days)
+        if n < period + 1:
+            return 0.0
 
-        high = self.days['high']
-        low = self.days['low']
-        close = self.days['close']
-        
-        # Calculate ATR
-        atr_indicator = AverageTrueRange(high, low, close, window=period)
-        atr = atr_indicator.average_true_range()
-        
-        hl2 = (high + low) / 2
-        basic_upper = hl2 + (multiplier * atr)
-        basic_lower = hl2 - (multiplier * atr)
-        
-        # Initialize result arrays
-        # Note: Iterating in Python is slow, but for <500 days it's negligible.
-        final_upper = np.zeros(len(self.days))
-        final_lower = np.zeros(len(self.days))
-        trend = np.zeros(len(self.days)) # 1 Bull, -1 Bear
-        
-        # Iterative calculation
-        for i in range(1, len(self.days)):
+        high = self.days['high'].values
+        low = self.days['low'].values
+        close = self.days['close'].values
+
+        # Calculate ATR using numpy
+        tr = np.empty(n)
+        tr[0] = high[0] - low[0]
+        for i in range(1, n):
+            tr[i] = max(high[i] - low[i], abs(high[i] - close[i - 1]), abs(low[i] - close[i - 1]))
+        # Wilder's smoothed ATR
+        atr = np.empty(n)
+        atr[:period] = 0.0
+        atr[period - 1] = np.mean(tr[:period])
+        for i in range(period, n):
+            atr[i] = (atr[i - 1] * (period - 1) + tr[i]) / period
+
+        hl2 = (high + low) * 0.5
+        basic_upper = hl2 + multiplier * atr
+        basic_lower = hl2 - multiplier * atr
+
+        final_upper = np.zeros(n)
+        final_lower = np.zeros(n)
+        trend = np.zeros(n, dtype=np.int8)
+
+        for i in range(1, n):
             # Final Upper
-            if basic_upper.iloc[i] < final_upper[i-1] or close.iloc[i-1] > final_upper[i-1]:
-                final_upper[i] = basic_upper.iloc[i]
+            if basic_upper[i] < final_upper[i - 1] or close[i - 1] > final_upper[i - 1]:
+                final_upper[i] = basic_upper[i]
             else:
-                final_upper[i] = final_upper[i-1]
-                
+                final_upper[i] = final_upper[i - 1]
+
             # Final Lower
-            if basic_lower.iloc[i] > final_lower[i-1] or close.iloc[i-1] < final_lower[i-1]:
-                final_lower[i] = basic_lower.iloc[i]
+            if basic_lower[i] > final_lower[i - 1] or close[i - 1] < final_lower[i - 1]:
+                final_lower[i] = basic_lower[i]
             else:
-                final_lower[i] = final_lower[i-1]
-                
+                final_lower[i] = final_lower[i - 1]
+
             # Trend
-            # Continuation
-            curr_trend = trend[i-1]
-            if curr_trend == 0: # Init logic
-                 curr_trend = 1 if close.iloc[i] > final_upper[i] else -1
-            
+            curr_trend = trend[i - 1]
+            if curr_trend == 0:
+                curr_trend = 1 if close[i] > final_upper[i] else -1
+
             if curr_trend == 1:
-                if close.iloc[i] < final_lower[i]:
+                if close[i] < final_lower[i]:
                     curr_trend = -1
             else:
-                if close.iloc[i] > final_upper[i]:
+                if close[i] > final_upper[i]:
                     curr_trend = 1
-            
+
             trend[i] = curr_trend
-            
+
         # Scoring
         curr = trend[-1]
         prev = trend[-2]
-        
+
         if curr == 1 and prev == -1:
             return 2.0
-        elif curr == -1 and prev == 1:
+        if curr == -1 and prev == 1:
             return -2.0
-        elif curr == 1:
+        if curr == 1:
             return 1.0
-        elif curr == -1:
+        if curr == -1:
             return -1.0
 
         return 0.0
@@ -386,10 +403,7 @@ class TrendIndicator(Indicator):
     def calculate_ttm_squeeze(self, bb_length: int = 20, bb_std: float = 2.0,
                               kc_length: int = 20, kc_atr_mult: float = 1.5) -> float:
         """
-        Calculate TTM Squeeze score (Bollinger Bands vs Keltner Channels).
-
-        The squeeze occurs when Bollinger Bands compress inside Keltner Channels,
-        indicating low volatility that often precedes explosive moves.
+        Calculate TTM Squeeze score using numpy/pandas (no ta library).
 
         Scoring:
         • +2.0 if squeeze just released with bullish momentum
@@ -398,86 +412,91 @@ class TrendIndicator(Indicator):
         • -1.0 if in squeeze with price falling
         • -2.0 if squeeze released with bearish momentum
         • 0.0 if no squeeze (normal volatility)
-
-        Args:
-            bb_length: Bollinger Bands period (default: 20)
-            bb_std: Bollinger Bands standard deviation multiplier (default: 2.0)
-            kc_length: Keltner Channel period (default: 20)
-            kc_atr_mult: Keltner Channel ATR multiplier (default: 1.5)
-
-        Returns:
-            float: Score from -2.0 to +2.0 based on squeeze state
         """
-        if len(self.days) < max(bb_length, kc_length) + 5:
+        n = len(self.days)
+        if n < max(bb_length, kc_length) + 5:
             return 0.0
 
-        # Calculate Bollinger Bands
-        bb = BollingerBands(
-            close=self.days['close'],
-            window=bb_length,
-            window_dev=bb_std
-        )
-        bb_upper = bb.bollinger_hband()
-        bb_lower = bb.bollinger_lband()
+        close = self.days['close'].values
+        high = self.days['high'].values
+        low = self.days['low'].values
+
+        # Bollinger Bands via sliding_window_view
+        close_windows = sliding_window_view(close, bb_length)
+        bb_mid = np.mean(close_windows, axis=1)
+        bb_std_arr = np.std(close_windows, axis=1, ddof=1)
+        offset = bb_length - 1
+        bb_upper = bb_mid + bb_std * bb_std_arr
+        bb_lower = bb_mid - bb_std * bb_std_arr
         bb_width = bb_upper - bb_lower
 
-        # Calculate Keltner Channels
-        kc = KeltnerChannel(
-            high=self.days['high'],
-            low=self.days['low'],
-            close=self.days['close'],
-            window=kc_length,
-            window_atr=kc_length,
-            multiplier=kc_atr_mult
-        )
-        kc_upper = kc.keltner_channel_hband()
-        kc_lower = kc.keltner_channel_lband()
+        # Keltner Channel: EMA + ATR
+        kc_ema = self.days['close'].ewm(span=kc_length, adjust=False).mean().values
+
+        # True Range
+        tr = np.empty(n)
+        tr[0] = high[0] - low[0]
+        for i in range(1, n):
+            tr[i] = max(high[i] - low[i], abs(high[i] - close[i - 1]), abs(low[i] - close[i - 1]))
+
+        # EMA of True Range (ATR)
+        kc_atr = pd.Series(tr).ewm(span=kc_length, adjust=False).mean().values
+
+        # KC bands (aligned to bb_width offset)
+        kc_upper = kc_ema[offset:] + kc_atr_mult * kc_atr[offset:]
+        kc_lower = kc_ema[offset:] - kc_atr_mult * kc_atr[offset:]
         kc_width = kc_upper - kc_lower
 
-        # Squeeze condition: BB inside KC (BB width < KC width)
+        # Squeeze condition: BB inside KC
         squeeze = bb_width < kc_width
 
-        # Current and previous squeeze state
-        in_squeeze_now = squeeze.iloc[-1]
-        in_squeeze_prev = squeeze.iloc[-2] if len(squeeze) > 1 else False
+        in_squeeze_now = squeeze[-1]
+        in_squeeze_prev = squeeze[-2] if len(squeeze) > 1 else False
 
-        # Momentum (simplified: close vs 5-day ago)
-        if len(self.days) >= 5:
-            momentum = self.days['close'].iloc[-1] - self.days['close'].iloc[-5]
-        else:
-            momentum = 0
+        # Momentum
+        momentum = close[-1] - close[-5] if n >= 5 else 0
 
-        # Scoring
         if not in_squeeze_now and in_squeeze_prev:
-            # Squeeze just released
-            if momentum > 0:
-                return 2.0  # Bullish release
-            else:
-                return -2.0  # Bearish release
+            return 2.0 if momentum > 0 else -2.0
 
-        elif in_squeeze_now:
-            # In squeeze - check price action
+        if in_squeeze_now:
             if momentum > 0:
-                return 1.5  # Coiling with bullish momentum
-            elif abs(momentum) < self.days['close'].iloc[-1] * 0.01:
-                return 0.5  # Coiling flat
-            else:
-                return -1.0  # Coiling with bearish momentum
+                return 1.5
+            if abs(momentum) < close[-1] * 0.01:
+                return 0.5
+            return -1.0
 
-        else:
-            # Not in squeeze - normal volatility
-            return 0.0
+        return 0.0
+
+    def calculate_aroon_numpy(self, window: int = 25):
+        """Calculate Aroon Up/Down using numpy sliding_window_view (vectorized)."""
+        high = self.days['high'].values
+        low = self.days['low'].values
+        n = len(high)
+        win = window + 1  # window+1 elements to look back 'window' periods
+
+        aroon_up = np.full(n, np.nan)
+        aroon_down = np.full(n, np.nan)
+
+        if n < win:
+            return aroon_up, aroon_down
+
+        high_windows = sliding_window_view(high, win)
+        low_windows = sliding_window_view(low, win)
+
+        # argmax/argmin give position of highest/lowest in each window
+        days_since_high = window - np.argmax(high_windows, axis=1)
+        days_since_low = window - np.argmin(low_windows, axis=1)
+
+        offset = win - 1  # results start at index (win-1)
+        aroon_up[offset:] = ((window - days_since_high) / window) * 100
+        aroon_down[offset:] = ((window - days_since_low) / window) * 100
+
+        return aroon_up, aroon_down
 
     def calculate_aroon(self, window: int = 25) -> float:
         """
-        Calculate Aroon Indicator score.
-
-        Aroon measures time since highest high / lowest low over a period.
-        Early detector of trend changes based on time, not price.
-
-        Formula:
-            Aroon Up = ((Period - Days Since High) / Period) * 100
-            Aroon Down = ((Period - Days Since Low) / Period) * 100
+        Calculate Aroon Indicator score using vectorized numpy.
 
         Scoring:
         • +2.0 if Aroon Up > 70 and Aroon Down < 30 (strong uptrend)
@@ -486,65 +505,43 @@ class TrendIndicator(Indicator):
         • -2.0 if Aroon Down > 70 and Aroon Up < 30 (strong downtrend)
         • -1.0 if Aroon Down > Aroon Up
         • 0.0 otherwise
-
-        Args:
-            window: Lookback period (default: 25 days)
-
-        Returns:
-            float: Score from -2.0 to +2.0 based on Aroon state
         """
         if len(self.days) < window + 5:
             return 0.0
 
-        aroon = AroonIndicator(
-            high=self.days['high'],
-            low=self.days['low'],
-            window=window
-        )
-        aroon_up = aroon.aroon_up()
-        aroon_down = aroon.aroon_down()
+        aroon_up, aroon_down = self.calculate_aroon_numpy(window)
 
-        # Current values
-        up_now = aroon_up.iloc[-1]
-        down_now = aroon_down.iloc[-1]
-
-        # Previous values (for crossover detection)
-        up_prev = aroon_up.iloc[-2] if len(aroon_up) > 1 else 0
-        down_prev = aroon_down.iloc[-2] if len(aroon_down) > 1 else 0
+        up_now = aroon_up[-1]
+        down_now = aroon_down[-1]
+        up_prev = aroon_up[-2] if len(aroon_up) > 1 else 0
+        down_prev = aroon_down[-2] if len(aroon_down) > 1 else 0
 
         # Check for recent crossover (last 3 days)
-        if len(aroon_up) >= 3:
-            up_3 = aroon_up.iloc[-3]
-            down_3 = aroon_down.iloc[-3]
+        if len(aroon_up) >= 3 and not np.isnan(aroon_up[-3]):
+            up_3 = aroon_up[-3]
+            down_3 = aroon_down[-3]
             recent_bullish_cross = (up_now > down_now and up_3 <= down_3)
         else:
             recent_bullish_cross = False
 
-        # Scoring
+        if np.isnan(up_now) or np.isnan(down_now):
+            return 0.0
+
         if up_now > 70 and down_now < 30:
-            return 2.0  # Strong uptrend
-        elif recent_bullish_cross:
-            return 1.5  # New uptrend forming
-        elif up_now > 50 and (up_now > up_prev):
-            return 1.0  # Uptrend strengthening
-        elif down_now > 70 and up_now < 30:
-            return -2.0  # Strong downtrend
-        elif down_now > up_now:
-            return -1.0  # Downtrend
-        else:
-            return 0.0  # Neutral
+            return 2.0
+        if recent_bullish_cross:
+            return 1.5
+        if up_now > 50 and (up_now > up_prev):
+            return 1.0
+        if down_now > 70 and up_now < 30:
+            return -2.0
+        if down_now > up_now:
+            return -1.0
+        return 0.0
 
     def calculate_keltner(self, window: int = 20, atr_mult: float = 2.0) -> float:
         """
-        Calculate Keltner Channel score.
-
-        Keltner Channels use ATR instead of standard deviation (vs Bollinger Bands).
-        More stable and reliable for breakout detection.
-
-        Formula:
-            Middle Line = EMA(Close, window)
-            Upper Band = Middle + (ATR * multiplier)
-            Lower Band = Middle - (ATR * multiplier)
+        Calculate Keltner Channel score using numpy/pandas (no ta library).
 
         Scoring:
         • +2.0 if price breaking above upper band
@@ -554,60 +551,53 @@ class TrendIndicator(Indicator):
         • -1.0 if price < lower band
         • -0.5 if price < middle line
         • 0.0 if price at middle line
-
-        Args:
-            window: EMA and ATR period (default: 20)
-            atr_mult: ATR multiplier for bands (default: 2.0)
-
-        Returns:
-            float: Score from -2.0 to +2.0 based on price position vs Keltner
         """
-        if len(self.days) < window + 5:
+        n = len(self.days)
+        if n < window + 5:
             return 0.0
 
-        kc = KeltnerChannel(
-            high=self.days['high'],
-            low=self.days['low'],
-            close=self.days['close'],
-            window=window,
-            window_atr=window,
-            multiplier=atr_mult
-        )
+        close = self.days['close'].values
+        high = self.days['high'].values
+        low = self.days['low'].values
 
-        upper = kc.keltner_channel_hband()
-        middle = kc.keltner_channel_mband()
-        lower = kc.keltner_channel_lband()
+        # EMA of close
+        middle = self.days['close'].ewm(span=window, adjust=False).mean().values
 
-        # Current and previous price positions
-        price_now = self.days['close'].iloc[-1]
-        price_prev = self.days['close'].iloc[-2] if len(self.days) > 1 else price_now
+        # True Range → EMA for ATR
+        tr = np.empty(n)
+        tr[0] = high[0] - low[0]
+        for i in range(1, n):
+            tr[i] = max(high[i] - low[i], abs(high[i] - close[i - 1]), abs(low[i] - close[i - 1]))
+        atr = pd.Series(tr).ewm(span=window, adjust=False).mean().values
 
-        upper_now = upper.iloc[-1]
-        lower_now = lower.iloc[-1]
-        middle_now = middle.iloc[-1]
+        upper = middle + atr_mult * atr
+        lower = middle - atr_mult * atr
 
-        upper_prev = upper.iloc[-2] if len(upper) > 1 else upper_now
-        lower_prev = lower.iloc[-2] if len(lower) > 1 else lower_now
+        price_now = close[-1]
+        price_prev = close[-2] if n > 1 else price_now
 
-        # Check for breakouts (crossing bands)
+        upper_now = upper[-1]
+        lower_now = lower[-1]
+        middle_now = middle[-1]
+        upper_prev = upper[-2] if n > 1 else upper_now
+        lower_prev = lower[-2] if n > 1 else lower_now
+
         breaking_above = (price_now > upper_now and price_prev <= upper_prev)
         breaking_below = (price_now < lower_now and price_prev >= lower_prev)
 
-        # Scoring
         if breaking_above:
-            return 2.0  # Breakout above
-        elif price_now > upper_now:
-            return 1.0  # Above upper band
-        elif price_now > middle_now:
-            return 0.5  # Above middle
-        elif breaking_below:
-            return -2.0  # Breakdown below
-        elif price_now < lower_now:
-            return -1.0  # Below lower band
-        elif price_now < middle_now:
-            return -0.5  # Below middle
-        else:
-            return 0.0  # At middle line
+            return 2.0
+        if price_now > upper_now:
+            return 1.0
+        if price_now > middle_now:
+            return 0.5
+        if breaking_below:
+            return -2.0
+        if price_now < lower_now:
+            return -1.0
+        if price_now < middle_now:
+            return -0.5
+        return 0.0
 
     def get_score(self, enabled_sub_indicators: Optional[list[str]] = None, aggregation: str = "sum") -> IndicatorScore:
         """

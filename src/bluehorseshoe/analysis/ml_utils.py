@@ -51,3 +51,38 @@ def extract_features(symbol: str, components: Dict[str, float], target_date: str
     feat['SentimentScore'] = get_sentiment_score(symbol, target_date, database=database)
 
     return feat
+
+
+def build_ml_features(components: Dict[str, float], overview: Dict[str, Any], sentiment_score: float) -> Dict[str, Any]:
+    """
+    Build ML feature dict from pre-loaded data. No database access needed.
+
+    This is the ProcessPoolExecutor-compatible version of extract_features().
+    Instead of querying MongoDB for overview and sentiment, it uses pre-loaded values.
+
+    Args:
+        components: Technical indicator scores.
+        overview: Company overview data (pre-loaded from MongoDB).
+        sentiment_score: Pre-loaded sentiment score.
+
+    Returns:
+        Feature dictionary for ML prediction.
+    """
+    feat = components.copy()
+
+    if overview:
+        feat['Sector'] = overview.get('Sector', 'Unknown')
+        feat['Industry'] = overview.get('Industry', 'Unknown')
+        feat['MarketCap'] = safe_float(overview.get('MarketCapitalization'))
+        feat['Beta'] = safe_float(overview.get('Beta'))
+        feat['PERatio'] = safe_float(overview.get('PERatio'))
+    else:
+        feat['Sector'] = 'Unknown'
+        feat['Industry'] = 'Unknown'
+        feat['MarketCap'] = 0.0
+        feat['Beta'] = 0.0
+        feat['PERatio'] = 0.0
+
+    feat['SentimentScore'] = sentiment_score
+
+    return feat

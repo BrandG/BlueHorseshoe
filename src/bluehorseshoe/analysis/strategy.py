@@ -18,10 +18,11 @@ Constants:
     STOP_LOSS_FACTOR: The factor used to calculate the stop-loss price.
     TAKE_PROFIT_FACTOR: The factor used to calculate the take-profit price.
 """
+import gc
 import logging
+import multiprocessing
 import os
 import concurrent.futures
-from functools import partial
 from dataclasses import dataclass
 from typing import Dict, Optional, List, Any
 
@@ -45,7 +46,8 @@ from bluehorseshoe.analysis.ml_stop_loss import StopLossInference
 from bluehorseshoe.analysis.technical_analyzer import TechnicalAnalyzer
 from bluehorseshoe.core.config import Settings, get_settings, weights_config
 from bluehorseshoe.core.scores import ScoreManager
-from bluehorseshoe.core.symbols import get_symbol_name_list, get_symbols_from_mongo
+from bluehorseshoe.core.symbols import get_symbol_name_list, get_symbols_from_mongo, get_overview_from_mongo, get_sentiment_score
+from bluehorseshoe.analysis.ml_utils import build_ml_features
 from bluehorseshoe.data.historical_data import load_historical_data
 from bluehorseshoe.reporting.report_generator import ReportWriter, ReportSingleton
 
@@ -577,43 +579,198 @@ class SwingTrader:
             return df
         return None
 
+    def _preload_symbol_data(self, symbol: str, target_date: Optional[str]) -> Optional[Dict]:
+        """
+        Load all data needed for scoring from the database.
+        Returns a picklable dict or None if the symbol should be skipped.
+
+        Called from Phase 1 (ThreadPoolExecutor in the main process).
+        Loads: historical OHLCV, company overview, sentiment score.
+        """
+        # 1. Load historical data
+        price_data = load_historical_data(symbol, database=self.database, score_manager_instance=self.score_manager)
+        if price_data is None or not price_data.get('days'):
+            logging.error("Failed to load historical data for %s.", symbol)
+            return None
+
+        df = pd.DataFrame(price_data['days'])
+
+        # 2. Filter to target date if specified
+        if target_date:
+            df['date'] = pd.to_datetime(df['date'])
+            target_ts = pd.to_datetime(target_date)
+            df = df[df['date'] <= target_ts]
+
+            if not df.empty:
+                last_date = pd.to_datetime(df.iloc[-1]['date'])
+                if (target_ts - last_date).days > 7:
+                    logging.info("Symbol %s data too stale for %s. Skipping.", symbol, target_date)
+                    return None
+
+        # 3. Validate minimum data
+        if df.empty or len(df) < 30:
+            logging.info("Symbol %s has insufficient data (%d days). Skipping.", symbol, len(df))
+            return None
+
+        # 4. Freshness check (non-historical mode)
+        yesterday = dict(df.iloc[-1])
+        if not target_date and not self.config.holiday_mode:
+            last_trading_day = pd.Timestamp.now().normalize() - pd.offsets.BDay(1)
+            yesterday_date = pd.to_datetime(yesterday['date'])
+            if yesterday_date != last_trading_day:
+                logging.error("Data for %s on '%s' is not '%s'.", symbol, yesterday_date, last_trading_day)
+                with open('src/error_symbols.txt', 'a', encoding='utf-8') as f:
+                    f.write(f"{symbol}\n")
+                return None
+
+        # 5. Load fundamental overview (for ML features)
+        overview = get_overview_from_mongo(symbol, database=self.database)
+
+        # 6. Load sentiment score (for ML features)
+        target_date_str = str(yesterday['date'])[:10]
+        sentiment = get_sentiment_score(symbol, target_date_str, database=self.database)
+
+        # 7. Return picklable dict (DataFrame → dict-of-lists for efficient serialization)
+        return {
+            'df_data': df.to_dict('list'),
+            'full_name': price_data.get('full_name', symbol),
+            'overview': overview or {},
+            'sentiment': sentiment,
+        }
+
     def _execute_prediction_batch(self, symbols: List[str], ctx: StrategyContext, progress_callback=None) -> List[Dict]:
-        """Execute parallel prediction for a batch of symbols."""
-        max_workers = min(8, os.cpu_count() or 4)
+        """
+        Execute prediction in chunked phases for true CPU parallelism:
+        - ProcessPoolExecutor created once (workers persist across chunks)
+        - For each chunk: Phase 1 (I/O preload) → Phase 2 (CPU scoring)
+        Chunking prevents OOM by limiting how much preloaded data is in memory.
+        """
+        io_workers = min(4, os.cpu_count() or 4)
+        cpu_workers = max(1, min(os.cpu_count() or 2, 2))  # Cap at 2 to limit memory
+        chunk_size = 500
 
         self._write_report(f"Yesterday was {'not ' if not self.config.holiday_mode else ''}a holiday.")
         if ctx.target_date:
             self._write_report(f"Predicting for historical date: {ctx.target_date}")
-        logging.info("Processing %d symbols with %d workers...", len(symbols), max_workers)
+        logging.info("Processing %d symbols (I/O: %d threads, CPU: %d processes, chunk: %d)...",
+                     len(symbols), io_workers, cpu_workers, chunk_size)
 
-        results = []
-        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
-            # Partial binding for the common arguments
-            process_func = partial(
-                self.process_symbol,
-                ctx=ctx
-            )
+        # Shared context passed via initializer (same for all chunks)
+        shared_ctx = {
+            'benchmark_data': ctx.benchmark_df.to_dict('list') if ctx.benchmark_df is not None else None,
+            'market_health': ctx.market_health,
+            'enabled_indicators': ctx.enabled_indicators,
+            'aggregation': ctx.aggregation,
+        }
 
-            # Submit all tasks
-            future_map = {executor.submit(process_func, sym): sym for sym in symbols}
+        # ML model paths
+        overlay_paths = {
+            'general': 'src/models/ml_overlay_v1.joblib',
+            'baseline': 'src/models/ml_overlay_baseline.joblib',
+            'mean_reversion': 'src/models/ml_overlay_mean_reversion.joblib',
+        }
+        stop_loss_path = 'src/models/ml_stop_loss_v1.joblib'
 
-            total = len(symbols)
-            for i, future in enumerate(concurrent.futures.as_completed(future_map), 1):
-                try:
-                    res = future.result()
-                    results.append(res)
-                except Exception as e: # pylint: disable=broad-exception-caught
-                    sym = future_map[future]
-                    logging.error("%s generated an exception: %s", sym, e)
+        all_results = []
+        total_symbols = len(symbols)
+        total_valid = 0
+        total_scored = 0
+        total_chunks = (total_symbols + chunk_size - 1) // chunk_size
 
-                if i % 50 == 0 or i == total:
-                    pct = (i / total) * 100
-                    logging.info("Progress: %d/%d symbols processed (%.1f%%)", i, total, pct)
-                    print(f"Progress: {i}/{total} symbols processed ({pct:.1f}%)", flush=True)
-                    if progress_callback:
-                        progress_callback(i, total, pct)
+        # Use 'fork' context for memory efficiency (copy-on-write sharing).
+        # Workers never access MongoDB, so inherited connections are harmless.
+        mp_ctx = multiprocessing.get_context('fork')
+        pool_initargs = (overlay_paths, stop_loss_path, shared_ctx)
 
-        return [r for r in results if r is not None]
+        # Recreate the pool every N chunks to release accumulated worker memory
+        # (Python's allocator doesn't return freed pages to the OS)
+        pool_refresh_interval = 3
+        cpu_pool = None
+
+        try:
+            for chunk_idx, chunk_start in enumerate(range(0, total_symbols, chunk_size)):
+                chunk_end = min(chunk_start + chunk_size, total_symbols)
+                chunk_symbols = symbols[chunk_start:chunk_end]
+                chunk_num = chunk_idx + 1
+
+                # ===== PHASE 1: Pre-load chunk data (I/O-bound, threads) =====
+                print(f"Chunk {chunk_num}/{total_chunks} - Phase 1: Loading {len(chunk_symbols)} symbols...", flush=True)
+                symbol_data = {}
+                with concurrent.futures.ThreadPoolExecutor(max_workers=io_workers) as io_pool:
+                    futures = {
+                        io_pool.submit(self._preload_symbol_data, sym, ctx.target_date): sym
+                        for sym in chunk_symbols
+                    }
+                    for i, future in enumerate(concurrent.futures.as_completed(futures), 1):
+                        sym = futures[future]
+                        try:
+                            result = future.result()
+                            if result is not None:
+                                symbol_data[sym] = result
+                        except Exception as e:  # pylint: disable=broad-exception-caught
+                            logging.error("Preload failed for %s: %s", sym, e)
+
+                        if i % 200 == 0 or i == len(futures):
+                            print(f"  Phase 1: {i}/{len(futures)} loaded ({len(symbol_data)} valid)", flush=True)
+
+                total_valid += len(symbol_data)
+
+                if not symbol_data:
+                    total_scored += len(chunk_symbols)
+                    continue
+
+                # Build per-symbol work items
+                work_items = []
+                for sym, data in symbol_data.items():
+                    work_items.append({
+                        'symbol': sym,
+                        'df_data': data['df_data'],
+                        'overview': data['overview'],
+                        'sentiment': data['sentiment'],
+                        'full_name': data['full_name'],
+                        'exchange': ctx.symbol_map.get(sym, 'Unknown') if ctx.symbol_map else 'Unknown',
+                    })
+
+                # Free preloaded data before scoring (work_items has its own copy)
+                del symbol_data
+
+                # Refresh pool periodically to release accumulated worker memory
+                if cpu_pool is None or chunk_idx % pool_refresh_interval == 0:
+                    if cpu_pool is not None:
+                        cpu_pool.shutdown(wait=True)
+                        gc.collect()
+                    cpu_pool = concurrent.futures.ProcessPoolExecutor(
+                        max_workers=cpu_workers,
+                        mp_context=mp_ctx,
+                        initializer=_init_worker,
+                        initargs=pool_initargs,
+                    )
+
+                # ===== PHASE 2: CPU scoring =====
+                print(f"Chunk {chunk_num}/{total_chunks} - Phase 2: Scoring {len(work_items)} symbols...", flush=True)
+
+                chunk_total = len(work_items)
+                for i, result in enumerate(cpu_pool.map(_score_symbol_worker, work_items, chunksize=50), 1):
+                    if result is not None:
+                        all_results.append(result)
+
+                    total_scored += 1
+                    if i % 50 == 0 or i == chunk_total:
+                        overall_pct = (total_scored / total_symbols) * 100
+                        print(f"  Phase 2: {i}/{chunk_total} scored | Overall: {total_scored}/{total_symbols} ({overall_pct:.1f}%)", flush=True)
+                        if progress_callback:
+                            progress_callback(total_scored, total_symbols, overall_pct)
+
+                # Free work items after scoring and reclaim memory
+                del work_items
+                gc.collect()
+        finally:
+            if cpu_pool is not None:
+                cpu_pool.shutdown(wait=True)
+
+        logging.info("Complete: %d candidates from %d valid symbols (%d total)",
+                     len(all_results), total_valid, total_symbols)
+        return all_results
 
     def _report_top_candidates(self, results, strategy_key, setup_key, title):
         sorted_results = sorted([r for r in results if r[strategy_key] > 0], key=lambda x: x[strategy_key], reverse=True)
@@ -851,3 +1008,330 @@ class SwingTrader:
             "candidates": candidates[:50], # Top 50 for the report
             "charts": [] # TODO: Add chart generation logic if needed
         }
+
+
+# =====================================================================
+# ProcessPoolExecutor Worker Functions
+# =====================================================================
+# Module-level functions required by ProcessPoolExecutor (must be picklable).
+# These run in separate processes without access to the main process's
+# database connections. ML models are loaded once per worker via initializer.
+# =====================================================================
+
+_worker_state = {}  # Populated by _init_worker, one copy per worker process
+
+
+def _init_worker(overlay_paths, stop_loss_path, shared_ctx):
+    """
+    Initializer for ProcessPoolExecutor workers.
+    Called once per worker process to:
+    1. Create a compute-only SwingTrader (no DB connections)
+    2. Load ML models from disk
+    3. Cache shared context (benchmark data, market health, etc.)
+    """
+    global _worker_state  # pylint: disable=global-statement
+    import joblib  # pylint: disable=import-outside-toplevel
+
+    # Create compute-only SwingTrader (bypass __init__ to avoid DB connections)
+    trader = SwingTrader.__new__(SwingTrader)
+    trader.technical_analyzer = TechnicalAnalyzer()
+
+    # Reconstruct benchmark DataFrame from dict-of-lists
+    benchmark_data = shared_ctx.get('benchmark_data')
+
+    _worker_state = {
+        'trader': trader,
+        'benchmark_df': pd.DataFrame(benchmark_data) if benchmark_data else None,
+        'market_health': shared_ctx.get('market_health'),
+        'enabled_indicators': shared_ctx.get('enabled_indicators'),
+        'aggregation': shared_ctx.get('aggregation', 'sum'),
+        'ml_overlay': {'models': {}, 'encoders': {}, 'features': {}},
+        'ml_stop_loss': {'model': None, 'encoders': {}, 'features': []},
+    }
+
+    # Load ML overlay models (general + strategy-specific)
+    for key, path in overlay_paths.items():
+        if path and os.path.exists(path):
+            try:
+                data = joblib.load(path)
+                _worker_state['ml_overlay']['models'][key] = data['model']
+                _worker_state['ml_overlay']['encoders'][key] = data.get('encoders', {})
+                _worker_state['ml_overlay']['features'][key] = data.get('features', [])
+            except Exception as e:  # pylint: disable=broad-exception-caught
+                logging.warning("Worker: failed to load ML overlay %s: %s", path, e)
+
+    # Load ML stop loss model
+    if stop_loss_path and os.path.exists(stop_loss_path):
+        try:
+            data = joblib.load(stop_loss_path)
+            _worker_state['ml_stop_loss']['model'] = data['model']
+            _worker_state['ml_stop_loss']['encoders'] = data.get('encoders', {})
+            _worker_state['ml_stop_loss']['features'] = data.get('features', [])
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            logging.warning("Worker: failed to load ML stop loss %s: %s", stop_loss_path, e)
+
+
+def _worker_ml_predict_probability(components, overview, sentiment, strategy="general"):
+    """Predict win probability using pre-loaded ML models. No DB access."""
+    ml = _worker_state.get('ml_overlay', {})
+    model_key = strategy if strategy in ml.get('models', {}) else "general"
+    model = ml.get('models', {}).get(model_key)
+    if model is None:
+        return 0.0
+
+    # Build features from pre-loaded data (no DB queries)
+    feat = build_ml_features(components, overview, sentiment)
+
+    # Encode categorical features
+    encoders = ml.get('encoders', {}).get(model_key, {})
+    for col in ['Sector', 'Industry']:
+        le = encoders.get(col)
+        val = str(feat.get(col, 'Unknown'))
+        if le:
+            try:
+                feat[col] = le.transform([val])[0]
+            except ValueError:
+                feat[col] = 0
+        else:
+            feat[col] = 0
+
+    # Prepare inference DataFrame aligned with model's training features
+    df_inf = pd.DataFrame([feat])
+    model_features = ml.get('features', {}).get(model_key, [])
+    for f in model_features:  # pylint: disable=invalid-name
+        if f not in df_inf.columns:
+            df_inf[f] = 0.0
+    df_inf = df_inf[model_features].fillna(0)
+
+    probs = model.predict_proba(df_inf)[0]
+    return float(probs[1])
+
+
+def _worker_ml_predict_stop_loss(components, overview, sentiment):
+    """Predict stop loss ATR multiplier using pre-loaded ML models. No DB access."""
+    sl = _worker_state.get('ml_stop_loss', {})
+    model = sl.get('model')
+    if model is None:
+        return 2.0  # Default fallback
+
+    # Build features from pre-loaded data (no DB queries)
+    feat = build_ml_features(components, overview, sentiment)
+
+    # Encode categorical features
+    encoders = sl.get('encoders', {})
+    for col in ['Sector', 'Industry']:
+        le = encoders.get(col)
+        val = str(feat.get(col, 'Unknown'))
+        if le:
+            try:
+                feat[col] = le.transform([val])[0]
+            except ValueError:
+                feat[col] = 0
+        else:
+            feat[col] = 0
+
+    # Prepare inference DataFrame
+    df_inf = pd.DataFrame([feat])
+    model_features = sl.get('features', [])
+    for f in model_features:  # pylint: disable=invalid-name
+        if f not in df_inf.columns:
+            df_inf[f] = 0.0
+    df_inf = df_inf[model_features].fillna(0)
+
+    predicted_mae = float(model.predict(df_inf)[0])
+    return max(1.5, predicted_mae + 0.5)
+
+
+def _worker_process_baseline(trader, df, yesterday, benchmark_df, market_health,
+                              enabled_indicators, aggregation, overview, sentiment):
+    """
+    Replicate SwingTrader._process_baseline() without DB access.
+    Uses pre-loaded ML models for win probability prediction.
+    """
+    # Weekly uptrend check
+    should_enforce_weekly = REQUIRE_WEEKLY_UPTREND
+    if market_health and market_health.get('status') == 'Bullish':
+        should_enforce_weekly = False
+
+    is_uptrend = trader.is_weekly_uptrend(df)
+    if should_enforce_weekly and not is_uptrend:
+        return None
+
+    # Step 1: Calculate technical score
+    score_components = trader.technical_analyzer.calculate_baseline_score(
+        df, enabled_indicators=enabled_indicators, aggregation=aggregation
+    )
+    technical_score = score_components.get("total", 0.0)
+
+    # Step 2: Dynamic entry parameters
+    last_row = df.iloc[-1]
+    ema9 = df['close'].ewm(span=9).mean().iloc[-1]
+    atr = trader._calculate_atr(df)
+    entry_price, atr_discount_used, signal_strength = trader._determine_baseline_entry(
+        last_row, ema9, atr, technical_score
+    )
+
+    # Step 3: Baseline setup with fixed stop multiplier
+    ml_stop_multiplier = 2.0
+    baseline_setup = trader.calculate_baseline_setup(df, ml_stop_multiplier=ml_stop_multiplier)
+
+    # Step 4: Override entry price with dynamic calculation
+    baseline_setup['entry_price'] = entry_price
+
+    # Step 5: Recalculate risk/reward with new entry
+    stop_loss = baseline_setup['stop_loss']
+    take_profit = baseline_setup['take_profit']
+    risk = entry_price - stop_loss
+    reward = take_profit - entry_price
+    baseline_setup['rr_ratio'] = reward / risk if risk > 0 else 0
+
+    last_close = last_row['close']
+    risk_pct = (entry_price - stop_loss) / entry_price if entry_price > 0 else 0
+    baseline_setup['is_realistic'] = (
+        (abs((last_close / entry_price) - 1) <= 0.15) and
+        (risk_pct <= MAX_RISK_PERCENT)
+    )
+
+    # Step 6: Metadata
+    baseline_setup['atr_discount_used'] = atr_discount_used
+    baseline_setup['signal_strength'] = signal_strength
+
+    # Validation
+    if not baseline_setup['is_realistic'] or baseline_setup['rr_ratio'] < MIN_RR_RATIO_BASELINE:
+        return None
+
+    entry_price = baseline_setup['entry_price']
+    if not MIN_STOCK_PRICE < entry_price < MAX_STOCK_PRICE:
+        return None
+
+    # Relative Strength bonus
+    rs_multiplier = weights_config.get_weights('momentum').get('RS_MULTIPLIER', 1.0)
+    if benchmark_df is not None and rs_multiplier != 0.0:
+        rs_ratio = trader.calculate_relative_strength(df, benchmark_df)
+        if rs_ratio > 1.10:
+            rs_bonus = 5.0
+        elif rs_ratio > 1.0:
+            rs_bonus = 2.0
+        else:
+            rs_bonus = -2.0
+        rs_bonus *= rs_multiplier
+        score_components["rs_index"] = rs_bonus
+        score_components["total"] += rs_bonus
+
+    # ML Win Probability (using worker's pre-loaded models, no DB)
+    ml_prob = _worker_ml_predict_probability(
+        score_components, overview, sentiment, strategy="baseline"
+    )
+
+    return {
+        "score": score_components.pop("total", 0.0),
+        "components": score_components,
+        "setup": baseline_setup,
+        "ml_prob": ml_prob,
+        "stop_multiplier": ml_stop_multiplier
+    }
+
+
+def _worker_process_mr(trader, df, yesterday, enabled_indicators, aggregation,
+                        overview, sentiment):
+    """
+    Replicate SwingTrader._process_mr() without DB access.
+    Uses pre-loaded ML models for stop loss and win probability prediction.
+    """
+    score_components_mr = trader.technical_analyzer.calculate_technical_score(
+        df, strategy="mean_reversion",
+        enabled_indicators=enabled_indicators, aggregation=aggregation
+    )
+
+    # ML stop loss multiplier (using worker's pre-loaded models, no DB)
+    ml_stop_multiplier_mr = _worker_ml_predict_stop_loss(
+        score_components_mr, overview, sentiment
+    )
+
+    mr_setup = trader.calculate_mean_reversion_setup(df, ml_stop_multiplier=ml_stop_multiplier_mr)
+    if not mr_setup['is_realistic'] or mr_setup['rr_ratio'] < MIN_RR_RATIO_MEAN_REVERSION:
+        return None
+
+    entry_price = mr_setup['entry_price']
+    if not MIN_STOCK_PRICE < entry_price < MAX_STOCK_PRICE:
+        return None
+
+    # ML Win Probability (using worker's pre-loaded models, no DB)
+    ml_prob_mr = _worker_ml_predict_probability(
+        score_components_mr, overview, sentiment, strategy="mean_reversion"
+    )
+
+    return {
+        "score": score_components_mr.pop("total", 0.0),
+        "components": score_components_mr,
+        "setup": mr_setup,
+        "ml_prob": ml_prob_mr,
+        "stop_multiplier": ml_stop_multiplier_mr
+    }
+
+
+def _score_symbol_worker(work_item):
+    """
+    CPU worker for ProcessPoolExecutor.
+    Replicates SwingTrader.process_symbol() without database access.
+    Uses pre-loaded data (from Phase 1) and ML models (from _init_worker).
+    """
+    try:
+        trader = _worker_state['trader']
+        benchmark_df = _worker_state['benchmark_df']
+        market_health = _worker_state['market_health']
+        enabled_indicators = _worker_state['enabled_indicators']
+        aggregation = _worker_state['aggregation']
+
+        symbol = work_item['symbol']
+        full_name = work_item['full_name']
+        exchange = work_item['exchange']
+        overview = work_item['overview']
+        sentiment = work_item['sentiment']
+
+        # Reconstruct DataFrame from dict-of-lists
+        df = pd.DataFrame(work_item['df_data'])
+        yesterday = dict(df.iloc[-1])
+
+        # --- Process Baseline Strategy ---
+        baseline_data = _worker_process_baseline(
+            trader, df, yesterday, benchmark_df, market_health,
+            enabled_indicators, aggregation, overview, sentiment
+        )
+
+        # --- Process Mean Reversion Strategy ---
+        mr_data = _worker_process_mr(
+            trader, df, yesterday, enabled_indicators, aggregation,
+            overview, sentiment
+        )
+
+        if not baseline_data and not mr_data:
+            return None
+
+        # --- Assemble result (same structure as process_symbol) ---
+        rs_ratio = 1.0
+        if benchmark_df is not None:
+            rs_ratio = trader.calculate_relative_strength(df, benchmark_df)
+
+        result = {
+            'symbol': symbol,
+            'name': full_name,
+            'exchange': exchange,
+            'date': str(yesterday['date']),
+            'rs_ratio': rs_ratio,
+            'baseline_score': baseline_data['score'] if baseline_data else 0.0,
+            'baseline_components': baseline_data['components'] if baseline_data else {},
+            'baseline_setup': baseline_data['setup'] if baseline_data else {},
+            'baseline_ml_prob': baseline_data['ml_prob'] if baseline_data else 0.0,
+            'mr_score': mr_data['score'] if mr_data else 0.0,
+            'mr_components': mr_data['components'] if mr_data else {},
+            'mr_setup': mr_data['setup'] if mr_data else {},
+            'mr_ml_prob': mr_data['ml_prob'] if mr_data else 0.0,
+        }
+        logging.info("Scored %s: Baseline=%.2f, MR=%.2f",
+                     symbol, result['baseline_score'], result['mr_score'])
+        return result
+
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        logging.error("Worker error for %s: %s", work_item.get('symbol', '?'), e)
+        return None
