@@ -29,9 +29,6 @@ Methods:
 from typing import Optional
 import numpy as np
 import pandas as pd
-from ta.momentum import WilliamsRIndicator # pylint: disable=import-error
-from ta.trend import CCIIndicator # pylint: disable=import-error
-
 from bluehorseshoe.analysis.indicators.indicator import Indicator, IndicatorScore
 from bluehorseshoe.core.config import weights_config
 
@@ -207,21 +204,16 @@ class MomentumIndicator(Indicator):
         if len(self.days) < 14:
             return 0.0
 
-        wr = WilliamsRIndicator(
-            high=self.days['high'],
-            low=self.days['low'],
-            close=self.days['close'],
-            lbp=14
-        )
-        wr_values = wr.williams_r()
-        
-        if wr_values.empty:
+        high = self.days['high'].values[-14:]
+        low = self.days['low'].values[-14:]
+        close_val = self.days['close'].values[-1]
+        highest_high = high.max()
+        lowest_low = low.min()
+
+        if highest_high == lowest_low:
             return 0.0
-            
-        wr_val = wr_values.iloc[-1]
-        
-        if pd.isna(wr_val):
-             return 0.0
+
+        wr_val = -100.0 * (highest_high - close_val) / (highest_high - lowest_low)
 
         return np.select(
             [wr_val < -80, wr_val < -50, wr_val > -20],
@@ -245,24 +237,20 @@ class MomentumIndicator(Indicator):
             • 0 otherwise
         """
         if len(self.days) < window:
-             return 0.0
+            return 0.0
 
-        cci = CCIIndicator(
-            high=self.days['high'],
-            low=self.days['low'],
-            close=self.days['close'],
-            window=window
-        )
-        cci_values = cci.cci()
-        
-        if cci_values.empty:
+        high = self.days['high'].values[-window:]
+        low = self.days['low'].values[-window:]
+        close = self.days['close'].values[-window:]
+        tp = (high + low + close) / 3.0
+        tp_mean = tp.mean()
+        mean_dev = np.abs(tp - tp_mean).mean()
+
+        if mean_dev == 0:
             return 0.0
-            
-        cci_val = cci_values.iloc[-1]
-        
-        if pd.isna(cci_val):
-            return 0.0
-            
+
+        cci_val = (tp[-1] - tp_mean) / (0.015 * mean_dev)
+
         return np.select(
             [cci_val < -200, cci_val < -100, cci_val > 200, cci_val > 100],
             [3, 2, -2, -1],
