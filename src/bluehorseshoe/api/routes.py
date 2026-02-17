@@ -123,6 +123,17 @@ async def get_report(date: str, config: Settings = Depends(get_config)):
     return FileResponse(file_path, media_type="text/html")
 
 
+@router.get("/arcade/{date}")
+async def get_arcade_report(date: str, config: Settings = Depends(get_config)):
+    """
+    Retrieve the arcade-themed HTML report by date (YYYY-MM-DD).
+    """
+    file_path = os.path.join(config.graphs_path, f"report_{date}.html")
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail=f"Arcade report for {date} not found")
+    return FileResponse(file_path, media_type="text/html")
+
+
 @router.get("/health")
 async def health_check():
     """

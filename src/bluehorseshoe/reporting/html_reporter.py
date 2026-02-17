@@ -4,6 +4,7 @@ Generates a styled HTML report from trading signals and market data.
 """
 import os
 import io
+import json
 import base64
 import pandas as pd
 import mplfinance as mpf
@@ -20,15 +21,17 @@ class HTMLReporter:
     # Number of candidates to show in main "Top Candidates" table
     TOP_CANDIDATES_TABLE_LIMIT = 10
 
-    def __init__(self, output_dir: str = "src/logs", database=None):
+    def __init__(self, output_dir: str = "src/logs", graphs_dir: str = "src/graphs", database=None):
         """
         Initialize HTMLReporter with optional dependency injection.
 
         Args:
             output_dir: Directory to save generated reports
+            graphs_dir: Directory to save arcade-style reports
             database: MongoDB database instance. If None, uses global singleton.
         """
         self.output_dir = output_dir
+        self.graphs_dir = graphs_dir
         self.database = database
         self.css = """
         <style>
@@ -309,12 +312,17 @@ class HTMLReporter:
         symbol = c['symbol']
         url = f"https://finance.yahoo.com/quote/{symbol}"
         
-        # Format prices
+        # Format prices with percentage from entry
         entry = c.get('close', 0)
         stop = c.get('stop_loss', 0)
         target = c.get('target', 0)
-        
-        price_info = f"E:<b>${entry:.2f}</b> S:<b style='color:var(--badge-bear)'>${stop:.2f}</b> T:<b style='color:var(--badge-bull)'>${target:.2f}</b>"
+
+        stop_pct = ((stop - entry) / entry * 100) if entry else 0
+        target_pct = ((target - entry) / entry * 100) if entry else 0
+
+        price_info = (f"E:<b>${entry:.2f}</b> "
+                      f"S:<b style='color:var(--badge-bear)'>${stop:.2f}</b><small style='color:var(--badge-bear)'> ({stop_pct:.1f}%)</small> "
+                      f"T:<b style='color:var(--badge-bull)'>${target:.2f}</b><small style='color:var(--badge-bull)'> (+{target_pct:.1f}%)</small>")
         
         summary_html = f"""
             <div class='top-list-row'>
@@ -624,14 +632,16 @@ class HTMLReporter:
                 entry = c.get('close', 0)
                 stop = c.get('stop_loss', 0)
                 target = c.get('target', 0)
+                stop_pct = ((stop - entry) / entry * 100) if entry else 0
+                target_pct = ((target - entry) / entry * 100) if entry else 0
 
                 html.append("<tr>")
                 html.append(f"<td><a href='{url}' target='_blank'><strong>{symbol}</strong></a></td>")
                 html.append(f"<td class='{score_cls}'>{score:.1f}</td>")
                 html.append(f"<td>{ml_prob*100:.0f}%</td>")
                 html.append(f"<td>${entry:.2f}</td>")
-                html.append(f"<td style='color:#c0392b;font-weight:bold'>${stop:.2f}</td>")
-                html.append(f"<td style='color:#27ae60;font-weight:bold'>${target:.2f}</td>")
+                html.append(f"<td style='color:#c0392b;font-weight:bold'>${stop:.2f} <span style='font-size:0.85em'>({stop_pct:.1f}%)</span></td>")
+                html.append(f"<td style='color:#27ae60;font-weight:bold'>${target:.2f} <span style='font-size:0.85em'>(+{target_pct:.1f}%)</span></td>")
                 html.append("</tr>")
             html.append("</table>")
         else:
@@ -663,14 +673,16 @@ class HTMLReporter:
                 entry = c.get('close', 0)
                 stop = c.get('stop_loss', 0)
                 target = c.get('target', 0)
+                stop_pct = ((stop - entry) / entry * 100) if entry else 0
+                target_pct = ((target - entry) / entry * 100) if entry else 0
 
                 html.append("<tr>")
                 html.append(f"<td><a href='{url}' target='_blank'><strong>{symbol}</strong></a></td>")
                 html.append(f"<td class='{score_cls}'>{score:.1f}</td>")
                 html.append(f"<td>{ml_prob*100:.0f}%</td>")
                 html.append(f"<td>${entry:.2f}</td>")
-                html.append(f"<td style='color:#c0392b;font-weight:bold'>${stop:.2f}</td>")
-                html.append(f"<td style='color:#27ae60;font-weight:bold'>${target:.2f}</td>")
+                html.append(f"<td style='color:#c0392b;font-weight:bold'>${stop:.2f} <span style='font-size:0.85em'>({stop_pct:.1f}%)</span></td>")
+                html.append(f"<td style='color:#27ae60;font-weight:bold'>${target:.2f} <span style='font-size:0.85em'>(+{target_pct:.1f}%)</span></td>")
                 html.append("</tr>")
             html.append("</table>")
         else:
@@ -801,3 +813,792 @@ class HTMLReporter:
         email_path = self.save(email_html, f"{base_filename}_email.html")
 
         return full_path, email_path
+
+    def save_arcade(self, html_content: str, filename: str) -> str:
+        """Saves arcade HTML report to the graphs directory."""
+        os.makedirs(self.graphs_dir, exist_ok=True)
+        path = os.path.join(self.graphs_dir, filename)
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(html_content)
+        return path
+
+    def _build_arcade_prev_perf(self, previous_performance: Dict[str, Any] = None) -> str:
+        """Build the previous performance HTML section for the arcade report."""
+        if not previous_performance or not previous_performance.get('results'):
+            return ''
+
+        prev_date = previous_performance.get('date', 'Unknown')
+        results = previous_performance['results'][:10]
+
+        rows = []
+        for r in results:
+            symbol = r['symbol']
+            strategy = r.get('strategy', '')
+            outcome = r['outcome']
+            pnl = r['pnl']
+
+            if outcome == "Target Hit":
+                badge_cls = "win"
+                badge_text = "TARGET HIT"
+            elif outcome == "Stopped Out":
+                badge_cls = "loss"
+                badge_text = "STOPPED"
+            elif outcome == "Active":
+                badge_cls = "active"
+                badge_text = "ACTIVE"
+            else:
+                badge_cls = "noentry"
+                badge_text = "NO ENTRY"
+
+            if outcome != "No Entry":
+                pnl_pct = f"{pnl*100:+.2f}%"
+                pnl_color = "var(--neon-green)" if pnl > 0 else ("var(--neon-red)" if pnl < 0 else "var(--pixel-gray)")
+            else:
+                pnl_pct = "---"
+                pnl_color = "var(--pixel-gray)"
+
+            setup = f"E:${r['entry']:.2f} S:${r['stop']:.2f} T:${r['target']:.2f}"
+
+            rows.append(
+                f'<div class="prev-perf-row">'
+                f'<span><a href="https://finance.yahoo.com/quote/{symbol}" target="_blank" '
+                f'style="color:var(--neon-blue);text-decoration:none;text-shadow:0 0 4px var(--neon-blue)">{symbol}</a></span>'
+                f'<span style="color:var(--pixel-gray)">{strategy}</span>'
+                f'<span style="color:var(--pixel-white);font-size:0.7rem">{setup}</span>'
+                f'<span><span class="outcome-badge {badge_cls}">{badge_text}</span></span>'
+                f'<span style="color:{pnl_color}">{pnl_pct}</span>'
+                f'</div>'
+            )
+
+        return (
+            f'<div class="prev-perf-section">'
+            f'<div class="prev-perf-title">YESTERDAY\'S RESULTS &mdash; {prev_date}</div>'
+            f'<div class="prev-perf-header">'
+            f'<span>SYMBOL</span><span>STRAT</span><span>SETUP</span><span>OUTCOME</span><span>PnL</span>'
+            f'</div>'
+            + '\n'.join(rows) +
+            f'</div>'
+        )
+
+    def generate_arcade_report(self, date: str, regime: Dict[str, Any],
+                               candidates: List[Dict[str, Any]],
+                               previous_performance: Dict[str, Any] = None) -> str:
+        """
+        Generates a standalone arcade-themed HTML report with all data embedded.
+
+        Args:
+            date: Report date string
+            regime: Market regime data dict
+            candidates: List of trading candidate dicts
+            previous_performance: Optional previous day performance data
+
+        Returns:
+            Complete HTML string for the arcade report
+        """
+        # Prepare candidates for JSON serialization
+        report_candidates = []
+        for c in candidates:
+            report_candidates.append({
+                'symbol': c.get('symbol', '???'),
+                'exchange': c.get('exchange', ''),
+                'strategy': c.get('strategy', 'Baseline'),
+                'score': float(c.get('score', 0)),
+                'close': float(c.get('close', 0)),
+                'stop_loss': float(c.get('stop_loss', 0)),
+                'target': float(c.get('target', 0)),
+                'ml_prob': float(c.get('ml_prob', 0)),
+                'reasons': c.get('reasons', []),
+                'components': {},
+            })
+        report_candidates.sort(key=lambda x: x['score'], reverse=True)
+
+        # Prepare regime data
+        report_regime = {
+            'status': str(regime.get('status', 'NEUTRAL')),
+            'details': {}
+        }
+        if 'details' in regime:
+            for key in ['SPY', 'QQQ']:
+                if key in regime['details']:
+                    d = regime['details'][key]
+                    report_regime['details'][key] = {
+                        'close': float(d['close']) if d.get('close') else None,
+                        'ema50': float(d['ema50']) if d.get('ema50') else None,
+                        'ema200': float(d['ema200']) if d.get('ema200') else None,
+                    }
+
+        report_data = {
+            'date': date,
+            'regime': report_regime,
+            'candidates': report_candidates,
+        }
+
+        data_json = json.dumps(report_data,
+                               default=lambda o: float(o) if hasattr(o, '__float__') else str(o))
+        # Escape </script> in JSON to prevent premature tag closing
+        data_json = data_json.replace('</script>', '<\\/script>')
+
+        prev_perf_html = self._build_arcade_prev_perf(previous_performance)
+        gen_timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+        # Embed banner image as base64 if available
+        banner_b64 = ''
+        base_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', '..')
+        banner_path = os.path.join(base_dir, 'BlueHorseshoeBanner.png')
+        try:
+            with open(banner_path, 'rb') as bf:
+                banner_b64 = base64.b64encode(bf.read()).decode('utf-8')
+        except (FileNotFoundError, OSError):
+            pass
+
+        # Embed favicon SVG as base64 if available
+        favicon_b64 = ''
+        favicon_path = os.path.join(base_dir, 'BlueHorseshoe.svg')
+        try:
+            with open(favicon_path, 'rb') as ff:
+                favicon_b64 = base64.b64encode(ff.read()).decode('utf-8')
+        except (FileNotFoundError, OSError):
+            pass
+
+        # ── CSS ──────────────────────────────────────────────────
+        arcade_css = """<style>
+:root {
+  --crt-bg: #0a0a12;
+  --crt-border: #1a1a2e;
+  --neon-green: #39ff14;
+  --neon-green-dim: #1a7a0a;
+  --neon-pink: #ff2d7b;
+  --neon-pink-dim: #7a1540;
+  --neon-blue: #00d4ff;
+  --neon-blue-dim: #006680;
+  --neon-amber: #ffaa00;
+  --neon-amber-dim: #7a5200;
+  --neon-purple: #bf40ff;
+  --neon-red: #ff3333;
+  --neon-red-dim: #7a1a1a;
+  --pixel-white: #e0e0e0;
+  --pixel-gray: #555570;
+  --pixel-dark: #16162a;
+  --scanline-opacity: 0.06;
+  --font-pixel: 'Press Start 2P', monospace;
+  --glow-green: 0 0 10px #39ff14, 0 0 20px #39ff1466, 0 0 40px #39ff1433;
+  --glow-pink: 0 0 10px #ff2d7b, 0 0 20px #ff2d7b66, 0 0 40px #ff2d7b33;
+  --glow-blue: 0 0 10px #00d4ff, 0 0 20px #00d4ff66, 0 0 40px #00d4ff33;
+  --glow-amber: 0 0 10px #ffaa00, 0 0 20px #ffaa0066, 0 0 40px #ffaa0033;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 14px; background: #050508; overflow-x: hidden; }
+body {
+  font-family: var(--font-pixel);
+  background: var(--crt-bg);
+  color: var(--pixel-white);
+  min-height: 100vh;
+  position: relative;
+  image-rendering: pixelated;
+}
+body::before {
+  content: '';
+  position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+  background: repeating-linear-gradient(0deg, transparent, transparent 2px,
+    rgba(0,0,0,var(--scanline-opacity)) 2px, rgba(0,0,0,var(--scanline-opacity)) 4px);
+  pointer-events: none; z-index: 9999;
+}
+body::after {
+  content: '';
+  position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+  background: radial-gradient(ellipse at center, transparent 60%, rgba(0,0,0,0.4) 100%);
+  pointer-events: none; z-index: 9998;
+}
+@keyframes flicker {
+  0%, 100% { opacity: 1; } 92% { opacity: 1; } 93% { opacity: 0.8; }
+  94% { opacity: 1; } 96% { opacity: 0.9; } 97% { opacity: 1; }
+}
+.crt-screen { animation: flicker 8s infinite; }
+.arcade-cabinet { max-width: 1280px; margin: 0 auto; padding: 12px; position: relative; }
+.marquee-sign {
+  text-align: center; padding: 24px 16px; margin-bottom: 8px; position: relative;
+  border: 3px solid var(--neon-amber);
+  background: linear-gradient(180deg, #1a1020 0%, #0d0815 100%);
+  box-shadow: var(--glow-amber), inset 0 0 30px rgba(255,170,0,0.05);
+}
+.marquee-sign::before {
+  content: ''; position: absolute; top: -1px; left: -1px; right: -1px; bottom: -1px;
+  border: 1px dashed var(--neon-amber); opacity: 0.4;
+}
+.marquee-title {
+  font-size: 1.6rem; color: var(--neon-amber); text-shadow: var(--glow-amber);
+  letter-spacing: 4px; line-height: 1.8;
+}
+.marquee-banner {
+  max-width: 100%; height: auto; max-height: 120px;
+  image-rendering: auto; display: block; margin: 0 auto;
+}
+.marquee-subtitle {
+  font-size: 0.55rem; color: var(--neon-blue); text-shadow: var(--glow-blue);
+  margin-top: 8px; letter-spacing: 2px;
+}
+.marquee-date {
+  font-size: 0.45rem; color: var(--neon-green); text-shadow: var(--glow-green);
+  margin-top: 6px; letter-spacing: 1px;
+}
+.pixel-corner {
+  position: absolute; width: 8px; height: 8px;
+  background: var(--neon-amber); box-shadow: var(--glow-amber);
+}
+.pixel-corner.tl { top: 6px; left: 6px; }
+.pixel-corner.tr { top: 6px; right: 6px; }
+.pixel-corner.bl { bottom: 6px; left: 6px; }
+.pixel-corner.br { bottom: 6px; right: 6px; }
+.ticker-bar {
+  background: var(--pixel-dark); border: 2px solid var(--neon-green-dim);
+  padding: 8px 0; overflow: hidden; margin-bottom: 12px; position: relative;
+}
+.ticker-bar::before, .ticker-bar::after {
+  content: ''; position: absolute; top: 0; bottom: 0; width: 40px; z-index: 2;
+}
+.ticker-bar::before { left: 0; background: linear-gradient(90deg, var(--pixel-dark), transparent); }
+.ticker-bar::after { right: 0; background: linear-gradient(-90deg, var(--pixel-dark), transparent); }
+@keyframes ticker-scroll { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
+.ticker-content {
+  display: flex; gap: 40px; white-space: nowrap;
+  animation: ticker-scroll 30s linear infinite;
+  font-size: 0.55rem; color: var(--neon-green); text-shadow: 0 0 6px var(--neon-green);
+}
+.ticker-item { display: flex; align-items: center; gap: 8px; }
+.ticker-sep { color: var(--pixel-gray); }
+.arcade-btn {
+  font-family: var(--font-pixel); font-size: 0.5rem; padding: 8px 16px;
+  border: 2px solid; cursor: pointer; position: relative;
+  text-transform: uppercase; letter-spacing: 1px; transition: all 0.1s; background: transparent;
+}
+.arcade-btn:active { transform: scale(0.96); }
+.arcade-btn.btn-green { border-color: var(--neon-green); color: var(--neon-green); text-shadow: 0 0 6px var(--neon-green); box-shadow: 0 0 6px var(--neon-green-dim); }
+.arcade-btn.btn-green:hover { background: rgba(57,255,20,0.1); box-shadow: var(--glow-green); }
+.arcade-btn.btn-pink { border-color: var(--neon-pink); color: var(--neon-pink); text-shadow: 0 0 6px var(--neon-pink); box-shadow: 0 0 6px var(--neon-pink-dim); }
+.arcade-btn.btn-pink:hover { background: rgba(255,45,123,0.1); box-shadow: var(--glow-pink); }
+.arcade-btn.btn-blue { border-color: var(--neon-blue); color: var(--neon-blue); text-shadow: 0 0 6px var(--neon-blue); box-shadow: 0 0 6px var(--neon-blue-dim); }
+.arcade-btn.btn-blue:hover { background: rgba(0,212,255,0.1); box-shadow: var(--glow-blue); }
+.arcade-btn.btn-amber { border-color: var(--neon-amber); color: var(--neon-amber); text-shadow: 0 0 6px var(--neon-amber); box-shadow: 0 0 6px var(--neon-amber-dim); }
+.arcade-btn.btn-amber:hover { background: rgba(255,170,0,0.1); box-shadow: var(--glow-amber); }
+.status-bar { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-bottom: 12px; }
+.status-panel {
+  background: var(--pixel-dark); border: 2px solid var(--pixel-gray);
+  padding: 12px; text-align: center;
+}
+.status-panel .label { font-size: 0.4rem; color: var(--pixel-gray); margin-bottom: 6px; letter-spacing: 1px; }
+.status-panel .value { font-size: 0.65rem; letter-spacing: 1px; }
+.status-panel .value.bullish { color: var(--neon-green); text-shadow: var(--glow-green); }
+.status-panel .value.bearish { color: var(--neon-red); text-shadow: 0 0 10px var(--neon-red); }
+.status-panel .value.neutral { color: var(--neon-amber); text-shadow: var(--glow-amber); }
+.strategy-tabs { display: flex; gap: 4px; margin-bottom: 0; }
+.strategy-tab {
+  font-family: var(--font-pixel); font-size: 0.5rem; padding: 10px 20px;
+  border: 2px solid var(--pixel-gray); border-bottom: none;
+  background: var(--pixel-dark); color: var(--pixel-gray);
+  cursor: pointer; transition: all 0.15s; letter-spacing: 1px;
+}
+.strategy-tab:hover { color: var(--pixel-white); border-color: var(--pixel-white); }
+.strategy-tab.active {
+  color: var(--neon-amber); border-color: var(--neon-amber);
+  background: var(--crt-bg); text-shadow: 0 0 6px var(--neon-amber);
+}
+.leaderboard {
+  border: 2px solid var(--neon-amber); background: var(--crt-bg);
+  box-shadow: 0 0 15px rgba(255,170,0,0.1); margin-bottom: 16px;
+}
+.leaderboard-header {
+  display: grid; grid-template-columns: 40px 90px 1fr 100px 100px 100px 110px 80px;
+  padding: 10px 12px; border-bottom: 2px solid var(--neon-amber);
+  font-size: 0.8rem; color: var(--neon-amber); text-shadow: 0 0 4px var(--neon-amber);
+  letter-spacing: 1px; background: rgba(255,170,0,0.05);
+}
+.leaderboard-body {
+  max-height: 65vh; overflow-y: auto; scrollbar-width: thin;
+  scrollbar-color: var(--neon-amber-dim) var(--pixel-dark);
+}
+.leaderboard-body::-webkit-scrollbar { width: 6px; }
+.leaderboard-body::-webkit-scrollbar-track { background: var(--pixel-dark); }
+.leaderboard-body::-webkit-scrollbar-thumb { background: var(--neon-amber-dim); border: 1px solid var(--neon-amber); }
+@keyframes row-enter { from { opacity: 0; transform: translateX(-20px); } to { opacity: 1; transform: translateX(0); } }
+.leaderboard-row {
+  display: grid; grid-template-columns: 40px 90px 1fr 100px 100px 100px 110px 80px;
+  padding: 10px 12px; border-bottom: 1px solid rgba(85,85,112,0.3);
+  font-size: 0.9rem; cursor: pointer; transition: background 0.1s;
+  animation: row-enter 0.3s ease-out both;
+}
+.leaderboard-row:hover { background: rgba(255,170,0,0.06); }
+.leaderboard-row:nth-child(even) { background: rgba(22,22,42,0.4); }
+.leaderboard-row:nth-child(even):hover { background: rgba(255,170,0,0.08); }
+.col-rank { color: var(--pixel-gray); display: flex; align-items: center; }
+.rank-num { color: var(--neon-amber); }
+.rank-1 .rank-num { color: #ffd700; text-shadow: 0 0 8px #ffd700; font-size: 1.1rem; }
+.rank-2 .rank-num { color: #c0c0c0; text-shadow: 0 0 6px #c0c0c0; }
+.rank-3 .rank-num { color: #cd7f32; text-shadow: 0 0 6px #cd7f32; }
+.col-symbol { display: flex; align-items: center; gap: 6px; }
+.symbol-name { color: var(--neon-blue); text-shadow: 0 0 6px var(--neon-blue); letter-spacing: 1px; font-size: 1.1rem; }
+.strategy-badge { font-size: 0.6rem; padding: 2px 4px; border: 1px solid; letter-spacing: 0; }
+.strategy-badge.baseline { color: var(--neon-green); border-color: var(--neon-green-dim); background: rgba(57,255,20,0.08); }
+.strategy-badge.meanrev { color: var(--neon-purple); border-color: rgba(191,64,255,0.4); background: rgba(191,64,255,0.08); }
+.col-score { display: flex; align-items: center; gap: 6px; }
+.health-bar { width: 60px; height: 12px; background: var(--pixel-dark); border: 1px solid var(--pixel-gray); position: relative; overflow: hidden; }
+.health-bar-fill { height: 100%; transition: width 0.5s ease-out; image-rendering: pixelated; }
+.health-bar-fill.high { background: var(--neon-green); box-shadow: inset 0 0 4px rgba(57,255,20,0.5); }
+.health-bar-fill.mid { background: var(--neon-amber); box-shadow: inset 0 0 4px rgba(255,170,0,0.5); }
+.health-bar-fill.low { background: var(--neon-red); box-shadow: inset 0 0 4px rgba(255,51,51,0.5); }
+.score-value { min-width: 28px; text-align: right; }
+.score-high { color: var(--neon-green); text-shadow: 0 0 4px var(--neon-green); }
+.score-mid { color: var(--neon-amber); text-shadow: 0 0 4px var(--neon-amber); }
+.score-low { color: var(--neon-red); text-shadow: 0 0 4px var(--neon-red); }
+.col-price { display: flex; align-items: center; color: var(--pixel-white); }
+.col-stop { display: flex; align-items: center; color: var(--neon-red); text-shadow: 0 0 4px rgba(255,51,51,0.5); }
+.col-target { display: flex; align-items: center; color: var(--neon-green); text-shadow: 0 0 4px rgba(57,255,20,0.5); }
+.col-ml { display: flex; align-items: center; gap: 4px; }
+.ml-meter { display: flex; gap: 1px; }
+.ml-pip { width: 6px; height: 14px; background: var(--pixel-dark); border: 1px solid rgba(85,85,112,0.3); transition: all 0.3s; }
+.ml-pip.filled.green { background: var(--neon-green); box-shadow: 0 0 3px var(--neon-green); border-color: var(--neon-green); }
+.ml-pip.filled.amber { background: var(--neon-amber); box-shadow: 0 0 3px var(--neon-amber); border-color: var(--neon-amber); }
+.ml-pip.filled.red { background: var(--neon-red); box-shadow: 0 0 3px var(--neon-red); border-color: var(--neon-red); }
+.ml-pct { font-size: 0.8rem; min-width: 30px; text-align: right; }
+.col-rr { display: flex; align-items: center; font-size: 0.8rem; color: var(--neon-blue); text-shadow: 0 0 4px rgba(0,212,255,0.4); }
+.detail-panel { display: none; grid-column: 1 / -1; padding: 16px 12px; border-bottom: 2px solid var(--neon-amber-dim); background: rgba(26,26,46,0.6); }
+.detail-panel.open { display: block; animation: row-enter 0.2s ease-out; }
+.detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.detail-section { border: 1px solid var(--pixel-gray); padding: 12px; }
+.detail-section-title { font-size: 0.8rem; color: var(--neon-amber); margin-bottom: 10px; letter-spacing: 1px; text-shadow: 0 0 4px var(--neon-amber); }
+.rr-diagram { position: relative; height: 40px; margin: 8px 0; background: var(--pixel-dark); border: 1px solid var(--pixel-gray); overflow: hidden; }
+.rr-zone-risk { position: absolute; left: 0; top: 0; bottom: 0; background: repeating-linear-gradient(45deg, transparent, transparent 3px, rgba(255,51,51,0.15) 3px, rgba(255,51,51,0.15) 6px); border-right: 2px solid var(--neon-red); }
+.rr-zone-reward { position: absolute; right: 0; top: 0; bottom: 0; background: repeating-linear-gradient(45deg, transparent, transparent 3px, rgba(57,255,20,0.08) 3px, rgba(57,255,20,0.08) 6px); border-left: 2px solid var(--neon-green); }
+.rr-entry-marker { position: absolute; top: 0; bottom: 0; width: 3px; background: var(--neon-amber); box-shadow: var(--glow-amber); z-index: 1; }
+.rr-label { position: absolute; bottom: 2px; font-size: 0.6rem; letter-spacing: 0; }
+.rr-label.stop { left: 4px; color: var(--neon-red); }
+.rr-label.entry { color: var(--neon-amber); }
+.rr-label.target { right: 4px; color: var(--neon-green); }
+.indicator-bar-row { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; font-size: 0.7rem; }
+.indicator-name { width: 70px; color: var(--pixel-gray); text-align: right; text-transform: uppercase; }
+.indicator-bar { flex: 1; height: 6px; background: var(--pixel-dark); border: 1px solid rgba(85,85,112,0.3); position: relative; overflow: hidden; }
+.indicator-bar-fill { height: 100%; transition: width 0.4s ease-out; }
+.indicator-bar-fill.positive { background: var(--neon-green); }
+.indicator-bar-fill.negative { background: var(--neon-red); float: right; }
+.indicator-val { width: 36px; text-align: left; font-size: 0.6rem; }
+.indicator-val.pos { color: var(--neon-green); }
+.indicator-val.neg { color: var(--neon-red); }
+.empty-state { text-align: center; padding: 60px 20px; color: var(--pixel-gray); font-size: 0.5rem; line-height: 2.5; }
+.arcade-footer { text-align: center; padding: 20px; font-size: 0.35rem; color: var(--pixel-gray); letter-spacing: 1px; line-height: 2.2; }
+.footer-pixel-art { margin-bottom: 12px; font-size: 0.4rem; color: var(--neon-blue-dim); line-height: 1; letter-spacing: 0; white-space: pre; }
+.pixel-divider { height: 2px; background: repeating-linear-gradient(90deg, var(--neon-amber-dim), var(--neon-amber-dim) 4px, transparent 4px, transparent 8px); margin: 12px 0; }
+.stat-row { display: flex; justify-content: center; gap: 32px; margin-bottom: 12px; }
+.stat-item { text-align: center; }
+.stat-num { font-size: 0.7rem; color: var(--neon-green); text-shadow: var(--glow-green); }
+.stat-label { font-size: 0.35rem; color: var(--pixel-gray); margin-top: 4px; letter-spacing: 1px; }
+.modal-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(5,5,8,0.85); z-index: 5000; justify-content: center; align-items: center; }
+.modal-overlay.open { display: flex; }
+.modal-box { border: 3px solid var(--neon-pink); background: var(--crt-bg); padding: 32px; max-width: 700px; width: 90%; box-shadow: var(--glow-pink); position: relative; }
+.modal-close { position: absolute; top: 8px; right: 12px; font-family: var(--font-pixel); font-size: 1.5rem; background: none; border: none; color: var(--neon-pink); cursor: pointer; text-shadow: 0 0 4px var(--neon-pink); }
+.modal-title { font-size: 1.65rem; color: var(--neon-pink); text-shadow: var(--glow-pink); margin-bottom: 16px; letter-spacing: 1px; }
+.calc-row { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+.calc-label { font-size: 1.2rem; color: var(--pixel-gray); width: 180px; }
+.calc-value { font-size: 1.35rem; color: var(--neon-green); text-shadow: 0 0 4px var(--neon-green); min-width: 180px; }
+.calc-input { font-family: var(--font-pixel); font-size: 1.35rem; background: var(--pixel-dark); border: 2px solid var(--pixel-gray); color: var(--neon-pink); padding: 8px 12px; outline: none; width: 200px; text-shadow: 0 0 4px var(--neon-pink); }
+.calc-input:focus { border-color: var(--neon-pink); }
+.calc-divider { height: 1px; background: var(--pixel-gray); margin: 12px 0; opacity: 0.3; }
+.calc-col-header { font-size: 0.8rem; color: var(--neon-amber); text-shadow: 0 0 4px var(--neon-amber); min-width: 180px; letter-spacing: 1px; }
+/* Previous Performance */
+.prev-perf-section { border: 2px solid var(--neon-blue-dim); background: var(--pixel-dark); padding: 12px; margin-bottom: 12px; }
+.prev-perf-title { font-size: 1.0rem; color: var(--neon-blue); text-shadow: 0 0 4px var(--neon-blue); margin-bottom: 10px; letter-spacing: 1px; }
+.prev-perf-header, .prev-perf-row { display: grid; grid-template-columns: 90px 70px 1fr 100px 80px; padding: 8px 8px; font-size: 0.8rem; align-items: center; }
+.prev-perf-header { color: var(--neon-amber); text-shadow: 0 0 4px var(--neon-amber); border-bottom: 1px solid var(--neon-amber-dim); letter-spacing: 1px; }
+.prev-perf-row { border-bottom: 1px solid rgba(85,85,112,0.2); }
+.prev-perf-row:nth-child(even) { background: rgba(22,22,42,0.3); }
+.outcome-badge { font-size: 0.6rem; padding: 2px 6px; border: 1px solid; display: inline-block; }
+.outcome-badge.win { color: var(--neon-green); border-color: var(--neon-green-dim); background: rgba(57,255,20,0.1); }
+.outcome-badge.loss { color: var(--neon-red); border-color: var(--neon-red-dim); background: rgba(255,51,51,0.1); }
+.outcome-badge.active { color: var(--neon-blue); border-color: var(--neon-blue-dim); background: rgba(0,212,255,0.1); }
+.outcome-badge.noentry { color: var(--pixel-gray); border-color: rgba(85,85,112,0.3); background: rgba(85,85,112,0.1); }
+/* Calc button in toolbar */
+.toolbar { display: flex; gap: 8px; margin-bottom: 12px; justify-content: flex-end; }
+@media (max-width: 900px) {
+  .leaderboard-header, .leaderboard-row { grid-template-columns: 30px 70px 1fr 80px 80px 80px 90px 60px; font-size: 0.7rem; padding: 8px 6px; }
+  .marquee-title { font-size: 1rem; }
+  .detail-grid { grid-template-columns: 1fr; }
+  .status-bar { grid-template-columns: 1fr; }
+  .health-bar { width: 40px; }
+  .prev-perf-header, .prev-perf-row { grid-template-columns: 70px 50px 1fr 80px 60px; font-size: 0.7rem; }
+}
+@media (max-width: 600px) {
+  .leaderboard-header, .leaderboard-row { grid-template-columns: 30px 1fr 70px 70px; }
+  .col-stop, .col-target, .col-rr, .col-ml { display: none; }
+  .marquee-title { font-size: 0.7rem; letter-spacing: 2px; }
+  .prev-perf-header, .prev-perf-row { grid-template-columns: 60px 1fr 70px 60px; }
+  .prev-perf-header span:nth-child(2), .prev-perf-row span:nth-child(2) { display: none; }
+}
+</style>"""
+
+        # ── JS ──────────────────────────────────────────────────
+        arcade_js = r"""
+const state = {
+  candidates: [],
+  filtered: [],
+  regime: null,
+  currentDate: null,
+  currentFilter: 'all',
+  calcCandidate: null,
+};
+
+function normalizeStrategy(s) {
+  if (!s) return 'Baseline';
+  const lower = s.toLowerCase();
+  if (lower.includes('mean') || lower.includes('reversion') || lower === 'meanrev') return 'MeanRev';
+  return 'Baseline';
+}
+
+function renderAll() {
+  renderStatusBar();
+  renderLeaderboard();
+  renderStats();
+  renderTicker();
+  document.getElementById('stratTabs').style.display = 'flex';
+  document.querySelectorAll('.strategy-tab').forEach(t => {
+    t.classList.toggle('active', t.dataset.filter === state.currentFilter);
+  });
+}
+
+function renderStatusBar() {
+  const bar = document.getElementById('statusBar');
+  bar.style.display = 'grid';
+  const regime = state.regime;
+  const regimeEl = document.getElementById('regimeStatus');
+  if (regime) {
+    const status = regime.status || 'NEUTRAL';
+    regimeEl.textContent = status.toUpperCase();
+    regimeEl.className = 'value ' + status.toLowerCase();
+    if (regime.details && regime.details.SPY) {
+      const spy = regime.details.SPY;
+      document.getElementById('spyValue').textContent = spy.close ? '$' + spy.close.toFixed(2) : '---';
+    }
+    if (regime.details && regime.details.QQQ) {
+      const qqq = regime.details.QQQ;
+      document.getElementById('qqqValue').textContent = qqq.close ? '$' + qqq.close.toFixed(2) : '---';
+    }
+  } else {
+    regimeEl.textContent = 'N/A';
+    regimeEl.className = 'value neutral';
+    document.getElementById('spyValue').textContent = '---';
+    document.getElementById('qqqValue').textContent = '---';
+  }
+}
+
+function renderLeaderboard() {
+  const lb = document.getElementById('leaderboard');
+  const body = document.getElementById('leaderboardBody');
+  lb.style.display = 'block';
+  body.innerHTML = '';
+  if (state.filtered.length === 0) {
+    body.innerHTML = '<div class="empty-state">NO CANDIDATES FOUND</div>';
+    return;
+  }
+  state.filtered.forEach((c, i) => {
+    const rank = i + 1;
+    const score = c.score;
+    const mlPct = Math.round((c.ml_prob || 0) * 100);
+    const rr = c.stop_loss > 0 ? ((c.target - c.close) / (c.close - c.stop_loss)).toFixed(1) : '---';
+    const scoreClass = score >= 50 ? 'high' : score >= 30 ? 'mid' : 'low';
+    const scoreTextClass = score >= 50 ? 'score-high' : score >= 30 ? 'score-mid' : 'score-low';
+    const mlColor = mlPct >= 70 ? 'green' : mlPct >= 50 ? 'amber' : 'red';
+    const mlTextClass = mlPct >= 70 ? 'score-high' : mlPct >= 50 ? 'score-mid' : 'score-low';
+    const rankClass = rank <= 3 ? 'rank-' + rank : '';
+    const stratClass = c.strategy === 'MeanRev' ? 'meanrev' : 'baseline';
+    const stratLabel = c.strategy === 'MeanRev' ? 'MR' : 'BL';
+    const scoreWidth = Math.min(100, (score / 80) * 100);
+    const mlPips = Math.round(mlPct / 10);
+    const detailId = 'detail-' + i;
+    const row = document.createElement('div');
+    row.className = 'leaderboard-row ' + rankClass;
+    row.style.animationDelay = (i * 0.04) + 's';
+    row.onclick = function() { toggleDetail(i); };
+    let pipsHtml = '';
+    for (let j = 0; j < 10; j++) {
+      pipsHtml += '<div class="ml-pip ' + (j < mlPips ? 'filled ' + mlColor : '') + '"></div>';
+    }
+    row.innerHTML =
+      '<div class="col-rank"><span class="rank-num">' + String(rank).padStart(2, '0') + '</span></div>' +
+      '<div class="col-symbol"><span class="symbol-name">' + c.symbol + '</span><span class="strategy-badge ' + stratClass + '">' + stratLabel + '</span></div>' +
+      '<div class="col-score"><div class="health-bar"><div class="health-bar-fill ' + scoreClass + '" style="width:' + scoreWidth + '%"></div></div><span class="score-value ' + scoreTextClass + '">' + score.toFixed(1) + '</span></div>' +
+      '<div class="col-price">$' + c.close.toFixed(2) + '</div>' +
+      '<div class="col-stop">$' + c.stop_loss.toFixed(2) + '</div>' +
+      '<div class="col-target">$' + c.target.toFixed(2) + '</div>' +
+      '<div class="col-ml"><div class="ml-meter">' + pipsHtml + '</div><span class="ml-pct ' + mlTextClass + '">' + mlPct + '%</span></div>' +
+      '<div class="col-rr">' + rr + 'x</div>';
+    body.appendChild(row);
+    const detail = document.createElement('div');
+    detail.className = 'detail-panel';
+    detail.id = detailId;
+    detail.innerHTML = buildDetailHTML(c);
+    body.appendChild(detail);
+  });
+}
+
+function buildDetailHTML(c) {
+  const riskPct = c.close > 0 ? (((c.close - c.stop_loss) / c.close) * 100).toFixed(2) : 0;
+  const rewardPct = c.close > 0 ? (((c.target - c.close) / c.close) * 100).toFixed(2) : 0;
+  const totalRange = c.target - c.stop_loss;
+  const riskWidth = totalRange > 0 ? ((c.close - c.stop_loss) / totalRange * 100) : 30;
+  const rewardWidth = totalRange > 0 ? ((c.target - c.close) / totalRange * 100) : 70;
+  let components = c.components || {};
+  if (c.reasons && c.reasons.length && Object.keys(components).length === 0) {
+    c.reasons.forEach(function(r) {
+      const parts = r.split('=');
+      if (parts[0] && parts[1]) components[parts[0]] = parseFloat(parts[1]);
+    });
+  }
+  const maxAbsComponent = Math.max(1, ...Object.values(components).map(Math.abs));
+  const indicatorBars = Object.entries(components).map(function(entry) {
+    const name = entry[0], val = entry[1];
+    const pct = Math.abs(val) / maxAbsComponent * 100;
+    const cls = val >= 0 ? 'positive' : 'negative';
+    const valCls = val >= 0 ? 'pos' : 'neg';
+    const sign = val >= 0 ? '+' : '';
+    return '<div class="indicator-bar-row"><span class="indicator-name">' + name + '</span>' +
+      '<div class="indicator-bar"><div class="indicator-bar-fill ' + cls + '" style="width:' + pct + '%"></div></div>' +
+      '<span class="indicator-val ' + valCls + '">' + sign + val.toFixed(1) + '</span></div>';
+  }).join('');
+  return '<div class="detail-grid">' +
+    '<div class="detail-section"><div class="detail-section-title">RISK / REWARD MAP</div>' +
+    '<div class="rr-diagram"><div class="rr-zone-risk" style="width:' + riskWidth + '%"></div>' +
+    '<div class="rr-zone-reward" style="width:' + rewardWidth + '%;left:' + riskWidth + '%"></div>' +
+    '<div class="rr-entry-marker" style="left:' + riskWidth + '%"></div>' +
+    '<span class="rr-label stop">STOP $' + c.stop_loss.toFixed(2) + '</span>' +
+    '<span class="rr-label entry" style="left:' + riskWidth + '%">ENTRY $' + c.close.toFixed(2) + '</span>' +
+    '<span class="rr-label target">TARGET $' + c.target.toFixed(2) + '</span></div>' +
+    '<div style="display:flex;gap:20px;margin-top:10px;font-size:0.7rem;">' +
+    '<span style="color:var(--neon-red)">RISK: ' + riskPct + '%</span>' +
+    '<span style="color:var(--neon-green)">REWARD: ' + rewardPct + '%</span>' +
+    '<span style="color:var(--neon-blue)">R:R ' + (parseFloat(rewardPct) / Math.max(0.01, parseFloat(riskPct))).toFixed(2) + 'x</span></div>' +
+    '<div style="margin-top:14px">' +
+    '<button class="arcade-btn btn-pink" style="font-size:0.7rem;padding:5px 10px" onclick="event.stopPropagation();openCalcForSymbol(\'' + c.symbol + '\',' + c.close + ',' + c.stop_loss + ',' + c.target + ')">CALC SHARES</button>' +
+    '<a href="https://finance.yahoo.com/quote/' + c.symbol + '" target="_blank" rel="noopener" class="arcade-btn btn-blue" style="font-size:0.7rem;padding:5px 10px;text-decoration:none;display:inline-block;margin-left:4px">YAHOO</a></div></div>' +
+    '<div class="detail-section"><div class="detail-section-title">POWER LEVELS</div>' +
+    (indicatorBars || '<div style="font-size:0.7rem;color:var(--pixel-gray)">No component data available</div>') +
+    '</div></div>';
+}
+
+function toggleDetail(index) {
+  const detail = document.getElementById('detail-' + index);
+  if (!detail) return;
+  const isOpen = detail.classList.contains('open');
+  document.querySelectorAll('.detail-panel.open').forEach(function(d) { d.classList.remove('open'); });
+  if (!isOpen) detail.classList.add('open');
+}
+
+function renderStats() {
+  document.getElementById('statsRow').style.display = 'flex';
+  const total = state.filtered.length;
+  const avgScore = total > 0 ? (state.filtered.reduce(function(s, c) { return s + c.score; }, 0) / total).toFixed(1) : 0;
+  const avgML = total > 0 ? Math.round(state.filtered.reduce(function(s, c) { return s + (c.ml_prob || 0); }, 0) / total * 100) : 0;
+  const best = total > 0 ? state.filtered[0].symbol : '---';
+  document.getElementById('statTotal').textContent = total;
+  document.getElementById('statAvgScore').textContent = avgScore;
+  document.getElementById('statAvgML').textContent = avgML + '%';
+  document.getElementById('statBest').textContent = best;
+}
+
+function renderTicker() {
+  const tc = document.getElementById('tickerContent');
+  if (state.filtered.length === 0) {
+    tc.innerHTML = '<span class="ticker-item">NO DATA LOADED</span>';
+    return;
+  }
+  const items = state.filtered.slice(0, 20).map(function(c) {
+    const mlPct = Math.round((c.ml_prob || 0) * 100);
+    const color = mlPct >= 70 ? 'var(--neon-green)' : mlPct >= 50 ? 'var(--neon-amber)' : 'var(--neon-red)';
+    return '<span class="ticker-item" style="color:' + color + '">' + c.symbol + ' $' + c.close.toFixed(2) + ' [' + c.score.toFixed(1) + ']</span>';
+  }).join('<span class="ticker-sep">|</span>');
+  tc.innerHTML = items + '<span class="ticker-sep">&bull;</span>' + items;
+}
+
+function filterStrategy(filter, btn) {
+  state.currentFilter = filter;
+  document.querySelectorAll('.strategy-tab').forEach(function(t) {
+    t.classList.toggle('active', t.dataset.filter === filter);
+  });
+  if (filter === 'all') {
+    state.filtered = state.candidates.slice();
+  } else {
+    state.filtered = state.candidates.filter(function(c) { return c.strategy === filter; });
+  }
+  renderLeaderboard();
+  renderStats();
+  renderTicker();
+}
+
+function openCalcModal() { document.getElementById('calcModal').classList.add('open'); }
+function closeCalcModal() { document.getElementById('calcModal').classList.remove('open'); }
+function openCalcForSymbol(symbol, entry, stop, target) {
+  state.calcCandidate = { symbol: symbol, entry: entry, stop: stop, target: target };
+  document.getElementById('calcSymbol').textContent = symbol;
+  document.getElementById('calcEntry').textContent = '$' + entry.toFixed(2);
+  document.getElementById('calcStop').textContent = '$' + stop.toFixed(2);
+  document.getElementById('calcTarget').textContent = '$' + target.toFixed(2);
+  updateCalc();
+  openCalcModal();
+}
+function updateCalc() {
+  const c = state.calcCandidate;
+  if (!c) return;
+  const invest = parseFloat(document.getElementById('calcInvest').value) || 0;
+  const fractional = invest / c.entry;
+  const whole = Math.floor(fractional);
+  const costFrac = (fractional * c.entry).toFixed(2);
+  const costWhole = (whole * c.entry).toFixed(2);
+  const riskFrac = (fractional * (c.entry - c.stop)).toFixed(2);
+  const rewardFrac = (fractional * (c.target - c.entry)).toFixed(2);
+  const riskWhole = (whole * (c.entry - c.stop)).toFixed(2);
+  const rewardWhole = (whole * (c.target - c.entry)).toFixed(2);
+  document.getElementById('calcSharesFrac').textContent = fractional.toFixed(3);
+  document.getElementById('calcSharesWhole').textContent = whole;
+  document.getElementById('calcCostFrac').textContent = '$' + costFrac;
+  document.getElementById('calcCostWhole').textContent = '$' + costWhole;
+  document.getElementById('calcRiskFrac').textContent = '-$' + riskFrac;
+  document.getElementById('calcRiskWhole').textContent = '-$' + riskWhole;
+  document.getElementById('calcRewardFrac').textContent = '+$' + rewardFrac;
+  document.getElementById('calcRewardWhole').textContent = '+$' + rewardWhole;
+}
+document.getElementById('calcModal').addEventListener('click', function(e) { if (e.target === this) closeCalcModal(); });
+document.addEventListener('keydown', function(e) { if (e.key === 'Escape') closeCalcModal(); });
+
+// Initialize from embedded data
+document.addEventListener('DOMContentLoaded', function() {
+  state.candidates = REPORT_DATA.candidates.map(function(c) {
+    return {
+      symbol: c.symbol || '???',
+      exchange: c.exchange || '',
+      strategy: normalizeStrategy(c.strategy),
+      score: c.score || 0,
+      close: c.close || 0,
+      stop_loss: c.stop_loss || 0,
+      target: c.target || 0,
+      ml_prob: c.ml_prob || 0,
+      reasons: c.reasons || [],
+      components: c.components || {}
+    };
+  });
+  state.candidates.sort(function(a, b) { return b.score - a.score; });
+  state.regime = REPORT_DATA.regime || null;
+  state.currentDate = REPORT_DATA.date;
+  state.currentFilter = 'all';
+  state.filtered = state.candidates.slice();
+  renderAll();
+});
+"""
+
+        # ── Build HTML ──────────────────────────────────────────
+        html = [
+            '<!DOCTYPE html>',
+            '<html lang="en">',
+            '<head>',
+            '<meta charset="UTF-8">',
+            '<meta name="viewport" content="width=device-width, initial-scale=1.0">',
+            f'<title>BLUE HORSESHOE &mdash; {date}</title>',
+            f'<link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,{favicon_b64}">' if favicon_b64 else '',
+            '<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">',
+            arcade_css,
+            '</head>',
+            '<body class="crt-screen">',
+            '<div class="arcade-cabinet">',
+
+            # Marquee header
+            '<div class="marquee-sign">',
+            '<div class="pixel-corner tl"></div><div class="pixel-corner tr"></div>',
+            '<div class="pixel-corner bl"></div><div class="pixel-corner br"></div>',
+            f'<img src="data:image/png;base64,{banner_b64}" alt="Blue Horseshoe" class="marquee-banner">' if banner_b64 else '<div class="marquee-title">BLUE HORSESHOE</div>',
+            '<div class="marquee-subtitle">SWING TRADING ARCADE &bull; EST. 2026</div>',
+            f'<div class="marquee-date">REPORT: {date}</div>',
+            '</div>',
+
+            # Ticker
+            '<div class="ticker-bar">',
+            '<div class="ticker-content" id="tickerContent">',
+            '<span class="ticker-item">LOADING...</span>',
+            '</div></div>',
+
+            # Toolbar (calc button only)
+            '<div class="toolbar">',
+            '<button class="arcade-btn btn-blue" onclick="openCalcModal()">CALC</button>',
+            '</div>',
+
+            # Status bar
+            '<div class="status-bar" id="statusBar" style="display:none">',
+            '<div class="status-panel"><div class="label">MARKET REGIME</div><div class="value" id="regimeStatus">---</div></div>',
+            '<div class="status-panel"><div class="label">SPY</div><div class="value" id="spyValue" style="color:var(--pixel-white)">---</div></div>',
+            '<div class="status-panel"><div class="label">QQQ</div><div class="value" id="qqqValue" style="color:var(--pixel-white)">---</div></div>',
+            '</div>',
+
+            # Strategy tabs
+            '<div class="strategy-tabs" id="stratTabs" style="display:none">',
+            '<button class="strategy-tab active" data-filter="all" onclick="filterStrategy(\'all\', this)">ALL</button>',
+            '<button class="strategy-tab" data-filter="Baseline" onclick="filterStrategy(\'Baseline\', this)">BASELINE</button>',
+            '<button class="strategy-tab" data-filter="MeanRev" onclick="filterStrategy(\'MeanRev\', this)">MEAN REV</button>',
+            '</div>',
+
+            # Leaderboard
+            '<div class="leaderboard" id="leaderboard" style="display:none">',
+            '<div class="leaderboard-header">',
+            '<div>#</div><div>SYMBOL</div><div>SCORE</div><div>ENTRY</div><div>STOP</div><div>TARGET</div><div>ML PROB</div><div>R:R</div>',
+            '</div>',
+            '<div class="leaderboard-body" id="leaderboardBody"></div>',
+            '</div>',
+
+            # Previous performance
+            prev_perf_html,
+
+            # Stats row
+            '<div class="stat-row" id="statsRow" style="display:none">',
+            '<div class="stat-item"><div class="stat-num" id="statTotal">0</div><div class="stat-label">CANDIDATES</div></div>',
+            '<div class="stat-item"><div class="stat-num" id="statAvgScore">0</div><div class="stat-label">AVG SCORE</div></div>',
+            '<div class="stat-item"><div class="stat-num" id="statAvgML">0%</div><div class="stat-label">AVG ML PROB</div></div>',
+            '<div class="stat-item"><div class="stat-num" id="statBest">---</div><div class="stat-label">TOP PICK</div></div>',
+            '</div>',
+
+            # Divider + Footer
+            '<div class="pixel-divider"></div>',
+            '<div class="arcade-footer">',
+            '<div class="footer-pixel-art" aria-hidden="true">',
+            '   ___  _    _   _ ___   _  _  ___  ___  ___ ___ ___ _  _  ___  ___',
+            '  | _ )| |  | | | | __| | || |/ _ \\| _ \\/ __| __/ __| || |/ _ \\| __|',
+            '  | _ \\| |__| |_| | _|  | __ | (_) |   /\\__ \\ _|\\__ \\ __ | (_) | _|',
+            '  |___/|____|\\___/|___| |_||_|\\___/|_|_\\|___/___|___/_||_|\\___/|___|</div>',
+            '<div>POWERED BY QUANTITATIVE ANALYSIS AND MACHINE LEARNING</div>',
+            f'<div style="margin-top:4px;color:var(--neon-amber-dim)">GENERATED {gen_timestamp}</div>',
+            '</div>',
+
+            '</div>',  # end arcade-cabinet
+
+            # Calc modal
+            '<div class="modal-overlay" id="calcModal">',
+            '<div class="modal-box">',
+            '<button class="modal-close" onclick="closeCalcModal()">X</button>',
+            '<div class="modal-title">SHARE CALCULATOR</div>',
+            '<div class="calc-row"><span class="calc-label">SYMBOL:</span><span class="calc-value" id="calcSymbol">---</span></div>',
+            '<div class="calc-row"><span class="calc-label">ENTRY:</span><span class="calc-value" id="calcEntry">---</span></div>',
+            '<div class="calc-row"><span class="calc-label">STOP:</span><span class="calc-value" style="color:var(--neon-red);text-shadow:0 0 4px var(--neon-red)" id="calcStop">---</span></div>',
+            '<div class="calc-row"><span class="calc-label">TARGET:</span><span class="calc-value" id="calcTarget">---</span></div>',
+            '<div class="calc-divider"></div>',
+            '<div class="calc-row"><span class="calc-label">INVEST $:</span><input type="number" class="calc-input" id="calcInvest" value="10000" oninput="updateCalc()"></div>',
+            '<div class="calc-divider"></div>',
+            # Column headers
+            '<div class="calc-row"><span class="calc-label"></span><span class="calc-col-header">FRACTIONAL</span><span class="calc-col-header">WHOLE</span></div>',
+            '<div class="calc-row"><span class="calc-label">SHARES:</span><span class="calc-value" id="calcSharesFrac">---</span><span class="calc-value" id="calcSharesWhole">---</span></div>',
+            '<div class="calc-row"><span class="calc-label">COST:</span><span class="calc-value" id="calcCostFrac">---</span><span class="calc-value" id="calcCostWhole">---</span></div>',
+            '<div class="calc-row"><span class="calc-label">RISK $:</span><span class="calc-value" style="color:var(--neon-red);text-shadow:0 0 4px var(--neon-red)" id="calcRiskFrac">---</span><span class="calc-value" style="color:var(--neon-red);text-shadow:0 0 4px var(--neon-red)" id="calcRiskWhole">---</span></div>',
+            '<div class="calc-row"><span class="calc-label">REWARD $:</span><span class="calc-value" id="calcRewardFrac">---</span><span class="calc-value" id="calcRewardWhole">---</span></div>',
+            '</div></div>',
+
+            # Script block
+            '<script>',
+            f'const REPORT_DATA = {data_json};',
+            arcade_js,
+            '</script>',
+            '</body>',
+            '</html>',
+        ]
+
+        return '\n'.join(html)

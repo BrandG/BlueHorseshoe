@@ -212,6 +212,17 @@ if __name__ == "__main__":
                 logging.info("Email-friendly report saved to %s", email_path)
                 print(f"HTML Report generated: {full_path}")
                 print(f"Email-friendly report: {email_path}")
+
+                # Generate arcade report
+                arcade_html = reporter.generate_arcade_report(
+                    date=target_date,
+                    regime=regime_for_html,
+                    candidates=report_data.get('candidates', []),
+                    previous_performance=prev_perf
+                )
+                arcade_path = reporter.save_arcade(arcade_html, f"report_{target_date}.html")
+                logging.info("Arcade report saved to %s", arcade_path)
+                print(f"Arcade report: {arcade_path}")
     elif "-r" in sys.argv:
         # Generate Report from saved scores
         logging.info("Regenerating report from saved scores...")
@@ -322,6 +333,17 @@ if __name__ == "__main__":
             logging.info("Email-friendly report regenerated at %s", email_path)
             print(f"HTML Report regenerated: {full_path}")
             print(f"Email-friendly report: {email_path}")
+
+            # Generate arcade report
+            arcade_html = reporter.generate_arcade_report(
+                date=target_date,
+                regime=market_health,
+                candidates=top_candidates,
+                previous_performance=prev_perf
+            )
+            arcade_path = reporter.save_arcade(arcade_html, f"report_{target_date}.html")
+            logging.info("Arcade report regenerated at %s", arcade_path)
+            print(f"Arcade report: {arcade_path}")
     elif "-t" in sys.argv:
         with create_cli_context() as ctx:
             try:
