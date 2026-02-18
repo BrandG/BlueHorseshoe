@@ -256,7 +256,9 @@ class SwingTrader:
         # Default to safest stop (widest)
         stop_loss = min(swing_stop, atr_stop)
 
-        take_profit = max(swing_high_20, entry_price + (ml_target_multiplier * atr))
+        atr_target = entry_price + (ml_target_multiplier * atr)
+        resistance_cap = swing_high_20 * 0.98  # Stay below 20-day high resistance
+        take_profit = min(atr_target, resistance_cap)
 
         # 5. Risk Calculation
         risk = entry_price - stop_loss
