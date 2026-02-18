@@ -6,11 +6,16 @@
 # Saturday: Full symbol update (reclassifies active/inactive for next week)
 
 LOG="/root/BlueHorseshoe/src/logs/daily_pipeline.log"
+STATUS="python src/pipeline_status.py"
 
 echo "--- Daily Pipeline Started: $(date) ---" >> "$LOG"
 
+# Initialize pipeline status
+docker exec bluehorseshoe $STATUS begin
+
 # 1. Update historical data (active-only on weekdays, full on Saturday)
 DOW=$(date +%u)  # 1=Mon ... 6=Sat
+docker exec bluehorseshoe $STATUS start update
 if [ "$DOW" -eq 6 ]; then
     echo "Saturday: running full symbol update" >> "$LOG"
     docker exec bluehorseshoe python src/main.py -u >> "$LOG" 2>&1
@@ -21,22 +26,34 @@ fi
 
 if [ $? -ne 0 ]; then
     echo "ERROR: Data update failed at $(date)" >> "$LOG"
+    docker exec bluehorseshoe $STATUS fail update "Data update failed"
     exit 1
 fi
+docker exec bluehorseshoe $STATUS complete update
 
 # 2. Run prediction (generates report) — skip on Saturday
 if [ "$DOW" -ne 6 ]; then
+    docker exec bluehorseshoe $STATUS start predict
     docker exec bluehorseshoe python src/main.py -p >> "$LOG" 2>&1
     if [ $? -ne 0 ]; then
         echo "ERROR: Prediction failed at $(date)" >> "$LOG"
+        docker exec bluehorseshoe $STATUS fail predict "Prediction failed"
         exit 1
     fi
+    docker exec bluehorseshoe $STATUS complete predict
 
     # 3. Send report email
+    docker exec bluehorseshoe $STATUS start email
     docker exec bluehorseshoe python src/send_report_email.py >> "$LOG" 2>&1
     if [ $? -ne 0 ]; then
         echo "WARNING: Email send failed at $(date)" >> "$LOG"
+        docker exec bluehorseshoe $STATUS fail email "Email send failed"
+    else
+        docker exec bluehorseshoe $STATUS complete email
     fi
 fi
+
+# Mark pipeline as done
+docker exec bluehorseshoe $STATUS finish
 
 echo "--- Daily Pipeline Finished: $(date) ---" >> "$LOG"

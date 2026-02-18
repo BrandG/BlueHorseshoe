@@ -1,3 +1,4 @@
+import json
 import os
 import glob
 from datetime import datetime
@@ -532,3 +533,20 @@ async def health_check():
     Simple health check endpoint.
     """
     return {"status": "ok", "service": "bluehorseshoe-api"}
+
+
+_PIPELINE_STATUS_FILE = "/workspaces/BlueHorseshoe/src/logs/pipeline_status.json"
+
+
+@router.get("/pipeline/status")
+async def get_pipeline_status():
+    """
+    Return the current pipeline status from the status JSON file.
+    """
+    if not os.path.exists(_PIPELINE_STATUS_FILE):
+        return {"message": "No pipeline run yet", "status": None}
+    try:
+        with open(_PIPELINE_STATUS_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except (json.JSONDecodeError, IOError) as e:
+        raise HTTPException(status_code=500, detail=f"Failed to read pipeline status: {e}")

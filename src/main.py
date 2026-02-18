@@ -168,11 +168,20 @@ if __name__ == "__main__":
                 report_writer=ctx.report_writer
             )
 
+            # Progress callback for pipeline status tracking
+            def _progress_cb(current, total, pct):
+                try:
+                    from pipeline_status import update_progress  # pylint: disable=import-outside-toplevel
+                    update_progress(current, total)
+                except Exception:  # pylint: disable=broad-exception-caught
+                    pass  # Status tracking is best-effort
+
             report_data = trader.swing_predict(
                 target_date=target_date,
                 enabled_indicators=enabled_indicators,
                 aggregation=aggregation,
-                symbols=symbols_filter
+                symbols=symbols_filter,
+                progress_callback=_progress_cb
             )
             
             # Calculate previous day's performance
