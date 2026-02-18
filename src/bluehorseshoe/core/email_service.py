@@ -1,5 +1,6 @@
 import smtplib
 import os
+import re
 import logging
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
@@ -68,6 +69,24 @@ class EmailService:
                 part = MIMEApplication(f.read(), Name=os.path.basename(report_path))
                 part['Content-Disposition'] = f'attachment; filename="{os.path.basename(report_path)}"'
                 msg.attach(part)
+
+            # Attach the arcade report if it exists
+            date_match = re.search(r'report_(\d{4}-\d{2}-\d{2})', os.path.basename(report_path))
+            if date_match:
+                report_date = date_match.group(1)
+                # Navigate from src/logs/ up to src/graphs/
+                graphs_dir = os.path.join(os.path.dirname(report_path), '..', 'graphs')
+                arcade_path = os.path.join(graphs_dir, f'report_{report_date}.html')
+                arcade_path = os.path.normpath(arcade_path)
+                if os.path.exists(arcade_path):
+                    arcade_filename = f'arcade_report_{report_date}.html'
+                    with open(arcade_path, 'rb') as f:
+                        arcade_part = MIMEApplication(f.read(), Name=arcade_filename)
+                        arcade_part['Content-Disposition'] = f'attachment; filename="{arcade_filename}"'
+                        msg.attach(arcade_part)
+                    logger.info(f"Arcade report attached: {arcade_path}")
+                else:
+                    logger.info(f"Arcade report not found at {arcade_path}, skipping attachment")
 
             # Send
             with smtplib.SMTP(self.smtp_server, self.smtp_port, timeout=30) as server:
