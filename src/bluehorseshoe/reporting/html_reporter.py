@@ -1107,7 +1107,7 @@ body::after {
   box-shadow: 0 0 15px rgba(255,170,0,0.1); margin-bottom: 16px;
 }
 .leaderboard-header {
-  display: grid; grid-template-columns: 40px 90px 1fr 100px 100px 100px 110px 80px;
+  display: grid; grid-template-columns: 28px 40px 90px 1fr 100px 100px 100px 110px 80px;
   padding: 10px 12px; border-bottom: 2px solid var(--neon-amber);
   font-size: 0.8rem; color: var(--neon-amber); text-shadow: 0 0 4px var(--neon-amber);
   letter-spacing: 1px; background: rgba(255,170,0,0.05);
@@ -1121,7 +1121,7 @@ body::after {
 .leaderboard-body::-webkit-scrollbar-thumb { background: var(--neon-amber-dim); border: 1px solid var(--neon-amber); }
 @keyframes row-enter { from { opacity: 0; transform: translateX(-20px); } to { opacity: 1; transform: translateX(0); } }
 .leaderboard-row {
-  display: grid; grid-template-columns: 40px 90px 1fr 100px 100px 100px 110px 80px;
+  display: grid; grid-template-columns: 28px 40px 90px 1fr 100px 100px 100px 110px 80px;
   padding: 10px 12px; border-bottom: 1px solid rgba(85,85,112,0.3);
   font-size: 0.9rem; cursor: pointer; transition: background 0.1s;
   animation: row-enter 0.3s ease-out both;
@@ -1160,6 +1160,11 @@ body::after {
 .ml-pip.filled.red { background: var(--neon-red); box-shadow: 0 0 3px var(--neon-red); border-color: var(--neon-red); }
 .ml-pct { font-size: 0.8rem; min-width: 30px; text-align: right; }
 .col-rr { display: flex; align-items: center; font-size: 0.8rem; color: var(--neon-blue); text-shadow: 0 0 4px rgba(0,212,255,0.4); }
+.col-check { display: flex; align-items: center; justify-content: center; }
+.portfolio-check { -webkit-appearance: none; appearance: none; width: 16px; height: 16px; border: 2px solid var(--pixel-gray); background: var(--pixel-dark); cursor: pointer; position: relative; transition: all 0.15s; }
+.portfolio-check:checked { border-color: var(--neon-pink); background: rgba(255,45,123,0.2); box-shadow: 0 0 6px var(--neon-pink); }
+.portfolio-check:checked::after { content: ''; position: absolute; top: 2px; left: 2px; width: 8px; height: 8px; background: var(--neon-pink); }
+.portfolio-badge { background: var(--neon-pink); color: var(--crt-bg); font-size: 0.45rem; padding: 1px 5px; margin-left: 6px; min-width: 14px; text-align: center; display: none; }
 .detail-panel { display: none; grid-column: 1 / -1; padding: 16px 12px; border-bottom: 2px solid var(--neon-amber-dim); background: rgba(26,26,46,0.6); }
 .detail-panel.open { display: block; animation: row-enter 0.2s ease-out; }
 .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
@@ -1202,6 +1207,39 @@ body::after {
 .calc-input:focus { border-color: var(--neon-pink); }
 .calc-divider { height: 1px; background: var(--pixel-gray); margin: 12px 0; opacity: 0.3; }
 .calc-col-header { font-size: 0.8rem; color: var(--neon-amber); text-shadow: 0 0 4px var(--neon-amber); min-width: 180px; letter-spacing: 1px; }
+/* Portfolio Allocator */
+.portfolio-modal { max-width: 960px; width: 95%; max-height: 90vh; overflow-y: auto; }
+.portfolio-controls { display: flex; gap: 16px; align-items: flex-end; margin-bottom: 16px; flex-wrap: wrap; }
+.portfolio-control-group { display: flex; flex-direction: column; gap: 4px; }
+.portfolio-control-label { font-size: 0.5rem; color: var(--pixel-gray); letter-spacing: 1px; }
+.portfolio-slider { -webkit-appearance: none; appearance: none; width: 200px; height: 8px; background: var(--pixel-dark); border: 1px solid var(--pixel-gray); outline: none; cursor: pointer; }
+.portfolio-slider::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 16px; height: 16px; background: var(--neon-pink); border: 2px solid var(--neon-pink); cursor: pointer; box-shadow: 0 0 6px var(--neon-pink); }
+.portfolio-slider::-moz-range-thumb { width: 16px; height: 16px; background: var(--neon-pink); border: 2px solid var(--neon-pink); cursor: pointer; box-shadow: 0 0 6px var(--neon-pink); border-radius: 0; }
+.portfolio-slider-value { font-size: 0.7rem; color: var(--neon-pink); text-shadow: 0 0 4px var(--neon-pink); min-width: 30px; text-align: center; }
+.portfolio-summary { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 16px; }
+.portfolio-summary-item { background: var(--pixel-dark); border: 1px solid var(--pixel-gray); padding: 10px; text-align: center; }
+.portfolio-summary-label { font-size: 0.4rem; color: var(--pixel-gray); letter-spacing: 1px; margin-bottom: 4px; }
+.portfolio-summary-value { font-size: 0.7rem; color: var(--neon-green); text-shadow: 0 0 4px var(--neon-green); }
+.portfolio-summary-value.risk { color: var(--neon-red); text-shadow: 0 0 4px var(--neon-red); }
+.portfolio-summary-value.rr { color: var(--neon-blue); text-shadow: 0 0 4px var(--neon-blue); }
+.portfolio-table-header { display: grid; grid-template-columns: 30px 70px 65px 60px 60px 80px 50px 70px 70px 70px 50px; padding: 8px 6px; border-bottom: 2px solid var(--neon-amber); font-size: 0.45rem; color: var(--neon-amber); text-shadow: 0 0 4px var(--neon-amber); letter-spacing: 1px; }
+.portfolio-table-body { max-height: 50vh; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--neon-pink-dim) var(--pixel-dark); }
+.portfolio-table-body::-webkit-scrollbar { width: 6px; }
+.portfolio-table-body::-webkit-scrollbar-track { background: var(--pixel-dark); }
+.portfolio-table-body::-webkit-scrollbar-thumb { background: var(--neon-pink-dim); border: 1px solid var(--neon-pink); }
+.portfolio-table-row { display: grid; grid-template-columns: 30px 70px 65px 60px 60px 80px 50px 70px 70px 70px 50px; padding: 8px 6px; border-bottom: 1px solid rgba(85,85,112,0.3); font-size: 0.6rem; align-items: center; }
+.portfolio-table-row:nth-child(even) { background: rgba(22,22,42,0.4); }
+.portfolio-col-rank { color: var(--neon-amber); }
+.portfolio-col-symbol { color: var(--neon-blue); text-shadow: 0 0 4px var(--neon-blue); }
+.portfolio-col-strategy { font-size: 0.5rem; }
+.portfolio-col-composite { color: var(--neon-amber); }
+.portfolio-col-alloc { color: var(--neon-green); text-shadow: 0 0 4px var(--neon-green); }
+.portfolio-col-pct { color: var(--pixel-white); }
+.portfolio-col-shares { color: var(--neon-pink); text-shadow: 0 0 4px var(--neon-pink); }
+.portfolio-col-price { color: var(--pixel-white); }
+.portfolio-col-risk { color: var(--neon-red); }
+.portfolio-col-reward { color: var(--neon-green); }
+.portfolio-col-rr { color: var(--neon-blue); }
 /* Previous Performance */
 .prev-perf-section { border: 2px solid var(--neon-blue-dim); background: var(--pixel-dark); padding: 12px; margin-bottom: 12px; }
 .prev-perf-title { font-size: 1.0rem; color: var(--neon-blue); text-shadow: 0 0 4px var(--neon-blue); margin-bottom: 10px; letter-spacing: 1px; }
@@ -1217,19 +1255,24 @@ body::after {
 /* Calc button in toolbar */
 .toolbar { display: flex; gap: 8px; margin-bottom: 12px; justify-content: flex-end; }
 @media (max-width: 900px) {
-  .leaderboard-header, .leaderboard-row { grid-template-columns: 30px 70px 1fr 80px 80px 80px 90px 60px; font-size: 0.7rem; padding: 8px 6px; }
+  .leaderboard-header, .leaderboard-row { grid-template-columns: 24px 30px 70px 1fr 80px 80px 80px 90px 60px; font-size: 0.7rem; padding: 8px 6px; }
   .marquee-title { font-size: 1rem; }
   .detail-grid { grid-template-columns: 1fr; }
   .status-bar { grid-template-columns: 1fr; }
   .health-bar { width: 40px; }
   .prev-perf-header, .prev-perf-row { grid-template-columns: 70px 50px 1fr 80px 60px; font-size: 0.7rem; }
+  .portfolio-table-header, .portfolio-table-row { grid-template-columns: 30px 70px 65px 60px 60px 80px 50px 70px; }
+  .portfolio-col-risk, .portfolio-col-reward, .portfolio-col-rr { display: none; }
+  .portfolio-summary { grid-template-columns: repeat(2, 1fr); }
 }
 @media (max-width: 600px) {
-  .leaderboard-header, .leaderboard-row { grid-template-columns: 30px 1fr 70px 70px; }
+  .leaderboard-header, .leaderboard-row { grid-template-columns: 24px 30px 1fr 70px 70px; }
   .col-stop, .col-target, .col-rr, .col-ml { display: none; }
   .marquee-title { font-size: 0.7rem; letter-spacing: 2px; }
   .prev-perf-header, .prev-perf-row { grid-template-columns: 60px 1fr 70px 60px; }
   .prev-perf-header span:nth-child(2), .prev-perf-row span:nth-child(2) { display: none; }
+  .portfolio-table-header, .portfolio-table-row { grid-template-columns: 30px 1fr 60px 80px 50px 70px; }
+  .portfolio-col-strategy, .portfolio-col-composite { display: none; }
 }
 </style>"""
 
@@ -1242,6 +1285,7 @@ const state = {
   currentDate: null,
   currentFilter: 'all',
   calcCandidate: null,
+  selected: {},
 };
 
 function normalizeStrategy(s) {
@@ -1319,7 +1363,9 @@ function renderLeaderboard() {
     for (let j = 0; j < 10; j++) {
       pipsHtml += '<div class="ml-pip ' + (j < mlPips ? 'filled ' + mlColor : '') + '"></div>';
     }
+    var selKey = c.symbol + '|' + c.strategy;
     row.innerHTML =
+      '<div class="col-check"><input type="checkbox" class="portfolio-check"' + (state.selected[selKey] ? ' checked' : '') + ' onclick="toggleSelection(\'' + selKey + '\', event)"></div>' +
       '<div class="col-rank"><span class="rank-num">' + String(rank).padStart(2, '0') + '</span></div>' +
       '<div class="col-symbol"><span class="symbol-name">' + c.symbol + '</span><span class="strategy-badge ' + stratClass + '">' + stratLabel + '</span></div>' +
       '<div class="col-score"><div class="health-bar"><div class="health-bar-fill ' + scoreClass + '" style="width:' + scoreWidth + '%"></div></div><span class="score-value ' + scoreTextClass + '">' + score.toFixed(1) + '</span></div>' +
@@ -1462,8 +1508,135 @@ function updateCalc() {
   document.getElementById('calcRewardFrac').textContent = '+$' + rewardFrac;
   document.getElementById('calcRewardWhole').textContent = '+$' + rewardWhole;
 }
+// Portfolio Allocator
+function normalizeScore(score) {
+  return Math.max(0, Math.min(1, score / 50));
+}
+function normalizeMlProb(ml) {
+  return Math.max(0, Math.min(1, ml));
+}
+function normalizeRR(entry, stop, target) {
+  if (entry <= 0 || stop >= entry || target <= entry) return 0;
+  var rr = (target - entry) / (entry - stop);
+  return Math.min(1, Math.log(1 + rr) / Math.log(1 + 5));
+}
+function compositeWeight(c) {
+  return 0.40 * normalizeScore(c.score) + 0.35 * normalizeMlProb(c.ml_prob || 0) + 0.25 * normalizeRR(c.close, c.stop_loss, c.target);
+}
+function toggleSelection(key, event) {
+  event.stopPropagation();
+  if (state.selected[key]) delete state.selected[key];
+  else state.selected[key] = true;
+  updatePortfolioBadge();
+}
+function updatePortfolioBadge() {
+  var count = Object.keys(state.selected).length;
+  var badge = document.getElementById('portfolioBadge');
+  if (badge) { badge.textContent = count; badge.style.display = count > 0 ? 'inline-block' : 'none'; }
+  var countEl = document.getElementById('portfolioSelectedCount');
+  if (countEl) countEl.textContent = count;
+}
+function selectAllSymbols() {
+  state.candidates.forEach(function(c) {
+    if (c.close > 0 && c.stop_loss < c.close && c.target > c.close) {
+      state.selected[c.symbol + '|' + c.strategy] = true;
+    }
+  });
+  updatePortfolioBadge();
+  renderLeaderboard();
+  updatePortfolio();
+}
+function clearAllSymbols() {
+  state.selected = {};
+  updatePortfolioBadge();
+  renderLeaderboard();
+  updatePortfolio();
+}
+function getAutoThreshold(candidates) {
+  if (candidates.length === 0) return 3;
+  var q = Math.ceil(candidates.length / 4);
+  return Math.max(3, Math.min(15, q));
+}
+function getValidPortfolioCandidates() {
+  var selectedKeys = Object.keys(state.selected);
+  return state.candidates.filter(function(c) {
+    var key = c.symbol + '|' + c.strategy;
+    return selectedKeys.indexOf(key) >= 0 && c.close > 0 && c.stop_loss < c.close && c.target > c.close;
+  }).map(function(c) {
+    var copy = {};
+    for (var k in c) copy[k] = c[k];
+    copy.composite = compositeWeight(c);
+    return copy;
+  }).sort(function(a, b) { return b.composite - a.composite; });
+}
+function allocatePortfolio(candidates, totalInvest, topN) {
+  var selected = candidates.slice(0, topN);
+  if (selected.length === 0) return [];
+  var totalWeight = selected.reduce(function(s, c) { return s + c.composite; }, 0);
+  if (totalWeight === 0) return [];
+  return selected.map(function(c) {
+    var pct = c.composite / totalWeight;
+    var alloc = totalInvest * pct;
+    var shares = alloc / c.close;
+    var wholeShares = Math.floor(shares);
+    var risk = shares * (c.close - c.stop_loss);
+    var reward = shares * (c.target - c.close);
+    var rr = risk > 0 ? reward / risk : 0;
+    return { symbol: c.symbol, strategy: c.strategy, close: c.close, composite: c.composite, alloc: alloc, pct: pct, shares: shares, wholeShares: wholeShares, risk: risk, reward: reward, rr: rr };
+  });
+}
+function openPortfolioModal() {
+  document.getElementById('portfolioModal').classList.add('open');
+  updatePortfolioBadge();
+  updatePortfolio();
+}
+function closePortfolioModal() {
+  document.getElementById('portfolioModal').classList.remove('open');
+}
+function updatePortfolio() {
+  var candidates = getValidPortfolioCandidates();
+  var totalInvest = parseFloat(document.getElementById('portfolioInvest').value) || 0;
+  var results = allocatePortfolio(candidates, totalInvest, candidates.length);
+  renderPortfolioSummary(results);
+  renderPortfolioTable(results);
+}
+function renderPortfolioSummary(results) {
+  var totalAlloc = results.reduce(function(s, r) { return s + r.alloc; }, 0);
+  var totalRisk = results.reduce(function(s, r) { return s + r.risk; }, 0);
+  var totalReward = results.reduce(function(s, r) { return s + r.reward; }, 0);
+  var portfolioRR = totalRisk > 0 ? (totalReward / totalRisk).toFixed(2) : '---';
+  document.getElementById('portfolioTotalAlloc').textContent = '$' + totalAlloc.toFixed(2);
+  document.getElementById('portfolioTotalRisk').textContent = '-$' + totalRisk.toFixed(2);
+  document.getElementById('portfolioTotalReward').textContent = '+$' + totalReward.toFixed(2);
+  document.getElementById('portfolioRR').textContent = portfolioRR + 'x';
+}
+function renderPortfolioTable(results) {
+  var body = document.getElementById('portfolioTableBody');
+  if (results.length === 0) {
+    body.innerHTML = '<div style="text-align:center;padding:20px;color:var(--pixel-gray);font-size:0.5rem">NO VALID CANDIDATES</div>';
+    return;
+  }
+  body.innerHTML = results.map(function(r, i) {
+    var stratClass = r.strategy === 'MeanRev' ? 'meanrev' : 'baseline';
+    var stratLabel = r.strategy === 'MeanRev' ? 'MR' : 'BL';
+    return '<div class="portfolio-table-row">' +
+      '<div class="portfolio-col-rank">' + String(i + 1).padStart(2, '0') + '</div>' +
+      '<div class="portfolio-col-symbol">' + r.symbol + '</div>' +
+      '<div class="portfolio-col-price">$' + r.close.toFixed(2) + '</div>' +
+      '<div class="portfolio-col-strategy"><span class="strategy-badge ' + stratClass + '">' + stratLabel + '</span></div>' +
+      '<div class="portfolio-col-composite">' + r.composite.toFixed(2) + '</div>' +
+      '<div class="portfolio-col-alloc">$' + r.alloc.toFixed(0) + '</div>' +
+      '<div class="portfolio-col-pct">' + (r.pct * 100).toFixed(1) + '%</div>' +
+      '<div class="portfolio-col-shares">' + r.wholeShares + '<small style="color:var(--pixel-gray)">/' + r.shares.toFixed(1) + '</small></div>' +
+      '<div class="portfolio-col-risk">-$' + r.risk.toFixed(0) + '</div>' +
+      '<div class="portfolio-col-reward">+$' + r.reward.toFixed(0) + '</div>' +
+      '<div class="portfolio-col-rr">' + r.rr.toFixed(1) + 'x</div></div>';
+  }).join('');
+}
+
 document.getElementById('calcModal').addEventListener('click', function(e) { if (e.target === this) closeCalcModal(); });
-document.addEventListener('keydown', function(e) { if (e.key === 'Escape') closeCalcModal(); });
+document.getElementById('portfolioModal').addEventListener('click', function(e) { if (e.target === this) closePortfolioModal(); });
+document.addEventListener('keydown', function(e) { if (e.key === 'Escape') { closeCalcModal(); closePortfolioModal(); } });
 
 // Initialize from embedded data
 document.addEventListener('DOMContentLoaded', function() {
@@ -1522,6 +1695,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
             # Toolbar (calc button only)
             '<div class="toolbar">',
+            '<button class="arcade-btn btn-pink" onclick="openPortfolioModal()">PORTFOLIO<span class="portfolio-badge" id="portfolioBadge">0</span></button>',
             '<button class="arcade-btn btn-blue" onclick="openCalcModal()">CALC</button>',
             '</div>',
 
@@ -1542,7 +1716,7 @@ document.addEventListener('DOMContentLoaded', function() {
             # Leaderboard
             '<div class="leaderboard" id="leaderboard" style="display:none">',
             '<div class="leaderboard-header">',
-            '<div>#</div><div>SYMBOL</div><div>SCORE</div><div>ENTRY</div><div>STOP</div><div>TARGET</div><div>ML PROB</div><div>R:R</div>',
+            '<div></div><div>#</div><div>SYMBOL</div><div>SCORE</div><div>ENTRY</div><div>STOP</div><div>TARGET</div><div>ML PROB</div><div>R:R</div>',
             '</div>',
             '<div class="leaderboard-body" id="leaderboardBody"></div>',
             '</div>',
@@ -1590,6 +1764,36 @@ document.addEventListener('DOMContentLoaded', function() {
             '<div class="calc-row"><span class="calc-label">COST:</span><span class="calc-value" id="calcCostFrac">---</span><span class="calc-value" id="calcCostWhole">---</span></div>',
             '<div class="calc-row"><span class="calc-label">RISK $:</span><span class="calc-value" style="color:var(--neon-red);text-shadow:0 0 4px var(--neon-red)" id="calcRiskFrac">---</span><span class="calc-value" style="color:var(--neon-red);text-shadow:0 0 4px var(--neon-red)" id="calcRiskWhole">---</span></div>',
             '<div class="calc-row"><span class="calc-label">REWARD $:</span><span class="calc-value" id="calcRewardFrac">---</span><span class="calc-value" id="calcRewardWhole">---</span></div>',
+            '</div></div>',
+
+            # Portfolio modal
+            '<div class="modal-overlay" id="portfolioModal">',
+            '<div class="modal-box portfolio-modal">',
+            '<button class="modal-close" onclick="closePortfolioModal()">X</button>',
+            '<div class="modal-title">PORTFOLIO ALLOCATOR</div>',
+            '<div class="portfolio-controls">',
+            '<div class="portfolio-control-group">',
+            '<span class="portfolio-control-label">INVEST $</span>',
+            '<input type="number" class="calc-input" id="portfolioInvest" value="10000" oninput="updatePortfolio()">',
+            '</div>',
+            '<div class="portfolio-control-group">',
+            '<span class="portfolio-control-label">SELECTED</span>',
+            '<span class="portfolio-slider-value" id="portfolioSelectedCount">0</span>',
+            '</div>',
+            '<div class="portfolio-control-group" style="flex-direction:row;gap:6px;align-items:flex-end">',
+            '<button class="arcade-btn btn-green" style="font-size:0.4rem;padding:5px 8px" onclick="selectAllSymbols()">ALL</button>',
+            '<button class="arcade-btn btn-amber" style="font-size:0.4rem;padding:5px 8px" onclick="clearAllSymbols()">CLEAR</button>',
+            '</div></div>',
+            '<div class="portfolio-summary">',
+            '<div class="portfolio-summary-item"><div class="portfolio-summary-label">ALLOCATED</div><div class="portfolio-summary-value" id="portfolioTotalAlloc">$0</div></div>',
+            '<div class="portfolio-summary-item"><div class="portfolio-summary-label">TOTAL RISK</div><div class="portfolio-summary-value risk" id="portfolioTotalRisk">-$0</div></div>',
+            '<div class="portfolio-summary-item"><div class="portfolio-summary-label">TOTAL REWARD</div><div class="portfolio-summary-value" id="portfolioTotalReward">+$0</div></div>',
+            '<div class="portfolio-summary-item"><div class="portfolio-summary-label">PORTFOLIO R:R</div><div class="portfolio-summary-value rr" id="portfolioRR">---</div></div>',
+            '</div>',
+            '<div class="portfolio-table-header">',
+            '<div>#</div><div>SYM</div><div>PRICE</div><div class="portfolio-col-strategy">STRAT</div><div class="portfolio-col-composite">COMP</div><div>ALLOC</div><div>%</div><div>SHARES</div><div class="portfolio-col-risk">RISK</div><div class="portfolio-col-reward">RWD</div><div class="portfolio-col-rr">R:R</div>',
+            '</div>',
+            '<div class="portfolio-table-body" id="portfolioTableBody"></div>',
             '</div></div>',
 
             # Script block
