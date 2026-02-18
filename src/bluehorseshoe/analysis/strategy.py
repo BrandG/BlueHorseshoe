@@ -26,6 +26,7 @@ import concurrent.futures
 from dataclasses import dataclass
 from typing import Dict, Optional, List, Any
 
+import numpy as np
 import pandas as pd
 from pymongo.database import Database
 from ta.volatility import AverageTrueRange
@@ -61,6 +62,7 @@ class StrategyContext:
     benchmark_df: Optional[pd.DataFrame] = None
     market_health: Optional[Dict[str, Any]] = None
     symbol_map: Optional[Dict[str, str]] = None
+    score_history: Optional[Dict[str, List[float]]] = None
 
 class SwingTrader:
     """Main class for swing trading analysis."""
@@ -228,7 +230,7 @@ class SwingTrader:
 
         return entry_price, atr_discount, signal_strength
 
-    def calculate_baseline_setup(self, df: pd.DataFrame, ml_stop_multiplier: float = 2.0, ml_target_multiplier: float = 3.0) -> Dict[str, float]:
+    def calculate_baseline_setup(self, df: pd.DataFrame, ml_stop_multiplier: float = 2.0, ml_target_multiplier: float = 3.0, technical_score: float = 0.0) -> Dict[str, float]:
         """
         Calculate structural prices for Baseline (Trend) strategy:
         Entry = Pullback to EMA + Bullish candle close
@@ -246,8 +248,8 @@ class SwingTrader:
         swing_low_5 = df['low'].rolling(window=5).min().iloc[-1]
         swing_high_20 = df['high'].rolling(window=20).max().iloc[-1]
 
-        # 3. Entry Logic (using default score=0 which gives MEDIUM/0.20 discount)
-        entry_price, _, _ = self._determine_baseline_entry(last_row, ema9, atr, technical_score=0.0)
+        # 3. Entry Logic (uses actual technical_score for dynamic ATR discount)
+        entry_price, atr_discount_used, signal_strength = self._determine_baseline_entry(last_row, ema9, atr, technical_score=technical_score)
 
         # 4. Stop Loss & Take Profit
         atr_stop = entry_price - (ml_stop_multiplier * atr)
@@ -259,6 +261,10 @@ class SwingTrader:
         atr_target = entry_price + (ml_target_multiplier * atr)
         resistance_cap = swing_high_20 * 0.98  # Stay below 20-day high resistance
         take_profit = min(atr_target, resistance_cap)
+
+        # Floor: target must never be below entry (resistance cap irrelevant if already past it)
+        if take_profit <= entry_price:
+            take_profit = atr_target
 
         # 5. Risk Calculation
         risk = entry_price - stop_loss
@@ -294,7 +300,9 @@ class SwingTrader:
             'take_profit': float(take_profit),
             'rr_ratio': float(rr_ratio),
             'vol_ratio': float(last_row['volume'] / avg_volume if avg_volume > 0 else 0),
-            'is_realistic': (abs((last_close / entry_price) - 1) <= 0.15) and (risk_pct <= MAX_RISK_PERCENT)
+            'is_realistic': (abs((last_close / entry_price) - 1) <= 0.15) and (risk_pct <= MAX_RISK_PERCENT),
+            'atr_discount_used': float(atr_discount_used),
+            'signal_strength': signal_strength
         }
 
     def calculate_mean_reversion_setup(self, df: pd.DataFrame, ml_stop_multiplier: float = 1.5, ml_target_multiplier: float = 2.0) -> Dict[str, float]:
@@ -329,6 +337,10 @@ class SwingTrader:
         recent_high_20 = df['high'].tail(20).max()
         resistance_cap = recent_high_20 * 0.98
         take_profit = min(partial_reversion, atr_target, resistance_cap)
+
+        # Floor: target must never be below entry (resistance cap irrelevant if already past it)
+        if take_profit <= entry_price:
+            take_profit = atr_target
 
         # 6. Reward-to-Risk
         reward = take_profit - entry_price
@@ -422,49 +434,21 @@ class SwingTrader:
         )
         technical_score = score_components.get("total", 0.0)
 
-        # *** STEP 2: Get dynamic entry parameters ***
-        last_row = df.iloc[-1]
-        ema9 = df['close'].ewm(span=9).mean().iloc[-1]
-        atr = self._calculate_atr(df)
-
-        entry_price, atr_discount_used, signal_strength = self._determine_baseline_entry(
-            last_row, ema9, atr, technical_score
-        )
-
-        # *** STEP 3: Calculate baseline setup with ML stop and target ***
+        # *** STEP 2: Calculate baseline setup with ML stop/target and actual technical_score ***
         ml_stop_multiplier = 2.0
         ml_target_multiplier = self.profit_target_inference.predict_profit_target_multiplier(
             symbol, score_components,
             target_date=str(yesterday['date'])[:10],
             strategy="baseline"
         )
-        baseline_setup = self.calculate_baseline_setup(df, ml_stop_multiplier=ml_stop_multiplier, ml_target_multiplier=ml_target_multiplier)
-
-        # *** STEP 4: Override entry price with dynamic calculation ***
-        baseline_setup['entry_price'] = entry_price
-
-        # *** STEP 5: Recalculate risk/reward with new entry ***
-        stop_loss = baseline_setup['stop_loss']
-        take_profit = baseline_setup['take_profit']
-        risk = entry_price - stop_loss
-        reward = take_profit - entry_price
-        baseline_setup['rr_ratio'] = reward / risk if risk > 0 else 0
-
-        # Recalculate is_realistic with new entry
-        last_close = last_row['close']
-        risk_pct = (entry_price - stop_loss) / entry_price if entry_price > 0 else 0
-        baseline_setup['is_realistic'] = (
-            (abs((last_close / entry_price) - 1) <= 0.15) and
-            (risk_pct <= MAX_RISK_PERCENT)
+        baseline_setup = self.calculate_baseline_setup(
+            df, ml_stop_multiplier=ml_stop_multiplier,
+            ml_target_multiplier=ml_target_multiplier,
+            technical_score=technical_score
         )
 
-        # *** STEP 6: Add new metadata fields ***
-        baseline_setup['atr_discount_used'] = atr_discount_used
-        baseline_setup['signal_strength'] = signal_strength
-
         # Validation checks
-        if not baseline_setup['is_realistic'] or baseline_setup['rr_ratio'] < MIN_RR_RATIO_BASELINE:
-            # print(f"DEBUG: {symbol} - Baseline failed setup checks: realistic={baseline_setup['is_realistic']}, rr={baseline_setup['rr_ratio']}")
+        if not baseline_setup['is_realistic']:
             return None
 
         entry_price = baseline_setup['entry_price']
@@ -485,6 +469,14 @@ class SwingTrader:
             rs_bonus *= rs_multiplier
             score_components["rs_index"] = rs_bonus
             score_components["total"] += rs_bonus
+
+        # Apply Score Acceleration Bonus
+        accel_multiplier = weights_config.get_weights('trend').get('SCORE_ACCEL_MULTIPLIER', 0.0)
+        if accel_multiplier != 0.0 and hasattr(ctx, 'score_history'):
+            history = ctx.score_history.get(symbol, [])
+            accel_bonus = self._calculate_score_acceleration(history) * accel_multiplier
+            score_components["score_acceleration"] = accel_bonus
+            score_components["total"] += accel_bonus
 
         # Calculate ML Win Probability
         ml_prob = self.ml_inference.predict_probability(
@@ -528,7 +520,7 @@ class SwingTrader:
         )
 
         mr_setup = self.calculate_mean_reversion_setup(df, ml_stop_multiplier=ml_stop_multiplier_mr, ml_target_multiplier=ml_target_multiplier_mr)
-        if not mr_setup['is_realistic'] or mr_setup['rr_ratio'] < MIN_RR_RATIO_MEAN_REVERSION:
+        if not mr_setup['is_realistic']:
             return None
 
         entry_price = mr_setup['entry_price']
@@ -598,6 +590,98 @@ class SwingTrader:
                 df = df[df['date'] <= pd.to_datetime(target_date)]
             return df
         return None
+
+    def _fetch_recent_scores(self, target_date: str, lookback_days: int = 5) -> Dict[str, List[float]]:
+        """
+        Fetch recent baseline scores from MongoDB for score acceleration calculation.
+
+        Args:
+            target_date: Current target date (scores before this date are fetched)
+            lookback_days: Number of recent trading days to fetch
+
+        Returns:
+            Dict mapping symbol to list of scores ordered oldest→newest
+        """
+        try:
+            # Get distinct dates before target_date, sorted descending, limited to lookback_days
+            pipeline = [
+                {"$match": {"strategy": "baseline", "date": {"$lt": target_date}}},
+                {"$group": {"_id": "$date"}},
+                {"$sort": {"_id": -1}},
+                {"$limit": lookback_days},
+            ]
+            date_docs = list(self.score_manager.collection.aggregate(pipeline))
+            if not date_docs:
+                return {}
+
+            recent_dates = sorted([d["_id"] for d in date_docs])  # oldest→newest
+
+            # Batch-fetch all baseline scores for these dates
+            cursor = self.score_manager.collection.find(
+                {"strategy": "baseline", "date": {"$in": recent_dates}},
+                {"symbol": 1, "date": 1, "score": 1, "_id": 0},
+            )
+
+            # Build {symbol: {date: score}} then flatten to ordered list
+            symbol_date_scores: Dict[str, Dict[str, float]] = {}
+            for doc in cursor:
+                sym = doc["symbol"]
+                if sym not in symbol_date_scores:
+                    symbol_date_scores[sym] = {}
+                symbol_date_scores[sym][doc["date"]] = doc["score"]
+
+            # Convert to ordered list (oldest→newest)
+            result: Dict[str, List[float]] = {}
+            for sym, date_map in symbol_date_scores.items():
+                scores = [date_map[d] for d in recent_dates if d in date_map]
+                if len(scores) >= 2:
+                    result[sym] = scores
+
+            return result
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            logging.warning("Failed to fetch recent scores for acceleration: %s", e)
+            return {}
+
+    @staticmethod
+    def _calculate_score_acceleration(scores: List[float]) -> float:
+        """
+        Calculate score acceleration bonus from a list of recent scores (oldest→newest).
+
+        Returns:
+            Bonus value:
+              +3.0 for 3+ strictly ascending scores
+              +2.0 for positive slope with R² > 0.5
+              +1.0 for positive slope with R² ≤ 0.5
+               0.0 for flat or insufficient data
+              -1.0 for negative slope
+        """
+        if len(scores) < 2:
+            return 0.0
+
+        # Check for 3+ strictly ascending
+        if len(scores) >= 3:
+            is_ascending = all(scores[i] < scores[i + 1] for i in range(len(scores) - 1))
+            if is_ascending:
+                return 3.0
+
+        # Linear regression: slope and R²
+        x = np.arange(len(scores), dtype=float)
+        y = np.array(scores, dtype=float)
+        coeffs = np.polyfit(x, y, 1)
+        slope = coeffs[0]
+
+        if slope <= 0:
+            return -1.0
+
+        # Calculate R²
+        y_pred = np.polyval(coeffs, x)
+        ss_res = np.sum((y - y_pred) ** 2)
+        ss_tot = np.sum((y - np.mean(y)) ** 2)
+        r_squared = 1.0 - (ss_res / ss_tot) if ss_tot > 0 else 0.0
+
+        if r_squared > 0.5:
+            return 2.0
+        return 1.0
 
     def _preload_symbol_data(self, symbol: str, target_date: Optional[str]) -> Optional[Dict]:
         """
@@ -675,12 +759,20 @@ class SwingTrader:
         logging.info("Processing %d symbols (I/O: %d threads, CPU: %d processes, chunk: %d)...",
                      len(symbols), io_workers, cpu_workers, chunk_size)
 
+        # Fetch recent score history for acceleration indicator
+        score_history = {}
+        accel_multiplier = weights_config.get_weights('trend').get('SCORE_ACCEL_MULTIPLIER', 0.0)
+        if accel_multiplier != 0.0 and ctx.target_date:
+            score_history = self._fetch_recent_scores(ctx.target_date, lookback_days=5)
+        ctx.score_history = score_history
+
         # Shared context passed via initializer (same for all chunks)
         shared_ctx = {
             'benchmark_data': ctx.benchmark_df.to_dict('list') if ctx.benchmark_df is not None else None,
             'market_health': ctx.market_health,
             'enabled_indicators': ctx.enabled_indicators,
             'aggregation': ctx.aggregation,
+            'score_history': score_history,
         }
 
         # ML model paths
@@ -1073,6 +1165,7 @@ def _init_worker(overlay_paths, stop_loss_path, profit_target_paths, shared_ctx)
         'market_health': shared_ctx.get('market_health'),
         'enabled_indicators': shared_ctx.get('enabled_indicators'),
         'aggregation': shared_ctx.get('aggregation', 'sum'),
+        'score_history': shared_ctx.get('score_history', {}),
         'ml_overlay': {'models': {}, 'encoders': {}, 'features': {}},
         'ml_stop_loss': {'model': None, 'encoders': {}, 'features': []},
         'ml_profit_target': {'models': {}, 'encoders': {}, 'features': {}},
@@ -1225,7 +1318,8 @@ def _worker_ml_predict_profit_target(components, overview, sentiment, strategy="
 
 
 def _worker_process_baseline(trader, df, yesterday, benchmark_df, market_health,
-                              enabled_indicators, aggregation, overview, sentiment):
+                              enabled_indicators, aggregation, overview, sentiment,
+                              symbol=None):
     """
     Replicate SwingTrader._process_baseline() without DB access.
     Uses pre-loaded ML models for win probability prediction.
@@ -1245,44 +1339,19 @@ def _worker_process_baseline(trader, df, yesterday, benchmark_df, market_health,
     )
     technical_score = score_components.get("total", 0.0)
 
-    # Step 2: Dynamic entry parameters
-    last_row = df.iloc[-1]
-    ema9 = df['close'].ewm(span=9).mean().iloc[-1]
-    atr = trader._calculate_atr(df)
-    entry_price, atr_discount_used, signal_strength = trader._determine_baseline_entry(
-        last_row, ema9, atr, technical_score
-    )
-
-    # Step 3: Baseline setup with fixed stop multiplier and ML target
+    # Step 2: Baseline setup with ML stop/target and actual technical_score
     ml_stop_multiplier = 2.0
     ml_target_multiplier = _worker_ml_predict_profit_target(
         score_components, overview, sentiment, strategy="baseline"
     )
-    baseline_setup = trader.calculate_baseline_setup(df, ml_stop_multiplier=ml_stop_multiplier, ml_target_multiplier=ml_target_multiplier)
-
-    # Step 4: Override entry price with dynamic calculation
-    baseline_setup['entry_price'] = entry_price
-
-    # Step 5: Recalculate risk/reward with new entry
-    stop_loss = baseline_setup['stop_loss']
-    take_profit = baseline_setup['take_profit']
-    risk = entry_price - stop_loss
-    reward = take_profit - entry_price
-    baseline_setup['rr_ratio'] = reward / risk if risk > 0 else 0
-
-    last_close = last_row['close']
-    risk_pct = (entry_price - stop_loss) / entry_price if entry_price > 0 else 0
-    baseline_setup['is_realistic'] = (
-        (abs((last_close / entry_price) - 1) <= 0.15) and
-        (risk_pct <= MAX_RISK_PERCENT)
+    baseline_setup = trader.calculate_baseline_setup(
+        df, ml_stop_multiplier=ml_stop_multiplier,
+        ml_target_multiplier=ml_target_multiplier,
+        technical_score=technical_score
     )
 
-    # Step 6: Metadata
-    baseline_setup['atr_discount_used'] = atr_discount_used
-    baseline_setup['signal_strength'] = signal_strength
-
     # Validation
-    if not baseline_setup['is_realistic'] or baseline_setup['rr_ratio'] < MIN_RR_RATIO_BASELINE:
+    if not baseline_setup['is_realistic']:
         return None
 
     entry_price = baseline_setup['entry_price']
@@ -1302,6 +1371,15 @@ def _worker_process_baseline(trader, df, yesterday, benchmark_df, market_health,
         rs_bonus *= rs_multiplier
         score_components["rs_index"] = rs_bonus
         score_components["total"] += rs_bonus
+
+    # Score Acceleration bonus
+    accel_multiplier = weights_config.get_weights('trend').get('SCORE_ACCEL_MULTIPLIER', 0.0)
+    if accel_multiplier != 0.0:
+        score_history = _worker_state.get('score_history', {})
+        history = score_history.get(symbol, [])
+        accel_bonus = SwingTrader._calculate_score_acceleration(history) * accel_multiplier
+        score_components["score_acceleration"] = accel_bonus
+        score_components["total"] += accel_bonus
 
     # ML Win Probability (using worker's pre-loaded models, no DB)
     ml_prob = _worker_ml_predict_probability(
@@ -1340,7 +1418,7 @@ def _worker_process_mr(trader, df, yesterday, enabled_indicators, aggregation,
     )
 
     mr_setup = trader.calculate_mean_reversion_setup(df, ml_stop_multiplier=ml_stop_multiplier_mr, ml_target_multiplier=ml_target_multiplier_mr)
-    if not mr_setup['is_realistic'] or mr_setup['rr_ratio'] < MIN_RR_RATIO_MEAN_REVERSION:
+    if not mr_setup['is_realistic']:
         return None
 
     entry_price = mr_setup['entry_price']
@@ -1388,7 +1466,8 @@ def _score_symbol_worker(work_item):
         # --- Process Baseline Strategy ---
         baseline_data = _worker_process_baseline(
             trader, df, yesterday, benchmark_df, market_health,
-            enabled_indicators, aggregation, overview, sentiment
+            enabled_indicators, aggregation, overview, sentiment,
+            symbol=symbol
         )
 
         # --- Process Mean Reversion Strategy ---

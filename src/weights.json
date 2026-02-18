@@ -9,7 +9,8 @@
     "SUPERTREND_MULTIPLIER": 1.5,
     "TTM_SQUEEZE_MULTIPLIER": 2.0,
     "AROON_MULTIPLIER": 1.0,
-    "KELTNER_MULTIPLIER": 1.5
+    "KELTNER_MULTIPLIER": 1.5,
+    "SCORE_ACCEL_MULTIPLIER": 0.0
   },
   "momentum": {
     "RSI_MULTIPLIER": 0.0,
@@ -38,10 +39,10 @@
     "BELT_HOLD_MULTIPLIER": 1.0
   },
   "mean_reversion": {
-    "RSI_MULTIPLIER": 0.0,
-    "BB_MULTIPLIER": 0.0,
-    "MA_DIST_MULTIPLIER": 0.0,
-    "CANDLESTICK_MULTIPLIER": 0.0
+    "RSI_MULTIPLIER": 1.0,
+    "BB_MULTIPLIER": 1.0,
+    "MA_DIST_MULTIPLIER": 1.0,
+    "CANDLESTICK_MULTIPLIER": 1.0
   },
   "price_action": {
     "GAP_MULTIPLIER": 1.5
