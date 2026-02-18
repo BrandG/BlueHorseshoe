@@ -599,6 +599,16 @@ class TrendIndicator(Indicator):
             return -0.5
         return 0.0
 
+    def calculate_stochastic(self) -> float:
+        """Calculate Stochastic Oscillator score based on crossovers and levels."""
+        k_prev = self.days['stoch_k'].shift(1)
+        d_prev = self.days['stoch_d'].shift(1)
+        crossover_up = ((self.days['stoch_k'] > self.days['stoch_d']) & (k_prev <= d_prev)).iloc[-1]
+        crossover_down = ((self.days['stoch_k'] < self.days['stoch_d']) & (k_prev >= d_prev)).iloc[-1]
+        oversold = (self.days['stoch_k'] < 20).iloc[-1]
+        overbought = (self.days['stoch_k'] > 80).iloc[-1]
+        return float(np.select([crossover_up, crossover_down, oversold, overbought], [2, -2, 1, -1], default=0).sum())
+
     def get_score(self, enabled_sub_indicators: Optional[list[str]] = None, aggregation: str = "sum") -> IndicatorScore:
         """
         Calculate the trend score based on the following indicators:
@@ -615,18 +625,8 @@ class TrendIndicator(Indicator):
         buy_score = 1.0 if aggregation == "product" else 0.0
         active_count = 0
 
-        # Sub-indicator mapping
-        def calc_stochastic():
-            k_prev = self.days['stoch_k'].shift(1)
-            d_prev = self.days['stoch_d'].shift(1)
-            crossover_up = ((self.days['stoch_k'] > self.days['stoch_d']) & (k_prev <= d_prev)).iloc[-1]
-            crossover_down = ((self.days['stoch_k'] < self.days['stoch_d']) & (k_prev >= d_prev)).iloc[-1]
-            oversold = (self.days['stoch_k'] < 20).iloc[-1]
-            overbought = (self.days['stoch_k'] > 80).iloc[-1]
-            return np.select([crossover_up, crossover_down, oversold, overbought], [2, -2, 1, -1], default=0).sum()
-
         sub_map = {
-            'stochastic': (calc_stochastic, 'STOCHASTIC_MULTIPLIER'),
+            'stochastic': (self.calculate_stochastic, 'STOCHASTIC_MULTIPLIER'),
             'ichimoku': (self.calculate_ichimoku_score, 'ICHIMOKU_MULTIPLIER'),
             'psar': (self.calculate_psar_score, 'PSAR_MULTIPLIER'),
             'heiken_ashi': (self.calculate_heiken_ashi, 'HEIKEN_ASHI_MULTIPLIER'),

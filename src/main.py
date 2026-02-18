@@ -421,6 +421,62 @@ if __name__ == "__main__":
             except (IndexError, ValueError) as e:
                 logging.error("Invalid arguments for backtesting: %s", e)
                 print("Usage: python main.py -t START_DATE [--end END_DATE] [--interval 7] [--target 1.01] [--stop 0.98] [--hold 3]")
+    elif "-w" in sys.argv:
+        logging.info("Running LOO weight analysis...")
+        with create_cli_context() as ctx:
+            try:
+                w_idx = sys.argv.index("-w")
+                start_date = sys.argv[w_idx + 1]
+
+                end_date = None
+                if "--end" in sys.argv:
+                    end_date = sys.argv[sys.argv.index("--end") + 1]
+                if not end_date:
+                    end_date = get_latest_market_date(database=ctx.db)
+
+                interval = 7
+                if "--interval" in sys.argv:
+                    interval = int(sys.argv[sys.argv.index("--interval") + 1])
+
+                top_n = 50
+                if "--top" in sys.argv:
+                    top_n = int(sys.argv[sys.argv.index("--top") + 1])
+
+                hold_days = 10
+                if "--hold" in sys.argv:
+                    hold_days = int(sys.argv[sys.argv.index("--hold") + 1])
+
+                from bluehorseshoe.analysis.loo_analyzer import LOOAnalyzer, LOOConfig
+                from bluehorseshoe.analysis.loo_report import print_console_report, export_csv
+
+                loo_config = LOOConfig(
+                    start_date=start_date,
+                    end_date=end_date,
+                    interval_days=interval,
+                    top_n=top_n,
+                    hold_days=hold_days,
+                )
+
+                symbols_filter = None
+                if "--symbols" in sys.argv:
+                    try:
+                        symbols_str = sys.argv[sys.argv.index("--symbols") + 1]
+                        symbols_filter = [s.strip() for s in symbols_str.split(',')]
+                    except (ValueError, IndexError):
+                        pass
+
+                analyzer = LOOAnalyzer(database=ctx.db, config=loo_config)
+                results = analyzer.run(symbols=symbols_filter)
+
+                if results:
+                    print_console_report(results)
+                    export_csv(results)
+                else:
+                    print("No results from LOO analysis.")
+
+            except (IndexError, ValueError) as e:
+                logging.error("Invalid arguments for LOO analysis: %s", e)
+                print("Usage: python main.py -w START_DATE [--end END_DATE] [--interval 7] [--top 50] [--hold 10]")
     elif "-o" in sys.argv:
         logging.info("Optimizing indicator weights...")
         WeightOptimizer().run_optimization()
