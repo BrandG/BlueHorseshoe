@@ -17,7 +17,7 @@ from typing import Dict, List, Optional, Any
 
 import pandas as pd
 
-from bluehorseshoe.analysis.backtest import Backtester, BacktestConfig
+from bluehorseshoe.analysis.backtest import Backtester, BacktestConfig, SplitExitConfig
 from bluehorseshoe.analysis.constants import (
     MIN_STOCK_PRICE, MAX_STOCK_PRICE,
     MIN_RR_RATIO_BASELINE, MAX_RISK_PERCENT,
@@ -233,6 +233,7 @@ class LOOAnalyzer:
         candidates: List[Dict],
         target_date: str,
         omit_key: Optional[str] = None,
+        split_config: Optional[SplitExitConfig] = None,
     ) -> List[Dict[str, Any]]:
         """
         Backtest a LOO variant (or baseline if omit_key is None).
@@ -269,12 +270,19 @@ class LOOAnalyzer:
                 'take_profit': setup['take_profit'],
             }
 
-            eval_result = self.backtester.evaluate_prediction(prediction, target_date)
+            if split_config is not None:
+                # Pass ATR from setup_data for Plan B
+                prediction['atr'] = setup_data.get('atr')
+                eval_result = self.backtester.evaluate_prediction_split(prediction, target_date, split_config)
+            else:
+                eval_result = self.backtester.evaluate_prediction(prediction, target_date)
 
             # Calculate P&L
             if eval_result.get('entry') is not None and eval_result.get('exit_price') is not None:
-                pnl_pct = ((eval_result['exit_price'] / eval_result['entry']) - 1) * 100
-                is_win = eval_result['status'] in ['success', 'closed_profit']
+                pnl_pct = eval_result.get('blended_pnl_pct') if eval_result.get('exit_mode') == 'split_exit' else \
+                    ((eval_result['exit_price'] / eval_result['entry']) - 1) * 100
+                win_statuses = ['success', 'closed_profit', 'split_full_profit', 'split_partial_profit']
+                is_win = eval_result['status'] in win_statuses
             else:
                 pnl_pct = 0.0
                 is_win = False
@@ -308,7 +316,7 @@ class LOOAnalyzer:
                 if r['is_win']:
                     stats[key].win_count += 1
 
-    def run(self, symbols: Optional[List[str]] = None) -> Dict[str, Any]:
+    def run(self, symbols: Optional[List[str]] = None, split_config: Optional[SplitExitConfig] = None) -> Dict[str, Any]:
         """
         Run the full LOO analysis across all dates.
 
@@ -366,7 +374,7 @@ class LOOAnalyzer:
 
             # Phase 2: Backtest baseline (all indicators)
             print(f"  Phase 2: Backtesting baseline...", flush=True)
-            baseline_results = self._backtest_variant(candidates, target_date, omit_key=None)
+            baseline_results = self._backtest_variant(candidates, target_date, omit_key=None, split_config=split_config)
             self._accumulate_stats(baseline_stats, 'baseline', baseline_results)
 
             baseline_trades = sum(1 for r in baseline_results if r.get('entry') is not None)
@@ -378,7 +386,7 @@ class LOOAnalyzer:
             print(f"  Phase 3: Testing {len(sorted_keys)} LOO variants...", flush=True)
 
             for key_idx, omit_key in enumerate(sorted_keys):
-                loo_results = self._backtest_variant(candidates, target_date, omit_key=omit_key)
+                loo_results = self._backtest_variant(candidates, target_date, omit_key=omit_key, split_config=split_config)
                 self._accumulate_stats(indicator_stats, omit_key, loo_results)
 
                 if (key_idx + 1) % 10 == 0 or key_idx + 1 == len(sorted_keys):

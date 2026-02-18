@@ -376,7 +376,7 @@ if __name__ == "__main__":
                 if "--hold" in sys.argv:
                     hold_days = int(sys.argv[sys.argv.index("--hold") + 1])
 
-                from bluehorseshoe.analysis.backtest import Backtester, BacktestConfig, BacktestOptions
+                from bluehorseshoe.analysis.backtest import Backtester, BacktestConfig, BacktestOptions, SplitExitConfig
 
                 config = BacktestConfig(
                     target_profit_factor=target_profit,
@@ -410,14 +410,35 @@ if __name__ == "__main__":
                     symbols=symbols_filter
                 )
 
+                # Split-exit mode
+                split_config = None
+                if "--split" in sys.argv:
+                    split_mode = sys.argv[sys.argv.index("--split") + 1]
+                    t1_pct = 0.02
+                    t1_atr = 1.0
+                    t2_atr = 2.0
+                    if "--t1-pct" in sys.argv:
+                        t1_pct = float(sys.argv[sys.argv.index("--t1-pct") + 1])
+                    if "--t1-atr" in sys.argv:
+                        t1_atr = float(sys.argv[sys.argv.index("--t1-atr") + 1])
+                    if "--t2-atr" in sys.argv:
+                        t2_atr = float(sys.argv[sys.argv.index("--t2-atr") + 1])
+                    split_config = SplitExitConfig(
+                        mode=split_mode,
+                        t1_profit_pct=t1_pct,
+                        t1_atr_multiple=t1_atr,
+                        t2_atr_multiple=t2_atr,
+                    )
+                    logging.info("Split-exit mode: %s", split_mode)
+
                 if "--end" in sys.argv:
                     end_date = sys.argv[sys.argv.index("--end") + 1]
                     interval = int(sys.argv[sys.argv.index("--interval") + 1]) if "--interval" in sys.argv else 7
                     logging.info("Running range backtest from %s to %s | Strategy: %s...", target_date, end_date, strategy)
-                    tester.run_range_backtest(target_date, end_date, interval_days=interval, options=options)
+                    tester.run_range_backtest(target_date, end_date, interval_days=interval, options=options, split_config=split_config)
                 else:
                     logging.info("Running backtest for %s | Strategy: %s...", target_date, strategy)
-                    tester.run_backtest(target_date, options=options)
+                    tester.run_backtest(target_date, options=options, split_config=split_config)
             except (IndexError, ValueError) as e:
                 logging.error("Invalid arguments for backtesting: %s", e)
                 print("Usage: python main.py -t START_DATE [--end END_DATE] [--interval 7] [--target 1.01] [--stop 0.98] [--hold 3]")
