@@ -319,8 +319,16 @@ class SwingTrader:
         # 4. Stop Loss: ml_stop_multiplier * ATR below entry
         stop_loss = entry_price - (ml_stop_multiplier * atr)
 
-        # 5. Take Profit: EMA 20
-        take_profit = max(ema20, entry_price + (ml_target_multiplier * atr))
+        # 5. Take Profit: 60% partial reversion capped by resistance
+        if entry_price < ema20:
+            partial_reversion = entry_price + (ema20 - entry_price) * 0.6
+        else:
+            partial_reversion = entry_price + (ml_target_multiplier * atr)
+
+        atr_target = entry_price + (ml_target_multiplier * atr)
+        recent_high_20 = df['high'].tail(20).max()
+        resistance_cap = recent_high_20 * 0.98
+        take_profit = min(partial_reversion, atr_target, resistance_cap)
 
         # 6. Reward-to-Risk
         reward = take_profit - entry_price
