@@ -1060,7 +1060,7 @@ class SwingTrader:
         # 2. Setup Data
         benchmark_df = self._load_benchmark_data(target_date)
         if symbols is None:
-            symbols = get_symbol_name_list(database=self.database)
+            symbols = get_symbol_name_list(database=self.database, active_only=True)
 
         # Build symbol metadata map
         all_symbols = get_symbols_from_mongo(database=self.database)

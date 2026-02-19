@@ -171,13 +171,16 @@ class Backtester:
             else:
                 state.status = 'closed_loss'
 
-    def evaluate_prediction(self, prediction: Dict, target_date: str) -> Dict:
+    def evaluate_prediction(self, prediction: Dict, target_date: str,
+                            price_df: Optional[pd.DataFrame] = None) -> Dict:
         """
         Simulates a trade based on the prediction using future data.
 
         Args:
             prediction: The prediction dictionary containing entry/exit parameters.
             target_date: The date the prediction was made (trade starts the next day).
+            price_df: Optional pre-loaded DataFrame with 'date' already parsed.
+                      If provided, skips MongoDB load.
 
         Returns:
             A dictionary containing the trade outcome (status, PnL, exit details).
@@ -187,18 +190,18 @@ class Backtester:
         stop_loss = prediction.get('stop_loss')
         take_profit = prediction.get('take_profit')
 
-        # Determine strictness of entry (optional, can be passed in config)
-        # strict_entry = True # If True, Low must be <= Entry. If False, buy at Open.
+        if price_df is not None:
+            df = price_df
+        else:
+            price_data = load_historical_data(symbol, database=self.database)
+            if not price_data or 'days' not in price_data:
+                return {'symbol': symbol, 'status': 'data_error'}
 
-        price_data = load_historical_data(symbol, database=self.database)
-        if not price_data or 'days' not in price_data:
-            return {'symbol': symbol, 'status': 'data_error'}
+            df = pd.DataFrame(price_data['days'])
+            if df.empty:
+                return {'symbol': symbol, 'status': 'data_error'}
 
-        df = pd.DataFrame(price_data['days'])
-        if df.empty:
-            return {'symbol': symbol, 'status': 'data_error'}
-
-        df['date'] = pd.to_datetime(df['date'])
+            df['date'] = pd.to_datetime(df['date'])
 
         # Filter for data AFTER the target date
         # target_date is the analysis date. We can enter on target_date (if intraday) or next day.
@@ -226,6 +229,15 @@ class Backtester:
 
             if state.status in ['stopped_out', 'success', 'limit_expired', 'time_exit', 'closed_profit', 'closed_loss']:
                 break
+
+        # Mark-to-market if trade is still active but ran out of data
+        if state.status == 'active' and state.actual_entry is not None:
+            state.exit_price = row['close']
+            state.exit_date = row['date']
+            if state.exit_price > state.actual_entry:
+                state.status = 'closed_profit'
+            else:
+                state.status = 'closed_loss'
 
         return {
             'symbol': symbol,
@@ -390,6 +402,17 @@ class Backtester:
                 'exit_mode': 'split_exit',
             }
 
+        # Handle incomplete trade (ran out of data before hold period ended)
+        if last_row is not None:
+            if state.t1_exit_price is None:
+                state.t1_exit_price = last_row['close']
+                state.t1_exit_date = last_row['date']
+                state.t1_status = 'time_exit'
+            if state.t2_exit_price is None:
+                state.t2_exit_price = last_row['close']
+                state.t2_exit_date = last_row['date']
+                state.t2_status = 'time_exit'
+
         w = split_config.tranche_weight
         t1_pnl = ((state.t1_exit_price / entry) - 1) * 100
         t2_pnl = ((state.t2_exit_price / entry) - 1) * 100
@@ -436,7 +459,9 @@ class Backtester:
             'exit_mode': 'split_exit',
         }
 
-    def evaluate_prediction_split(self, prediction: Dict, target_date: str, split_config: SplitExitConfig) -> Dict:
+    def evaluate_prediction_split(self, prediction: Dict, target_date: str,
+                                   split_config: SplitExitConfig,
+                                   price_df: Optional[pd.DataFrame] = None) -> Dict:
         """
         Simulates a split-exit (two-tranche) trade.
 
@@ -445,6 +470,8 @@ class Backtester:
                         Optionally 'atr' for Plan B.
             target_date: Date the prediction was made.
             split_config: SplitExitConfig controlling tranche targets.
+            price_df: Optional pre-loaded DataFrame with 'date' already parsed.
+                      If provided, skips MongoDB load.
 
         Returns:
             Result dict with blended P&L, per-tranche details, and synthetic exit_price.
@@ -454,15 +481,18 @@ class Backtester:
         stop_loss = prediction.get('stop_loss')
         take_profit = prediction.get('take_profit')
 
-        price_data = load_historical_data(symbol, database=self.database)
-        if not price_data or 'days' not in price_data:
-            return {'symbol': symbol, 'status': 'data_error', 'exit_mode': 'split_exit'}
+        if price_df is not None:
+            df = price_df
+        else:
+            price_data = load_historical_data(symbol, database=self.database)
+            if not price_data or 'days' not in price_data:
+                return {'symbol': symbol, 'status': 'data_error', 'exit_mode': 'split_exit'}
 
-        df = pd.DataFrame(price_data['days'])
-        if df.empty:
-            return {'symbol': symbol, 'status': 'data_error', 'exit_mode': 'split_exit'}
+            df = pd.DataFrame(price_data['days'])
+            if df.empty:
+                return {'symbol': symbol, 'status': 'data_error', 'exit_mode': 'split_exit'}
 
-        df['date'] = pd.to_datetime(df['date'])
+            df['date'] = pd.to_datetime(df['date'])
 
         start_date = pd.to_datetime(target_date)
         future_data = df[df['date'] > start_date].sort_values('date').reset_index(drop=True)
@@ -525,7 +555,7 @@ class Backtester:
 
     def _load_symbols(self) -> List[str]:
         print("  > Loading symbols from database...", end="", flush=True)
-        symbols = get_symbol_name_list(database=self.database)
+        symbols = get_symbol_name_list(database=self.database, active_only=True)
         print(f" Done ({len(symbols)} symbols).", flush=True)
         return symbols
 
@@ -755,7 +785,7 @@ class Backtester:
         symbols = options.symbols
         if not symbols:
             print(f"  > Fetching symbols...", end="", flush=True)
-            symbols = get_symbol_name_list(database=self.database)
+            symbols = get_symbol_name_list(database=self.database, active_only=True)
             print(f" Done ({len(symbols)} symbols).", flush=True)
             # Update options with loaded symbols to pass down
             options.symbols = symbols

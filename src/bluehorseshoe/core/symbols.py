@@ -171,13 +171,14 @@ def refresh_symbols(database=None) -> Dict[str, Any]:
 # Goal 2: Load symbol list from Mongo
 # ---------------------------------------------------------------------
 
-def get_symbols_from_mongo(database=None, limit: Optional[int] = None) -> List[Dict[str, Any]]:
+def get_symbols_from_mongo(database=None, limit: Optional[int] = None, active_only: bool = False) -> List[Dict[str, Any]]:
     """
     Return stored symbols sorted alphabetically.
 
     Args:
         database: MongoDB database instance. Required.
         limit: Optional limit on number of symbols to return.
+        active_only: If True, only return symbols with active=True.
 
     Returns:
         List of symbol dictionaries.
@@ -185,13 +186,14 @@ def get_symbols_from_mongo(database=None, limit: Optional[int] = None) -> List[D
     if database is None:
         raise ValueError("database parameter is required for get_symbols_from_mongo")
 
-    cursor = database["symbols"].find({}, {"_id": 0}).sort("symbol", 1)
+    query = {"active": True} if active_only else {}
+    cursor = database["symbols"].find(query, {"_id": 0}).sort("symbol", 1)
     if limit:
         cursor = cursor.limit(limit)
     return list(cursor)
 
 
-def get_symbol_list(database=None, prefer_net: bool = False) -> List[Dict[str, Any]]:
+def get_symbol_list(database=None, prefer_net: bool = False, active_only: bool = False) -> List[Dict[str, Any]]:
     """
     Convenience getter:
       - prefer_net=True: try net, fall back to mongo on error/empty.
@@ -200,6 +202,7 @@ def get_symbol_list(database=None, prefer_net: bool = False) -> List[Dict[str, A
     Args:
         database: Optional MongoDB database instance. If None, uses legacy global singleton.
         prefer_net: If True, tries to fetch from network first.
+        active_only: If True, only return symbols with active=True.
 
     Returns:
         List of symbol dictionaries.
@@ -213,22 +216,23 @@ def get_symbol_list(database=None, prefer_net: bool = False) -> List[Dict[str, A
             logging.warning("Net symbol fetch failed; falling back to Mongo: %s", e)
 
     if not symbols:
-        symbols = get_symbols_from_mongo(database=database)
+        symbols = get_symbols_from_mongo(database=database, active_only=active_only)
 
     return [s for s in symbols if s["symbol"].upper() not in invalid_symbols]
 
 
-def get_symbol_name_list(database=None) -> List[str]:
+def get_symbol_name_list(database=None, active_only: bool = False) -> List[str]:
     """
     Retrieves a list of symbol names.
 
     Args:
         database: Optional MongoDB database instance. If None, uses legacy global singleton.
+        active_only: If True, only return symbols with active=True.
 
     Returns:
         List of symbol strings.
     """
-    return [s['symbol'] for s in get_symbol_list(database=database)]
+    return [s['symbol'] for s in get_symbol_list(database=database, active_only=active_only)]
 
 
 # ---------------------------------------------------------------------

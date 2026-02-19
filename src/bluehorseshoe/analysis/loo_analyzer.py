@@ -12,6 +12,8 @@ Evaluates each sub-indicator's P&L contribution by:
 """
 
 import logging
+import os
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Any
 
@@ -27,7 +29,11 @@ from bluehorseshoe.analysis.constants import (
 from bluehorseshoe.analysis.indicators.detailed_scoring import DetailedScorer
 from bluehorseshoe.analysis.strategy import SwingTrader
 from bluehorseshoe.core.symbols import get_symbol_name_list
-from bluehorseshoe.data.historical_data import load_historical_data, get_active_symbol_list
+from bluehorseshoe.data.historical_data import (
+    load_historical_data, get_active_symbol_list, get_technical_indicators,
+)
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -154,6 +160,7 @@ class LOOAnalyzer:
             config=BacktestConfig(hold_days=config.hold_days),
             database=database,
         )
+        self._data_cache: Dict[str, pd.DataFrame] = {}
 
     def _generate_dates(self) -> List[str]:
         """Generate backtest dates from start_date to end_date at interval_days."""
@@ -165,8 +172,78 @@ class LOOAnalyzer:
             current += pd.Timedelta(days=self.config.interval_days)
         return dates
 
+    _OHLCV_COLS = ['date', 'open', 'high', 'low', 'close', 'volume']
+
+    def _preload_all_data(self, symbols: List[str]) -> None:
+        """Load OHLCV-only data for all symbols into memory cache using parallel I/O.
+
+        Stores only date + OHLCV columns with float32 numerics to keep memory
+        under ~300 MB for ~3000 symbols. Indicators are recomputed on-the-fly
+        in _load_symbol_data when needed for scoring.
+        """
+        print(f"  Preloading OHLCV data for {len(symbols)} symbols...", flush=True)
+        self._data_cache.clear()
+
+        def _load_one(symbol: str) -> Optional[tuple]:
+            price_data = load_historical_data(symbol, database=self.database)
+            if price_data is None or not price_data.get('days'):
+                return None
+            df = pd.DataFrame(price_data['days'])
+            # Keep only OHLCV columns
+            available = [c for c in self._OHLCV_COLS if c in df.columns]
+            df = df[available]
+            df['date'] = pd.to_datetime(df['date'])
+            # Downcast to reduce memory
+            for c in df.select_dtypes('float64').columns:
+                df[c] = df[c].astype('float32')
+            for c in df.select_dtypes('int64').columns:
+                df[c] = df[c].astype('int32')
+            return (symbol, df)
+
+        loaded = 0
+        max_workers = min(4, os.cpu_count() or 4)
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = {executor.submit(_load_one, sym): sym for sym in symbols}
+            for future in as_completed(futures):
+                loaded += 1
+                if loaded % 500 == 0 or loaded == len(symbols):
+                    print(f"    {loaded}/{len(symbols)} symbols loaded ({len(self._data_cache)} cached)", flush=True)
+                try:
+                    result = future.result()
+                except Exception:
+                    logger.debug("Error loading %s", futures[future], exc_info=True)
+                    continue
+                if result is not None:
+                    self._data_cache[result[0]] = result[1]
+
+        print(f"  Preload complete: {len(self._data_cache)} symbols cached", flush=True)
+
     def _load_symbol_data(self, symbol: str, target_date: str) -> Optional[pd.DataFrame]:
-        """Load and filter historical data for a symbol up to target_date."""
+        """Load and filter historical data for a symbol up to target_date.
+
+        When data is in the OHLCV cache, filters by date and recomputes
+        technical indicators from OHLCV (TA-Lib, ~1ms per symbol).
+        """
+        cached_df = self._data_cache.get(symbol)
+        if cached_df is not None:
+            target_ts = pd.to_datetime(target_date)
+            df = cached_df[cached_df['date'] <= target_ts]
+
+            if df.empty or len(df) < 30:
+                return None
+
+            last_date = df.iloc[-1]['date']
+            if (target_ts - last_date).days > 7:
+                return None
+
+            # Compute indicators from OHLCV (copy to avoid mutating cache)
+            df = df.copy()
+            # get_technical_indicators modifies df in-place then returns dicts;
+            # we only need the in-place modifications.
+            get_technical_indicators(df)
+            return df
+
+        # Fallback to MongoDB load
         price_data = load_historical_data(symbol, database=self.database)
         if price_data is None or not price_data.get('days'):
             return None
@@ -186,9 +263,36 @@ class LOOAnalyzer:
 
         return df
 
+    def _score_symbol(self, symbol: str, target_date: str) -> Optional[Dict[str, Any]]:
+        """Score a single symbol. Returns candidate dict or None."""
+        df = self._load_symbol_data(symbol, target_date)
+        if df is None:
+            return None
+
+        raw_scores, weighted_scores, total_score = DetailedScorer.score_all_indicators(df)
+        if not raw_scores or total_score <= 0:
+            return None
+
+        setup_data = DetailedScorer.get_setup_data(df)
+        full_setup = _reconstruct_setup(total_score, setup_data)
+        if full_setup is None:
+            return None
+
+        return {
+            'symbol': symbol,
+            'raw_scores': raw_scores,
+            'weighted_scores': weighted_scores,
+            'total_score': total_score,
+            'setup_data': setup_data,
+            'full_setup': full_setup,
+        }
+
     def _score_date(self, target_date: str, symbols: List[str]) -> List[Dict[str, Any]]:
         """
         Run full scoring for all symbols on a single date.
+
+        With data cached in memory, scoring is CPU-bound (pandas/numpy),
+        so a simple sequential loop avoids thread overhead.
 
         Returns list of candidate dicts with:
         - symbol, raw_scores, weighted_scores, total_score, setup_data
@@ -196,33 +300,16 @@ class LOOAnalyzer:
         candidates = []
         total_symbols = len(symbols)
 
-        for idx, symbol in enumerate(symbols):
-            if (idx + 1) % 500 == 0 or idx + 1 == total_symbols:
-                print(f"    {idx + 1}/{total_symbols} symbols scored ({len(candidates)} candidates)", flush=True)
-
-            df = self._load_symbol_data(symbol, target_date)
-            if df is None:
+        for completed, sym in enumerate(symbols, 1):
+            try:
+                result = self._score_symbol(sym, target_date)
+            except Exception:
+                logger.debug("Error scoring %s", sym, exc_info=True)
                 continue
-
-            raw_scores, weighted_scores, total_score = DetailedScorer.score_all_indicators(df)
-            if not raw_scores or total_score <= 0:
-                continue
-
-            setup_data = DetailedScorer.get_setup_data(df)
-
-            # Validate the full setup
-            full_setup = _reconstruct_setup(total_score, setup_data)
-            if full_setup is None:
-                continue
-
-            candidates.append({
-                'symbol': symbol,
-                'raw_scores': raw_scores,
-                'weighted_scores': weighted_scores,
-                'total_score': total_score,
-                'setup_data': setup_data,
-                'full_setup': full_setup,
-            })
+            if result is not None:
+                candidates.append(result)
+            if completed % 500 == 0 or completed == total_symbols:
+                print(f"    {completed}/{total_symbols} symbols scored ({len(candidates)} candidates)", flush=True)
 
         # Sort by total score and take top N
         candidates.sort(key=lambda x: x['total_score'], reverse=True)
@@ -270,12 +357,17 @@ class LOOAnalyzer:
                 'take_profit': setup['take_profit'],
             }
 
+            # Pass cached DataFrame to avoid redundant MongoDB reads
+            cached_df = self._data_cache.get(cand['symbol'])
+
             if split_config is not None:
                 # Pass ATR from setup_data for Plan B
                 prediction['atr'] = setup_data.get('atr')
-                eval_result = self.backtester.evaluate_prediction_split(prediction, target_date, split_config)
+                eval_result = self.backtester.evaluate_prediction_split(
+                    prediction, target_date, split_config, price_df=cached_df)
             else:
-                eval_result = self.backtester.evaluate_prediction(prediction, target_date)
+                eval_result = self.backtester.evaluate_prediction(
+                    prediction, target_date, price_df=cached_df)
 
             # Calculate P&L
             if eval_result.get('entry') is not None and eval_result.get('exit_price') is not None:
@@ -342,11 +434,14 @@ class LOOAnalyzer:
         # Load symbols once — default to active (tradeable) symbols
         if symbols is None:
             active_set = get_active_symbol_list(database=self.database)
-            all_symbols = get_symbol_name_list(database=self.database)
+            all_symbols = get_symbol_name_list(database=self.database, active_only=True)
             symbols = [s for s in all_symbols if s in active_set]
-            print(f"Loaded {len(symbols)} active symbols (of {len(all_symbols)} total)")
+            print(f"Loaded {len(symbols)} active symbols (of {len(all_symbols)} listed)")
         else:
             print(f"Using {len(symbols)} specified symbols")
+
+        # Preload all symbol data into memory to avoid redundant MongoDB reads
+        self._preload_all_data(symbols)
 
         baseline_stats: Dict[str, IndicatorStats] = {}
         indicator_stats: Dict[str, IndicatorStats] = {}
@@ -381,16 +476,31 @@ class LOOAnalyzer:
             baseline_pnl = sum(r['pnl_pct'] for r in baseline_results if r.get('entry') is not None)
             print(f"  Baseline: {baseline_trades} trades, P&L: {baseline_pnl:.2f}%")
 
-            # Phase 3: LOO variants
+            # Phase 3: LOO variants (parallelized)
             sorted_keys = sorted(date_keys)
             print(f"  Phase 3: Testing {len(sorted_keys)} LOO variants...", flush=True)
 
-            for key_idx, omit_key in enumerate(sorted_keys):
-                loo_results = self._backtest_variant(candidates, target_date, omit_key=omit_key, split_config=split_config)
-                self._accumulate_stats(indicator_stats, omit_key, loo_results)
+            max_workers = min(8, os.cpu_count() or 4)
+            completed_variants = 0
+            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                future_to_key = {
+                    executor.submit(self._backtest_variant, candidates, target_date, key, split_config): key
+                    for key in sorted_keys
+                }
+                for future in as_completed(future_to_key):
+                    key = future_to_key[future]
+                    completed_variants += 1
+                    try:
+                        loo_results = future.result()
+                    except Exception:
+                        logger.warning("Error in LOO variant %s: %s", key, exc_info=True)
+                        continue
+                    self._accumulate_stats(indicator_stats, key, loo_results)
+                    if completed_variants % 10 == 0 or completed_variants == len(sorted_keys):
+                        print(f"    {completed_variants}/{len(sorted_keys)} variants tested", flush=True)
 
-                if (key_idx + 1) % 10 == 0 or key_idx + 1 == len(sorted_keys):
-                    print(f"    {key_idx + 1}/{len(sorted_keys)} variants tested", flush=True)
+        # Free cached data
+        self._data_cache.clear()
 
         # Compile results
         return {

@@ -427,10 +427,16 @@ if __name__ == "__main__":
                     symbols=symbols_filter
                 )
 
-                # Split-exit mode
+                # Split-exit mode (defaults to atr_tiered / Plan B)
                 split_config = None
                 if "--split" in sys.argv:
-                    split_mode = sys.argv[sys.argv.index("--split") + 1]
+                    split_idx = sys.argv.index("--split")
+                    # Mode arg is optional; default to atr_tiered
+                    next_arg = sys.argv[split_idx + 1] if split_idx + 1 < len(sys.argv) else None
+                    if next_arg in ('fixed_pct', 'atr_tiered'):
+                        split_mode = next_arg
+                    else:
+                        split_mode = 'atr_tiered'
                     t1_pct = 0.02
                     t1_atr = 1.0
                     t2_atr = 2.0
@@ -503,8 +509,21 @@ if __name__ == "__main__":
                     except (ValueError, IndexError):
                         pass
 
+                # Split-exit mode for LOO (defaults to atr_tiered / Plan B)
+                from bluehorseshoe.analysis.backtest import SplitExitConfig as LOOSplitConfig
+                loo_split_config = None
+                if "--split" in sys.argv:
+                    split_idx = sys.argv.index("--split")
+                    next_arg = sys.argv[split_idx + 1] if split_idx + 1 < len(sys.argv) else None
+                    if next_arg in ('fixed_pct', 'atr_tiered'):
+                        loo_split_mode = next_arg
+                    else:
+                        loo_split_mode = 'atr_tiered'
+                    loo_split_config = LOOSplitConfig(mode=loo_split_mode)
+                    logging.info("LOO split-exit mode: %s", loo_split_mode)
+
                 analyzer = LOOAnalyzer(database=ctx.db, config=loo_config)
-                results = analyzer.run(symbols=symbols_filter)
+                results = analyzer.run(symbols=symbols_filter, split_config=loo_split_config)
 
                 if results:
                     print_console_report(results)
