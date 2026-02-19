@@ -1,0 +1,245 @@
+"""Tests for IBKR client — all mocked, no live gateway needed."""
+import math
+from unittest.mock import patch, MagicMock
+import pytest
+
+from bluehorseshoe.data.ibkr_client import (
+    IBKRClient,
+    IBKRConfig,
+    QuoteData,
+    _safe_float,
+    _safe_int,
+)
+
+
+# ── Safe conversion helpers ──────────────────────────────────────────
+
+class TestSafeConversions:
+    def test_safe_float_normal(self):
+        assert _safe_float(42.5) == 42.5
+
+    def test_safe_float_int(self):
+        assert _safe_float(10) == 10.0
+
+    def test_safe_float_none(self):
+        assert _safe_float(None) is None
+
+    def test_safe_float_nan(self):
+        assert _safe_float(float("nan")) is None
+
+    def test_safe_float_string(self):
+        assert _safe_float("bad") is None
+
+    def test_safe_int_normal(self):
+        assert _safe_int(100) == 100
+
+    def test_safe_int_float(self):
+        assert _safe_int(100.7) == 100
+
+    def test_safe_int_none(self):
+        assert _safe_int(None) is None
+
+    def test_safe_int_nan(self):
+        assert _safe_int(float("nan")) is None
+
+    def test_safe_int_string(self):
+        assert _safe_int("bad") is None
+
+
+# ── IBKRConfig defaults ──────────────────────────────────────────────
+
+class TestIBKRConfig:
+    def test_defaults(self):
+        cfg = IBKRConfig()
+        assert cfg.host == "ib-gateway"
+        assert cfg.port == 4002
+        assert cfg.client_id == 1
+        assert cfg.timeout == 10.0
+        assert cfg.read_only is True
+
+    def test_custom_values(self):
+        cfg = IBKRConfig(host="localhost", port=4001, client_id=5, timeout=30.0, read_only=False)
+        assert cfg.host == "localhost"
+        assert cfg.port == 4001
+        assert cfg.client_id == 5
+        assert cfg.timeout == 30.0
+        assert cfg.read_only is False
+
+
+# ── IBKRClient connection behaviour ─────────────────────────────────
+
+class TestIBKRClientConnection:
+    def test_not_connected_by_default(self):
+        client = IBKRClient()
+        assert client.is_connected() is False
+
+    def test_close_when_not_connected(self):
+        client = IBKRClient()
+        # Should not raise
+        client.close()
+        assert client.is_connected() is False
+
+    @patch("bluehorseshoe.data.ibkr_client.ib_async", create=True)
+    def test_connection_refused_returns_error(self, mock_ib_async):
+        """When gateway is down, get_quote returns QuoteData with error."""
+        mock_ib = MagicMock()
+        mock_ib.isConnected.return_value = False
+        mock_ib.connect.side_effect = ConnectionRefusedError("Connection refused")
+        mock_ib_async.IB.return_value = mock_ib
+
+        with patch.dict("sys.modules", {"ib_async": mock_ib_async}):
+            client = IBKRClient()
+            quote = client.get_quote("AAPL")
+            assert quote.error is not None
+            assert "Cannot connect" in quote.error
+
+    def test_import_error_returns_error(self):
+        """When ib_async is not installed, get_quote returns error."""
+        with patch.dict("sys.modules", {"ib_async": None}):
+            client = IBKRClient()
+            client._ib = None
+            quote = client.get_quote("AAPL")
+            assert quote.error is not None
+
+
+# ── IBKRClient with fully mocked IB ─────────────────────────────────
+
+class TestIBKRClientWithMockedIB:
+    @patch("bluehorseshoe.data.ibkr_client.ib_async", create=True)
+    def test_get_quote_success(self, mock_ib_async):
+        """Full success path with mocked IB connection."""
+        mock_ib = MagicMock()
+        mock_ib.isConnected.return_value = True
+        mock_ib_async.IB.return_value = mock_ib
+
+        # Mock contract and ticker
+        mock_contract = MagicMock()
+        mock_contract.symbol = "AAPL"
+        mock_ib_async.Stock.return_value = mock_contract
+
+        mock_ticker = MagicMock()
+        mock_ticker.bid = 150.10
+        mock_ticker.ask = 150.20
+        mock_ticker.last = 150.15
+        mock_ticker.volume = 1000000
+        mock_ticker.high = 151.00
+        mock_ticker.low = 149.50
+        mock_ticker.open = 149.80
+        mock_ticker.close = 150.00
+        mock_ib.reqMktData.return_value = mock_ticker
+
+        with patch.dict("sys.modules", {"ib_async": mock_ib_async}):
+            client = IBKRClient()
+            # Pre-set connection to skip connect()
+            client._ib = mock_ib
+
+            quote = client.get_quote("AAPL")
+
+            assert quote.error is None
+            assert quote.symbol == "AAPL"
+            assert quote.bid == 150.10
+            assert quote.ask == 150.20
+            assert quote.last == 150.15
+            assert quote.volume == 1000000
+            assert quote.high == 151.00
+            assert quote.low == 149.50
+            assert quote.open == 149.80
+            assert quote.close == 150.00
+            assert quote.timestamp is not None
+
+    @patch("bluehorseshoe.data.ibkr_client.ib_async", create=True)
+    def test_get_quote_nan_values(self, mock_ib_async):
+        """NaN values from IB are converted to None."""
+        mock_ib = MagicMock()
+        mock_ib.isConnected.return_value = True
+        mock_ib_async.IB.return_value = mock_ib
+
+        mock_contract = MagicMock()
+        mock_contract.symbol = "AAPL"
+        mock_ib_async.Stock.return_value = mock_contract
+
+        mock_ticker = MagicMock()
+        mock_ticker.bid = float("nan")
+        mock_ticker.ask = float("nan")
+        mock_ticker.last = 150.15
+        mock_ticker.volume = float("nan")
+        mock_ticker.high = float("nan")
+        mock_ticker.low = float("nan")
+        mock_ticker.open = float("nan")
+        mock_ticker.close = float("nan")
+        mock_ib.reqMktData.return_value = mock_ticker
+
+        with patch.dict("sys.modules", {"ib_async": mock_ib_async}):
+            client = IBKRClient()
+            client._ib = mock_ib
+
+            quote = client.get_quote("AAPL")
+
+            assert quote.error is None
+            assert quote.bid is None
+            assert quote.ask is None
+            assert quote.last == 150.15
+            assert quote.volume is None
+
+    @patch("bluehorseshoe.data.ibkr_client.ib_async", create=True)
+    def test_get_quotes_multiple(self, mock_ib_async):
+        """Batch quote fetch for multiple symbols."""
+        mock_ib = MagicMock()
+        mock_ib.isConnected.return_value = True
+        mock_ib_async.IB.return_value = mock_ib
+
+        contracts = []
+        tickers = []
+        for sym, price in [("AAPL", 150.0), ("MSFT", 380.0)]:
+            c = MagicMock()
+            c.symbol = sym
+            contracts.append(c)
+
+            t = MagicMock()
+            t.bid = price - 0.10
+            t.ask = price + 0.10
+            t.last = price
+            t.volume = 500000
+            t.high = price + 1
+            t.low = price - 1
+            t.open = price - 0.5
+            t.close = price - 0.2
+            tickers.append(t)
+
+        mock_ib_async.Stock.side_effect = contracts
+        mock_ib.reqMktData.side_effect = tickers
+
+        with patch.dict("sys.modules", {"ib_async": mock_ib_async}):
+            client = IBKRClient()
+            client._ib = mock_ib
+
+            quotes = client.get_quotes(["AAPL", "MSFT"])
+
+            assert len(quotes) == 2
+            assert quotes[0].symbol == "AAPL"
+            assert quotes[0].last == 150.0
+            assert quotes[1].symbol == "MSFT"
+            assert quotes[1].last == 380.0
+
+    def test_get_quotes_connection_error(self):
+        """When connection fails, all symbols get error."""
+        with patch.dict("sys.modules", {"ib_async": None}):
+            client = IBKRClient()
+            client._ib = None
+            quotes = client.get_quotes(["AAPL", "MSFT"])
+            assert len(quotes) == 2
+            assert all(q.error is not None for q in quotes)
+
+    @patch("bluehorseshoe.data.ibkr_client.ib_async", create=True)
+    def test_close_disconnects(self, mock_ib_async):
+        """Close disconnects from IB Gateway."""
+        mock_ib = MagicMock()
+        mock_ib.isConnected.return_value = True
+        mock_ib_async.IB.return_value = mock_ib
+
+        client = IBKRClient()
+        client._ib = mock_ib
+        client.close()
+
+        mock_ib.disconnect.assert_called_once()
+        assert client._ib is None

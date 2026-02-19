@@ -26,6 +26,9 @@ services:
       SMTP_PASSWORD: ${SMTP_PASSWORD}
       EMAIL_RECIPIENT: ${EMAIL_RECIPIENT}
       EMAIL_SENDER: ${EMAIL_SENDER}
+      IBKR_HOST: ${IBKR_HOST:-ib-gateway}
+      IBKR_PORT: ${IBKR_PORT:-4004}
+      IBKR_CLIENT_ID: ${IBKR_CLIENT_ID:-1}
     depends_on:
       - mongo
     networks:
@@ -33,6 +36,26 @@ services:
     volumes:
       # Mount the src folder from host into the container
       - ..:/workspaces/BlueHorseshoe
+
+  ib-gateway:
+    image: ghcr.io/gnzsnz/ib-gateway:latest
+    container_name: ib-gateway
+    restart: unless-stopped
+    environment:
+      TWS_USERID: ${TWS_USERID}
+      TWS_PASSWORD: ${TWS_PASSWORD}
+      TRADING_MODE: ${TRADING_MODE:-paper}
+      READ_ONLY_API: "yes"
+      TWOFA_TIMEOUT_ACTION: restart
+      AUTO_RESTART_TIME: ""
+      ACCEPT_INCOMING_CONNECTION: accept
+    ports:
+      - "4001:4001"
+      - "4002:4002"
+      - "4004:4004"
+      - "5900:5900"
+    networks:
+      - app_net
 
 networks:
   app_net:

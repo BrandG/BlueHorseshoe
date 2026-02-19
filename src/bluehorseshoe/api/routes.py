@@ -9,9 +9,10 @@ from bluehorseshoe.api.models import PredictionRequest, TaskSubmission, TaskStat
 from bluehorseshoe.api.tasks import (
     predict_task, run_daily_pipeline, task_store, new_task_id,
 )
-from bluehorseshoe.core.dependencies import get_database, get_config
+from bluehorseshoe.core.dependencies import get_database, get_config, get_ibkr_client
 from bluehorseshoe.core.config import Settings
 from bluehorseshoe.core.service import get_latest_market_date
+from bluehorseshoe.data.ibkr_client import IBKRClient
 import logging
 
 router = APIRouter()
@@ -550,3 +551,26 @@ async def get_pipeline_status():
             return json.load(f)
     except (json.JSONDecodeError, IOError) as e:
         raise HTTPException(status_code=500, detail=f"Failed to read pipeline status: {e}")
+
+
+@router.get("/quote/{symbol}")
+def get_quote(symbol: str, client: IBKRClient = Depends(get_ibkr_client)):
+    """
+    Get a real-time quote snapshot from IB Gateway.
+    Returns 503 if gateway is not available.
+    """
+    quote = client.get_quote(symbol.upper())
+    if quote.error:
+        raise HTTPException(status_code=503, detail=quote.error)
+    return {
+        "symbol": quote.symbol,
+        "bid": quote.bid,
+        "ask": quote.ask,
+        "last": quote.last,
+        "volume": quote.volume,
+        "high": quote.high,
+        "low": quote.low,
+        "open": quote.open,
+        "close": quote.close,
+        "timestamp": quote.timestamp.isoformat() if quote.timestamp else None,
+    }

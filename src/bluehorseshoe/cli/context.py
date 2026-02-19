@@ -3,11 +3,14 @@ CLI Context Manager for BlueHorseshoe command-line scripts.
 Provides dependency injection for CLI mode with proper resource lifecycle management.
 """
 from contextlib import contextmanager
-from typing import Generator
+from typing import Generator, TYPE_CHECKING
 from bluehorseshoe.core.container import create_app_container, AppContainer
 from bluehorseshoe.core.config import Settings
 from bluehorseshoe.reporting.report_generator import ReportWriter
 from pymongo.database import Database
+
+if TYPE_CHECKING:
+    from bluehorseshoe.data.ibkr_client import IBKRClient
 
 
 class CLIContext:
@@ -46,6 +49,11 @@ class CLIContext:
     def report_writer(self) -> ReportWriter:
         """Access to report writer for logging."""
         return self._report_writer
+
+    @property
+    def ibkr(self) -> "IBKRClient":
+        """Access to IBKR client for real-time data."""
+        return self._container.get_ibkr_client()
 
     @property
     def invalid_symbols(self) -> list:

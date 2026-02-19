@@ -490,6 +490,47 @@ if __name__ == "__main__":
     elif "-o" in sys.argv:
         logging.info("Optimizing indicator weights...")
         WeightOptimizer().run_optimization()
+    elif "-q" in sys.argv or "--ibkr-quote" in sys.argv:
+        # IBKR real-time quote mode
+        try:
+            if "-q" in sys.argv:
+                idx = sys.argv.index("-q")
+            else:
+                idx = sys.argv.index("--ibkr-quote")
+
+            symbols = [a.upper() for a in sys.argv[idx + 1:] if not a.startswith("-")]
+            if not symbols:
+                print("Usage: python src/main.py -q SYMBOL [SYMBOL ...]")
+                sys.exit(1)
+
+            with create_cli_context() as ctx:
+                client = ctx.ibkr
+
+                if len(symbols) == 1:
+                    quotes = [client.get_quote(symbols[0])]
+                else:
+                    quotes = client.get_quotes(symbols)
+
+                for q in quotes:
+                    if q.error:
+                        print(f"  {q.symbol}: ERROR - {q.error}")
+                    else:
+                        last_str = f"${q.last:.2f}" if q.last is not None else "N/A"
+                        bid_str = f"${q.bid:.2f}" if q.bid is not None else "N/A"
+                        ask_str = f"${q.ask:.2f}" if q.ask is not None else "N/A"
+                        open_str = f"${q.open:.2f}" if q.open is not None else "N/A"
+                        high_str = f"${q.high:.2f}" if q.high is not None else "N/A"
+                        low_str = f"${q.low:.2f}" if q.low is not None else "N/A"
+                        vol_str = f"{q.volume:,}" if q.volume is not None else "N/A"
+                        ts_str = q.timestamp.strftime("%H:%M:%S") if q.timestamp else "N/A"
+                        print(f"  {q.symbol}: Last={last_str}  Bid={bid_str}  Ask={ask_str}  "
+                              f"Open={open_str}  High={high_str}  Low={low_str}  "
+                              f"Vol={vol_str}  @{ts_str}")
+
+        except Exception as e:
+            logging.error("IBKR quote error: %s", e)
+            print(f"Error: {e}")
+            sys.exit(1)
     elif "-i" in sys.argv or "--intraday" in sys.argv:
         # Intraday check mode
         # Expects: -i SYMBOL ENTRY STOP TARGET
@@ -523,8 +564,8 @@ if __name__ == "__main__":
     else:
         USAGE_STRING = (
             "Invalid arguments. Use -u to update historical data, -p to predict next day "
-            "swing trading midpoints, -t YYYY-MM-DD to backtest, -d to debug, or -b to "
-            "build historical data."
+            "swing trading midpoints, -t YYYY-MM-DD to backtest, -q SYMBOL to get IBKR "
+            "real-time quotes, -d to debug, or -b to build historical data."
         )
         print(USAGE_STRING)
         sys.exit(1)

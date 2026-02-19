@@ -77,6 +77,11 @@ class Settings(BaseSettings):
     alphavantage_key: str = ""
     alphavantage_cps: int = 2
 
+    # IBKR Gateway
+    ibkr_host: str = "ib-gateway"
+    ibkr_port: int = 4004
+    ibkr_client_id: int = 1
+
     # Feature Flags
     holiday_mode: bool = False
 

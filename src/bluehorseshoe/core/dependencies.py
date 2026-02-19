@@ -7,6 +7,7 @@ from fastapi import Depends, Request
 from pymongo.database import Database
 from .container import AppContainer
 from .config import Settings
+from bluehorseshoe.data.ibkr_client import IBKRClient
 
 def get_container(request: Request) -> AppContainer:
     """
@@ -52,6 +53,18 @@ def get_config(container: AppContainer = Depends(get_container)) -> Settings:
         Settings instance with environment-based configuration
     """
     return container.settings
+
+def get_ibkr_client(container: AppContainer = Depends(get_container)) -> IBKRClient:
+    """
+    Get IBKRClient instance for real-time market data.
+
+    Args:
+        container: AppContainer (injected by FastAPI)
+
+    Returns:
+        IBKRClient instance
+    """
+    return container.get_ibkr_client()
 
 def get_invalid_symbols(container: AppContainer = Depends(get_container)) -> list:
     """

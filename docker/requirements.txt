@@ -13,6 +13,7 @@ mplfinance>=0.12.10b0
 fastapi
 uvicorn[standard]
 yfinance
+ib_async
 ta-lib
 pandas_ta
 pylint

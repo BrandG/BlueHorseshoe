@@ -4,10 +4,13 @@ Manages application-scoped resources like MongoDB connections and configuration.
 """
 import logging
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 from pymongo import MongoClient
 from pymongo.database import Database
 from .config import Settings, get_settings
+
+if TYPE_CHECKING:
+    from bluehorseshoe.data.ibkr_client import IBKRClient
 
 logger = logging.getLogger(__name__)
 
@@ -20,6 +23,7 @@ class AppContainer:
     settings: Settings
     _mongo_client: Optional[MongoClient] = field(default=None, init=False)
     _invalid_symbols: Optional[list] = field(default=None, init=False)
+    _ibkr_client: Optional["IBKRClient"] = field(default=None, init=False)
 
     def get_mongo_client(self) -> MongoClient:
         """
@@ -48,6 +52,20 @@ class AppContainer:
         """
         return self.get_mongo_client()[self.settings.mongo_db]
 
+    def get_ibkr_client(self) -> "IBKRClient":
+        """
+        Get or create IBKRClient (lazy initialization).
+        """
+        if self._ibkr_client is None:
+            from bluehorseshoe.data.ibkr_client import IBKRClient, IBKRConfig  # pylint: disable=import-outside-toplevel
+            config = IBKRConfig(
+                host=self.settings.ibkr_host,
+                port=self.settings.ibkr_port,
+                client_id=self.settings.ibkr_client_id,
+            )
+            self._ibkr_client = IBKRClient(config=config)
+        return self._ibkr_client
+
     def get_invalid_symbols(self) -> list:
         """
         Load and cache the list of invalid symbols.
@@ -72,6 +90,15 @@ class AppContainer:
         Close and cleanup all resources.
         Should be called during application shutdown.
         """
+        if self._ibkr_client is not None:
+            try:
+                self._ibkr_client.close()
+                logger.info("IBKR client closed successfully")
+            except Exception as e:
+                logger.error(f"Error closing IBKR client: {e}")
+            finally:
+                self._ibkr_client = None
+
         if self._mongo_client is not None:
             try:
                 self._mongo_client.close()
