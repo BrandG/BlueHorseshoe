@@ -42,7 +42,17 @@ if [ "$DOW" -ne 6 ]; then
     fi
     docker exec bluehorseshoe $STATUS complete predict
 
-    # 3. Send report email
+    # 3. Verify report was generated (created by predict step)
+    docker exec bluehorseshoe $STATUS start report
+    REPORT_DATE=$(date -d "yesterday" +%Y-%m-%d 2>/dev/null || date -v-1d +%Y-%m-%d)
+    if docker exec bluehorseshoe test -f "src/logs/report_${REPORT_DATE}_email.html"; then
+        docker exec bluehorseshoe $STATUS complete report
+    else
+        echo "WARNING: Report file not found for ${REPORT_DATE}" >> "$LOG"
+        docker exec bluehorseshoe $STATUS fail report "Report file not found for ${REPORT_DATE}"
+    fi
+
+    # 4. Send report email
     docker exec bluehorseshoe $STATUS start email
     docker exec bluehorseshoe python src/send_report_email.py >> "$LOG" 2>&1
     if [ $? -ne 0 ]; then
