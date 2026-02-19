@@ -2,20 +2,18 @@
 
 ## Near Term
 
-### Split-Exit Strategy Validation
-- Run split-exit vs single-exit comparison across a date range (e.g. 2025-08-01 to 2026-02-07)
-- Compare Plan A (`fixed_pct`) and Plan B (`atr_tiered`) against baseline single-exit
+### Split-Exit Strategy Validation — IN PROGRESS
+- ~~Run split-exit vs single-exit comparison across a date range~~ (running: Oct 1 → Feb 6, biweekly, hold 10, top 20)
+- ~~Compare Plan A (`fixed_pct`) and Plan B (`atr_tiered`) against baseline single-exit~~ (Plan B chosen as default)
 - Tune T1 target (try 1.5%, 2%, 2.5%, 3%) and measure impact on blended P&L and win rate
 - Decide whether split-exit should become the default backtest mode
 
-### LOO Weight Tuning
-- Review LOO analysis results once the large run completes (`src/logs/loo_analysis_2026-02-18.csv`)
+### LOO Weight Tuning — IN PROGRESS
+- ~~Kick off broad LOO run~~ (running: 28 dates, Aug 1 → Feb 7, weekly, top 50, hold 10, split)
+- Review LOO analysis results once the broad run completes
+- Single-date hints: `penalty_rsi` may be hurting, `penalty_ema_overextension` valuable — needs multi-date validation
 - Apply suggested weight changes to `src/weights.json` for indicators with strong P&L deltas
 - Re-run backtest to validate improvements before/after weight changes
-
-### Fix Pre-Existing Test Failures
-- `test_calculate_wma` / `test_calculate_vwma` — tests expect Series, implementation returns float
-- `test_calculate_score` (volume) — expected Score(0,0) but VWAP/Force Index now contribute non-zero scores
 
 ## Medium Term
 
@@ -23,8 +21,8 @@
 - ~~Real-time quote skeleton (`-q`) — fetch bid/ask/last/volume snapshots via ib_async~~ ✅
 - ~~Watchlist monitor (`-m`) — poll quotes on a loop, live terminal dashboard, CSV logging~~ ✅
 - ~~Market hours awareness — skip IBKR calls when market is closed (Mon-Fri 9:30-16:00 ET)~~ ✅
-- Holiday calendar — skip polling on market holidays (currently only checks weekday + time)
-- Paper trading mode — submit orders from prediction output, track fills
+- ~~Holiday calendar — skip polling on market holidays~~ ✅ (`9a58e60`)
+- Paper trading mode — bracket order submission code written (`f3ed895`) but not yet tested with live IBKR connection
 - Position sizing based on account equity and per-trade risk (`MAX_RISK_PERCENT`)
 - Real-time P&L tracking and stop-loss/take-profit order management
 - Consider split-exit as native order strategy (bracket orders with two profit targets)

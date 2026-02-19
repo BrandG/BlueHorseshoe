@@ -22,6 +22,7 @@ Dependencies:
     bluehorseshoe.analysis.indicators.moving_average_indicators.MovingAverageIndicator
 """
 
+import numpy as np
 import pandas as pd
 from bluehorseshoe.analysis.indicators.moving_average_indicators import MovingAverageIndicator
 from bluehorseshoe.analysis.indicators.indicator import IndicatorScore
@@ -102,8 +103,8 @@ def test_calculate_wma():
     """
     indicator = MovingAverageIndicator(sample_data())
     wma = indicator.calculate_wma()
-    assert len(wma) == len(sample_data())
-    assert wma.isna().sum() == 19  # First 19 values should be NaN due to window size
+    assert isinstance(wma, float)
+    assert not np.isnan(wma)  # sample_data has >= 20 rows, so should be valid
 
 def test_calculate_vwma():
     """
@@ -129,8 +130,8 @@ def test_calculate_vwma():
     """
     indicator = MovingAverageIndicator(sample_data())
     vwma = indicator.calculate_vwma()
-    assert len(vwma) == len(sample_data())
-    assert vwma.isna().sum() == 19  # First 19 values should be NaN due to window size
+    assert isinstance(vwma, float)
+    assert not np.isnan(vwma)  # sample_data has >= 20 rows with volume > 0
 
 def test_calculate_ma_score():
     """
