@@ -54,7 +54,7 @@ BlueHorseshoe is a quantitative swing trading system that:
 **`src/main.py`** - CLI entry point with flag-based commands:
 - `-u`: Update recent historical data (last 100 datapoints)
 - `-b`: Backfill full historical data (use `--resume`, `--limit N`, `--symbols SPY,QQQ`)
-- `-p [DATE]`: Predict trading candidates for target date (defaults to latest market date)
+- `-p [DATE]`: Predict trading candidates for target date (defaults to latest market date). If `PAPER_TRADING_ENABLED=true`, also submits bracket orders to IBKR paper account.
 - `-r [DATE]`: Regenerate report from saved scores
 - `-t DATE`: Run backtest (use `--end DATE --interval 7` for range, `--strategy baseline|mean_reversion`)
 - `-o`: Optimize indicator weights using historical performance
@@ -91,6 +91,9 @@ BlueHorseshoe is a quantitative swing trading system that:
 - `html_reporter.py`: `HTMLReporter` generates interactive HTML reports with charts
 - `report_generator.py`: `ReportWriter` handles console/file logging
 
+**`src/bluehorseshoe/trading/`** - Order execution:
+- `paper_trader.py`: `PaperTrader` submits bracket orders (entry + take-profit + stop-loss) to IBKR paper account after prediction
+
 ### Data Flow
 
 1. **Data Ingestion** (`-u` or `-b`): `historical_data.py` fetches OHLCV from Alpha Vantage → stores in MongoDB (`daily_data` collection)
@@ -102,6 +105,7 @@ BlueHorseshoe is a quantitative swing trading system that:
    - ML models predict win probability and stop-loss
    - Saves scores to MongoDB (`scores` collection)
    - Generates HTML report with top 50 candidates
+   - If `PAPER_TRADING_ENABLED=true`: `PaperTrader` submits bracket orders for top N candidates to IBKR paper account
 3. **Backtest** (`-t`): `Backtester.run_backtest()` →
    - Loads saved scores for target date
    - Simulates trades using next-day OHLCV data
@@ -132,6 +136,10 @@ Weights are stored in `src/weights.json` and loaded via `config.py`. Categories:
 - `MONGO_URI`: MongoDB connection string (default: `mongodb://mongo:27017`)
 - `MONGO_DB`: Database name (default: `bluehorseshoe`)
 - Email settings for notifications (SMTP_SERVER, SMTP_USER, SMTP_PASSWORD, EMAIL_RECIPIENT)
+- `PAPER_TRADING_ENABLED`: Enable automatic bracket order submission after prediction (default: `false`)
+- `PAPER_TOTAL_INVESTMENT`: Total capital to deploy across positions (default: `10000`)
+- `PAPER_MAX_POSITIONS`: Maximum simultaneous positions / top N candidates (default: `10`)
+- `IBKR_READ_ONLY`: Controls IB Gateway read-only mode (set to `not` to enable order placement, default: `yes`)
 
 **After modifying `.env`:** Restart containers with `cd docker && docker compose up -d`
 

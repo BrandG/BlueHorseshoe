@@ -82,6 +82,11 @@ class Settings(BaseSettings):
     ibkr_port: int = 4004
     ibkr_client_id: int = 1
 
+    # Paper Trading
+    paper_trading_enabled: bool = False
+    paper_total_investment: float = 10000.0
+    paper_max_positions: int = 10
+
     # Feature Flags
     holiday_mode: bool = False
 

@@ -216,6 +216,81 @@ class IBKRClient:
             logger.error("Error fetching quotes: %s", e)
             return [QuoteData(symbol=s, error=str(e)) for s in symbols]
 
+    def place_bracket_order(
+        self,
+        symbol: str,
+        quantity: int,
+        limit_price: float,
+        take_profit_price: float,
+        stop_loss_price: float,
+    ) -> dict:
+        """
+        Place a bracket order: limit entry + take-profit + stop-loss.
+
+        All three legs use GTC (Good-Til-Cancelled) time-in-force.
+
+        Args:
+            symbol: Stock ticker symbol (e.g., "AAPL")
+            quantity: Number of shares to buy
+            limit_price: Limit price for the entry order
+            take_profit_price: Limit price for the take-profit (sell) order
+            stop_loss_price: Stop price for the stop-loss (sell) order
+
+        Returns:
+            dict with keys: order_ids (list of 3 ints), status, error
+        """
+        try:
+            self._ensure_connected()
+        except Exception as e:
+            return {"order_ids": [], "status": "error", "error": str(e)}
+
+        try:
+            import ib_async  # pylint: disable=import-outside-toplevel
+
+            contract = ib_async.Stock(symbol, "SMART", "USD")
+            self._ib.qualifyContracts(contract)
+
+            bracket = ib_async.bracketOrder(
+                action="BUY",
+                quantity=quantity,
+                limitPrice=round(limit_price, 2),
+                takeProfitPrice=round(take_profit_price, 2),
+                stopLossPrice=round(stop_loss_price, 2),
+            )
+
+            # Set all legs to GTC
+            for order in bracket:
+                order.tif = "GTC"
+
+            order_ids = []
+            for order in bracket:
+                trade = self._ib.placeOrder(contract, order)
+                order_ids.append(trade.order.orderId)
+
+            logger.info(
+                "Bracket order placed for %s: qty=%d entry=%.2f tp=%.2f sl=%.2f ids=%s",
+                symbol, quantity, limit_price, take_profit_price, stop_loss_price, order_ids,
+            )
+            return {"order_ids": order_ids, "status": "submitted", "error": None}
+
+        except Exception as e:
+            logger.error("Error placing bracket order for %s: %s", symbol, e)
+            return {"order_ids": [], "status": "error", "error": str(e)}
+
+    def get_open_orders(self) -> list:
+        """
+        Get all open orders from IB Gateway.
+
+        Returns:
+            List of open Trade objects, or empty list on error.
+        """
+        try:
+            self._ensure_connected()
+            return self._ib.openOrders()
+        except Exception as e:
+            logger.error("Error fetching open orders: %s", e)
+            return []
+
     def close(self):
         """Disconnect from IB Gateway."""
         if self._ib is not None:

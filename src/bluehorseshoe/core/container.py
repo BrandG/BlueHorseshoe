@@ -62,6 +62,7 @@ class AppContainer:
                 host=self.settings.ibkr_host,
                 port=self.settings.ibkr_port,
                 client_id=self.settings.ibkr_client_id,
+                read_only=not self.settings.paper_trading_enabled,
             )
             self._ibkr_client = IBKRClient(config=config)
         return self._ibkr_client

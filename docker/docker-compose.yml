@@ -29,6 +29,9 @@ services:
       IBKR_HOST: ${IBKR_HOST:-ib-gateway}
       IBKR_PORT: ${IBKR_PORT:-4004}
       IBKR_CLIENT_ID: ${IBKR_CLIENT_ID:-1}
+      PAPER_TRADING_ENABLED: ${PAPER_TRADING_ENABLED:-false}
+      PAPER_TOTAL_INVESTMENT: ${PAPER_TOTAL_INVESTMENT:-10000}
+      PAPER_MAX_POSITIONS: ${PAPER_MAX_POSITIONS:-10}
     depends_on:
       - mongo
     networks:
@@ -45,7 +48,7 @@ services:
       TWS_USERID: ${TWS_USERID}
       TWS_PASSWORD: ${TWS_PASSWORD}
       TRADING_MODE: ${TRADING_MODE:-paper}
-      READ_ONLY_API: "yes"
+      READ_ONLY_API: ${IBKR_READ_ONLY:-yes}
       TWOFA_TIMEOUT_ACTION: restart
       AUTO_RESTART_TIME: ""
       ACCEPT_INCOMING_CONNECTION: accept

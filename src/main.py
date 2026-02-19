@@ -221,6 +221,34 @@ if __name__ == "__main__":
                 arcade_path = reporter.save_arcade(arcade_html, f"report_{target_date}_arcade.html")
                 logging.info("Arcade report saved to %s", arcade_path)
                 print(f"Arcade report: {arcade_path}")
+
+                # ── Paper Trading ────────────────────────────────────
+                if ctx.config.paper_trading_enabled:
+                    try:
+                        from bluehorseshoe.trading.paper_trader import PaperTrader, PaperTradeConfig  # pylint: disable=import-outside-toplevel
+                        pt_config = PaperTradeConfig(
+                            total_investment=ctx.config.paper_total_investment,
+                            max_positions=ctx.config.paper_max_positions,
+                            logs_path=ctx.config.logs_path,
+                        )
+                        paper_trader = PaperTrader(
+                            ibkr_client=ctx.ibkr,
+                            config=pt_config,
+                            database=ctx.db,
+                        )
+                        paper_results = paper_trader.execute(
+                            candidates=report_data.get('candidates', []),
+                            target_date=target_date,
+                        )
+                        submitted = sum(1 for r in paper_results if r.status == "submitted")
+                        skipped = sum(1 for r in paper_results if r.status == "skipped")
+                        errors = sum(1 for r in paper_results if r.status == "error")
+                        print(f"Paper trading: {submitted} submitted, {skipped} skipped, {errors} errors")
+                        logging.info("Paper trading complete: %d submitted, %d skipped, %d errors",
+                                     submitted, skipped, errors)
+                    except Exception as e:  # pylint: disable=broad-exception-caught
+                        logging.error("Paper trading failed (non-fatal): %s", e)
+                        print(f"Paper trading error (non-fatal): {e}")
     elif "-r" in sys.argv:
         # Generate Report from saved scores
         logging.info("Regenerating report from saved scores...")
