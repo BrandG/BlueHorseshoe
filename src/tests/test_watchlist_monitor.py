@@ -1,0 +1,179 @@
+"""Tests for watchlist monitor functionality."""
+import csv
+import os
+import tempfile
+from datetime import datetime
+from io import StringIO
+from unittest.mock import MagicMock, patch
+
+import pytest
+
+from bluehorseshoe.data.ibkr_client import QuoteData
+from bluehorseshoe.data.watchlist_monitor import WatchlistMonitor, load_watchlist
+
+
+# ---------------------------------------------------------------------------
+# load_watchlist tests
+# ---------------------------------------------------------------------------
+
+
+def test_load_watchlist(tmp_path):
+    """Reads file, skips comments and blanks, uppercases symbols."""
+    wl = tmp_path / "watchlist.txt"
+    wl.write_text("# Header comment\naapl\n\n  MSFT  \n# another comment\ngoog\n")
+    result = load_watchlist(str(wl))
+    assert result == ["AAPL", "MSFT", "GOOG"]
+
+
+def test_load_watchlist_missing_file():
+    """Returns empty list when file does not exist — no crash."""
+    result = load_watchlist("/nonexistent/path/watchlist.txt")
+    assert result == []
+
+
+# ---------------------------------------------------------------------------
+# _display tests
+# ---------------------------------------------------------------------------
+
+
+def test_display_format(capsys):
+    """Verify table structure in terminal output."""
+    client = MagicMock()
+    monitor = WatchlistMonitor(client=client, symbols=["AAPL", "MSFT"])
+
+    quotes = [
+        QuoteData(
+            symbol="AAPL", last=245.12, bid=245.10, ask=245.15,
+            open=244.00, high=246.50, low=243.80, close=244.00,
+            volume=12345678, timestamp=datetime(2026, 2, 19, 10, 30, 1),
+        ),
+        QuoteData(
+            symbol="MSFT", last=410.50, bid=410.45, ask=410.55,
+            open=409.00, high=411.00, low=408.50, close=409.00,
+            volume=8765432, timestamp=datetime(2026, 2, 19, 10, 30, 1),
+        ),
+    ]
+
+    monitor._display(quotes)
+    output = capsys.readouterr().out
+
+    # Table header
+    assert "Symbol" in output
+    assert "Last" in output
+    assert "Bid" in output
+    assert "Volume" in output
+
+    # Data rows
+    assert "AAPL" in output
+    assert "245.12" in output
+    assert "MSFT" in output
+    assert "410.50" in output
+
+    # Separators
+    assert "=" * 90 in output
+
+
+def test_display_with_error_quotes(capsys):
+    """Quotes with .error display gracefully inline."""
+    client = MagicMock()
+    monitor = WatchlistMonitor(client=client, symbols=["BAD"])
+
+    quotes = [
+        QuoteData(symbol="BAD", error="Connection refused"),
+    ]
+
+    monitor._display(quotes)
+    output = capsys.readouterr().out
+
+    assert "BAD" in output
+    assert "ERROR" in output
+    assert "Connection refused" in output
+
+
+# ---------------------------------------------------------------------------
+# _log_csv tests
+# ---------------------------------------------------------------------------
+
+
+def test_csv_logging(tmp_path):
+    """Write to temp file, verify header + data rows."""
+    csv_file = str(tmp_path / "watchlist_test.csv")
+    client = MagicMock()
+    monitor = WatchlistMonitor(client=client, symbols=["AAPL"], csv_path=csv_file)
+
+    quotes = [
+        QuoteData(
+            symbol="AAPL", last=245.12, bid=245.10, ask=245.15,
+            open=244.00, high=246.50, low=243.80, close=244.00,
+            volume=12345678, timestamp=datetime(2026, 2, 19, 10, 30, 1),
+        ),
+    ]
+
+    # First write — should create header
+    monitor._log_csv(quotes)
+
+    with open(csv_file, "r", encoding="utf-8") as f:
+        reader = list(csv.reader(f))
+
+    assert len(reader) == 2  # header + 1 data row
+    assert reader[0] == ["timestamp", "symbol", "last", "bid", "ask", "open", "high", "low", "volume"]
+    assert reader[1][1] == "AAPL"
+    assert reader[1][2] == "245.12"
+
+    # Second write — no duplicate header
+    monitor._log_csv(quotes)
+
+    with open(csv_file, "r", encoding="utf-8") as f:
+        reader = list(csv.reader(f))
+
+    assert len(reader) == 3  # header + 2 data rows
+
+
+def test_csv_skips_error_quotes(tmp_path):
+    """Error quotes should not be written to CSV."""
+    csv_file = str(tmp_path / "watchlist_test.csv")
+    client = MagicMock()
+    monitor = WatchlistMonitor(client=client, symbols=["BAD"], csv_path=csv_file)
+
+    quotes = [QuoteData(symbol="BAD", error="Connection refused")]
+    monitor._log_csv(quotes)
+
+    with open(csv_file, "r", encoding="utf-8") as f:
+        reader = list(csv.reader(f))
+
+    # Only header, no data rows
+    assert len(reader) == 1
+
+
+# ---------------------------------------------------------------------------
+# _poll tests
+# ---------------------------------------------------------------------------
+
+
+def test_poll_delegates_to_client():
+    """_poll calls client.get_quotes with the symbol list."""
+    client = MagicMock()
+    expected = [QuoteData(symbol="AAPL", last=245.0)]
+    client.get_quotes.return_value = expected
+
+    monitor = WatchlistMonitor(client=client, symbols=["AAPL"])
+    result = monitor._poll()
+
+    client.get_quotes.assert_called_once_with(["AAPL"])
+    assert result == expected
+
+
+def test_poll_with_mixed_errors():
+    """Quotes with errors are returned alongside valid ones."""
+    client = MagicMock()
+    client.get_quotes.return_value = [
+        QuoteData(symbol="AAPL", last=245.0, timestamp=datetime.now()),
+        QuoteData(symbol="BAD", error="No data"),
+    ]
+
+    monitor = WatchlistMonitor(client=client, symbols=["AAPL", "BAD"])
+    result = monitor._poll()
+
+    assert len(result) == 2
+    assert result[0].last == 245.0
+    assert result[1].error == "No data"

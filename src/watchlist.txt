@@ -1,0 +1,8 @@
+# BlueHorseshoe Watchlist
+# One symbol per line. Lines starting with # are comments.
+
+AQN
+CMBT
+PAA
+RTX
+WT

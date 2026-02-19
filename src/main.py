@@ -531,6 +531,34 @@ if __name__ == "__main__":
             logging.error("IBKR quote error: %s", e)
             print(f"Error: {e}")
             sys.exit(1)
+    elif "-m" in sys.argv or "--monitor" in sys.argv:
+        # Watchlist monitor mode — polls IBKR quotes on a loop
+        with create_cli_context() as ctx:
+            from bluehorseshoe.data.watchlist_monitor import WatchlistMonitor, load_watchlist
+
+            # Determine symbols: CLI --symbols override or watchlist file
+            symbols = None
+            if "--symbols" in sys.argv:
+                try:
+                    symbols_str = sys.argv[sys.argv.index("--symbols") + 1]
+                    symbols = [s.strip().upper() for s in symbols_str.split(",")]
+                except (ValueError, IndexError):
+                    pass
+
+            if not symbols:
+                symbols = load_watchlist()
+
+            if not symbols:
+                print("No symbols to monitor. Provide --symbols or create src/watchlist.txt")
+                sys.exit(1)
+
+            csv_path = f"{ctx.config.logs_path}/watchlist_{time.strftime('%Y-%m-%d')}.csv"
+            monitor = WatchlistMonitor(
+                client=ctx.ibkr,
+                symbols=symbols,
+                csv_path=csv_path,
+            )
+            monitor.run()
     elif "-i" in sys.argv or "--intraday" in sys.argv:
         # Intraday check mode
         # Expects: -i SYMBOL ENTRY STOP TARGET
@@ -565,7 +593,8 @@ if __name__ == "__main__":
         USAGE_STRING = (
             "Invalid arguments. Use -u to update historical data, -p to predict next day "
             "swing trading midpoints, -t YYYY-MM-DD to backtest, -q SYMBOL to get IBKR "
-            "real-time quotes, -d to debug, or -b to build historical data."
+            "real-time quotes, -m to monitor watchlist, -d to debug, or -b to build "
+            "historical data."
         )
         print(USAGE_STRING)
         sys.exit(1)
