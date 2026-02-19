@@ -231,6 +231,9 @@ class LOOAnalyzer:
 
             # Compute indicators from OHLCV (copy to avoid mutating cache)
             df = df.copy()
+            # Upcast to float64 — TA-Lib candlestick functions require double
+            for c in df.select_dtypes('float32').columns:
+                df[c] = df[c].astype('float64')
             # get_technical_indicators modifies df in-place then returns dicts;
             # we only need the in-place modifications.
             get_technical_indicators(df)
