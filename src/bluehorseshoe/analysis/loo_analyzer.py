@@ -12,8 +12,6 @@ Evaluates each sub-indicator's P&L contribution by:
 """
 
 import logging
-import os
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Any
 
@@ -200,21 +198,16 @@ class LOOAnalyzer:
                 df[c] = df[c].astype('int32')
             return (symbol, df)
 
-        loaded = 0
-        max_workers = min(4, os.cpu_count() or 4)
-        with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            futures = {executor.submit(_load_one, sym): sym for sym in symbols}
-            for future in as_completed(futures):
-                loaded += 1
-                if loaded % 500 == 0 or loaded == len(symbols):
-                    print(f"    {loaded}/{len(symbols)} symbols loaded ({len(self._data_cache)} cached)", flush=True)
-                try:
-                    result = future.result()
-                except Exception:
-                    logger.debug("Error loading %s", futures[future], exc_info=True)
-                    continue
-                if result is not None:
-                    self._data_cache[result[0]] = result[1]
+        for loaded, sym in enumerate(symbols, 1):
+            try:
+                result = _load_one(sym)
+            except Exception:
+                logger.debug("Error loading %s", sym, exc_info=True)
+                continue
+            if result is not None:
+                self._data_cache[result[0]] = result[1]
+            if loaded % 500 == 0 or loaded == len(symbols):
+                print(f"    {loaded}/{len(symbols)} symbols loaded ({len(self._data_cache)} cached)", flush=True)
 
         print(f"  Preload complete: {len(self._data_cache)} symbols cached", flush=True)
 
@@ -480,24 +473,15 @@ class LOOAnalyzer:
             sorted_keys = sorted(date_keys)
             print(f"  Phase 3: Testing {len(sorted_keys)} LOO variants...", flush=True)
 
-            max_workers = min(8, os.cpu_count() or 4)
-            completed_variants = 0
-            with ThreadPoolExecutor(max_workers=max_workers) as executor:
-                future_to_key = {
-                    executor.submit(self._backtest_variant, candidates, target_date, key, split_config): key
-                    for key in sorted_keys
-                }
-                for future in as_completed(future_to_key):
-                    key = future_to_key[future]
-                    completed_variants += 1
-                    try:
-                        loo_results = future.result()
-                    except Exception:
-                        logger.warning("Error in LOO variant %s: %s", key, exc_info=True)
-                        continue
-                    self._accumulate_stats(indicator_stats, key, loo_results)
-                    if completed_variants % 10 == 0 or completed_variants == len(sorted_keys):
-                        print(f"    {completed_variants}/{len(sorted_keys)} variants tested", flush=True)
+            for completed_variants, key in enumerate(sorted_keys, 1):
+                try:
+                    loo_results = self._backtest_variant(candidates, target_date, key, split_config)
+                except Exception:
+                    logger.warning("Error in LOO variant %s: %s", key, exc_info=True)
+                    continue
+                self._accumulate_stats(indicator_stats, key, loo_results)
+                if completed_variants % 10 == 0 or completed_variants == len(sorted_keys):
+                    print(f"    {completed_variants}/{len(sorted_keys)} variants tested", flush=True)
 
         # Free cached data
         self._data_cache.clear()
