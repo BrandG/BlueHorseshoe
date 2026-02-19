@@ -52,7 +52,7 @@ class TestIBKRConfig:
     def test_defaults(self):
         cfg = IBKRConfig()
         assert cfg.host == "ib-gateway"
-        assert cfg.port == 4002
+        assert cfg.port == 4004
         assert cfg.client_id == 1
         assert cfg.timeout == 10.0
         assert cfg.read_only is True
