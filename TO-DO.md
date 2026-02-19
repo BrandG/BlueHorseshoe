@@ -20,11 +20,26 @@
 ## Medium Term
 
 ### IBKR Integration
-- Research IBKR API (TWS API / ib_insync) for order placement and account data
-- Paper trading mode first — submit orders from prediction output, track fills
+- ~~Real-time quote skeleton (`-q`) — fetch bid/ask/last/volume snapshots via ib_async~~ ✅
+- ~~Watchlist monitor (`-m`) — poll quotes on a loop, live terminal dashboard, CSV logging~~ ✅
+- ~~Market hours awareness — skip IBKR calls when market is closed (Mon-Fri 9:30-16:00 ET)~~ ✅
+- Holiday calendar — skip polling on market holidays (currently only checks weekday + time)
+- Paper trading mode — submit orders from prediction output, track fills
 - Position sizing based on account equity and per-trade risk (`MAX_RISK_PERCENT`)
 - Real-time P&L tracking and stop-loss/take-profit order management
 - Consider split-exit as native order strategy (bracket orders with two profit targets)
+
+### Sentiment Analysis
+- Phase 1: Use AlphaVantage News & Sentiments endpoint for top 10 candidates (post-scoring)
+  - Pull `ticker_sentiment_score` and `relevance_score` per article
+  - Display as advisory column in HTML report (green/yellow/red flag per candidate)
+  - Not used in scoring — purely a visual aid for manual decision-making
+- Phase 2: Evaluate whether sentiment signal correlates with outcomes over several weeks
+  - Log sentiment scores alongside backtest results for comparison
+  - Consider weighting sentiment more heavily for baseline/trend-following than mean reversion (oversold names often have bad news by definition)
+- Phase 3 (only if Phase 2 shows value): Explore LLM-based enrichment for nuanced reads
+  - High cost/latency per call — only justified if structured sentiment proves insufficient
+  - Non-deterministic output makes backtesting difficult; would need caching/snapshotting
 
 ### Backtest Realism
 - Add commission modeling to `BacktestConfig` (e.g. `commission_pct` applied on entry and exit)
