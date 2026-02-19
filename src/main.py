@@ -69,18 +69,7 @@ if __name__ == "__main__":
                             message="Maximum Likelihood optimization failed to ")
     warnings.filterwarnings("ignore", category=ConvergenceWarning)
 
-    logging.info('deleting graphs...')
-    # Clear the graphs directory
-    GRAPHS_DIR = '/workspaces/BlueHorseshoe/src/graphs'
-    for filename in os.listdir(GRAPHS_DIR):
-        try:
-            file_path = os.path.join(GRAPHS_DIR, filename)
-            if os.path.isfile(file_path) or os.path.islink(file_path):
-                os.unlink(file_path)
-            elif os.path.isdir(file_path):
-                os.rmdir(file_path)
-        except (OSError, IOError) as e:
-            logging.error('Failed to delete. Reason: %s', e)
+    # Arcade reports in src/graphs/ are date-stamped and preserved across runs
 
     if "-u" in sys.argv:
         logging.info("Performing bellwether check...")
@@ -229,7 +218,7 @@ if __name__ == "__main__":
                     candidates=report_data.get('candidates', []),
                     previous_performance=prev_perf
                 )
-                arcade_path = reporter.save_arcade(arcade_html, f"report_{target_date}.html")
+                arcade_path = reporter.save_arcade(arcade_html, f"report_{target_date}_arcade.html")
                 logging.info("Arcade report saved to %s", arcade_path)
                 print(f"Arcade report: {arcade_path}")
     elif "-r" in sys.argv:
@@ -350,7 +339,7 @@ if __name__ == "__main__":
                 candidates=top_candidates,
                 previous_performance=prev_perf
             )
-            arcade_path = reporter.save_arcade(arcade_html, f"report_{target_date}.html")
+            arcade_path = reporter.save_arcade(arcade_html, f"report_{target_date}_arcade.html")
             logging.info("Arcade report regenerated at %s", arcade_path)
             print(f"Arcade report: {arcade_path}")
     elif "-t" in sys.argv:

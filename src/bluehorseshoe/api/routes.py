@@ -476,9 +476,9 @@ async def list_reports(config: Settings = Depends(get_config)):
             date = basename.replace("report_", "").replace(".html", "")
             dates_info.setdefault(date, {})["full"] = f
 
-    # Scan graphs_path for arcade reports
-    for f in glob.glob(os.path.join(config.graphs_path, "report_*.html")):
-        date = os.path.basename(f).replace("report_", "").replace(".html", "")
+    # Scan logs_path for arcade reports
+    for f in glob.glob(os.path.join(config.logs_path, "report_*_arcade.html")):
+        date = os.path.basename(f).replace("report_", "").replace("_arcade.html", "")
         dates_info.setdefault(date, {})["arcade"] = f
 
     sorted_dates = sorted(dates_info.keys(), reverse=True)
@@ -521,7 +521,7 @@ async def get_arcade_report(date: str, config: Settings = Depends(get_config)):
     """
     Retrieve the arcade-themed HTML report by date (YYYY-MM-DD).
     """
-    file_path = os.path.join(config.graphs_path, f"report_{date}.html")
+    file_path = os.path.join(config.logs_path, f"report_{date}_arcade.html")
     if not os.path.exists(file_path):
         raise HTTPException(status_code=404, detail=f"Arcade report for {date} not found")
     return FileResponse(file_path, media_type="text/html")

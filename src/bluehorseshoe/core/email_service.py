@@ -74,10 +74,8 @@ class EmailService:
             date_match = re.search(r'report_(\d{4}-\d{2}-\d{2})', os.path.basename(report_path))
             if date_match:
                 report_date = date_match.group(1)
-                # Navigate from src/logs/ up to src/graphs/
-                graphs_dir = os.path.join(os.path.dirname(report_path), '..', 'graphs')
-                arcade_path = os.path.join(graphs_dir, f'report_{report_date}.html')
-                arcade_path = os.path.normpath(arcade_path)
+                # Arcade report lives alongside other reports in src/logs/
+                arcade_path = os.path.join(os.path.dirname(report_path), f'report_{report_date}_arcade.html')
                 if os.path.exists(arcade_path):
                     arcade_filename = f'arcade_report_{report_date}.html'
                     with open(arcade_path, 'rb') as f:

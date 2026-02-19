@@ -815,9 +815,9 @@ class HTMLReporter:
         return full_path, email_path
 
     def save_arcade(self, html_content: str, filename: str) -> str:
-        """Saves arcade HTML report to the graphs directory."""
-        os.makedirs(self.graphs_dir, exist_ok=True)
-        path = os.path.join(self.graphs_dir, filename)
+        """Saves arcade HTML report to the output (logs) directory."""
+        os.makedirs(self.output_dir, exist_ok=True)
+        path = os.path.join(self.output_dir, filename)
         with open(path, "w", encoding="utf-8") as f:
             f.write(html_content)
         return path

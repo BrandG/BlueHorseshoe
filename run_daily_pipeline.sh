@@ -45,7 +45,7 @@ if [ "$DOW" -ne 6 ]; then
     # 3. Verify report was generated (created by predict step)
     docker exec bluehorseshoe $STATUS start report
     REPORT_DATE=$(date -d "yesterday" +%Y-%m-%d 2>/dev/null || date -v-1d +%Y-%m-%d)
-    if docker exec bluehorseshoe test -f "src/logs/report_${REPORT_DATE}_email.html"; then
+    if docker exec bluehorseshoe test -f "src/logs/report_${REPORT_DATE}_arcade.html"; then
         docker exec bluehorseshoe $STATUS complete report
     else
         echo "WARNING: Report file not found for ${REPORT_DATE}" >> "$LOG"
