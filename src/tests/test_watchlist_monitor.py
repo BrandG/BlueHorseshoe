@@ -10,7 +10,11 @@ from zoneinfo import ZoneInfo
 import pytest
 
 from bluehorseshoe.data.ibkr_client import QuoteData
-from bluehorseshoe.data.watchlist_monitor import WatchlistMonitor, load_watchlist
+from bluehorseshoe.data.watchlist_monitor import (
+    WatchlistMonitor,
+    _nyse_holidays_for_year,
+    load_watchlist,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -240,3 +244,69 @@ def test_display_closed_banner(capsys):
     output = capsys.readouterr().out
     assert "Market is closed" in output
     assert "9:30-16:00 ET" in output
+    assert "excluding holidays" in output
+
+
+# ---------------------------------------------------------------------------
+# NYSE holiday tests
+# ---------------------------------------------------------------------------
+
+import datetime as _dt
+
+
+def test_market_closed_new_years_day():
+    """New Year's Day 2026 (Thu Jan 1) — NYSE closed."""
+    t = datetime(2026, 1, 1, 12, 0, 0, tzinfo=ET)
+    assert WatchlistMonitor._is_market_open(t) is False
+
+
+def test_market_closed_mlk_day():
+    """MLK Day 2026 (Mon Jan 19) — NYSE closed."""
+    t = datetime(2026, 1, 19, 12, 0, 0, tzinfo=ET)
+    assert WatchlistMonitor._is_market_open(t) is False
+
+
+def test_market_closed_good_friday():
+    """Good Friday 2026 (Fri Apr 3) — NYSE closed."""
+    t = datetime(2026, 4, 3, 12, 0, 0, tzinfo=ET)
+    assert WatchlistMonitor._is_market_open(t) is False
+
+
+def test_market_closed_independence_day_observed():
+    """Independence Day 2026 falls on Sat → observed Fri Jul 3 — NYSE closed."""
+    t = datetime(2026, 7, 3, 12, 0, 0, tzinfo=ET)
+    assert WatchlistMonitor._is_market_open(t) is False
+
+
+def test_market_closed_thanksgiving():
+    """Thanksgiving 2026 (Thu Nov 26) — NYSE closed."""
+    t = datetime(2026, 11, 26, 12, 0, 0, tzinfo=ET)
+    assert WatchlistMonitor._is_market_open(t) is False
+
+
+def test_market_closed_christmas():
+    """Christmas 2026 (Fri Dec 25) — NYSE closed."""
+    t = datetime(2026, 12, 25, 12, 0, 0, tzinfo=ET)
+    assert WatchlistMonitor._is_market_open(t) is False
+
+
+def test_market_open_columbus_day():
+    """Columbus Day 2026 (Mon Oct 12) — NYSE is OPEN (not an NYSE holiday)."""
+    t = datetime(2026, 10, 12, 12, 0, 0, tzinfo=ET)
+    assert WatchlistMonitor._is_market_open(t) is True
+
+
+def test_market_open_veterans_day():
+    """Veterans Day 2026 (Wed Nov 11) — NYSE is OPEN (not an NYSE holiday)."""
+    t = datetime(2026, 11, 11, 12, 0, 0, tzinfo=ET)
+    assert WatchlistMonitor._is_market_open(t) is True
+
+
+def test_nyse_holidays_for_year_2026():
+    """_nyse_holidays_for_year returns exactly 10 dates with expected entries."""
+    holidays = _nyse_holidays_for_year(2026)
+    assert len(holidays) == 10
+    # Good Friday 2026 = April 3
+    assert _dt.date(2026, 4, 3) in holidays
+    # Juneteenth 2026 = June 19 (Friday)
+    assert _dt.date(2026, 6, 19) in holidays
