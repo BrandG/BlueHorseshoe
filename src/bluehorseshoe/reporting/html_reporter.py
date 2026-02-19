@@ -86,6 +86,9 @@ class HTMLReporter:
             .score-high { color: var(--badge-bull); font-weight: bold; }
             .score-med { color: var(--badge-neutral); font-weight: bold; }
             .score-low { color: var(--badge-bear); font-weight: bold; }
+            .sentiment-bullish { color: #22c55e; font-weight: bold; }
+            .sentiment-neutral { color: #a3a3a3; }
+            .sentiment-bearish { color: #ef4444; font-weight: bold; }
             .footer { margin-top: 40px; font-size: 0.8em; color: var(--secondary-text); text-align: center; }
             .chart-container { display: flex; flex-wrap: wrap; gap: 20px; justify-content: center; }
             .chart-box { border: 1px solid var(--border-color); padding: 10px; border-radius: 4px; background: var(--container-bg); }
@@ -267,7 +270,18 @@ class HTMLReporter:
         if score >= 50:
             return "score-med"
         return "score-low"
-    
+
+    @staticmethod
+    def _get_sentiment_display(score: float) -> str:
+        """Return an HTML snippet showing sentiment as a colored indicator."""
+        if score == 0.0:
+            return "<span class='sentiment-neutral'>N/A</span>"
+        if score > 0.15:
+            return f"<span class='sentiment-bullish'>&#9650; {score:+.2f}</span>"
+        if score < -0.15:
+            return f"<span class='sentiment-bearish'>&#9660; {score:+.2f}</span>"
+        return f"<span class='sentiment-neutral'>&#9644; {score:+.2f}</span>"
+
     def _generate_sparkline(self, symbol: str) -> str:
         """
         Generates a base64 encoded candlestick chart for the last 10 trading days.
@@ -481,7 +495,7 @@ class HTMLReporter:
                                reverse=True)[:self.TOP_CANDIDATES_TABLE_LIMIT]
         html.append(f"<h2>Top Candidates ({len(top_candidates)})</h2>")
         html.append("<table>")
-        html.append("<tr><th>Symbol</th><th>Exchange</th><th>Strategy</th><th>Score</th><th>Close Price</th><th>Indicators</th></tr>")
+        html.append("<tr><th>Symbol</th><th>Exchange</th><th>Strategy</th><th>Score</th><th>Sentiment</th><th>Close Price</th><th>Indicators</th></tr>")
 
 
         for cand in top_candidates:
@@ -497,6 +511,7 @@ class HTMLReporter:
             html.append(f"<td><small>{cand.get('exchange', 'Unknown')}</small></td>")
             html.append(f"<td>{cand.get('strategy', 'N/A')}</td>")
             html.append(f"<td class='{score_cls}'>{score:.2f}</td>")
+            html.append(f"<td>{self._get_sentiment_display(cand.get('sentiment', 0.0))}</td>")
             html.append(f"<td>{cand.get('close', 'N/A')}</td>")
             html.append(f"<td><small>{indicators}</small></td>")
             html.append("</tr>")
@@ -564,6 +579,9 @@ class HTMLReporter:
             .score-high { color: #27ae60; font-weight: bold; }
             .score-med { color: #f39c12; font-weight: bold; }
             .score-low { color: #c0392b; font-weight: bold; }
+            .sentiment-bullish { color: #22c55e; font-weight: bold; }
+            .sentiment-neutral { color: #a3a3a3; }
+            .sentiment-bearish { color: #ef4444; font-weight: bold; }
             .strategy-section { margin: 25px 0; padding: 15px; background-color: #f8f9fa; border-left: 4px solid #3498db; }
             .footer { margin-top: 30px; font-size: 0.85em; color: #777; text-align: center; padding-top: 15px; border-top: 1px solid #ddd; }
             a { color: #2c3e50; text-decoration: none; }
@@ -614,7 +632,7 @@ class HTMLReporter:
 
         if baseline_top:
             html.append("<table>")
-            html.append("<tr><th>Symbol</th><th>Score</th><th>ML Confidence</th><th>Entry</th><th>Stop</th><th>Target</th></tr>")
+            html.append("<tr><th>Symbol</th><th>Score</th><th>Sentiment</th><th>ML Confidence</th><th>Entry</th><th>Stop</th><th>Target</th></tr>")
             for c in baseline_top:
                 symbol = c['symbol']
                 url = f"https://finance.yahoo.com/quote/{symbol}"
@@ -638,6 +656,7 @@ class HTMLReporter:
                 html.append("<tr>")
                 html.append(f"<td><a href='{url}' target='_blank'><strong>{symbol}</strong></a></td>")
                 html.append(f"<td class='{score_cls}'>{score:.1f}</td>")
+                html.append(f"<td>{self._get_sentiment_display(c.get('sentiment', 0.0))}</td>")
                 html.append(f"<td>{ml_prob*100:.0f}%</td>")
                 html.append(f"<td>${entry:.2f}</td>")
                 html.append(f"<td style='color:#c0392b;font-weight:bold'>${stop:.2f} <span style='font-size:0.85em'>({stop_pct:.1f}%)</span></td>")
@@ -655,7 +674,7 @@ class HTMLReporter:
 
         if meanrev_top:
             html.append("<table>")
-            html.append("<tr><th>Symbol</th><th>Score</th><th>ML Confidence</th><th>Entry</th><th>Stop</th><th>Target</th></tr>")
+            html.append("<tr><th>Symbol</th><th>Score</th><th>Sentiment</th><th>ML Confidence</th><th>Entry</th><th>Stop</th><th>Target</th></tr>")
             for c in meanrev_top:
                 symbol = c['symbol']
                 url = f"https://finance.yahoo.com/quote/{symbol}"
@@ -679,6 +698,7 @@ class HTMLReporter:
                 html.append("<tr>")
                 html.append(f"<td><a href='{url}' target='_blank'><strong>{symbol}</strong></a></td>")
                 html.append(f"<td class='{score_cls}'>{score:.1f}</td>")
+                html.append(f"<td>{self._get_sentiment_display(c.get('sentiment', 0.0))}</td>")
                 html.append(f"<td>{ml_prob*100:.0f}%</td>")
                 html.append(f"<td>${entry:.2f}</td>")
                 html.append(f"<td style='color:#c0392b;font-weight:bold'>${stop:.2f} <span style='font-size:0.85em'>({stop_pct:.1f}%)</span></td>")
@@ -745,7 +765,7 @@ class HTMLReporter:
 
         html.append(f"<h2>All Top Candidates ({len(top_candidates)})</h2>")
         html.append("<table>")
-        html.append("<tr><th>Symbol</th><th>Strategy</th><th>Score</th><th>ML</th><th>Price</th><th>Top Indicators</th></tr>")
+        html.append("<tr><th>Symbol</th><th>Strategy</th><th>Score</th><th>Sentiment</th><th>ML</th><th>Price</th><th>Top Indicators</th></tr>")
 
         for cand in top_candidates:
             score = cand.get('score', 0)
@@ -772,6 +792,7 @@ class HTMLReporter:
             html.append(f"<td><a href='{url}' target='_blank'><strong>{symbol}</strong></a></td>")
             html.append(f"<td>{cand.get('strategy', 'N/A')}</td>")
             html.append(f"<td class='{score_cls}'>{score:.1f}</td>")
+            html.append(f"<td>{self._get_sentiment_display(cand.get('sentiment', 0.0))}</td>")
             html.append(f"<td>{ml_prob*100:.0f}%</td>")
             html.append(f"<td>${cand.get('close', 0):.2f}</td>")
             html.append(f"<td class='small-text'>{top_indicators}</td>")
@@ -907,6 +928,7 @@ class HTMLReporter:
                 'stop_loss': float(c.get('stop_loss', 0)),
                 'target': float(c.get('target', 0)),
                 'ml_prob': float(c.get('ml_prob', 0)),
+                'sentiment': float(c.get('sentiment', 0)),
                 'reasons': c.get('reasons', []),
                 'components': {},
             })
@@ -1107,7 +1129,7 @@ body::after {
   box-shadow: 0 0 15px rgba(255,170,0,0.1); margin-bottom: 16px;
 }
 .leaderboard-header {
-  display: grid; grid-template-columns: 28px 40px 90px 1fr 100px 100px 100px 110px 80px;
+  display: grid; grid-template-columns: 28px 40px 90px 1fr 60px 100px 100px 100px 110px 80px;
   padding: 10px 12px; border-bottom: 2px solid var(--neon-amber);
   font-size: 0.8rem; color: var(--neon-amber); text-shadow: 0 0 4px var(--neon-amber);
   letter-spacing: 1px; background: rgba(255,170,0,0.05);
@@ -1121,7 +1143,7 @@ body::after {
 .leaderboard-body::-webkit-scrollbar-thumb { background: var(--neon-amber-dim); border: 1px solid var(--neon-amber); }
 @keyframes row-enter { from { opacity: 0; transform: translateX(-20px); } to { opacity: 1; transform: translateX(0); } }
 .leaderboard-row {
-  display: grid; grid-template-columns: 28px 40px 90px 1fr 100px 100px 100px 110px 80px;
+  display: grid; grid-template-columns: 28px 40px 90px 1fr 60px 100px 100px 100px 110px 80px;
   padding: 10px 12px; border-bottom: 1px solid rgba(85,85,112,0.3);
   font-size: 0.9rem; cursor: pointer; transition: background 0.1s;
   animation: row-enter 0.3s ease-out both;
@@ -1149,6 +1171,10 @@ body::after {
 .score-high { color: var(--neon-green); text-shadow: 0 0 4px var(--neon-green); }
 .score-mid { color: var(--neon-amber); text-shadow: 0 0 4px var(--neon-amber); }
 .score-low { color: var(--neon-red); text-shadow: 0 0 4px var(--neon-red); }
+.col-sent { display: flex; align-items: center; font-size: 0.8rem; }
+.col-sent.sent-bull { color: var(--neon-green); text-shadow: 0 0 4px rgba(57,255,20,0.5); }
+.col-sent.sent-bear { color: var(--neon-red); text-shadow: 0 0 4px rgba(255,51,51,0.5); }
+.col-sent.sent-neutral { color: var(--pixel-gray); }
 .col-price { display: flex; align-items: center; color: var(--pixel-white); }
 .col-stop { display: flex; align-items: center; color: var(--neon-red); text-shadow: 0 0 4px rgba(255,51,51,0.5); }
 .col-target { display: flex; align-items: center; color: var(--neon-green); text-shadow: 0 0 4px rgba(57,255,20,0.5); }
@@ -1255,7 +1281,7 @@ body::after {
 /* Calc button in toolbar */
 .toolbar { display: flex; gap: 8px; margin-bottom: 12px; justify-content: flex-end; }
 @media (max-width: 900px) {
-  .leaderboard-header, .leaderboard-row { grid-template-columns: 24px 30px 70px 1fr 80px 80px 80px 90px 60px; font-size: 0.7rem; padding: 8px 6px; }
+  .leaderboard-header, .leaderboard-row { grid-template-columns: 24px 30px 70px 1fr 50px 80px 80px 80px 90px 60px; font-size: 0.7rem; padding: 8px 6px; }
   .marquee-title { font-size: 1rem; }
   .detail-grid { grid-template-columns: 1fr; }
   .status-bar { grid-template-columns: 1fr; }
@@ -1267,7 +1293,7 @@ body::after {
 }
 @media (max-width: 600px) {
   .leaderboard-header, .leaderboard-row { grid-template-columns: 24px 30px 1fr 70px 70px; }
-  .col-stop, .col-target, .col-rr, .col-ml { display: none; }
+  .col-stop, .col-target, .col-rr, .col-ml, .col-sent { display: none; }
   .marquee-title { font-size: 0.7rem; letter-spacing: 2px; }
   .prev-perf-header, .prev-perf-row { grid-template-columns: 60px 1fr 70px 60px; }
   .prev-perf-header span:nth-child(2), .prev-perf-row span:nth-child(2) { display: none; }
@@ -1352,6 +1378,9 @@ function renderLeaderboard() {
     const rankClass = rank <= 3 ? 'rank-' + rank : '';
     const stratClass = c.strategy === 'MeanRev' ? 'meanrev' : 'baseline';
     const stratLabel = c.strategy === 'MeanRev' ? 'MR' : 'BL';
+    const sent = c.sentiment || 0;
+    const sentClass = sent === 0 ? 'sent-neutral' : sent > 0.15 ? 'sent-bull' : sent < -0.15 ? 'sent-bear' : 'sent-neutral';
+    const sentLabel = sent === 0 ? 'N/A' : (sent > 0 ? '\u25B2' : '\u25BC') + sent.toFixed(2);
     const scoreWidth = Math.min(100, (score / 80) * 100);
     const mlPips = Math.round(mlPct / 10);
     const detailId = 'detail-' + i;
@@ -1369,6 +1398,7 @@ function renderLeaderboard() {
       '<div class="col-rank"><span class="rank-num">' + String(rank).padStart(2, '0') + '</span></div>' +
       '<div class="col-symbol"><span class="symbol-name">' + c.symbol + '</span><span class="strategy-badge ' + stratClass + '">' + stratLabel + '</span></div>' +
       '<div class="col-score"><div class="health-bar"><div class="health-bar-fill ' + scoreClass + '" style="width:' + scoreWidth + '%"></div></div><span class="score-value ' + scoreTextClass + '">' + score.toFixed(1) + '</span></div>' +
+      '<div class="col-sent ' + sentClass + '">' + sentLabel + '</div>' +
       '<div class="col-price">$' + c.close.toFixed(2) + '</div>' +
       '<div class="col-stop">$' + c.stop_loss.toFixed(2) + '</div>' +
       '<div class="col-target">$' + c.target.toFixed(2) + '</div>' +
@@ -1716,7 +1746,7 @@ document.addEventListener('DOMContentLoaded', function() {
             # Leaderboard
             '<div class="leaderboard" id="leaderboard" style="display:none">',
             '<div class="leaderboard-header">',
-            '<div></div><div>#</div><div>SYMBOL</div><div>SCORE</div><div>ENTRY</div><div>STOP</div><div>TARGET</div><div>ML PROB</div><div>R:R</div>',
+            '<div></div><div>#</div><div>SYMBOL</div><div>SCORE</div><div>SENT</div><div>ENTRY</div><div>STOP</div><div>TARGET</div><div>ML PROB</div><div>R:R</div>',
             '</div>',
             '<div class="leaderboard-body" id="leaderboardBody"></div>',
             '</div>',

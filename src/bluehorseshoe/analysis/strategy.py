@@ -1104,6 +1104,7 @@ class SwingTrader:
                     "stop_loss": setup.get("stop_loss", 0),
                     "target": setup.get("take_profit", 0),
                     "ml_prob": r.get("baseline_ml_prob", 0.0),
+                    "sentiment": r.get("sentiment", 0.0),
                     "reasons": [f"{k}={v:.1f}" for k, v in r['baseline_components'].items() if v != 0]
                 })
             if r['mr_score'] > 0:
@@ -1117,6 +1118,7 @@ class SwingTrader:
                     "stop_loss": setup.get("stop_loss", 0),
                     "target": setup.get("take_profit", 0),
                     "ml_prob": r.get("mr_ml_prob", 0.0),
+                    "sentiment": r.get("sentiment", 0.0),
                     "reasons": [f"{k}={v:.1f}" for k, v in r['mr_components'].items() if v != 0]
                 })
 
@@ -1498,6 +1500,7 @@ def _score_symbol_worker(work_item):
             'mr_components': mr_data['components'] if mr_data else {},
             'mr_setup': mr_data['setup'] if mr_data else {},
             'mr_ml_prob': mr_data['ml_prob'] if mr_data else 0.0,
+            'sentiment': sentiment,
         }
         logging.info("Scored %s: Baseline=%.2f, MR=%.2f",
                      symbol, result['baseline_score'], result['mr_score'])
