@@ -11,6 +11,7 @@ import sys
 import time
 from datetime import datetime
 from typing import List, Optional
+from zoneinfo import ZoneInfo
 
 from bluehorseshoe.data.ibkr_client import IBKRClient, QuoteData
 
@@ -75,12 +76,40 @@ class WatchlistMonitor:
 
         try:
             while True:
-                quotes = self._poll()
-                self._display(quotes)
-                self._log_csv(quotes)
+                if self._is_market_open():
+                    quotes = self._poll()
+                    self._display(quotes)
+                    self._log_csv(quotes)
+                else:
+                    self._display_closed()
                 self._countdown(self._poll_interval)
         except KeyboardInterrupt:
             print("\nMonitor stopped.")
+
+    @staticmethod
+    def _is_market_open(now: Optional[datetime] = None) -> bool:
+        """Check if US equity market is currently open (Mon-Fri 9:30-16:00 ET)."""
+        eastern = ZoneInfo("America/New_York")
+        now_et = now or datetime.now(eastern)
+        if now_et.tzinfo is None:
+            now_et = now_et.replace(tzinfo=eastern)
+        # Weekend: Monday=0 .. Sunday=6
+        if now_et.weekday() >= 5:
+            return False
+        market_open = now_et.replace(hour=9, minute=30, second=0, microsecond=0)
+        market_close = now_et.replace(hour=16, minute=0, second=0, microsecond=0)
+        return market_open <= now_et < market_close
+
+    def _display_closed(self) -> None:
+        """Show a market-closed banner instead of quote data."""
+        sys.stdout.write("\033[H\033[J")
+        eastern = ZoneInfo("America/New_York")
+        now_et = datetime.now(eastern)
+        print(f"  Watchlist Monitor  |  {now_et.strftime('%Y-%m-%d %H:%M:%S %Z')}  |  {len(self._symbols)} symbols")
+        print("=" * 90)
+        print("  Market is closed. Waiting for next open (Mon-Fri 9:30-16:00 ET)...")
+        print("=" * 90)
+        sys.stdout.flush()
 
     def _poll(self) -> List[QuoteData]:
         """Fetch snapshot quotes for all symbols."""

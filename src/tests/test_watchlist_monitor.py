@@ -5,6 +5,7 @@ import tempfile
 from datetime import datetime
 from io import StringIO
 from unittest.mock import MagicMock, patch
+from zoneinfo import ZoneInfo
 
 import pytest
 
@@ -177,3 +178,65 @@ def test_poll_with_mixed_errors():
     assert len(result) == 2
     assert result[0].last == 245.0
     assert result[1].error == "No data"
+
+
+# ---------------------------------------------------------------------------
+# _is_market_open tests
+# ---------------------------------------------------------------------------
+
+ET = ZoneInfo("America/New_York")
+
+
+def test_market_open_midday_weekday():
+    """Tuesday at noon ET should be open."""
+    # 2026-02-17 is a Tuesday
+    t = datetime(2026, 2, 17, 12, 0, 0, tzinfo=ET)
+    assert WatchlistMonitor._is_market_open(t) is True
+
+
+def test_market_closed_before_open():
+    """Weekday at 9:00 ET (before 9:30) should be closed."""
+    t = datetime(2026, 2, 17, 9, 0, 0, tzinfo=ET)
+    assert WatchlistMonitor._is_market_open(t) is False
+
+
+def test_market_open_at_930():
+    """Weekday at exactly 9:30 ET should be open."""
+    t = datetime(2026, 2, 17, 9, 30, 0, tzinfo=ET)
+    assert WatchlistMonitor._is_market_open(t) is True
+
+
+def test_market_closed_at_1600():
+    """Weekday at exactly 16:00 ET should be closed (close is exclusive)."""
+    t = datetime(2026, 2, 17, 16, 0, 0, tzinfo=ET)
+    assert WatchlistMonitor._is_market_open(t) is False
+
+
+def test_market_closed_after_hours():
+    """Weekday at 18:00 ET should be closed."""
+    t = datetime(2026, 2, 17, 18, 0, 0, tzinfo=ET)
+    assert WatchlistMonitor._is_market_open(t) is False
+
+
+def test_market_closed_saturday():
+    """Saturday should be closed regardless of time."""
+    # 2026-02-21 is a Saturday
+    t = datetime(2026, 2, 21, 12, 0, 0, tzinfo=ET)
+    assert WatchlistMonitor._is_market_open(t) is False
+
+
+def test_market_closed_sunday():
+    """Sunday should be closed regardless of time."""
+    # 2026-02-22 is a Sunday
+    t = datetime(2026, 2, 22, 12, 0, 0, tzinfo=ET)
+    assert WatchlistMonitor._is_market_open(t) is False
+
+
+def test_display_closed_banner(capsys):
+    """Market-closed banner shows the right message."""
+    client = MagicMock()
+    monitor = WatchlistMonitor(client=client, symbols=["AAPL", "MSFT"])
+    monitor._display_closed()
+    output = capsys.readouterr().out
+    assert "Market is closed" in output
+    assert "9:30-16:00 ET" in output
