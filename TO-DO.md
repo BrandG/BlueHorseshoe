@@ -46,6 +46,7 @@
 - Track max drawdown, Sharpe ratio, and other portfolio-level metrics
 
 ### Data & Infrastructure
+- Add post-prediction step to track symbols with stale/insufficient data and update an invalid symbols list, so they can be excluded from future runs or flagged for re-backfill
 - Reduce Alpha Vantage dependency — evaluate alternative data sources (Polygon, Tiingo, Yahoo Finance bulk)
 - Add Redis or in-memory caching for repeated indicator calculations during LOO/optimization runs
 - Distributed backtesting — allow running date ranges in parallel across multiple workers

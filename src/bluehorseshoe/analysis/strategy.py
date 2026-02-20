@@ -48,7 +48,10 @@ from bluehorseshoe.analysis.ml_stop_loss import StopLossInference
 from bluehorseshoe.analysis.technical_analyzer import TechnicalAnalyzer
 from bluehorseshoe.core.config import Settings, get_settings, weights_config
 from bluehorseshoe.core.scores import ScoreManager
-from bluehorseshoe.core.symbols import get_symbol_name_list, get_symbols_from_mongo, get_overview_from_mongo, get_sentiment_score
+from bluehorseshoe.core.symbols import (
+    get_symbol_name_list, get_symbols_from_mongo, get_overview_from_mongo,
+    get_sentiment_score, fetch_news_sentiment_from_net, upsert_news_sentiment_to_mongo,
+)
 from bluehorseshoe.analysis.ml_utils import build_ml_features
 from bluehorseshoe.data.historical_data import load_historical_data
 from bluehorseshoe.reporting.report_generator import ReportWriter, ReportSingleton
@@ -246,7 +249,6 @@ class SwingTrader:
 
         # 2. Structural levels
         swing_low_5 = df['low'].rolling(window=5).min().iloc[-1]
-        swing_high_20 = df['high'].rolling(window=20).max().iloc[-1]
 
         # 3. Entry Logic (uses actual technical_score for dynamic ATR discount)
         entry_price, atr_discount_used, signal_strength = self._determine_baseline_entry(last_row, ema9, atr, technical_score=technical_score)
@@ -259,12 +261,7 @@ class SwingTrader:
         stop_loss = min(swing_stop, atr_stop)
 
         atr_target = entry_price + (ml_target_multiplier * atr)
-        resistance_cap = swing_high_20 * 0.98  # Stay below 20-day high resistance
-        take_profit = min(atr_target, resistance_cap)
-
-        # Floor: target must never be below entry (resistance cap irrelevant if already past it)
-        if take_profit <= entry_price:
-            take_profit = atr_target
+        take_profit = entry_price + (atr_target - entry_price) * 0.98
 
         # 5. Risk Calculation
         risk = entry_price - stop_loss
@@ -310,37 +307,23 @@ class SwingTrader:
         Calculate structural prices for Mean Reversion (Dip) strategy:
         Entry = Current Close (Buying extreme weakness)
         Stop = ml_stop_multiplier * ATR (Tighter stop for fast reversals)
-        Target = Reversion to 20-day EMA or ml_target_multiplier * ATR
+        Target = ml_target_multiplier * ATR with 2% delta haircut
         """
         last_row = df.iloc[-1]
         last_close = last_row['close']
 
-        # 1. EMA 20 for Target (The "Mean")
-        ema20 = df['close'].ewm(span=20).mean().iloc[-1]
-
-        # 2. Volatility (ATR)
+        # 1. Volatility (ATR)
         atr = self._calculate_atr(df)
 
-        # 3. Entry is current close
+        # 2. Entry is current close
         entry_price = last_close
 
-        # 4. Stop Loss: ml_stop_multiplier * ATR below entry
+        # 3. Stop Loss: ml_stop_multiplier * ATR below entry
         stop_loss = entry_price - (ml_stop_multiplier * atr)
 
-        # 5. Take Profit: 60% partial reversion capped by resistance
-        if entry_price < ema20:
-            partial_reversion = entry_price + (ema20 - entry_price) * 0.6
-        else:
-            partial_reversion = entry_price + (ml_target_multiplier * atr)
-
+        # 4. Take Profit: ATR-based target with 2% delta haircut
         atr_target = entry_price + (ml_target_multiplier * atr)
-        recent_high_20 = df['high'].tail(20).max()
-        resistance_cap = recent_high_20 * 0.98
-        take_profit = min(partial_reversion, atr_target, resistance_cap)
-
-        # Floor: target must never be below entry (resistance cap irrelevant if already past it)
-        if take_profit <= entry_price:
-            take_profit = atr_target
+        take_profit = entry_price + (atr_target - entry_price) * 0.98
 
         # 6. Reward-to-Risk
         reward = take_profit - entry_price
@@ -456,6 +439,9 @@ class SwingTrader:
             print(f"DEBUG: {symbol} - Baseline price out of range: {entry_price}")
             return None
 
+        if baseline_setup['rr_ratio'] < MIN_RR_RATIO_BASELINE:
+            return None
+
         # Apply Relative Strength (RS) Bonus
         rs_multiplier = weights_config.get_weights('momentum').get('RS_MULTIPLIER', 1.0)
         if ctx.benchmark_df is not None and rs_multiplier != 0.0:
@@ -525,6 +511,9 @@ class SwingTrader:
 
         entry_price = mr_setup['entry_price']
         if not MIN_STOCK_PRICE < entry_price < MAX_STOCK_PRICE:
+            return None
+
+        if mr_setup['rr_ratio'] < MIN_RR_RATIO_MEAN_REVERSION:
             return None
 
         # Calculate ML Win Probability
@@ -1124,10 +1113,29 @@ class SwingTrader:
 
         # Sort by score desc
         candidates.sort(key=lambda x: x['score'], reverse=True)
+        top_candidates = candidates[:50]
+
+        # Refresh sentiment for top candidates only
+        unique_symbols = list({c["symbol"] for c in top_candidates})
+        logging.info("Refreshing sentiment for %d unique symbols in top 50 candidates", len(unique_symbols))
+        for sym in unique_symbols:
+            try:
+                news_data = fetch_news_sentiment_from_net(sym)
+                upsert_news_sentiment_to_mongo(sym, news_data, database=self.database)
+            except Exception:  # pylint: disable=broad-except
+                logging.warning("Failed to fetch sentiment for %s, keeping existing value", sym)
+
+        # Recalculate sentiment scores with fresh data
+        sentiment_cache: Dict[str, float] = {}
+        for c in top_candidates:
+            sym = c["symbol"]
+            if sym not in sentiment_cache:
+                sentiment_cache[sym] = get_sentiment_score(sym, ctx.target_date, database=self.database)
+            c["sentiment"] = sentiment_cache[sym]
 
         return {
             "regime": market_health,
-            "candidates": candidates[:50], # Top 50 for the report
+            "candidates": top_candidates,
             "charts": [] # TODO: Add chart generation logic if needed
         }
 
@@ -1360,6 +1368,9 @@ def _worker_process_baseline(trader, df, yesterday, benchmark_df, market_health,
     if not MIN_STOCK_PRICE < entry_price < MAX_STOCK_PRICE:
         return None
 
+    if baseline_setup['rr_ratio'] < MIN_RR_RATIO_BASELINE:
+        return None
+
     # Relative Strength bonus
     rs_multiplier = weights_config.get_weights('momentum').get('RS_MULTIPLIER', 1.0)
     if benchmark_df is not None and rs_multiplier != 0.0:
@@ -1425,6 +1436,9 @@ def _worker_process_mr(trader, df, yesterday, enabled_indicators, aggregation,
 
     entry_price = mr_setup['entry_price']
     if not MIN_STOCK_PRICE < entry_price < MAX_STOCK_PRICE:
+        return None
+
+    if mr_setup['rr_ratio'] < MIN_RR_RATIO_MEAN_REVERSION:
         return None
 
     # ML Win Probability (using worker's pre-loaded models, no DB)

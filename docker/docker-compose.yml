@@ -3,6 +3,7 @@ services:
     image: mongo:7
     container_name: mongo
     restart: always
+    command: ["mongod", "--wiredTigerCacheSizeGB", "1"]
     volumes:
       - mongo_data:/data/db
     networks:
@@ -36,6 +37,8 @@ services:
       - mongo
     networks:
       - app_net
+    cpus: 1.5
+    mem_limit: 4g
     volumes:
       # Mount the src folder from host into the container
       - ..:/workspaces/BlueHorseshoe

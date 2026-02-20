@@ -420,11 +420,13 @@ if __name__ == "__main__":
                 if "--symbols" in sys.argv:
                     symbols_filter = [s.strip() for s in sys.argv[sys.argv.index("--symbols") + 1].split(",")]
 
+                bt_max_workers = int(sys.argv[sys.argv.index("--workers") + 1]) if "--workers" in sys.argv else None
                 options = BacktestOptions(
                     strategy=strategy,
                     enabled_indicators=enabled_indicators,
                     aggregation=aggregation,
-                    symbols=symbols_filter
+                    symbols=symbols_filter,
+                    max_workers=bt_max_workers,
                 )
 
                 # Split-exit mode (defaults to atr_tiered / Plan B)

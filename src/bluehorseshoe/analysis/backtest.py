@@ -38,6 +38,7 @@ class BacktestOptions:
     enabled_indicators: Optional[List[str]] = None
     aggregation: str = "sum"
     symbols: Optional[List[str]] = None
+    max_workers: Optional[int] = None  # Thread pool size for predictions; None = auto
 
 @dataclass
 class TradeState:
@@ -560,7 +561,9 @@ class Backtester:
         return symbols
 
     def _generate_predictions(self, symbols: List[str], target_date: str, options: BacktestOptions) -> List[Dict]:
-        max_workers = min(8, os.cpu_count() or 4)
+        import gc
+        max_workers = options.max_workers or min(8, os.cpu_count() or 4)
+        chunk_size = 500
         logging.info("Generating %s predictions for %s...", options.strategy, target_date)
         predictions = []
 
@@ -570,26 +573,33 @@ class Backtester:
             aggregation=options.aggregation
         )
 
-        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
-            process_func = partial(self.trader.process_symbol, ctx=ctx)
-            future_to_symbol = {executor.submit(process_func, sym): sym for sym in symbols}
+        total_symbols = len(symbols)
+        processed_count = 0
 
-            processed_count = 0
-            total_symbols = len(symbols)
-            for future in concurrent.futures.as_completed(future_to_symbol):
-                processed_count += 1
-                try:
-                    result = future.result()
-                    predictions.append(result)
-                except Exception as e: # pylint: disable=broad-exception-caught
-                    logging.error("Exception during prediction: %s", e)
+        for chunk_start in range(0, total_symbols, chunk_size):
+            chunk = symbols[chunk_start:chunk_start + chunk_size]
 
-                if processed_count % 500 == 0 or processed_count == total_symbols:
-                    print(
-                        f"  > Progress: {processed_count}/{total_symbols} symbols analyzed "
-                        f"({(processed_count / total_symbols) * 100:.1f}%)",
-                        flush=True
-                    )
+            with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+                process_func = partial(self.trader.process_symbol, ctx=ctx)
+                future_to_symbol = {executor.submit(process_func, sym): sym for sym in chunk}
+
+                for future in concurrent.futures.as_completed(future_to_symbol):
+                    processed_count += 1
+                    try:
+                        result = future.result()
+                        predictions.append(result)
+                    except Exception as e: # pylint: disable=broad-exception-caught
+                        logging.error("Exception during prediction: %s", e)
+
+                    if processed_count % 500 == 0 or processed_count == total_symbols:
+                        print(
+                            f"  > Progress: {processed_count}/{total_symbols} symbols analyzed "
+                            f"({(processed_count / total_symbols) * 100:.1f}%)",
+                            flush=True
+                        )
+
+            gc.collect()
+
         return predictions
 
     def _filter_and_sort_predictions(self, predictions: List[Dict], options: BacktestOptions) -> List[Dict]:

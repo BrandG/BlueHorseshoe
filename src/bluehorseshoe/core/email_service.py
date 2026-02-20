@@ -87,7 +87,7 @@ class EmailService:
                     logger.info(f"Arcade report not found at {arcade_path}, skipping attachment")
 
             # Send
-            with smtplib.SMTP(self.smtp_server, self.smtp_port, timeout=30) as server:
+            with smtplib.SMTP(self.smtp_server, self.smtp_port, timeout=120) as server:
                 server.starttls()
                 server.login(self.smtp_user, self.smtp_password)
                 server.send_message(msg)

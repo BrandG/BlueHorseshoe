@@ -19,6 +19,7 @@ Options:
     --t1-pct PCT        Plan A T1 target as decimal (default: 0.02)
     --t1-atr MULT       Plan B T1 ATR multiple (default: 1.0)
     --t2-atr MULT       Plan B T2 ATR multiple (default: 2.0)
+    --workers N         Max thread pool workers for predictions (default: 2)
     --verbose           Show per-symbol breakdown
 """
 
@@ -66,6 +67,7 @@ def parse_args(argv: List[str]):
         't1_pct': _get_arg('--t1-pct', 0.02, float),
         't1_atr': _get_arg('--t1-atr', 1.0, float),
         't2_atr': _get_arg('--t2-atr', 2.0, float),
+        'max_workers': _get_arg('--workers', 2, int),
         'verbose': '--verbose' in argv,
     }
 
@@ -239,6 +241,7 @@ def run_comparison(args: Dict):
         options = BacktestOptions(
             strategy=args['strategy'],
             top_n=args['top_n'],
+            max_workers=args['max_workers'],
         )
 
         plan_a = SplitExitConfig(mode='fixed_pct', t1_profit_pct=args['t1_pct'])

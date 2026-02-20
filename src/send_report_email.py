@@ -25,7 +25,7 @@ def find_report(date: str = None) -> str | None:
 
     # Find most recent report (exclude _email variants)
     pattern = os.path.join(LOGS_DIR, "report_*.html")
-    files = [f for f in glob.glob(pattern) if "_email" not in f]
+    files = [f for f in glob.glob(pattern) if "_email" not in f and "_arcade" not in f]
     if not files:
         return None
     return max(files, key=os.path.getmtime)
