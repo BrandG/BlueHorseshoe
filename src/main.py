@@ -288,40 +288,49 @@ if __name__ == "__main__":
                 sys.exit(0)
 
             # 3. Build Symbol Map (for exchange info)
-            from bluehorseshoe.core.symbols import get_symbols_from_mongo
+            from bluehorseshoe.core.symbols import get_symbols_from_mongo, get_sentiment_score
             all_symbols = get_symbols_from_mongo(database=ctx.db)
             symbol_map = {s['symbol']: s.get('exchange', 'Unknown') for s in all_symbols}
 
             # 4. Construct Candidates
             candidates = []
+            sentiment_cache = {}
 
             # Process Baseline
             for s in baseline_scores:
                 meta = s.get('metadata', {})
+                sym = s['symbol']
+                if sym not in sentiment_cache:
+                    sentiment_cache[sym] = get_sentiment_score(sym, target_date, database=ctx.db)
                 candidates.append({
-                    "symbol": s['symbol'],
-                    "exchange": symbol_map.get(s['symbol'], 'Unknown'),
+                    "symbol": sym,
+                    "exchange": symbol_map.get(sym, 'Unknown'),
                     "strategy": "Baseline",
                     "score": s['score'],
                     "close": meta.get('entry_price', 0),
                     "stop_loss": meta.get('stop_loss', 0),
                     "target": meta.get('take_profit', 0),
                     "ml_prob": meta.get('ml_win_prob', 0.0),
+                    "sentiment": sentiment_cache[sym],
                     "reasons": [f"{k}={v:.1f}" for k, v in meta.get('components', {}).items() if v != 0]
                 })
 
             # Process Mean Reversion
             for s in mr_scores:
                 meta = s.get('metadata', {})
+                sym = s['symbol']
+                if sym not in sentiment_cache:
+                    sentiment_cache[sym] = get_sentiment_score(sym, target_date, database=ctx.db)
                 candidates.append({
-                    "symbol": s['symbol'],
-                    "exchange": symbol_map.get(s['symbol'], 'Unknown'),
+                    "symbol": sym,
+                    "exchange": symbol_map.get(sym, 'Unknown'),
                     "strategy": "MeanRev",
                     "score": s['score'],
                     "close": meta.get('entry_price', 0),
                     "stop_loss": meta.get('stop_loss', 0),
                     "target": meta.get('take_profit', 0),
                     "ml_prob": meta.get('ml_win_prob', 0.0),
+                    "sentiment": sentiment_cache[sym],
                     "reasons": [f"{k}={v:.1f}" for k, v in meta.get('components', {}).items() if v != 0]
                 })
 

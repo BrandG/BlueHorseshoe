@@ -1680,6 +1680,7 @@ document.addEventListener('DOMContentLoaded', function() {
       stop_loss: c.stop_loss || 0,
       target: c.target || 0,
       ml_prob: c.ml_prob || 0,
+      sentiment: c.sentiment || 0,
       reasons: c.reasons || [],
       components: c.components || {}
     };
