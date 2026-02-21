@@ -299,6 +299,8 @@ if __name__ == "__main__":
             # Process Baseline
             for s in baseline_scores:
                 meta = s.get('metadata', {})
+                if not meta.get('entry_price'):
+                    continue
                 sym = s['symbol']
                 if sym not in sentiment_cache:
                     sentiment_cache[sym] = get_sentiment_score(sym, target_date, database=ctx.db)
@@ -318,6 +320,8 @@ if __name__ == "__main__":
             # Process Mean Reversion
             for s in mr_scores:
                 meta = s.get('metadata', {})
+                if not meta.get('entry_price'):
+                    continue
                 sym = s['symbol']
                 if sym not in sentiment_cache:
                     sentiment_cache[sym] = get_sentiment_score(sym, target_date, database=ctx.db)
