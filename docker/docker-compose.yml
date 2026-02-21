@@ -62,6 +62,7 @@ services:
       - "5900:5900"
     networks:
       - app_net
+    mem_limit: 512m
 
 networks:
   app_net:
