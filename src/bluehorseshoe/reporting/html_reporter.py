@@ -632,7 +632,7 @@ class HTMLReporter:
 
         if baseline_top:
             html.append("<table>")
-            html.append("<tr><th>Symbol</th><th>Score</th><th>Sentiment</th><th>ML Confidence</th><th>Entry</th><th>Stop</th><th>Target</th></tr>")
+            html.append("<tr><th>Symbol</th><th>Score</th><th>Sentiment</th><th>ML Confidence</th><th>Entry</th><th>Stop</th><th>T1 (+2%)</th><th>T2 Target</th></tr>")
             for c in baseline_top:
                 symbol = c['symbol']
                 url = f"https://finance.yahoo.com/quote/{symbol}"
@@ -649,6 +649,7 @@ class HTMLReporter:
                 ml_prob = c.get('ml_prob', 0.0)
                 entry = c.get('close', 0)
                 stop = c.get('stop_loss', 0)
+                t1 = c.get('t1_target', entry * 1.02 if entry else 0)
                 target = c.get('target', 0)
                 stop_pct = ((stop - entry) / entry * 100) if entry else 0
                 target_pct = ((target - entry) / entry * 100) if entry else 0
@@ -660,6 +661,7 @@ class HTMLReporter:
                 html.append(f"<td>{ml_prob*100:.0f}%</td>")
                 html.append(f"<td>${entry:.2f}</td>")
                 html.append(f"<td style='color:#c0392b;font-weight:bold'>${stop:.2f} <span style='font-size:0.85em'>({stop_pct:.1f}%)</span></td>")
+                html.append(f"<td style='color:#e67e22;font-weight:bold'>${t1:.2f} <span style='font-size:0.85em'>(+2.0%)</span></td>")
                 html.append(f"<td style='color:#27ae60;font-weight:bold'>${target:.2f} <span style='font-size:0.85em'>(+{target_pct:.1f}%)</span></td>")
                 html.append("</tr>")
             html.append("</table>")
@@ -674,7 +676,7 @@ class HTMLReporter:
 
         if meanrev_top:
             html.append("<table>")
-            html.append("<tr><th>Symbol</th><th>Score</th><th>Sentiment</th><th>ML Confidence</th><th>Entry</th><th>Stop</th><th>Target</th></tr>")
+            html.append("<tr><th>Symbol</th><th>Score</th><th>Sentiment</th><th>ML Confidence</th><th>Entry</th><th>Stop</th><th>T1 (+2%)</th><th>T2 Target</th></tr>")
             for c in meanrev_top:
                 symbol = c['symbol']
                 url = f"https://finance.yahoo.com/quote/{symbol}"
@@ -691,6 +693,7 @@ class HTMLReporter:
                 ml_prob = c.get('ml_prob', 0.0)
                 entry = c.get('close', 0)
                 stop = c.get('stop_loss', 0)
+                t1 = c.get('t1_target', entry * 1.02 if entry else 0)
                 target = c.get('target', 0)
                 stop_pct = ((stop - entry) / entry * 100) if entry else 0
                 target_pct = ((target - entry) / entry * 100) if entry else 0
@@ -702,6 +705,7 @@ class HTMLReporter:
                 html.append(f"<td>{ml_prob*100:.0f}%</td>")
                 html.append(f"<td>${entry:.2f}</td>")
                 html.append(f"<td style='color:#c0392b;font-weight:bold'>${stop:.2f} <span style='font-size:0.85em'>({stop_pct:.1f}%)</span></td>")
+                html.append(f"<td style='color:#e67e22;font-weight:bold'>${t1:.2f} <span style='font-size:0.85em'>(+2.0%)</span></td>")
                 html.append(f"<td style='color:#27ae60;font-weight:bold'>${target:.2f} <span style='font-size:0.85em'>(+{target_pct:.1f}%)</span></td>")
                 html.append("</tr>")
             html.append("</table>")
@@ -926,6 +930,7 @@ class HTMLReporter:
                 'score': float(c.get('score', 0)),
                 'close': float(c.get('close', 0)),
                 'stop_loss': float(c.get('stop_loss', 0)),
+                't1_target': float(c.get('t1_target', 0)),
                 'target': float(c.get('target', 0)),
                 'ml_prob': float(c.get('ml_prob', 0)),
                 'sentiment': float(c.get('sentiment', 0)),
@@ -1129,7 +1134,7 @@ body::after {
   box-shadow: 0 0 15px rgba(255,170,0,0.1); margin-bottom: 16px;
 }
 .leaderboard-header {
-  display: grid; grid-template-columns: 28px 40px 90px 1fr 60px 100px 100px 100px 110px 80px;
+  display: grid; grid-template-columns: 28px 40px 90px 1fr 60px 100px 100px 80px 80px 110px 80px;
   padding: 10px 12px; border-bottom: 2px solid var(--neon-amber);
   font-size: 0.8rem; color: var(--neon-amber); text-shadow: 0 0 4px var(--neon-amber);
   letter-spacing: 1px; background: rgba(255,170,0,0.05);
@@ -1143,7 +1148,7 @@ body::after {
 .leaderboard-body::-webkit-scrollbar-thumb { background: var(--neon-amber-dim); border: 1px solid var(--neon-amber); }
 @keyframes row-enter { from { opacity: 0; transform: translateX(-20px); } to { opacity: 1; transform: translateX(0); } }
 .leaderboard-row {
-  display: grid; grid-template-columns: 28px 40px 90px 1fr 60px 100px 100px 100px 110px 80px;
+  display: grid; grid-template-columns: 28px 40px 90px 1fr 60px 100px 100px 80px 80px 110px 80px;
   padding: 10px 12px; border-bottom: 1px solid rgba(85,85,112,0.3);
   font-size: 0.9rem; cursor: pointer; transition: background 0.1s;
   animation: row-enter 0.3s ease-out both;
@@ -1204,6 +1209,8 @@ body::after {
 .rr-label.stop { left: 4px; color: var(--neon-red); }
 .rr-label.entry { color: var(--neon-amber); }
 .rr-label.target { right: 4px; color: var(--neon-green); }
+.rr-t1-marker { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--neon-amber); box-shadow: 0 0 6px var(--neon-amber); z-index: 1; opacity: 0.8; }
+.rr-label.t1 { color: var(--neon-amber); top: 2px; bottom: auto; font-size: 0.55rem; }
 .indicator-bar-row { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; font-size: 0.7rem; }
 .indicator-name { width: 70px; color: var(--pixel-gray); text-align: right; text-transform: uppercase; }
 .indicator-bar { flex: 1; height: 6px; background: var(--pixel-dark); border: 1px solid rgba(85,85,112,0.3); position: relative; overflow: hidden; }
@@ -1247,12 +1254,12 @@ body::after {
 .portfolio-summary-value { font-size: 0.7rem; color: var(--neon-green); text-shadow: 0 0 4px var(--neon-green); }
 .portfolio-summary-value.risk { color: var(--neon-red); text-shadow: 0 0 4px var(--neon-red); }
 .portfolio-summary-value.rr { color: var(--neon-blue); text-shadow: 0 0 4px var(--neon-blue); }
-.portfolio-table-header { display: grid; grid-template-columns: 50px 130px 100px 120px 120px 120px 130px 130px 130px; padding: 8px 6px; border-bottom: 2px solid var(--neon-amber); font-size: 0.9rem; color: var(--neon-amber); text-shadow: 0 0 4px var(--neon-amber); letter-spacing: 1px; }
+.portfolio-table-header { display: grid; grid-template-columns: 50px 130px 100px 120px 100px 100px 120px 130px 110px 110px; padding: 8px 6px; border-bottom: 2px solid var(--neon-amber); font-size: 0.9rem; color: var(--neon-amber); text-shadow: 0 0 4px var(--neon-amber); letter-spacing: 1px; }
 .portfolio-table-body { max-height: 50vh; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--neon-pink-dim) var(--pixel-dark); }
 .portfolio-table-body::-webkit-scrollbar { width: 6px; }
 .portfolio-table-body::-webkit-scrollbar-track { background: var(--pixel-dark); }
 .portfolio-table-body::-webkit-scrollbar-thumb { background: var(--neon-pink-dim); border: 1px solid var(--neon-pink); }
-.portfolio-table-row { display: grid; grid-template-columns: 50px 130px 100px 120px 120px 120px 130px 130px 130px; padding: 8px 6px; border-bottom: 1px solid rgba(85,85,112,0.3); font-size: 1.2rem; align-items: center; }
+.portfolio-table-row { display: grid; grid-template-columns: 50px 130px 100px 120px 100px 100px 120px 130px 110px 110px; padding: 8px 6px; border-bottom: 1px solid rgba(85,85,112,0.3); font-size: 1.2rem; align-items: center; }
 .portfolio-table-row:nth-child(even) { background: rgba(22,22,42,0.4); }
 .portfolio-col-rank { color: var(--neon-amber); }
 .portfolio-col-symbol { color: var(--neon-blue); text-shadow: 0 0 4px var(--neon-blue); }
@@ -1280,24 +1287,24 @@ body::after {
 /* Calc button in toolbar */
 .toolbar { display: flex; gap: 8px; margin-bottom: 12px; justify-content: flex-end; }
 @media (max-width: 900px) {
-  .leaderboard-header, .leaderboard-row { grid-template-columns: 24px 30px 70px 1fr 50px 80px 80px 80px 90px 60px; font-size: 0.7rem; padding: 8px 6px; }
+  .leaderboard-header, .leaderboard-row { grid-template-columns: 24px 30px 70px 1fr 50px 80px 80px 60px 60px 90px 60px; font-size: 0.7rem; padding: 8px 6px; }
   .marquee-title { font-size: 1rem; }
   .detail-grid { grid-template-columns: 1fr; }
   .status-bar { grid-template-columns: 1fr; }
   .health-bar { width: 40px; }
   .prev-perf-header, .prev-perf-row { grid-template-columns: 70px 50px 1fr 80px 60px; font-size: 0.7rem; }
-  .portfolio-table-header, .portfolio-table-row { grid-template-columns: 30px 70px 65px 70px 70px 70px 70px; }
+  .portfolio-table-header, .portfolio-table-row { grid-template-columns: 30px 70px 65px 70px 60px 60px 70px 70px; }
   .portfolio-col-risk, .portfolio-col-reward { display: none; }
   .portfolio-summary { grid-template-columns: repeat(2, 1fr); }
 }
 @media (max-width: 600px) {
   .leaderboard-header, .leaderboard-row { grid-template-columns: 24px 30px 1fr 70px 70px; }
-  .col-stop, .col-target, .col-rr, .col-ml, .col-sent { display: none; }
+  .col-stop, .col-t1, .col-target, .col-rr, .col-ml, .col-sent { display: none; }
   .marquee-title { font-size: 0.7rem; letter-spacing: 2px; }
   .prev-perf-header, .prev-perf-row { grid-template-columns: 60px 1fr 70px 60px; }
   .prev-perf-header span:nth-child(2), .prev-perf-row span:nth-child(2) { display: none; }
   .portfolio-table-header, .portfolio-table-row { grid-template-columns: 30px 1fr 60px 60px 60px 60px; }
-  .portfolio-col-strategy, .portfolio-col-stop, .portfolio-col-target { display: none; }
+  .portfolio-col-strategy, .portfolio-col-stop, .portfolio-col-t1, .portfolio-col-target { display: none; }
 }
 </style>"""
 
@@ -1400,7 +1407,8 @@ function renderLeaderboard() {
       '<div class="col-sent ' + sentClass + '">' + sentLabel + '</div>' +
       '<div class="col-price">$' + c.close.toFixed(2) + '</div>' +
       '<div class="col-stop">$' + c.stop_loss.toFixed(2) + '</div>' +
-      '<div class="col-target">$' + c.target.toFixed(2) + '</div>' +
+      '<div class="col-t1" style="color:var(--neon-amber);text-shadow:0 0 4px var(--neon-amber)">$' + (c.t1_target ? c.t1_target.toFixed(2) : '---') + '</div>' +
+      '<div class="col-target" style="color:var(--neon-green)">$' + c.target.toFixed(2) + '</div>' +
       '<div class="col-ml"><div class="ml-meter">' + pipsHtml + '</div><span class="ml-pct ' + mlTextClass + '">' + mlPct + '%</span></div>' +
       '<div class="col-rr">' + rr + 'x</div>';
     body.appendChild(row);
@@ -1418,6 +1426,7 @@ function buildDetailHTML(c) {
   const totalRange = c.target - c.stop_loss;
   const riskWidth = totalRange > 0 ? ((c.close - c.stop_loss) / totalRange * 100) : 30;
   const rewardWidth = totalRange > 0 ? ((c.target - c.close) / totalRange * 100) : 70;
+  const t1Pos = (c.t1_target && totalRange > 0) ? ((c.t1_target - c.stop_loss) / totalRange * 100) : 0;
   let components = c.components || {};
   if (c.reasons && c.reasons.length && Object.keys(components).length === 0) {
     c.reasons.forEach(function(r) {
@@ -1436,17 +1445,22 @@ function buildDetailHTML(c) {
       '<div class="indicator-bar"><div class="indicator-bar-fill ' + cls + '" style="width:' + pct + '%"></div></div>' +
       '<span class="indicator-val ' + valCls + '">' + sign + val.toFixed(1) + '</span></div>';
   }).join('');
+  var t1Html = (c.t1_target && t1Pos > 0) ?
+    '<div class="rr-t1-marker" style="left:' + t1Pos + '%"></div>' +
+    '<span class="rr-label t1" style="left:' + t1Pos + '%">T1 $' + c.t1_target.toFixed(2) + ' (+2%)</span>' : '';
   return '<div class="detail-grid">' +
     '<div class="detail-section"><div class="detail-section-title">RISK / REWARD MAP</div>' +
     '<div class="rr-diagram"><div class="rr-zone-risk" style="width:' + riskWidth + '%"></div>' +
     '<div class="rr-zone-reward" style="width:' + rewardWidth + '%;left:' + riskWidth + '%"></div>' +
     '<div class="rr-entry-marker" style="left:' + riskWidth + '%"></div>' +
+    t1Html +
     '<span class="rr-label stop">STOP $' + c.stop_loss.toFixed(2) + '</span>' +
     '<span class="rr-label entry" style="left:' + riskWidth + '%">ENTRY $' + c.close.toFixed(2) + '</span>' +
-    '<span class="rr-label target">TARGET $' + c.target.toFixed(2) + '</span></div>' +
+    '<span class="rr-label target">T2 $' + c.target.toFixed(2) + '</span></div>' +
     '<div style="display:flex;gap:20px;margin-top:10px;font-size:0.7rem;">' +
     '<span style="color:var(--neon-red)">RISK: ' + riskPct + '%</span>' +
-    '<span style="color:var(--neon-green)">REWARD: ' + rewardPct + '%</span>' +
+    '<span style="color:var(--neon-amber)">T1: +2.0%</span>' +
+    '<span style="color:var(--neon-green)">T2: ' + rewardPct + '%</span>' +
     '<span style="color:var(--neon-blue)">R:R ' + (parseFloat(rewardPct) / Math.max(0.01, parseFloat(riskPct))).toFixed(2) + 'x</span></div>' +
     '<div style="margin-top:14px">' +
     '<button class="arcade-btn btn-pink" style="font-size:0.7rem;padding:5px 10px" onclick="event.stopPropagation();openCalcForSymbol(\'' + c.symbol + '\',' + c.close + ',' + c.stop_loss + ',' + c.target + ')">CALC SHARES</button>' +
@@ -1601,9 +1615,12 @@ function allocatePortfolio(candidates, totalInvest, topN) {
     var shares = alloc / c.close;
     var wholeShares = Math.floor(shares);
     var risk = shares * (c.close - c.stop_loss);
-    var reward = shares * (c.target - c.close);
+    var t1Gain = c.t1_target ? (c.t1_target - c.close) : 0;
+    var t2Gain = c.target - c.close;
+    var blendedRewardPerShare = 0.5 * t1Gain + 0.5 * t2Gain;
+    var reward = shares * blendedRewardPerShare;
     var rr = risk > 0 ? reward / risk : 0;
-    return { symbol: c.symbol, strategy: c.strategy, close: c.close, stop_loss: c.stop_loss, target: c.target, alloc: alloc, pct: pct, shares: shares, risk: risk, reward: reward };
+    return { symbol: c.symbol, strategy: c.strategy, close: c.close, stop_loss: c.stop_loss, t1_target: c.t1_target || 0, target: c.target, alloc: alloc, pct: pct, shares: shares, risk: risk, reward: reward };
   });
 }
 function openPortfolioModal() {
@@ -1640,12 +1657,14 @@ function renderPortfolioTable(results) {
   body.innerHTML = results.map(function(r, i) {
     var stratClass = r.strategy === 'MeanRev' ? 'meanrev' : 'baseline';
     var stratLabel = r.strategy === 'MeanRev' ? 'MR' : 'BL';
+    var t1Val = r.t1_target ? '$' + r.t1_target.toFixed(2) : '---';
     return '<div class="portfolio-table-row">' +
       '<div class="portfolio-col-rank">' + String(i + 1).padStart(2, '0') + '</div>' +
       '<div class="portfolio-col-symbol">' + r.symbol + '</div>' +
       '<div class="portfolio-col-strategy"><span class="strategy-badge ' + stratClass + '">' + stratLabel + '</span></div>' +
       '<div class="portfolio-col-price">$' + r.close.toFixed(2) + '</div>' +
-      '<div class="portfolio-col-target">$' + r.target.toFixed(2) + '</div>' +
+      '<div class="portfolio-col-t1" style="color:var(--neon-amber);text-shadow:0 0 4px var(--neon-amber)">' + t1Val + '</div>' +
+      '<div class="portfolio-col-target" style="color:var(--neon-green)">$' + r.target.toFixed(2) + '</div>' +
       '<div class="portfolio-col-stop">$' + r.stop_loss.toFixed(2) + '</div>' +
       '<div class="portfolio-col-shares">' + r.shares.toFixed(2) + '</div>' +
       '<div class="portfolio-col-risk">-$' + r.risk.toFixed(0) + '</div>' +
@@ -1667,6 +1686,7 @@ document.addEventListener('DOMContentLoaded', function() {
       score: c.score || 0,
       close: c.close || 0,
       stop_loss: c.stop_loss || 0,
+      t1_target: c.t1_target || 0,
       target: c.target || 0,
       ml_prob: c.ml_prob || 0,
       sentiment: c.sentiment || 0,
@@ -1736,7 +1756,7 @@ document.addEventListener('DOMContentLoaded', function() {
             # Leaderboard
             '<div class="leaderboard" id="leaderboard" style="display:none">',
             '<div class="leaderboard-header">',
-            '<div></div><div>#</div><div>SYMBOL</div><div>SCORE</div><div>SENT</div><div>ENTRY</div><div>STOP</div><div>TARGET</div><div>ML PROB</div><div>R:R</div>',
+            '<div></div><div>#</div><div>SYMBOL</div><div>SCORE</div><div>SENT</div><div>ENTRY</div><div>STOP</div><div>T1</div><div>T2</div><div>ML PROB</div><div>R:R</div>',
             '</div>',
             '<div class="leaderboard-body" id="leaderboardBody"></div>',
             '</div>',
@@ -1809,7 +1829,7 @@ document.addEventListener('DOMContentLoaded', function() {
             '<div class="portfolio-summary-item"><div class="portfolio-summary-label">PORTFOLIO R:R</div><div class="portfolio-summary-value rr" id="portfolioRR">---</div></div>',
             '</div>',
             '<div class="portfolio-table-header">',
-            '<div>#</div><div>SYM</div><div class="portfolio-col-strategy">STRAT</div><div>PRICE</div><div class="portfolio-col-target">TARGET</div><div class="portfolio-col-stop">STOP</div><div>SHARES</div><div class="portfolio-col-risk">RISK</div><div class="portfolio-col-reward">RWD</div>',
+            '<div>#</div><div>SYM</div><div class="portfolio-col-strategy">STRAT</div><div>PRICE</div><div class="portfolio-col-t1">T1</div><div class="portfolio-col-target">T2</div><div class="portfolio-col-stop">STOP</div><div>SHARES</div><div class="portfolio-col-risk">RISK</div><div class="portfolio-col-reward">RWD</div>',
             '</div>',
             '<div class="portfolio-table-body" id="portfolioTableBody"></div>',
             '</div></div>',

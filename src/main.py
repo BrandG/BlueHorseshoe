@@ -304,13 +304,15 @@ if __name__ == "__main__":
                 sym = s['symbol']
                 if sym not in sentiment_cache:
                     sentiment_cache[sym] = get_sentiment_score(sym, target_date, database=ctx.db)
+                entry_price = meta.get('entry_price', 0)
                 candidates.append({
                     "symbol": sym,
                     "exchange": symbol_map.get(sym, 'Unknown'),
                     "strategy": "Baseline",
                     "score": s['score'],
-                    "close": meta.get('entry_price', 0),
+                    "close": entry_price,
                     "stop_loss": meta.get('stop_loss', 0),
+                    "t1_target": entry_price * 1.02 if entry_price > 0 else 0,
                     "target": meta.get('take_profit', 0),
                     "ml_prob": meta.get('ml_win_prob', 0.0),
                     "sentiment": sentiment_cache[sym],
@@ -325,13 +327,15 @@ if __name__ == "__main__":
                 sym = s['symbol']
                 if sym not in sentiment_cache:
                     sentiment_cache[sym] = get_sentiment_score(sym, target_date, database=ctx.db)
+                entry_price = meta.get('entry_price', 0)
                 candidates.append({
                     "symbol": sym,
                     "exchange": symbol_map.get(sym, 'Unknown'),
                     "strategy": "MeanRev",
                     "score": s['score'],
-                    "close": meta.get('entry_price', 0),
+                    "close": entry_price,
                     "stop_loss": meta.get('stop_loss', 0),
+                    "t1_target": entry_price * 1.02 if entry_price > 0 else 0,
                     "target": meta.get('take_profit', 0),
                     "ml_prob": meta.get('ml_win_prob', 0.0),
                     "sentiment": sentiment_cache[sym],

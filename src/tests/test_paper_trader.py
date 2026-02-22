@@ -55,7 +55,7 @@ def _make_trader(tmp_path, db=None, client=None):
 
 class TestPositionSizing:
     def test_basic_sizing(self, tmp_path):
-        """$10k / 10 positions / $50 stock = 20 shares."""
+        """$10k / 10 positions / $50 stock = 20 shares split into T1(10) + T2(10)."""
         client = MagicMock()
         client.place_bracket_order.return_value = {
             "order_ids": [1, 2, 3], "status": "submitted", "error": None,
@@ -65,16 +65,19 @@ class TestPositionSizing:
 
         assert len(results) == 1
         assert results[0].quantity == 20
-        client.place_bracket_order.assert_called_once_with(
-            symbol="AAPL",
-            quantity=20,
-            limit_price=50.0,
-            take_profit_price=55.0,
-            stop_loss_price=47.5,
-        )
+        # Split orders: 2 calls (T1 half + T2 half)
+        assert client.place_bracket_order.call_count == 2
+        # T1 call: 10 shares at entry*1.02
+        t1_call = client.place_bracket_order.call_args_list[0]
+        assert t1_call.kwargs["quantity"] == 10
+        assert t1_call.kwargs["take_profit_price"] == 50.0 * 1.02
+        # T2 call: 10 shares at original target
+        t2_call = client.place_bracket_order.call_args_list[1]
+        assert t2_call.kwargs["quantity"] == 10
+        assert t2_call.kwargs["take_profit_price"] == 55.0
 
     def test_fractional_shares_floored(self, tmp_path):
-        """$1000 per position / $33 stock = floor(30.30) = 30 shares."""
+        """$1000 per position / $33 stock = floor(30.30) = 30 shares split."""
         client = MagicMock()
         client.place_bracket_order.return_value = {
             "order_ids": [1, 2, 3], "status": "submitted", "error": None,
@@ -186,7 +189,8 @@ class TestBracketSubmission:
         trader = _make_trader(tmp_path, client=client)
         results = trader.execute([_make_candidate()], "2026-01-15")
 
-        assert results[0].order_ids == [100, 101, 102]
+        # Split orders: T1 + T2 both return [100, 101, 102]
+        assert results[0].order_ids == [100, 101, 102, 100, 101, 102]
         assert results[0].status == "submitted"
 
     def test_order_error_captured(self, tmp_path):
@@ -198,7 +202,7 @@ class TestBracketSubmission:
         results = trader.execute([_make_candidate()], "2026-01-15")
 
         assert results[0].status == "error"
-        assert results[0].error == "Connection refused"
+        assert "Connection refused" in results[0].error
 
 
 # ── CSV logging ──────────────────────────────────────────────────────
@@ -288,7 +292,8 @@ class TestExecuteEndToEnd:
         results = trader.execute(candidates, "2026-01-15")
 
         assert len(results) == 10
-        assert client.place_bracket_order.call_count == 10
+        # Split orders: 2 calls per position = 20
+        assert client.place_bracket_order.call_count == 20
 
     def test_mixed_results(self, tmp_path):
         """Mix of valid, invalid-price, and error candidates."""
@@ -309,7 +314,8 @@ class TestExecuteEndToEnd:
         assert results[0].status == "submitted"
         assert results[1].status == "skipped"
         assert results[2].status == "submitted"
-        assert client.place_bracket_order.call_count == 2
+        # Split orders: 2 calls per valid position = 4
+        assert client.place_bracket_order.call_count == 4
 
 
 # ── Graceful failure ─────────────────────────────────────────────────

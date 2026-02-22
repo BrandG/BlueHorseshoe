@@ -1084,13 +1084,15 @@ class SwingTrader:
             # Flatten results for the reporter
             if r['baseline_score'] > 0:
                 setup = r['baseline_setup']
+                entry_price = setup.get("entry_price", 0)
                 candidates.append({
                     "symbol": r["symbol"],
                     "exchange": r.get("exchange", "Unknown"),
                     "strategy": "Baseline",
                     "score": r["baseline_score"],
-                    "close": setup.get("entry_price", 0), # Approx
+                    "close": entry_price,
                     "stop_loss": setup.get("stop_loss", 0),
+                    "t1_target": entry_price * 1.02 if entry_price > 0 else 0,
                     "target": setup.get("take_profit", 0),
                     "ml_prob": r.get("baseline_ml_prob", 0.0),
                     "sentiment": r.get("sentiment", 0.0),
@@ -1098,13 +1100,15 @@ class SwingTrader:
                 })
             if r['mr_score'] > 0:
                 setup = r['mr_setup']
+                entry_price = setup.get("entry_price", 0)
                 candidates.append({
                     "symbol": r["symbol"],
                     "exchange": r.get("exchange", "Unknown"),
                     "strategy": "MeanRev",
                     "score": r["mr_score"],
-                    "close": setup.get("entry_price", 0),
+                    "close": entry_price,
                     "stop_loss": setup.get("stop_loss", 0),
+                    "t1_target": entry_price * 1.02 if entry_price > 0 else 0,
                     "target": setup.get("take_profit", 0),
                     "ml_prob": r.get("mr_ml_prob", 0.0),
                     "sentiment": r.get("sentiment", 0.0),

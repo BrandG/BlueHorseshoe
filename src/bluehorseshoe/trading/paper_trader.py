@@ -62,11 +62,15 @@ class PaperTrader:
         self, candidates: List[dict], target_date: str
     ) -> List[OrderResult]:
         """
-        Submit bracket orders for top N candidates.
+        Submit split bracket orders for top N candidates.
+
+        Each position is split into two halves:
+        - T1 half: take_profit = entry * 1.02 (2% fixed), original stop
+        - T2 half: take_profit = original target, original stop
 
         Args:
             candidates: Sorted list of candidate dicts from swing_predict().
-                        Each has: symbol, strategy, close (entry), stop_loss, target
+                        Each has: symbol, strategy, close (entry), stop_loss, target, t1_target
             target_date: Date string (YYYY-MM-DD) for logging and duplicate detection.
 
         Returns:
@@ -83,51 +87,87 @@ class PaperTrader:
             entry_price = cand.get("close", 0)
             stop_loss = cand.get("stop_loss", 0)
             take_profit = cand.get("target", 0)
-
-            result = OrderResult(
-                symbol=symbol,
-                strategy=strategy,
-                entry_price=entry_price,
-                stop_loss_price=stop_loss,
-                take_profit_price=take_profit,
-            )
+            t1_target = cand.get("t1_target", entry_price * 1.02 if entry_price > 0 else 0)
 
             # Validate prices
             if not self._validate_prices(entry_price, stop_loss, take_profit):
-                result.status = "skipped"
-                result.error = "invalid prices"
-                results.append(result)
+                results.append(OrderResult(
+                    symbol=symbol, strategy=strategy, entry_price=entry_price,
+                    stop_loss_price=stop_loss, take_profit_price=take_profit,
+                    status="skipped", error="invalid prices",
+                ))
                 continue
 
             # Check duplicates
             if self._is_duplicate(symbol, target_date, strategy):
-                result.status = "skipped"
-                result.error = "duplicate"
-                results.append(result)
+                results.append(OrderResult(
+                    symbol=symbol, strategy=strategy, entry_price=entry_price,
+                    stop_loss_price=stop_loss, take_profit_price=take_profit,
+                    status="skipped", error="duplicate",
+                ))
                 continue
 
-            # Calculate position size
-            quantity = math.floor(per_position / entry_price)
-            if quantity < 1:
-                result.status = "skipped"
-                result.error = "insufficient capital for 1 share"
-                results.append(result)
+            # Calculate total position size then split into halves
+            total_quantity = math.floor(per_position / entry_price)
+            if total_quantity < 2:
+                # Need at least 2 shares to split; fall back to single order
+                if total_quantity < 1:
+                    results.append(OrderResult(
+                        symbol=symbol, strategy=strategy, entry_price=entry_price,
+                        stop_loss_price=stop_loss, take_profit_price=take_profit,
+                        status="skipped", error="insufficient capital for 1 share",
+                    ))
+                    continue
+                # 1 share: place single T2 order
+                order_result = self._client.place_bracket_order(
+                    symbol=symbol, quantity=1, limit_price=entry_price,
+                    take_profit_price=take_profit, stop_loss_price=stop_loss,
+                )
+                results.append(OrderResult(
+                    symbol=symbol, strategy=strategy, quantity=1,
+                    entry_price=entry_price, stop_loss_price=stop_loss,
+                    take_profit_price=take_profit,
+                    order_ids=order_result.get("order_ids", []),
+                    status=order_result.get("status", "error"),
+                    error=order_result.get("error"),
+                ))
                 continue
-            result.quantity = quantity
 
-            # Place bracket order
-            order_result = self._client.place_bracket_order(
-                symbol=symbol,
-                quantity=quantity,
-                limit_price=entry_price,
-                take_profit_price=take_profit,
-                stop_loss_price=stop_loss,
+            t1_qty = total_quantity // 2
+            t2_qty = total_quantity - t1_qty
+
+            all_order_ids = []
+            combined_status = "submitted"
+            combined_error = None
+
+            # T1 half: take profit at entry * 1.02
+            t1_result = self._client.place_bracket_order(
+                symbol=symbol, quantity=t1_qty, limit_price=entry_price,
+                take_profit_price=t1_target, stop_loss_price=stop_loss,
             )
+            all_order_ids.extend(t1_result.get("order_ids", []))
+            if t1_result.get("status") == "error":
+                combined_status = "error"
+                combined_error = f"T1: {t1_result.get('error', 'unknown')}"
 
-            result.order_ids = order_result.get("order_ids", [])
-            result.status = order_result.get("status", "error")
-            result.error = order_result.get("error")
-            results.append(result)
+            # T2 half: take profit at original target
+            t2_result = self._client.place_bracket_order(
+                symbol=symbol, quantity=t2_qty, limit_price=entry_price,
+                take_profit_price=take_profit, stop_loss_price=stop_loss,
+            )
+            all_order_ids.extend(t2_result.get("order_ids", []))
+            if t2_result.get("status") == "error":
+                t2_err = f"T2: {t2_result.get('error', 'unknown')}"
+                combined_error = f"{combined_error}; {t2_err}" if combined_error else t2_err
+                combined_status = "error"
+
+            results.append(OrderResult(
+                symbol=symbol, strategy=strategy, quantity=total_quantity,
+                entry_price=entry_price, stop_loss_price=stop_loss,
+                take_profit_price=take_profit,
+                order_ids=all_order_ids, status=combined_status,
+                error=combined_error,
+            ))
 
         # Log results
         self._log_csv(results, target_date)
