@@ -85,7 +85,6 @@ def _reconstruct_setup(total_score: float, setup_data: Dict[str, float]) -> Opti
     close = setup_data['close']
     atr = setup_data['atr']
     swing_low_5 = setup_data['swing_low_5']
-    swing_high_20 = setup_data['swing_high_20']
 
     # Entry
     atr_discount = _get_atr_discount(total_score)
@@ -104,12 +103,9 @@ def _reconstruct_setup(total_score: float, setup_data: Dict[str, float]) -> Opti
     swing_stop = swing_low_5 * 0.985
     stop_loss = min(swing_stop, atr_stop)
 
-    # Target
+    # Target (delta-based haircut, matches strategy.py)
     atr_target = entry_price + (ml_target_mult * atr)
-    resistance_cap = swing_high_20 * 0.98
-    take_profit = min(atr_target, resistance_cap)
-    if take_profit <= entry_price:
-        take_profit = atr_target
+    take_profit = entry_price + (atr_target - entry_price) * 0.98
 
     # Risk/Reward
     risk = entry_price - stop_loss

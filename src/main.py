@@ -553,6 +553,63 @@ if __name__ == "__main__":
             except (IndexError, ValueError) as e:
                 logging.error("Invalid arguments for LOO analysis: %s", e)
                 print("Usage: python main.py -w START_DATE [--end END_DATE] [--interval 7] [--top 50] [--hold 10]")
+    elif "-f" in sys.argv:
+        logging.info("Running forward selection weight analysis...")
+        with create_cli_context() as ctx:
+            try:
+                f_idx = sys.argv.index("-f")
+                start_date = sys.argv[f_idx + 1]
+
+                end_date = None
+                if "--end" in sys.argv:
+                    end_date = sys.argv[sys.argv.index("--end") + 1]
+                if not end_date:
+                    end_date = get_latest_market_date(database=ctx.db)
+
+                interval = 7
+                if "--interval" in sys.argv:
+                    interval = int(sys.argv[sys.argv.index("--interval") + 1])
+
+                top_n = 50
+                if "--top" in sys.argv:
+                    top_n = int(sys.argv[sys.argv.index("--top") + 1])
+
+                hold_days = 10
+                if "--hold" in sys.argv:
+                    hold_days = int(sys.argv[sys.argv.index("--hold") + 1])
+
+                min_improvement = 0.1
+                if "--min-improvement" in sys.argv:
+                    min_improvement = float(sys.argv[sys.argv.index("--min-improvement") + 1])
+
+                from bluehorseshoe.analysis.forward_selector import ForwardSelector, ForwardConfig
+
+                fwd_config = ForwardConfig(
+                    start_date=start_date,
+                    end_date=end_date,
+                    interval_days=interval,
+                    top_n=top_n,
+                    hold_days=hold_days,
+                    min_improvement=min_improvement,
+                )
+
+                symbols_filter = None
+                if "--symbols" in sys.argv:
+                    try:
+                        symbols_str = sys.argv[sys.argv.index("--symbols") + 1]
+                        symbols_filter = [s.strip() for s in symbols_str.split(',')]
+                    except (ValueError, IndexError):
+                        pass
+
+                selector = ForwardSelector(database=ctx.db, config=fwd_config)
+                results = selector.run(symbols=symbols_filter)
+
+                if not results:
+                    print("No results from forward selection.")
+
+            except (IndexError, ValueError) as e:
+                logging.error("Invalid arguments for forward selection: %s", e)
+                print("Usage: python main.py -f START_DATE [--end END_DATE] [--interval 7] [--top 50] [--hold 10] [--min-improvement 0.1]")
     elif "-o" in sys.argv:
         logging.info("Optimizing indicator weights...")
         WeightOptimizer().run_optimization()
