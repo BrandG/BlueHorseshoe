@@ -2,11 +2,11 @@
 
 ## Near Term
 
-### Split-Exit Strategy Validation — IN PROGRESS
-- ~~Run split-exit vs single-exit comparison across a date range~~ (running: Oct 1 → Feb 6, biweekly, hold 10, top 20)
-- ~~Compare Plan A (`fixed_pct`) and Plan B (`atr_tiered`) against baseline single-exit~~ (Plan B chosen as default)
-- Tune T1 target (try 1.5%, 2%, 2.5%, 3%) and measure impact on blended P&L and win rate
-- Decide whether split-exit should become the default backtest mode
+### Split-Exit Strategy — DONE
+- ~~Run split-exit vs single-exit comparison across a date range~~ ✅
+- ~~Compare Plan A (`fixed_pct`) and Plan B (`atr_tiered`) against baseline single-exit~~ ✅ Plan A (2% T1) won: +6.72% total P&L vs -26.0% single-exit
+- ~~Integrate T1 target into prediction pipeline, reports, and paper trading~~ ✅ (`41b4df3`)
+- Future: Monitor T2 stop-to-breakeven after T1 fill (requires real-time order monitoring via IBKR)
 
 ### LOO Weight Tuning — IN PROGRESS
 - ~~Kick off broad LOO run~~ (running: 28 dates, Aug 1 → Feb 7, weekly, top 50, hold 10, split)
@@ -23,15 +23,15 @@
 - ~~Market hours awareness — skip IBKR calls when market is closed (Mon-Fri 9:30-16:00 ET)~~ ✅
 - ~~Holiday calendar — skip polling on market holidays~~ ✅ (`9a58e60`)
 - Paper trading mode — bracket order submission code written (`f3ed895`) but not yet tested with live IBKR connection
+- ~~Split-exit as native order strategy (bracket orders with two profit targets)~~ ✅ (`41b4df3`) — each position split into T1 (entry×1.02) + T2 (original target) halves
+- Move T2 stop to breakeven after T1 fills — requires real-time order monitoring loop
 - Position sizing based on account equity and per-trade risk (`MAX_RISK_PERCENT`)
 - Real-time P&L tracking and stop-loss/take-profit order management
-- Consider split-exit as native order strategy (bracket orders with two profit targets)
 
 ### Sentiment Analysis
-- Phase 1: Use AlphaVantage News & Sentiments endpoint for top 10 candidates (post-scoring)
-  - Pull `ticker_sentiment_score` and `relevance_score` per article
-  - Display as advisory column in HTML report (green/yellow/red flag per candidate)
-  - Not used in scoring — purely a visual aid for manual decision-making
+- ~~Phase 1: Use AlphaVantage News & Sentiments endpoint for top candidates (post-scoring)~~ ✅
+  - ~~Pull `ticker_sentiment_score` and `relevance_score` per article~~ ✅
+  - ~~Display as advisory column in HTML/email/arcade reports~~ ✅
 - Phase 2: Evaluate whether sentiment signal correlates with outcomes over several weeks
   - Log sentiment scores alongside backtest results for comparison
   - Consider weighting sentiment more heavily for baseline/trend-following than mean reversion (oversold names often have bad news by definition)
