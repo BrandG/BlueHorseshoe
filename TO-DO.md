@@ -39,6 +39,68 @@
   - High cost/latency per call — only justified if structured sentiment proves insufficient
   - Non-deterministic output makes backtesting difficult; would need caching/snapshotting
 
+### Track Record / Signal Journal
+- ~~Layer A: Immutable signal freeze — capture all signals with full context at prediction time~~ ✅
+  - ~~`journal_batches` collection: date, git commit, algorithm version, market regime, config snapshot~~
+  - ~~`journal_signals` collection: entry/stop/T1/T2, ML prob, components, sentiment, rank~~
+  - ~~Insert-only with unique indexes, non-blocking, auto-triggered on every `-p` run~~
+- Layer B: Hypothetical trade engine — auto-evaluate signal outcomes after hold period
+  - Run automatically N days after each batch (e.g. cron or post-prediction check for mature batches)
+  - For each signal: was entry hit? Stop hit first? Target hit? Time exit?
+  - Track max adverse excursion (MAE), max favorable excursion (MFE), holding days
+  - Store in `journal_hypothetical_trades` collection
+  - Compute: win rate, avg win/loss, expectancy, profit factor, Sharpe, Sortino, max drawdown
+  - Include SPY benchmark comparison for the same period
+- Layer C: Real execution journal — immutable record of what you did with real money
+  - **`journal_capital_snapshots`** — daily equity state (one record per trading day)
+    - `date`, `total_equity`, `cash_available`, `positions_value`, `margin_used`
+    - `open_position_count`, `max_positions_allowed`
+    - `daily_pnl`, `daily_pnl_pct`, `cumulative_pnl`, `cumulative_pnl_pct`
+    - `spy_close` (benchmark reference for same day)
+    - `notes` (manual annotation: "added $5k capital", "withdrew $2k", etc.)
+    - Unique index on `date` — one snapshot per day, append-only
+  - **`journal_executed_trades`** — one record per real trade, linked to signal
+    - `batch_date`, `symbol`, `strategy` — FK to signal (or null if discretionary)
+    - `signal_rank` — what rank was this signal when BH recommended it?
+    - `decision`: "followed" | "skipped" | "partial" | "discretionary"
+    - `skip_reason`: null | "low conviction" | "sector concentration" | "capital limit" | "emotional" | custom
+    - Entry: `actual_entry_price`, `entry_date`, `entry_time`, `shares`, `capital_allocated`
+    - Exit: `actual_exit_price`, `exit_date`, `exit_time`, `exit_type` ("t1" | "t2" | "stop" | "time" | "manual")
+    - Split-exit tracking: `t1_filled` (bool), `t1_fill_price`, `t1_fill_date`, `t2_exit_type`, `t2_exit_price`
+    - Costs: `commission`, `fees`, `slippage_vs_signal_entry` (actual - recommended, in bps)
+    - Returns: `gross_return_pct`, `net_return_pct` (after fees), `dollar_pnl`
+    - Excursions: `max_adverse_excursion_pct`, `max_favorable_excursion_pct`
+    - `holding_days`, `risk_at_entry_pct` (distance to stop as % of entry)
+    - Unique index on `(batch_date, symbol, strategy)` — append-only
+  - **`journal_skipped_signals`** — signals BH recommended but you chose not to trade
+    - `batch_date`, `symbol`, `strategy`, `signal_rank`, `composite_score`, `ml_win_probability`
+    - `skip_reason`, `skip_date`
+    - Enables "what did I leave on the table?" analysis — compare skipped signal outcomes vs taken
+  - **Behavioral analytics** (derived from the above)
+    - Signal adherence rate: % of top-N signals actually traded
+    - Override impact: P&L of skipped signals vs traded signals
+    - Slippage profile: avg entry slippage by signal strength tier
+    - Position sizing discipline: actual allocation vs recommended
+    - Holding discipline: avg actual hold vs recommended hold period
+    - Emotional override frequency and cost — the "discipline tax"
+  - **Monthly capital statement** (auto-generated, investor-facing)
+    - Opening equity, deposits/withdrawals, closing equity
+    - Gross return, net return (after all costs), benchmark return (SPY)
+    - Number of trades, win rate, avg win, avg loss, profit factor
+    - Max drawdown during month, longest losing streak
+    - Top 3 winners and top 3 losers with brief context
+    - Model adherence score: how closely you followed BH's signals
+- Portfolio-level metrics dashboard (auto-computed weekly)
+  - CAGR, monthly returns, win rate, expectancy, profit factor
+  - Sharpe, Sortino, Ulcer index, max drawdown (absolute + rolling 30-day)
+  - Capital utilization, avg liquidity of picks, slippage sensitivity
+  - Hypothetical vs actual comparison table
+- Statistical validation
+  - Confidence intervals on win rate and expectancy
+  - Monte Carlo simulation for edge significance (p-values)
+  - Regime-tagged performance breakdown (bull/bear/choppy)
+  - Rank decay analysis — does top-5 outperform top-10?
+
 ### Backtest Realism
 - Add commission modeling to `BacktestConfig` (e.g. `commission_pct` applied on entry and exit)
 - Add spread/slippage modeling beyond current gap logic (configurable `avg_spread_bps`)

@@ -110,6 +110,16 @@ class SwingTrader:
             _temp_container = create_app_container()
             self.score_manager = ScoreManager(database=_temp_container.get_database())
 
+        # Create SignalJournal (non-fatal if unavailable)
+        if database is not None:
+            try:
+                from bluehorseshoe.core.journal import SignalJournal  # pylint: disable=import-outside-toplevel
+                self.signal_journal = SignalJournal(database=database)
+            except Exception:  # pylint: disable=broad-exception-caught
+                self.signal_journal = None
+        else:
+            self.signal_journal = None
+
     def _write_report(self, content: str) -> None:
         """
         Write to report using injected writer or fallback to singleton.
@@ -1118,6 +1128,23 @@ class SwingTrader:
         # Sort by score desc
         candidates.sort(key=lambda x: x['score'], reverse=True)
         top_candidates = candidates[:50]
+
+        # 5b. Freeze Signal Journal (immutable record)
+        if self.signal_journal is not None and valid_results:
+            try:
+                self.signal_journal.freeze_batch(
+                    batch_date=valid_results[0]["date"][:10],
+                    valid_results=valid_results,
+                    market_health=market_health,
+                    symbol_count=len(symbols),
+                    paper_settings={
+                        "paper_trading_enabled": self.config.paper_trading_enabled,
+                        "paper_total_investment": self.config.paper_total_investment,
+                        "paper_max_positions": self.config.paper_max_positions,
+                    },
+                )
+            except Exception as exc:  # pylint: disable=broad-exception-caught
+                logging.error("SignalJournal freeze failed (non-fatal): %s", exc)
 
         # Refresh sentiment for top candidates only
         unique_symbols = list({c["symbol"] for c in top_candidates})
