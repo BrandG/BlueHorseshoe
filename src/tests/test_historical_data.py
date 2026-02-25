@@ -18,43 +18,42 @@ from bluehorseshoe.data.historical_data import (
 def test_load_historical_data_from_net(mock_get):
     """
     Test the load_historical_data_from_net function to ensure it correctly loads and parses
-    historical stock data from a network response.
-
-    Args:
-        mock_get (MagicMock): Mock object for the requests.get function.
-
-    Mocks:
-        - Mocks the network response to return a predefined JSON structure representing
-          historical stock data for a single day.
+    historical stock data from a Tiingo API response.
 
     Asserts:
         - The result is not None.
         - The result contains the correct stock name ('AAPL').
         - The result contains data for exactly one day.
-        - The date of the historical data matches '2023-01-01'.
+        - The date of the historical data matches '2023-01-03'.
         - The opening price of the historical data matches 100.0.
     """
     mock_response = MagicMock()
-    mock_response.json.return_value = {
-        'Time Series (Daily)': {
-            '2023-01-01': {
-                '1. open': '100.0',
-                '2. high': '110.0',
-                '3. low': '90.0',
-                '4. close': '105.0',
-                '5. adjusted close': '105.0',
-                '6. volume': '1000'
-            }
+    mock_response.status_code = 200
+    mock_response.json.return_value = [
+        {
+            'date': '2023-01-03T00:00:00+00:00',
+            'open': 102.0,
+            'high': 112.0,
+            'low': 92.0,
+            'close': 107.0,
+            'volume': 1200,
+            'adjOpen': 100.0,
+            'adjHigh': 110.0,
+            'adjLow': 90.0,
+            'adjClose': 105.0,
+            'adjVolume': 1000
         }
-    }
+    ]
     mock_get.return_value = mock_response
 
     result = load_historical_data_from_net('AAPL', recent=True)
     assert result is not None
     assert result['name'] == 'AAPL'
     assert len(result['days']) == 1
-    assert result['days'][0]['date'] == '2023-01-01'
+    assert result['days'][0]['date'] == '2023-01-03'
     assert result['days'][0]['open'] == 100.0
+    assert result['days'][0]['close'] == 105.0
+    assert result['days'][0]['volume'] == 1000
 
 def test_load_historical_data_from_mongo():
     """

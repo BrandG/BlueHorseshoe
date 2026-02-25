@@ -21,6 +21,8 @@ services:
       MONGO_URI: "mongodb://mongo:27017"
       ALPHAVANTAGE_KEY: ${ALPHAVANTAGE_KEY}
       ALPHAVANTAGE_CPS: 1
+      TIINGO_API_KEY: ${TIINGO_API_KEY}
+      TIINGO_CPS: ${TIINGO_CPS:-5}
       SMTP_SERVER: ${SMTP_SERVER:-smtp.gmail.com}
       SMTP_PORT: ${SMTP_PORT:-587}
       SMTP_USER: ${SMTP_USER}

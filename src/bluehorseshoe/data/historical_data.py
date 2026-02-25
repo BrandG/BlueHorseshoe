@@ -1,6 +1,7 @@
 import logging
 import os
 import json
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from typing import List, Optional
 import pandas as pd
@@ -16,53 +17,71 @@ from bluehorseshoe.analysis.constants import MIN_STOCK_PRICE, MAX_STOCK_PRICE, M
 
 
 # Rate Limit Configuration
-CPS = int(os.environ.get("ALPHAVANTAGE_CPS", "2"))
-ALPHAVANTAGE_KEY = os.environ.get("ALPHAVANTAGE_KEY", "JFRQJ8YWSX8UK50X")
+CPS = int(os.environ.get("TIINGO_CPS", os.environ.get("ALPHAVANTAGE_CPS", "2")))
+TIINGO_API_KEY = os.environ.get("TIINGO_API_KEY", "")
 
 @sleep_and_retry
 @limits(calls=1, period=1.0/CPS)
 def load_historical_data_from_net(stock_symbol, recent=False):
     """
-    Fetch historical stock data from Alpha Vantage API.
+    Fetch historical stock data from Tiingo API.
+    Uses split/dividend-adjusted prices (adjOpen, adjHigh, adjLow, adjClose).
     """
     symbol = {'name': stock_symbol}
 
-    outputsize = 'full' if not recent else 'compact'
-    url = f"https://www.alphavantage.co/query?function=TIME_SERIES_DAILY_ADJUSTED&outputsize={outputsize}" + \
-        f"&symbol={stock_symbol}&apikey={ALPHAVANTAGE_KEY}"
+    url = f"https://api.tiingo.com/tiingo/daily/{stock_symbol}/prices"
+    headers = {
+        'Content-Type': 'application/json',
+        'Authorization': f'Token {TIINGO_API_KEY}'
+    }
+    params = {'resampleFreq': 'daily'}
 
-    response = requests.get(url, timeout=10)
-    response.raise_for_status()  # Raise an exception for bad status codes
+    if recent:
+        # ~6 months back covers the 100-day compact equivalent plus indicator warmup
+        start = (pd.Timestamp.now() - pd.Timedelta(days=180)).strftime('%Y-%m-%d')
+        params['startDate'] = start
+    else:
+        # Full backfill — request from 2000 to get max history
+        params['startDate'] = '2000-01-01'
+
+    response = requests.get(url, headers=headers, params=params, timeout=30)
+
+    if response.status_code == 404:
+        logging.error("Tiingo: ticker not found: %s", stock_symbol)
+        return None
+    if response.status_code == 429:
+        logging.error("Tiingo: rate limit hit for %s", stock_symbol)
+        return None
+    response.raise_for_status()
 
     json_data = response.json()
 
-    if 'Time Series (Daily)' in json_data:
-        time_series = json_data['Time Series (Daily)']
-        symbol['days'] = []
-
-        for date, daily_record in time_series.items():
-            # Handle Adjustments (Splits/Dividends)
-            raw_close = float(daily_record.get('4. close', 0))
-            adj_close = float(daily_record.get('5. adjusted close', 0))
-
-            # Calculate adjustment factor
-            factor = adj_close / raw_close if raw_close != 0 else 1.0
-
-            daily_data = {
-                'date': date,
-                'open': round(float(daily_record.get('1. open', 0)) * factor, 4),
-                'high': round(float(daily_record.get('2. high', 0)) * factor, 4),
-                'low': round(float(daily_record.get('3. low', 0)) * factor, 4),
-                'close': round(adj_close, 4),
-                'volume': int(daily_record.get('6. volume', 0)),
-            }
-            daily_data['midpoint'] = round(
-                (daily_data['open'] + daily_data['close']) / 2, 4)
-
-            symbol['days'].append(daily_data)
-    else:
-        logging.error("'Time Series (Daily)' key not found in response for %s. URL: %s. Response: %s", stock_symbol, url, json_data)
+    if not json_data:
+        logging.error("Tiingo: empty response for %s", stock_symbol)
         return None
+
+    symbol['days'] = []
+    for record in json_data:
+        # Use adjusted prices (accounts for splits and dividends)
+        adj_open = round(float(record.get('adjOpen', record.get('open', 0))), 4)
+        adj_high = round(float(record.get('adjHigh', record.get('high', 0))), 4)
+        adj_low = round(float(record.get('adjLow', record.get('low', 0))), 4)
+        adj_close = round(float(record.get('adjClose', record.get('close', 0))), 4)
+        volume = int(record.get('adjVolume', record.get('volume', 0)))
+
+        # Parse ISO 8601 date (e.g. "2023-01-03T00:00:00+00:00") to YYYY-MM-DD
+        date_str = str(record.get('date', ''))[:10]
+
+        daily_data = {
+            'date': date_str,
+            'open': adj_open,
+            'high': adj_high,
+            'low': adj_low,
+            'close': adj_close,
+            'volume': volume,
+        }
+        daily_data['midpoint'] = round((adj_open + adj_close) / 2, 4)
+        symbol['days'].append(daily_data)
 
     return symbol
 
@@ -243,22 +262,51 @@ def build_all_symbols_history(config: Optional[BackfillConfig] = None, database=
 
     skip = bool(starting_at)
     total_symbols = len(symbol_list)
-    processed_count = 0
 
+    # Build work list (apply skip/limit before submitting to pool)
+    work_items = []
     for index, row in enumerate(symbol_list, start=1):
         symbol = row['symbol']
         if skip:
             if symbol == starting_at:
                 skip = False
             continue
-
-        process_symbol(row, index, total_symbols, config.save_to_file, config.recent, database)
-        set_backfill_checkpoint(symbol, database)
-        processed_count += 1
-
-        if config.limit and processed_count >= config.limit:
-            logging.info("Reached limit of %d symbols. Stopping.", config.limit)
+        work_items.append((row, index))
+        if config.limit and len(work_items) >= config.limit:
             break
+
+    if not work_items:
+        logging.info("No symbols to process.")
+        return
+
+    max_workers = min(8, len(work_items))
+    completed = 0
+    failed = 0
+
+    logging.info("Processing %d symbols with %d concurrent workers", len(work_items), max_workers)
+
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = {
+            executor.submit(
+                process_symbol, row, idx, total_symbols,
+                config.save_to_file, config.recent, database
+            ): row['symbol']
+            for row, idx in work_items
+        }
+        for future in as_completed(futures):
+            sym = futures[future]
+            try:
+                future.result()
+                completed += 1
+            except Exception as e:  # pylint: disable=broad-exception-caught
+                failed += 1
+                logging.error("Failed to process %s: %s", sym, e)
+
+    # Checkpoint the last symbol in the work list
+    if work_items:
+        set_backfill_checkpoint(work_items[-1][0]['symbol'], database)
+
+    logging.info("Done: %d completed, %d failed out of %d", completed, failed, len(work_items))
 
 
 

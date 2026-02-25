@@ -7,7 +7,7 @@ import logging
 from typing import Optional
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-WEIGHTS_FILE = '/workspaces/BlueHorseshoe/src/weights.json'
+WEIGHTS_FILE = os.environ.get('WEIGHTS_FILE', '/workspaces/BlueHorseshoe/src/weights.json')
 
 DEFAULT_WEIGHTS = {
     'trend': {
@@ -55,7 +55,49 @@ DEFAULT_WEIGHTS = {
     },
     'price_action': {
         'GAP_MULTIPLIER': 1.0
-    }
+    },
+    'mr_trend': {
+        'ADX_MULTIPLIER': 0.5,
+        'STOCHASTIC_MULTIPLIER': 0.0,
+        'ICHIMOKU_MULTIPLIER': 1.5,
+        'PSAR_MULTIPLIER': 0.0,
+        'HEIKEN_ASHI_MULTIPLIER': 0.0,
+        'DONCHIAN_MULTIPLIER': 2.0,
+        'SUPERTREND_MULTIPLIER': 1.5,
+        'TTM_SQUEEZE_MULTIPLIER': 1.5,
+        'AROON_MULTIPLIER': 1.0,
+        'KELTNER_MULTIPLIER': 2.0,
+        'SCORE_ACCEL_MULTIPLIER': 0.0,
+    },
+    'mr_momentum': {
+        'RSI_MULTIPLIER': 0.0,
+        'ROC_MULTIPLIER': 1.5,
+        'MACD_MULTIPLIER': 1.0,
+        'MACD_SIGNAL_MULTIPLIER': 0.15,
+        'BB_MULTIPLIER': 0.0,
+        'WILLIAMS_R_MULTIPLIER': 0.0,
+        'CCI_MULTIPLIER': 0.0,
+        'RS_MULTIPLIER': 0.0,
+    },
+    'mr_volume': {
+        'OBV_MULTIPLIER': 0.0,
+        'CMF_MULTIPLIER': 0.0,
+        'ATR_BAND_MULTIPLIER': 0.0,
+        'ATR_SPIKE_MULTIPLIER': 0.0,
+        'MFI_MULTIPLIER': 0.0,
+        'VWAP_MULTIPLIER': 1.5,
+        'FORCE_INDEX_MULTIPLIER': 0.0,
+        'AD_LINE_MULTIPLIER': 1.5,
+    },
+    'mr_candlestick': {
+        'RISE_FALL_3_METHODS_MULTIPLIER': 0.0,
+        'THREE_WHITE_SOLDIERS_MULTIPLIER': 0.0,
+        'MARUBOZU_MULTIPLIER': 0.0,
+        'BELT_HOLD_MULTIPLIER': 0.0,
+    },
+    'mr_price_action': {
+        'GAP_MULTIPLIER': 0.0,
+    },
 }
 
 class Settings(BaseSettings):
@@ -76,6 +118,10 @@ class Settings(BaseSettings):
     # Alpha Vantage API
     alphavantage_key: str = ""
     alphavantage_cps: int = 2
+
+    # Tiingo API
+    tiingo_api_key: str = ""
+    tiingo_cps: int = 5
 
     # IBKR Gateway
     ibkr_host: str = "ib-gateway"
