@@ -284,8 +284,8 @@ class Backtester:
                 state.t1_exit_price = t1_px
                 state.t1_exit_date = row['date']
                 state.phase = 't1_exited'
-                # Move T2 stop to T1 level (breakeven+)
-                state.t2_stop = state.t1_target
+                # Move T2 stop to entry - 2% (cap max T2 loss)
+                state.t2_stop = state.actual_entry * 0.98
 
                 # Check T2 on same bar
                 if row['high'] >= state.t2_target:
@@ -332,7 +332,7 @@ class Backtester:
                 state.t1_exit_price = t1_px
                 state.t1_exit_date = row['date']
                 state.phase = 't1_exited'
-                state.t2_stop = state.t1_target  # Move T2 stop to T1 level
+                state.t2_stop = state.actual_entry * 0.98  # Move T2 stop to entry - 2%
 
                 # Check T2 on same bar
                 if row['high'] >= state.t2_target:
@@ -670,7 +670,8 @@ class Backtester:
             fieldnames = [
                 'date', 'symbol', 'strategy', 'score', 'ml_prob',
                 'entry', 'stop_loss', 'take_profit', 'exit_price',
-                'exit_date', 'days_held', 'status', 'outcome', 'profit_loss'
+                'exit_date', 'days_held', 'status', 'outcome', 'profit_loss',
+                't1_status', 't1_pnl', 't2_status', 't2_pnl'
             ]
             writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
 
@@ -755,6 +756,10 @@ class Backtester:
             ReportSingleton().write("\nNo valid trades in range.")
             return
 
+        valid_all = [r for r in valid_all if r.get('exit_price') is not None and r.get('entry') is not None]
+        if not valid_all:
+            ReportSingleton().write("\nNo valid trades with entry/exit prices in range.")
+            return
         total_trades = len(valid_all)
         win_statuses = ['success', 'closed_profit', 'split_full_profit', 'split_partial_profit']
         profitable_trades = sum(1 for r in valid_all if r['status'] in win_statuses)

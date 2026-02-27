@@ -188,11 +188,14 @@ class ForwardSelector:
         Evaluate cumulative P&L for a given set of active indicator keys.
 
         For each date:
-        1. Reconstruct trial_total for each candidate by summing only
-           weighted_scores for keys in active_keys + all modifier.* keys.
+        1. Reconstruct trial_total for each candidate by summing raw_scores
+           (weight=1.0) for keys in active_keys + all modifier.* keys.
         2. Take top-N by trial_total.
         3. Reconstruct setups and backtest with Plan A split-exit.
         4. Accumulate P&L.
+
+        Uses raw_scores (not weighted_scores) so that every indicator is
+        evaluated on a level playing field regardless of production weights.
         """
         total_pnl = 0.0
 
@@ -201,14 +204,14 @@ class ForwardSelector:
             if not candidates:
                 continue
 
-            # Reconstruct trial totals
+            # Reconstruct trial totals using raw scores (equal weight = 1.0)
             trial_candidates = []
             for cand in candidates:
                 trial_total = 0.0
-                for key, w_score in cand['weighted_scores'].items():
+                for key, raw_score in cand['raw_scores'].items():
                     # Always include modifiers (penalties/bonuses)
                     if key.startswith('modifier.') or key in active_keys:
-                        trial_total += w_score
+                        trial_total += raw_score
 
                 if trial_total <= 0:
                     continue
