@@ -1,0 +1,20 @@
+services:
+  bh-research:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.bluehorseshoe
+    container_name: bh-research
+    restart: "no"
+    deploy:
+      resources:
+        limits:
+          cpus: "4"
+          memory: 6g
+    environment:
+      - MONGO_URI=${MONGO_URI}
+      - MONGO_DB=${MONGO_DB:-bluehorseshoe}
+      - TIINGO_API_KEY=${TIINGO_API_KEY:-}
+      - TIINGO_CPS=${TIINGO_CPS:-5}
+    volumes:
+      - ..:/workspaces/BlueHorseshoe
+    entrypoint: ["tail", "-f", "/dev/null"]
