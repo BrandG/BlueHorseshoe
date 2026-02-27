@@ -25,6 +25,10 @@ cd docker && docker compose down     # Stop containers
 cd docker && docker compose restart  # Restart after .env changes
 ```
 
+## Container Process Safety
+
+**NEVER interrupt, kill, or run concurrent heavy processes alongside the daily update (`-u`) or prediction (`-p`) pipeline.** These are critical production workflows that can take 30-60+ minutes. Running memory-intensive scripts (analysis, backtests, etc.) concurrently will OOM-kill the container and corrupt the run. Always wait for `-u` and `-p` to finish before starting other work. Check with `docker top bluehorseshoe` if unsure.
+
 ## Git Operations Policy
 
 **CRITICAL:** Never perform Git operations (`add`, `commit`, `push`) without explicit user confirmation for each step. If asked "what time it is, do not start building a clock" - do not execute large-scale changes or start complex implementations without user approval.

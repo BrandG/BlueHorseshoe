@@ -15,6 +15,36 @@
 - Apply suggested weight changes to `src/weights.json` for indicators with strong P&L deltas
 - Re-run backtest to validate improvements before/after weight changes
 
+### Commission handling
+- IBKR has a 1$ commission on buys and sales. A $200 investment that makes 2% raises $4, eating half of the increase.
+- Develop a strategy for dealing with this situation:
+- Option 1: Raise target on lower investment amounts (perhaps in the portfolio calculator)
+- Option 2: Split target in thirds (2%, 3.5%, ATR) (Note: additional splits add additional commissions)
+- Option 3: Enforce a minimum investment size.
+- Option 4: Price floor filter (No trades under $15-$20)
+
+### Speed optimization and refactoring
+- Split scoring from backtesting. This is the biggest pain point. Right now, a backtest re-scores all 6,000+ symbols from scratch every time. I'd score once and persist the results, then backtest by replaying against stored scores. That single-date test we're waiting on right now? It should take seconds, not an hour. You'd have a scores table and a separate backtest engine that just reads scores and simulates exits against OHLCV data.
+
+- Vectorized backtesting. Instead of looping through symbols one at a time in Python, process all trades as a DataFrame. Entry prices, stop levels, targets — they're all just columns. Each day's OHLCV gets compared against all open positions at once with numpy operations. What currently takes an hour could take seconds.
+
+- Better data provider. Alpha Vantage rate limiting is a constant bottleneck. I'd abstract the data layer so you could swap providers. Polygon.io, Tiingo, or even Yahoo Finance for backtesting purposes — any of them would give you bulk historical data without the 2-calls-per-second constraint.
+
+- Swap MongoDB for something columnar for OHLCV data. Mongo is fine for scores and metadata, but time-series OHLCV data is a natural fit for Parquet files or DuckDB. Reads would be 10-50x faster, no server needed, and you can do vectorized queries. Keep Mongo for the document-shaped stuff (scores, trade journal, config).
+
+- Strategy as a pluggable interface. Something like:
+
+  class Strategy(ABC):
+      def score(self, data: pd.DataFrame) -> float: ...
+      def entry_price(self, data: pd.DataFrame) -> float: ...
+      def stop_loss(self, data: pd.DataFrame) -> float: ...
+      def take_profit(self, data: pd.DataFrame) -> float: ...
+      def direction(self) -> Literal['long', 'short']: ...
+
+  Baseline, MR, and Shorts would all implement the same interface. The backtest engine wouldn't care which strategy generated the trade — it just processes entries, stops, and targets. Adding shorts becomes trivial because the engine already handles direction.
+
+- Event-driven backtest with an order book. Instead of the current "check high/low against levels" approach, model it as: generate orders → feed daily bars → match orders → update positions. That naturally handles split exits, trailing stops, breakeven stops, shorts — all as different order types rather than special-case code paths.
+
 ## Medium Term
 
 ### IBKR Integration

@@ -610,6 +610,53 @@ if __name__ == "__main__":
             except (IndexError, ValueError) as e:
                 logging.error("Invalid arguments for forward selection: %s", e)
                 print("Usage: python main.py -f START_DATE [--end END_DATE] [--interval 7] [--top 50] [--hold 10] [--min-improvement 0.1]")
+    elif "-g" in sys.argv:
+        logging.info("Running indicator impact analysis...")
+        with create_cli_context() as ctx:
+            try:
+                g_idx = sys.argv.index("-g")
+                start_date = sys.argv[g_idx + 1]
+
+                end_date = None
+                if "--end" in sys.argv:
+                    end_date = sys.argv[sys.argv.index("--end") + 1]
+                if not end_date:
+                    end_date = get_latest_market_date(database=ctx.db)
+
+                interval = 14
+                if "--interval" in sys.argv:
+                    interval = int(sys.argv[sys.argv.index("--interval") + 1])
+
+                hold_days = 10
+                if "--hold" in sys.argv:
+                    hold_days = int(sys.argv[sys.argv.index("--hold") + 1])
+
+                from bluehorseshoe.analysis.indicator_impact import IndicatorImpactAnalyzer, ImpactConfig
+
+                impact_config = ImpactConfig(
+                    start_date=start_date,
+                    end_date=end_date,
+                    interval_days=interval,
+                    hold_days=hold_days,
+                )
+
+                symbols_filter = None
+                if "--symbols" in sys.argv:
+                    try:
+                        symbols_str = sys.argv[sys.argv.index("--symbols") + 1]
+                        symbols_filter = [s.strip() for s in symbols_str.split(',')]
+                    except (ValueError, IndexError):
+                        pass
+
+                analyzer = IndicatorImpactAnalyzer(database=ctx.db, config=impact_config)
+                results = analyzer.run(symbols=symbols_filter)
+
+                if not results:
+                    print("No results from indicator impact analysis.")
+
+            except (IndexError, ValueError) as e:
+                logging.error("Invalid arguments for indicator impact: %s", e)
+                print("Usage: python main.py -g START_DATE [--end END_DATE] [--interval 14] [--hold 10]")
     elif "-o" in sys.argv:
         logging.info("Optimizing indicator weights...")
         WeightOptimizer().run_optimization()
