@@ -30,7 +30,7 @@ class LimitIndicator(Indicator):
             Calculates the score based on pivot levels and a predefined multiplier.
     """
 
-    def __init__(self, data: pd.DataFrame):
+    def __init__(self, data: pd.DataFrame, weight_category: str = None):
         self.symbol = 'NONAME'
         self.required_cols = ['close', 'high', 'low']
         super().__init__(data)

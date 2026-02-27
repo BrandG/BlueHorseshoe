@@ -60,8 +60,8 @@ class CandlestickIndicator(Indicator):
         calculate_score() -> float:
     """
 
-    def __init__(self, data: pd.DataFrame):
-        self.weights = weights_config.get_weights('candlestick')
+    def __init__(self, data: pd.DataFrame, weight_category: str = None):
+        self.weights = weights_config.get_weights(weight_category or 'candlestick')
         self.required_cols = ['open', 'close', 'high', 'low']
         self.symbol = 'NONAME'
         super().__init__(data)

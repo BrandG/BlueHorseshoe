@@ -49,8 +49,8 @@ class VolumeIndicator(Indicator):
     A class to calculate a score based on volume indicators.
     """
 
-    def __init__(self, data: pd.DataFrame):
-        self.weights = weights_config.get_weights('volume')
+    def __init__(self, data: pd.DataFrame, weight_category: str = None):
+        self.weights = weights_config.get_weights(weight_category or 'volume')
         self.required_cols = ['high', 'low', 'close', 'volume']
         super().__init__(data)
 

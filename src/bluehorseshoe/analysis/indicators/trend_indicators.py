@@ -55,8 +55,8 @@ class TrendIndicator(Indicator):
     - SuperTrend
     """
 
-    def __init__(self, data: pd.DataFrame):
-        self.weights = weights_config.get_weights('trend')
+    def __init__(self, data: pd.DataFrame, weight_category: str = None):
+        self.weights = weights_config.get_weights(weight_category or 'trend')
         self.required_cols = ['high', 'low', 'close', 'open', 'stoch_k', 'stoch_d']
         super().__init__(data)
 

@@ -27,7 +27,7 @@ class MovingAverageIndicator(Indicator):
         calculate_crossovers():
     """
 
-    def __init__(self, data: pd.DataFrame):
+    def __init__(self, data: pd.DataFrame, weight_category: str = None):
         self.required_cols = ['close', 'volume']
         super().__init__(data)
 

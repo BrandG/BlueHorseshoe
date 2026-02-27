@@ -33,8 +33,8 @@ class PriceActionIndicator(Indicator):
     - Gap direction shows momentum shift
     """
 
-    def __init__(self, data: pd.DataFrame):
-        self.weights = weights_config.get_weights('price_action')
+    def __init__(self, data: pd.DataFrame, weight_category: str = None):
+        self.weights = weights_config.get_weights(weight_category or 'price_action')
         self.required_cols = ['open', 'close', 'volume']
         super().__init__(data)
 

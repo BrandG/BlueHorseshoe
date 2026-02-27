@@ -48,7 +48,7 @@ ATR_MULTIPLIER_DOWNTREND = 1.0
 # Reward-to-Risk Filtering
 MIN_RR_RATIO_BASELINE = 0.5
 MIN_RR_RATIO_MEAN_REVERSION = 0.5
-MAX_RISK_PERCENT = 0.10
+MAX_RISK_PERCENT = 0.05
 
 # Volume Confirmation
 MIN_REL_VOLUME = 0.8  # Must be at least average volume

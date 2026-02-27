@@ -69,8 +69,8 @@ class MomentumIndicator(Indicator):
         the relevant technical indicator data for analysis.
         """
 
-    def __init__(self, data: pd.DataFrame):
-        self.weights = weights_config.get_weights('momentum')
+    def __init__(self, data: pd.DataFrame, weight_category: str = None):
+        self.weights = weights_config.get_weights(weight_category or 'momentum')
         self.required_cols = ['close', 'high', 'low']
         super().__init__(data)
 
