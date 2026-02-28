@@ -41,8 +41,8 @@ services:
       - mongo
     networks:
       - app_net
-    cpus: 1.5
-    mem_limit: 4g
+    cpus: 3
+    mem_limit: 6g
     volumes:
       # Mount the src folder from host into the container
       - ..:/workspaces/BlueHorseshoe
