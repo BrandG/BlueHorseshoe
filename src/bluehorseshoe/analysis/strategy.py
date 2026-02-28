@@ -1125,9 +1125,19 @@ class SwingTrader:
                     "reasons": [f"{k}={v:.1f}" for k, v in r['mr_components'].items() if v != 0]
                 })
 
-        # Sort by score desc
-        candidates.sort(key=lambda x: x['score'], reverse=True)
-        top_candidates = candidates[:50]
+        # Take top 25 from each strategy so one can't crowd out the other
+        baseline_cands = sorted(
+            [c for c in candidates if c['strategy'] == 'Baseline'],
+            key=lambda x: x['score'], reverse=True
+        )[:25]
+        mr_cands = sorted(
+            [c for c in candidates if c['strategy'] == 'MeanRev'],
+            key=lambda x: x['score'], reverse=True
+        )[:25]
+        top_candidates = sorted(
+            baseline_cands + mr_cands,
+            key=lambda x: x['score'], reverse=True
+        )
 
         # 5b. Freeze Signal Journal (immutable record)
         if self.signal_journal is not None and valid_results:

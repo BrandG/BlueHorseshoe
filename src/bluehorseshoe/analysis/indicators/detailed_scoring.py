@@ -20,6 +20,7 @@ from bluehorseshoe.analysis.indicators.candlestick_indicators import Candlestick
 from bluehorseshoe.analysis.indicators.limit_indicators import (
     LimitIndicator, PIVOT_MULTIPLIER, FIFTY_TWO_WEEK_MULTIPLIER
 )
+from bluehorseshoe.analysis.indicators.mean_reversion_indicators import MeanReversionIndicator
 from bluehorseshoe.analysis.indicators.momentum_indicators import MomentumIndicator
 from bluehorseshoe.analysis.indicators.moving_average_indicators import MovingAverageIndicator
 from bluehorseshoe.analysis.indicators.price_action_indicators import PriceActionIndicator
@@ -46,6 +47,7 @@ class DetailedScorer:
         'moving_average': ('unweighted', MovingAverageIndicator, None),
         'limit': ('constant', LimitIndicator, None),
         'price_action': ('weighted', PriceActionIndicator, 'price_action'),
+        'mean_reversion_specific': ('weighted', MeanReversionIndicator, 'mean_reversion_specific'),
     }
 
     @staticmethod
@@ -119,6 +121,15 @@ class DetailedScorer:
             return {
                 'gap': (inst.calculate_gap_score, 'GAP_MULTIPLIER'),
             }
+        elif cls_name == 'MeanReversionIndicator':
+            inst = indicator_instance
+            return {
+                'rsi_divergence': (inst.calculate_rsi_divergence, 'RSI_DIVERGENCE_MULTIPLIER'),
+                'zscore': (inst.calculate_zscore, 'ZSCORE_MULTIPLIER'),
+                'connors_rsi': (inst.calculate_connors_rsi, 'CONNORS_RSI_MULTIPLIER'),
+                'dv2': (inst.calculate_dv2, 'DV2_MULTIPLIER'),
+                'short_roc': (inst.calculate_short_roc, 'SHORT_ROC_MULTIPLIER'),
+            }
         return {}
 
     @staticmethod
@@ -163,6 +174,7 @@ class DetailedScorer:
             'moving_average': (MovingAverageIndicator, None),
             'limit': (LimitIndicator, None),
             'price_action': (PriceActionIndicator, 'price_action'),
+            'mean_reversion_specific': (MeanReversionIndicator, 'mean_reversion_specific'),
         }
 
         for category, (cls, weight_category) in category_configs.items():

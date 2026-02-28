@@ -88,5 +88,19 @@
   },
   "mr_price_action": {
     "GAP_MULTIPLIER": 0.0
+  },
+  "mean_reversion_specific": {
+    "RSI_DIVERGENCE_MULTIPLIER": 0.0,
+    "ZSCORE_MULTIPLIER": 0.0,
+    "CONNORS_RSI_MULTIPLIER": 0.0,
+    "DV2_MULTIPLIER": 0.0,
+    "SHORT_ROC_MULTIPLIER": 0.0
+  },
+  "mr_mean_reversion_specific": {
+    "RSI_DIVERGENCE_MULTIPLIER": 2.0,
+    "ZSCORE_MULTIPLIER": 1.5,
+    "CONNORS_RSI_MULTIPLIER": 1.5,
+    "DV2_MULTIPLIER": 1.0,
+    "SHORT_ROC_MULTIPLIER": 1.5
   }
 }

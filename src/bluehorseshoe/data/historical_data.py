@@ -483,6 +483,10 @@ def get_technical_indicators(df):
     df['cci'] = ta.CCI(df['high'], df['low'], df['close'], timeperiod=14).round(4) # type: ignore
     df['willr'] = ta.WILLR(df['high'], df['low'], df['close'], timeperiod=14).round(4) # type: ignore
     df['roc_5'] = ta.ROC(df['close'], timeperiod=5).round(4) # type: ignore
+    df['roc_2'] = ta.ROC(df['close'], timeperiod=2).round(4) # type: ignore
+    df['rsi_3'] = ta.RSI(df['close'], timeperiod=3).round(4) # type: ignore
+    df['std_20'] = df['close'].rolling(20).std().round(4)
+    df['dv2'] = (((df['close'] - df['low']) / (df['high'] - df['low'])).rolling(2).mean()).round(4)
     df['avg_volume_20'] = df['volume'].rolling(window=20).mean().round(4)
     return df.to_dict(orient='records')
 
