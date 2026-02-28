@@ -1,0 +1,295 @@
+{
+  "description": "Stratified test dates by market regime (5 buckets, ~6 per bucket)",
+  "generated": "2026-02-28 12:59",
+  "score_ranges": {
+    "strong_bull": "9-10 (SPY+QQQ all above EMAs, strong breadth)",
+    "mild_bull": "7-8",
+    "neutral": "5-6",
+    "mild_bear": "3-4",
+    "strong_bear": "0-2 (indices below EMAs, weak breadth)"
+  },
+  "buckets": {
+    "strong_bull": [
+      {
+        "date": "2024-06-04",
+        "score": 9,
+        "spy_score": 4,
+        "qqq_score": 4,
+        "breadth_pct": 0.474,
+        "breadth_score": 1
+      },
+      {
+        "date": "2024-09-19",
+        "score": 9,
+        "spy_score": 4,
+        "qqq_score": 3,
+        "breadth_pct": 0.895,
+        "breadth_score": 2
+      },
+      {
+        "date": "2024-12-02",
+        "score": 10,
+        "spy_score": 4,
+        "qqq_score": 4,
+        "breadth_pct": 0.895,
+        "breadth_score": 2
+      },
+      {
+        "date": "2025-05-21",
+        "score": 10,
+        "spy_score": 4,
+        "qqq_score": 4,
+        "breadth_pct": 0.789,
+        "breadth_score": 2
+      },
+      {
+        "date": "2025-07-30",
+        "score": 10,
+        "spy_score": 4,
+        "qqq_score": 4,
+        "breadth_pct": 0.684,
+        "breadth_score": 2
+      },
+      {
+        "date": "2025-10-09",
+        "score": 10,
+        "spy_score": 4,
+        "qqq_score": 4,
+        "breadth_pct": 0.632,
+        "breadth_score": 2
+      }
+    ],
+    "mild_bull": [
+      {
+        "date": "2024-07-19",
+        "score": 8,
+        "spy_score": 3,
+        "qqq_score": 3,
+        "breadth_pct": 0.632,
+        "breadth_score": 2
+      },
+      {
+        "date": "2024-08-16",
+        "score": 8,
+        "spy_score": 3,
+        "qqq_score": 3,
+        "breadth_pct": 0.737,
+        "breadth_score": 2
+      },
+      {
+        "date": "2024-12-20",
+        "score": 7,
+        "spy_score": 3,
+        "qqq_score": 3,
+        "breadth_pct": 0.526,
+        "breadth_score": 1
+      },
+      {
+        "date": "2025-02-21",
+        "score": 7,
+        "spy_score": 3,
+        "qqq_score": 3,
+        "breadth_pct": 0.474,
+        "breadth_score": 1
+      },
+      {
+        "date": "2025-11-06",
+        "score": 7,
+        "spy_score": 3,
+        "qqq_score": 3,
+        "breadth_pct": 0.474,
+        "breadth_score": 1
+      },
+      {
+        "date": "2025-12-05",
+        "score": 8,
+        "spy_score": 4,
+        "qqq_score": 3,
+        "breadth_pct": 0.526,
+        "breadth_score": 1
+      }
+    ],
+    "neutral": [
+      {
+        "date": "2024-07-24",
+        "score": 5,
+        "spy_score": 3,
+        "qqq_score": 1,
+        "breadth_pct": 0.526,
+        "breadth_score": 1
+      },
+      {
+        "date": "2024-09-09",
+        "score": 5,
+        "spy_score": 2,
+        "qqq_score": 2,
+        "breadth_pct": 0.579,
+        "breadth_score": 1
+      },
+      {
+        "date": "2024-12-30",
+        "score": 5,
+        "spy_score": 1,
+        "qqq_score": 3,
+        "breadth_pct": 0.579,
+        "breadth_score": 1
+      },
+      {
+        "date": "2025-05-01",
+        "score": 6,
+        "spy_score": 2,
+        "qqq_score": 4,
+        "breadth_pct": 0.263,
+        "breadth_score": 0
+      },
+      {
+        "date": "2025-11-26",
+        "score": 6,
+        "spy_score": 3,
+        "qqq_score": 3,
+        "breadth_pct": 0.368,
+        "breadth_score": 0
+      },
+      {
+        "date": "2026-02-04",
+        "score": 6,
+        "spy_score": 3,
+        "qqq_score": 2,
+        "breadth_pct": 0.526,
+        "breadth_score": 1
+      }
+    ],
+    "mild_bear": [
+      {
+        "date": "2024-07-29",
+        "score": 4,
+        "spy_score": 2,
+        "qqq_score": 1,
+        "breadth_pct": 0.579,
+        "breadth_score": 1
+      },
+      {
+        "date": "2024-08-08",
+        "score": 3,
+        "spy_score": 1,
+        "qqq_score": 1,
+        "breadth_pct": 0.474,
+        "breadth_score": 1
+      },
+      {
+        "date": "2025-01-08",
+        "score": 4,
+        "spy_score": 1,
+        "qqq_score": 2,
+        "breadth_pct": 0.526,
+        "breadth_score": 1
+      },
+      {
+        "date": "2025-03-24",
+        "score": 4,
+        "spy_score": 2,
+        "qqq_score": 2,
+        "breadth_pct": 0.263,
+        "breadth_score": 0
+      },
+      {
+        "date": "2025-11-18",
+        "score": 4,
+        "spy_score": 2,
+        "qqq_score": 2,
+        "breadth_pct": 0.263,
+        "breadth_score": 0
+      },
+      {
+        "date": "2026-02-18",
+        "score": 3,
+        "spy_score": 2,
+        "qqq_score": 1,
+        "breadth_pct": 0.263,
+        "breadth_score": 0
+      }
+    ],
+    "strong_bear": [
+      {
+        "date": "2025-01-13",
+        "score": 2,
+        "spy_score": 1,
+        "qqq_score": 1,
+        "breadth_pct": 0.316,
+        "breadth_score": 0
+      },
+      {
+        "date": "2025-03-05",
+        "score": 2,
+        "spy_score": 1,
+        "qqq_score": 1,
+        "breadth_pct": 0.211,
+        "breadth_score": 0
+      },
+      {
+        "date": "2025-03-18",
+        "score": 0,
+        "spy_score": 0,
+        "qqq_score": 0,
+        "breadth_pct": 0.105,
+        "breadth_score": 0
+      },
+      {
+        "date": "2025-04-02",
+        "score": 0,
+        "spy_score": 0,
+        "qqq_score": 0,
+        "breadth_pct": 0.263,
+        "breadth_score": 0
+      },
+      {
+        "date": "2025-04-14",
+        "score": 0,
+        "spy_score": 0,
+        "qqq_score": 0,
+        "breadth_pct": 0.105,
+        "breadth_score": 0
+      },
+      {
+        "date": "2025-04-25",
+        "score": 2,
+        "spy_score": 1,
+        "qqq_score": 1,
+        "breadth_pct": 0.263,
+        "breadth_score": 0
+      }
+    ]
+  },
+  "all_dates": [
+    "2024-06-04",
+    "2024-07-19",
+    "2024-07-24",
+    "2024-07-29",
+    "2024-08-08",
+    "2024-08-16",
+    "2024-09-09",
+    "2024-09-19",
+    "2024-12-02",
+    "2024-12-20",
+    "2024-12-30",
+    "2025-01-08",
+    "2025-01-13",
+    "2025-02-21",
+    "2025-03-05",
+    "2025-03-18",
+    "2025-03-24",
+    "2025-04-02",
+    "2025-04-14",
+    "2025-04-25",
+    "2025-05-01",
+    "2025-05-21",
+    "2025-07-30",
+    "2025-10-09",
+    "2025-11-06",
+    "2025-11-18",
+    "2025-11-26",
+    "2025-12-05",
+    "2026-02-04",
+    "2026-02-18"
+  ]
+}

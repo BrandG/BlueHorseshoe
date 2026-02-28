@@ -13,10 +13,12 @@ Usage:
 """
 
 import csv
+import json
 import sys
 from pathlib import Path
 
 LOG_DIR = Path("/workspaces/BlueHorseshoe/src/logs")
+TEST_DATES_PATH = Path("/workspaces/BlueHorseshoe/src/test_dates.json")
 
 FILES = {
     "V2":   LOG_DIR / "clean_backtest_v2.csv",
@@ -24,12 +26,15 @@ FILES = {
     "V3.1": LOG_DIR / "clean_backtest_v31.csv",
 }
 
-TARGET_DATES = [
-    "2025-10-01", "2025-10-08", "2025-10-15", "2025-10-22", "2025-10-29",
-    "2025-11-05", "2025-11-12", "2025-11-19", "2025-11-26",
-    "2025-12-03", "2025-12-10", "2025-12-17", "2025-12-24", "2025-12-31",
-    "2026-01-07", "2026-01-14", "2026-01-21", "2026-01-28",
-]
+
+def load_target_dates() -> list:
+    """Load stratified test dates from test_dates.json."""
+    if not TEST_DATES_PATH.exists():
+        print(f"ERROR: {TEST_DATES_PATH} not found. Run build_test_dates.py first.")
+        sys.exit(1)
+    with open(TEST_DATES_PATH, "r", encoding="utf-8") as f:
+        data = json.load(f)
+    return sorted(data["all_dates"])
 
 WIN_STATUSES = {"WIN"}
 LOSS_STATUSES = {"LOSS"}
@@ -51,7 +56,7 @@ def get_trades(rows: list) -> list:
     ]
 
 
-def analyze_version(label: str, rows: list) -> list:
+def analyze_version(label: str, rows: list, target_dates: list) -> list:
     """Print detailed analysis for one version. Returns trades list."""
     trades = get_trades(rows)
     wins = [r for r in trades if r["outcome"] == "WIN"]
@@ -76,7 +81,7 @@ def analyze_version(label: str, rows: list) -> list:
     print(f"  Win Rate: {win_rate:.1f}%")
     print(f"  Avg P&L per trade: {avg_pnl:+.2f}%")
     print(f"  Total P&L: {total_pnl:+.2f}%")
-    print(f"  Dates covered: {len(dates)}/{len(TARGET_DATES)}")
+    print(f"  Dates covered: {len(dates)}/{len(target_dates)}")
     if best:
         print(f"  Best trade:  {best['symbol']} on {best['date']} = +{float(best['profit_loss']):.2f}%")
     if worst:
@@ -85,7 +90,7 @@ def analyze_version(label: str, rows: list) -> list:
     # Per-date breakdown
     print(f"\n  {'Date':<12} {'Trades':>6} {'Wins':>5} {'WinRate':>8} {'AvgPnL':>8} {'TotalPnL':>9}")
     print(f"  {'-'*50}")
-    for d in TARGET_DATES:
+    for d in target_dates:
         dt = [r for r in trades if r["date"] == d]
         dw = [r for r in dt if r["outcome"] == "WIN"]
         dp = [float(r["profit_loss"]) for r in dt]
@@ -128,6 +133,8 @@ def overlap_report(label_a: str, trades_a: list, label_b: str, trades_b: list) -
 
 
 def main():
+    target_dates = load_target_dates()
+
     # Load all versions
     data = {}
     for label, path in FILES.items():
@@ -147,7 +154,7 @@ def main():
     # Validation
     for label, rows in available.items():
         dates = sorted(set(r["date"] for r in rows))
-        missing = set(TARGET_DATES) - set(dates)
+        missing = set(target_dates) - set(dates)
         if missing:
             print(f"  WARNING: {label} missing dates: {sorted(missing)}")
 
@@ -155,7 +162,7 @@ def main():
     trades = {}
     for label, rows in data.items():
         if rows:
-            trades[label] = analyze_version(label, rows)
+            trades[label] = analyze_version(label, rows, target_dates)
         else:
             trades[label] = []
 
@@ -197,7 +204,7 @@ def main():
         print(f"  {'Date':<12} {'V2 PnL':>9} {'V3 PnL':>9} {'V3.1 PnL':>9} {'Best':>6}")
         print(f"  {'-'*50}")
 
-        for d in TARGET_DATES:
+        for d in target_dates:
             pnl = {}
             for label in ["V2", "V3", "V3.1"]:
                 dt = [t for t in trades[label] if t["date"] == d]
@@ -212,7 +219,7 @@ def main():
 
         # Tally best days
         best_counts = {"V2": 0, "V3": 0, "V3.1": 0}
-        for d in TARGET_DATES:
+        for d in target_dates:
             pnl = {}
             for label in ["V2", "V3", "V3.1"]:
                 dt = [t for t in trades[label] if t["date"] == d]

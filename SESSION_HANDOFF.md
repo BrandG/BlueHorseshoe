@@ -1,126 +1,154 @@
 # Session Handoff
 
-**Date:** February 26, 2026
-**Status:** Leave-One-In analysis script written and ready but NOT yet run. Prediction for 2026-02-25 needs to be re-run (was killed by OOM from concurrent analysis attempts).
+**Date:** February 28, 2026
+**Status:** Stratified test dates built (30 dates). Backtest scripts updated to use them. V2 backtest running on research droplet. Old V2/V3 results (partial, 8/18 dates) cleared.
 
 ---
 
 ## What Was Done This Session
 
-### 1. Leave-One-In Indicator Restoration Analysis Script
-Created `src/analyze_indicator_impact.py` — a two-pass analysis script to identify which of 11 zeroed-out V3 indicators should be restored for a "V3.1" build.
+### 1. Verified Stratified Test Dates (complete)
 
-**Context:** V3 data-driven weights zeroed 11 indicators and underperformed V2 (-64% vs +6% total P&L over 18 weeks). Root cause: V3 picks higher-volatility stocks with wider ATR-based stop-losses (~2x wider than V2).
+`src/test_dates.json` was generated last session and confirmed valid this session:
+- 30 dates across 5 regime buckets (6 per bucket)
+- Date range: 2024-06-04 through 2026-02-18
+- Scores use SPY/QQQ EMAs + 19-stock breadth (0-10 scale)
+- Minimum 5 calendar-day gap between selected dates
+- Builder script: `src/build_test_dates.py`
 
-**How it works:**
-- **Pass 1:** Scores all ~4400 symbols with V2 + V3 base weights, keeps top 200 per date
-- **Pass 2:** Re-scores those ~200 with 12 indicator-restoration variants (V3 + one zeroed indicator restored at its V2 weight)
-- **3 representative dates:** 2025-11-12 (bad V3), 2025-11-19 (good V3), 2025-12-10 (average)
-- **Metrics:** Score spread, V2 top-10 overlap, ATR/price ratio of picks, composite impact ranking
-- **Key technique:** Patches `weights_config._weights` in-memory between runs (no file I/O)
+| Bucket | Score Range | Example Dates |
+|--------|------------|---------------|
+| Strong Bull | 9-10 | 2024-06-04, 2024-12-02, 2025-07-30 |
+| Mild Bull | 7-8 | 2024-07-19, 2025-02-21, 2025-12-05 |
+| Neutral | 5-6 | 2024-09-09, 2025-05-01, 2026-02-04 |
+| Mild Bear | 3-4 | 2024-08-08, 2025-03-24, 2026-02-18 |
+| Strong Bear | 0-2 | 2025-03-18, 2025-04-02, 2025-04-14 |
 
-### 2. CLAUDE.md Container Process Safety Rule
-Added rule: **never run concurrent heavy processes alongside `-u` or `-p`**. Multiple OOM kills from concurrent analysis + prediction taught this lesson.
+### 2. Confirmed Backtest Scripts Already Updated (last session, uncommitted)
 
-### 3. Diagnosed Prediction Failure
-The 2026-02-25 prediction (`-p`) was killed mid-run (only scored through early A-symbols) by OOM from concurrent analysis scripts. No report was generated.
+Both `run_clean_backtest.py` and `compare_clean_backtests.py` were updated last session to load dates from `test_dates.json` instead of hardcoded lists. These changes are **local only — not committed to git**.
+
+### 3. Cleared Old Partial Results
+
+Deleted old `clean_backtest_v2.csv` and `clean_backtest_v3.csv` on the research droplet (they used the old 8/18-date sets and are not comparable to the new 30-date runs).
+
+### 4. Kicked Off V2 Backtest on Research Droplet
+
+V2 backtest running over all 30 stratified dates on `bh-research` (s-4vcpu-8gb, ~$0.07/hr).
+
+**Note:** The updated scripts (`run_clean_backtest.py`, `compare_clean_backtests.py`, `build_test_dates.py`, `test_dates.json`) were SCP'd to the droplet since they aren't committed to git yet. Future `git pull` on the droplet will overwrite them with old versions unless committed first.
+
+---
+
+## What Was Done Last Session (for reference)
+
+- Added 5 dedicated mean-reversion indicators (RSI Divergence, Z-Score, Connors RSI, DV2, Short-Period ROC)
+- Fixed report strategy balance (top 25 per strategy instead of combined top 50)
+- Ran V3 backtest over 18 dates (old set): 52.2% win rate, -3.80% total P&L
+- Backfilled SPY + QQQ to 2000 (6621 days each)
+- Built stratified test date builder script
 
 ---
 
 ## In Progress
 
-### Prediction Re-run Needed
-The `-p` prediction for 2026-02-25 did NOT complete. Must re-run:
+### V2 Backtest (running on bh-research)
 ```bash
-docker exec bluehorseshoe python src/main.py -p
+# Check progress (use script-file workaround for cd):
+echo 'cd /root/BlueHorseshoe && tail -20 src/logs/clean_backtest_v2.csv' > /tmp/remote_cmd.sh
+ssh root@10.132.0.4 bash < /tmp/remote_cmd.sh
 ```
-**Wait for it to finish before running any analysis scripts.**
 
-### Leave-One-In Analysis NOT YET RUN
-Script is ready but was never successfully completed due to repeated OOM issues. Run after prediction completes:
-```bash
-docker exec -e PYTHONUNBUFFERED=1 bluehorseshoe python src/analyze_indicator_impact.py
-```
-**Estimated runtime:** ~30-45 min on clean container (two-pass design stays under 4GB).
+### After V2 completes:
+1. Copy results: `scp root@10.132.0.4:/root/BlueHorseshoe/src/logs/clean_backtest_v2.csv src/logs/`
+2. Clear V2 CSV on droplet, kick off V3 backtest over the same 30 dates
+3. Copy V3 results when done
+
+---
+
+## V2/V3/V3.1 Status
+
+**V2 (original hand-tuned weights):**
+- Clean backtest: RUNNING on research droplet (30 stratified dates)
+- Weights: `src/weights_v2.json`
+
+**V3 (data-driven weights + new MR indicators):**
+- Clean backtest: NEEDS RE-RUN over 30 stratified dates (old 18-date results deleted)
+- Weights: `src/weights_v3.json`
+
+**V3.1 (restore key indicators):**
+- NOT STARTED — depends on leave-one-in analysis
+- Leave-one-in script ready: `src/analyze_indicator_impact.py`
+
+**Current `weights.json`** has new `mean_reversion_specific` and `mr_mean_reversion_specific` categories.
 
 ---
 
 ## Next Steps
 
-1. **Re-run prediction** — `docker exec bluehorseshoe python src/main.py -p` (wait for completion)
-2. **Run leave-one-in analysis** — `docker exec -e PYTHONUNBUFFERED=1 bluehorseshoe python src/analyze_indicator_impact.py`
-3. **Interpret results** — Identify which indicators to restore for V3.1
-4. **Build V3.1 weights** — Update `weights.json` with restored indicators
-5. **Backtest V3.1** — Compare against V2 and V3 baseline
-6. **Commit changes** — All V3/V3.1 work is still uncommitted
+1. ~~Finish test date builder~~ — done, 30 dates verified
+2. ~~Update backtest scripts to use test_dates.json~~ — done (uncommitted)
+3. **Re-run V2 backtest** over 30 stratified dates — IN PROGRESS
+4. **Re-run V3 backtest** over 30 stratified dates — queued after V2
+5. **Run leave-one-in analysis** to identify which zeroed indicators to restore for V3.1
+6. **Build V3.1 weights** and backtest over same 30 dates
+7. **Three-way comparison** (V2 vs V3 vs V3.1)
+8. **Commit** updated scripts and test_dates.json to git
 
 ---
 
 ## Key Decisions
 
-- **Two-pass design for memory safety:** Full universe scoring (4400+ symbols) with all 14 variants simultaneously OOMs the 4GB container. Solution: Pass 1 narrows to top 200 candidates, Pass 2 does variant comparison on that subset only.
-- **Direct MongoDB access:** Script queries `historical_prices_recent` collection directly (bypasses `load_historical_data()` overhead). Each symbol loaded individually and discarded after scoring.
-- **Container safety rule:** Added to CLAUDE.md — never run analysis concurrently with `-u` or `-p`. The container only has 4GB.
+- **5 regime buckets** (Strong Bull / Mild Bull / Neutral / Mild Bear / Strong Bear) with 6 dates each = 30 total
+- **SPY + QQQ + breadth** for regime classification (same logic as MarketRegime class)
+- **Per-strategy top-25** instead of combined top-50 to guarantee both strategies in reports
+- **MR indicator weights** conservative starting values, baseline all 0.0 to avoid contamination
 
 ---
 
-## Key Technical Details
+## Infrastructure
 
-### OOM History This Session
-- 4 analysis runs OOM-killed before landing on two-pass design
-- Root cause: holding 4400+ enriched DataFrames in memory OR running concurrent with `-p` workers
-- Container memory limit: 4GB (`docker inspect --format '{{.HostConfig.Memory}}'`)
+### Research Droplet
+**IMPORTANT:** All SSH commands to the research droplet MUST `cd /root/BlueHorseshoe` first.
+The default login directory is `/root`, NOT the repo directory.
 
-### Weight Patching Approach
-```python
-from bluehorseshoe.core.config import weights_config
-weights_config._weights = new_weights_dict  # No file I/O, instant
+**Workaround for Claude Code:** Write remote commands to `/tmp/remote_cmd.sh` and pipe via `ssh root@10.132.0.4 bash < /tmp/remote_cmd.sh` — this reliably includes the `cd`.
+
+```bash
+ssh root@10.132.0.4
+# All commands must run from /root/BlueHorseshoe
+# Direct SSH (for humans):
+ssh root@10.132.0.4 "cd /root/BlueHorseshoe && docker exec bh-research python src/run_clean_backtest.py --version v3"
+# Copy results:
+scp root@10.132.0.4:/root/BlueHorseshoe/src/logs/clean_backtest_v3.csv src/logs/
+# Destroy when done:
+doctl compute droplet delete bh-research --force
 ```
 
-### Profiling Results (100-symbol sample)
-- DB loading: 38ms/symbol
-- Technical indicators: 64ms/symbol
-- Scoring: 147ms/symbol
-- Per-symbol GC: doubles total time — removed from per-symbol loop
+**Droplet cost:** s-4vcpu-8gb = $0.067/hr (~$0.80 for 12 hours)
 
----
-
-## Uncommitted Changes
-
-All prior session changes still uncommitted, plus:
-- `SESSION_HANDOFF.md` — this file
-- `CLAUDE.md` — added Container Process Safety section
-- `src/analyze_indicator_impact.py` — NEW, leave-one-in analysis script
-- `src/bluehorseshoe/analysis/indicator_impact.py` — existing indicator impact analyzer (from prior work)
-- All V3 weight system changes from prior session (see prior handoff for full list)
+### Production
+```bash
+docker exec bluehorseshoe python src/main.py -p        # Prediction
+docker exec bluehorseshoe python src/main.py -u        # Data update
+docker exec bluehorseshoe pytest -v                    # Tests (223 pass, 2 pre-existing failures)
+docker exec bluehorseshoe ./lint.sh                    # Lint (clean)
+```
 
 ---
 
 ## Git Status
 
 **Branch:** master
-**Latest pushed commit:** `358ec2e` - feat: Replace Alpha Vantage with Tiingo API and add concurrent fetching
-**Tests:** Not verified this session (no code changes to production files)
+**Latest pushed commit:** `e017c4b` — feat: Add 5 dedicated mean-reversion indicators and fix report strategy balance
+**Uncommitted changes:**
+- `SESSION_HANDOFF.md` — modified
+- `TO-DO.md` — modified
+- `src/run_clean_backtest.py` — modified (loads from test_dates.json)
+- `src/compare_clean_backtests.py` — modified (loads from test_dates.json)
+- `src/build_test_dates.py` — untracked (new)
+- `src/test_dates.json` — untracked (new)
 
 ---
 
-## Quick Commands
-
-```bash
-# Check container processes (ALWAYS do this before running anything heavy)
-docker top bluehorseshoe
-
-# Re-run prediction (DO THIS FIRST)
-docker exec bluehorseshoe python src/main.py -p
-
-# Run leave-one-in analysis (ONLY after prediction completes)
-docker exec -e PYTHONUNBUFFERED=1 bluehorseshoe python src/analyze_indicator_impact.py
-
-# Standard commands
-docker exec bluehorseshoe pytest -v
-docker exec bluehorseshoe ./lint.sh
-```
-
----
-
-**Last Updated:** February 26, 2026
+**Last Updated:** February 28, 2026

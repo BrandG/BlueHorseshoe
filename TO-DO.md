@@ -138,6 +138,7 @@
 - Track max drawdown, Sharpe ratio, and other portfolio-level metrics
 
 ### Data & Infrastructure
+- Full historical backfill — backfill all ~6,000 symbols going back 20 years (full Alpha Vantage history). Currently only recent data is loaded for most symbols. Deep history improves ML training, long-range backtesting, and indicator calculations that depend on long lookback periods (200-day EMA, etc.). Will need to run in batches respecting API rate limits (`-b --resume --limit N`). SPY + QQQ already backfilled to 2000.
 - Add post-prediction step to track symbols with stale/insufficient data and update an invalid symbols list, so they can be excluded from future runs or flagged for re-backfill
 - Reduce Alpha Vantage dependency — evaluate alternative data sources (Polygon, Tiingo, Yahoo Finance bulk)
 - Add Redis or in-memory caching for repeated indicator calculations during LOO/optimization runs

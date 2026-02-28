@@ -3,9 +3,10 @@ run_clean_backtest.py
 
 Resilient per-version backtest runner with per-date checkpointing.
 
-Runs backtests for V2, V3, or V3.1 weights over 18 weekly dates with
-identical parameters. Results go to dedicated versioned CSV files so
-runs never pollute each other or the shared backtest_log.csv.
+Runs backtests for V2, V3, or V3.1 weights over stratified test dates
+(loaded from test_dates.json) with identical parameters. Results go to
+dedicated versioned CSV files so runs never pollute each other or the
+shared backtest_log.csv.
 
 On restart, skips already-completed dates (resume logic).
 
@@ -27,12 +28,20 @@ from pathlib import Path
 import pandas as pd
 
 # ── Fixed Parameters ──────────────────────────────────────────────────────
-TARGET_DATES = [
-    "2025-10-01", "2025-10-08", "2025-10-15", "2025-10-22", "2025-10-29",
-    "2025-11-05", "2025-11-12", "2025-11-19", "2025-11-26",
-    "2025-12-03", "2025-12-10", "2025-12-17", "2025-12-24", "2025-12-31",
-    "2026-01-07", "2026-01-14", "2026-01-21", "2026-01-28",
-]
+TEST_DATES_PATH = Path("/workspaces/BlueHorseshoe/src/test_dates.json")
+
+
+def load_target_dates() -> list:
+    """Load stratified test dates from test_dates.json."""
+    if not TEST_DATES_PATH.exists():
+        print(f"ERROR: {TEST_DATES_PATH} not found. Run build_test_dates.py first.")
+        sys.exit(1)
+    with open(TEST_DATES_PATH, "r", encoding="utf-8") as f:
+        data = json.load(f)
+    dates = sorted(data["all_dates"])
+    print(f"  Loaded {len(dates)} stratified test dates from {TEST_DATES_PATH.name}")
+    return dates
+
 
 STRATEGY = "baseline"
 TOP_N = 10
@@ -208,6 +217,7 @@ def main():
     version = args.version
     weights_path = WEIGHT_FILES[version]
     csv_path = output_path(version)
+    target_dates = load_target_dates()
 
     print(f"Clean Backtest Runner — version {version.upper()}")
     print(f"  Weights file:  {weights_path}")
@@ -216,7 +226,7 @@ def main():
     print(f"  Top N:         {TOP_N}")
     print(f"  Hold days:     {HOLD_DAYS}")
     print(f"  Split-exit:    t1_pct={SPLIT_T1_PCT}")
-    print(f"  Dates:         {len(TARGET_DATES)}")
+    print(f"  Dates:         {len(target_dates)}")
     print(flush=True)
 
     # 1. Load and patch weights
@@ -270,10 +280,10 @@ def main():
 
     # 4. Resume logic — find completed dates
     completed_dates = load_completed_dates(csv_path)
-    remaining_dates = [d for d in TARGET_DATES if d not in completed_dates]
+    remaining_dates = [d for d in target_dates if d not in completed_dates]
 
     if completed_dates:
-        print(f"\n  Resume: {len(completed_dates)}/{len(TARGET_DATES)} dates already done, "
+        print(f"\n  Resume: {len(completed_dates)}/{len(target_dates)} dates already done, "
               f"{len(remaining_dates)} remaining.", flush=True)
     if not remaining_dates:
         print("\n  All dates already completed!", flush=True)
@@ -291,7 +301,7 @@ def main():
         date_start = time.time()
         step = len(completed_dates) + i + 1
         print(
-            f"[{step}/{len(TARGET_DATES)}] {target_date} ...",
+            f"[{step}/{len(target_dates)}] {target_date} ...",
             flush=True,
         )
 
