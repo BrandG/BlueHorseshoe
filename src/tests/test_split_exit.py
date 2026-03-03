@@ -77,16 +77,16 @@ class TestPlanAFixedPct:
         # Blended: 0.5 * 2% + 0.5 * 8% = 5%
         assert abs(result['blended_pnl_pct'] - 5.0) < 0.01
 
-    def test_partial_profit_t2_stopped_at_t1_level(self):
-        """T1 hits +2%, T2 stopped at T1 level (breakeven+). Net PnL = 2%."""
+    def test_partial_profit_t2_stopped_at_breakeven_stop(self):
+        """T1 hits +2%, T2 stopped at entry-2% stop. Net PnL = 0%."""
         # T1 target = 102, T2 target = 108, original stop = 95
-        # After T1 exits, T2 stop moves to 102
+        # After T1 exits, T2 stop moves to entry * 0.98 = 98
         bars = [
             ('2026-01-01', 100, 101, 99, 100),
             ('2026-01-02', 100, 101, 99, 100),        # entry at 100
             ('2026-01-03', 101, 103, 101, 102.5),      # T1 hit at 102
-            ('2026-01-04', 103, 104, 101.5, 103),      # T2 still active
-            ('2026-01-05', 102, 102.5, 101, 101.5),    # T2 stopped: low=101 < 102
+            ('2026-01-04', 101, 102, 100, 101),        # T2 still active
+            ('2026-01-05', 99, 100, 97, 98),           # T2 stopped: low=97 < 98
         ]
         prediction = {
             'symbol': 'TEST',
@@ -103,9 +103,9 @@ class TestPlanAFixedPct:
         assert result['status'] == 'split_partial_profit'
         assert result['tranche1_status'] == 'profit'
         assert result['tranche2_status'] == 'stopped'
-        assert result['tranche2_exit_price'] == 102.0  # Stopped at T1 level
-        # Blended: 0.5 * 2% + 0.5 * 2% = 2%
-        assert abs(result['blended_pnl_pct'] - 2.0) < 0.01
+        assert result['tranche2_exit_price'] == 98.0  # Stopped at entry - 2%
+        # Blended: 0.5 * 2% + 0.5 * (-2%) = 0%
+        assert abs(result['blended_pnl_pct'] - 0.0) < 0.01
 
     def test_full_stop(self):
         """Both tranches stopped at original stop."""

@@ -141,7 +141,7 @@ class TestLOOReconstruction:
         setup_data = {
             'close': 100.0,
             'atr': 2.0,
-            'swing_low_5': 96.0,
+            'swing_low_5': 97.0,
             'swing_high_20': 110.0,
         }
         result = _reconstruct_setup(15.0, setup_data)
