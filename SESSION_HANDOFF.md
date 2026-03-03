@@ -1,114 +1,100 @@
 # Session Handoff
 
-**Date:** February 28, 2026
-**Status:** Stratified test dates built (30 dates). Backtest scripts updated to use them. V2 backtest running on research droplet. Old V2/V3 results (partial, 8/18 dates) cleared.
+**Date:** March 3, 2026
+**Status:** Weight optimization complete. V3 deployed to production. Research droplet destroyed. All clear.
 
 ---
 
-## What Was Done This Session
+## What Was Done This Session (March 3, Session 2)
 
-### 1. Verified Stratified Test Dates (complete)
+1. **V3.1 backtest completed** — 30/30 dates, results copied locally
+2. **Three-way comparison** (V2 vs V3 vs V3.1) — V3 won decisively
+3. **Deployed V3 weights to production** (`568b4ae`)
+4. **Destroyed research droplet** — no longer needed
+5. **Deleted `weights_v31.json`** — V3.1 lost the comparison, file removed
 
-`src/test_dates.json` was generated last session and confirmed valid this session:
-- 30 dates across 5 regime buckets (6 per bucket)
-- Date range: 2024-06-04 through 2026-02-18
-- Scores use SPY/QQQ EMAs + 19-stock breadth (0-10 scale)
-- Minimum 5 calendar-day gap between selected dates
-- Builder script: `src/build_test_dates.py`
+### Three-Way Results (30 stratified dates)
 
-| Bucket | Score Range | Example Dates |
-|--------|------------|---------------|
-| Strong Bull | 9-10 | 2024-06-04, 2024-12-02, 2025-07-30 |
-| Mild Bull | 7-8 | 2024-07-19, 2025-02-21, 2025-12-05 |
-| Neutral | 5-6 | 2024-09-09, 2025-05-01, 2026-02-04 |
-| Mild Bear | 3-4 | 2024-08-08, 2025-03-24, 2026-02-18 |
-| Strong Bear | 0-2 | 2025-03-18, 2025-04-02, 2025-04-14 |
+| Metric | V2 | V3 | V3.1 |
+|--------|----|----|------|
+| Trades | 434 | 264 | 269 |
+| Win Rate | 59.9% | **61.4%** | 59.1% |
+| Avg P&L | +0.16% | **+0.32%** | +0.30% |
+| Total P&L | +71.3% | **+84.0%** | +79.8% |
+| Profit Factor | 1.19 | 1.40 | 1.40 |
+| Avg/StdDev | 0.070 | 0.130 | 0.131 |
+| Avg Loss | -2.15% | -2.04% | **-1.83%** |
+| Profitable Days | **21/30** | 19/30 | 19/30 |
+| H2H (3-way) | **13** | 10 | 7 |
 
-### 2. Confirmed Backtest Scripts Already Updated (last session, uncommitted)
+**V3 vs V3.1:** V3 won 17/30 days. V3.1's ADX+AD_LINE restoration added noise — worst in strong bull regime (-30.7% vs V3's -12.6%).
 
-Both `run_clean_backtest.py` and `compare_clean_backtests.py` were updated last session to load dates from `test_dates.json` instead of hardcoded lists. These changes are **local only — not committed to git**.
+### Per-Regime Summary
 
-### 3. Cleared Old Partial Results
+| Regime | V2 P&L | V3 P&L | V3.1 P&L | Best |
+|--------|--------|--------|----------|------|
+| Strong Bear | -68.5% | **-13.3%** | -17.8% | V3 |
+| Mild Bear | **+41.5%** | +18.3% | +38.5% | V2 |
+| Neutral | **+71.4%** | +66.2% | +70.7% | V2 |
+| Mild Bull | **+51.6%** | +25.3% | +19.0% | V2 |
+| Strong Bull | -24.7% | **-12.6%** | -30.7% | V3 |
 
-Deleted old `clean_backtest_v2.csv` and `clean_backtest_v3.csv` on the research droplet (they used the old 8/18-date sets and are not comparable to the new 30-date runs).
-
-### 4. Kicked Off V2 Backtest on Research Droplet
-
-V2 backtest running over all 30 stratified dates on `bh-research` (s-4vcpu-8gb, ~$0.07/hr).
-
-**Note:** The updated scripts (`run_clean_backtest.py`, `compare_clean_backtests.py`, `build_test_dates.py`, `test_dates.json`) were SCP'd to the droplet since they aren't committed to git yet. Future `git pull` on the droplet will overwrite them with old versions unless committed first.
-
----
-
-## What Was Done Last Session (for reference)
-
-- Added 5 dedicated mean-reversion indicators (RSI Divergence, Z-Score, Connors RSI, DV2, Short-Period ROC)
-- Fixed report strategy balance (top 25 per strategy instead of combined top 50)
-- Ran V3 backtest over 18 dates (old set): 52.2% win rate, -3.80% total P&L
-- Backfilled SPY + QQQ to 2000 (6621 days each)
-- Built stratified test date builder script
+**Key insight:** V3's edge is damage control in extreme regimes. V2 captures more upside in favorable conditions but gives it all back in bear markets.
 
 ---
 
-## In Progress
+## What Was Done March 3 (Session 1)
 
-### V2 Backtest (running on bh-research)
-```bash
-# Check progress (use script-file workaround for cd):
-echo 'cd /root/BlueHorseshoe && tail -20 src/logs/clean_backtest_v2.csv' > /tmp/remote_cmd.sh
-ssh root@10.132.0.4 bash < /tmp/remote_cmd.sh
-```
-
-### After V2 completes:
-1. Copy results: `scp root@10.132.0.4:/root/BlueHorseshoe/src/logs/clean_backtest_v2.csv src/logs/`
-2. Clear V2 CSV on droplet, kick off V3 backtest over the same 30 dates
-3. Copy V3 results when done
+1. **Connors RSI(2) badge** — Flags mean reversion candidates matching Connors setup (RSI(2)<10, price>SMA200) with a gold star in the HTML report
+2. **Market-cap pre-filter for `-p`** — Skips ~1,012 symbols without market cap data (ETFs, warrants, SPACs, shells) that never produce scores
+3. **Active-only default for `-u`** — Now active-only by default (use `--all` to override), skipping ~4,800 inactive symbols during data updates
 
 ---
 
-## V2/V3/V3.1 Status
+## What Was Done March 2
 
-**V2 (original hand-tuned weights):**
-- Clean backtest: RUNNING on research droplet (30 stratified dates)
-- Weights: `src/weights_v2.json`
+1. **Completed V2 backtest** — 30/30 dates
+2. **Completed V3 backtest** — 30/30 dates
+3. **Full V2 vs V3 comparison**
+4. **Leave-one-in analysis** — ADX (+3.24) and AD_LINE (+2.64) identified
+5. **Built V3.1 weights** and kicked off backtest on research droplet
 
-**V3 (data-driven weights + new MR indicators):**
-- Clean backtest: NEEDS RE-RUN over 30 stratified dates (old 18-date results deleted)
-- Weights: `src/weights_v3.json`
+---
 
-**V3.1 (restore key indicators):**
-- NOT STARTED — depends on leave-one-in analysis
-- Leave-one-in script ready: `src/analyze_indicator_impact.py`
+## Weight Optimization — COMPLETE
 
-**Current `weights.json`** has new `mean_reversion_specific` and `mr_mean_reversion_specific` categories.
+**V2 (original hand-tuned):** `src/weights_v2.json` — reference only
+**V3 (data-driven, DEPLOYED):** `src/weights_v3.json` — also in `src/weights.json`
+**V3.1 (V3 + ADX + AD_LINE):** Deleted — did not improve over V3
+
+Backtest CSVs: `src/logs/clean_backtest_v2.csv`, `clean_backtest_v3.csv`, `clean_backtest_v31.csv`
 
 ---
 
 ## Next Steps
 
-1. ~~Finish test date builder~~ — done, 30 dates verified
-2. ~~Update backtest scripts to use test_dates.json~~ — done (uncommitted)
-3. **Re-run V2 backtest** over 30 stratified dates — IN PROGRESS
-4. **Re-run V3 backtest** over 30 stratified dates — queued after V2
-5. **Run leave-one-in analysis** to identify which zeroed indicators to restore for V3.1
-6. **Build V3.1 weights** and backtest over same 30 dates
-7. **Three-way comparison** (V2 vs V3 vs V3.1)
-8. **Commit** updated scripts and test_dates.json to git
+- **2 pre-existing test failures** to investigate (`test_loo_analyzer`, `test_split_exit`) — not caused by weight change
+- Consider whether V2's mild bear/neutral/mild bull advantage warrants a regime-adaptive weight system
+- Monitor production results with V3 weights over coming weeks
+- See `TO-DO.md` for full backlog
 
 ---
 
 ## Key Decisions
 
-- **5 regime buckets** (Strong Bull / Mild Bull / Neutral / Mild Bear / Strong Bear) with 6 dates each = 30 total
-- **SPY + QQQ + breadth** for regime classification (same logic as MarketRegime class)
-- **Per-strategy top-25** instead of combined top-50 to guarantee both strategies in reports
-- **MR indicator weights** conservative starting values, baseline all 0.0 to avoid contamination
+- **V3 weights deployed** — zeroed out Donchian, SuperTrend, TTM Squeeze, Aroon, Keltner, VWAP from baseline
+- **Container limits**: 6GB RAM / 3 CPUs. Production prediction completes in ~50 min
+- **`-u` now active-only by default** — use `--all` flag to update all symbols
+- **`-p` now filters by market cap** — skips ETFs/warrants/SPACs/shells automatically
+- **Research droplet destroyed** — no active droplets
 
 ---
 
 ## Infrastructure
 
 ### Research Droplet
+- **Status:** DESTROYED (March 3, 2026)
+*************** DO NOT EDIT THE FOLLOWING SECTION WHEN UPDATING SESSION_HANDOFF.md
 **IMPORTANT:** All SSH commands to the research droplet MUST `cd /root/BlueHorseshoe` first.
 The default login directory is `/root`, NOT the repo directory.
 
@@ -124,31 +110,29 @@ scp root@10.132.0.4:/root/BlueHorseshoe/src/logs/clean_backtest_v3.csv src/logs/
 # Destroy when done:
 doctl compute droplet delete bh-research --force
 ```
+*************** END OF IMMUTABLE SECTION
 
 **Droplet cost:** s-4vcpu-8gb = $0.067/hr (~$0.80 for 12 hours)
 
 ### Production
 ```bash
-docker exec bluehorseshoe python src/main.py -p        # Prediction
-docker exec bluehorseshoe python src/main.py -u        # Data update
-docker exec bluehorseshoe pytest -v                    # Tests (223 pass, 2 pre-existing failures)
-docker exec bluehorseshoe ./lint.sh                    # Lint (clean)
+docker exec bluehorseshoe python src/main.py -p        # Prediction (~50 min)
+docker exec bluehorseshoe python src/main.py -u        # Data update (active-only default)
+docker exec bluehorseshoe python src/main.py -u --all  # Data update (all symbols)
+docker exec bluehorseshoe pytest -v                    # Tests
+docker exec bluehorseshoe ./lint.sh                    # Lint
 ```
+
+**Cron pipeline:** Runs at 02:00 UTC (Mon-Sat)
 
 ---
 
 ## Git Status
 
 **Branch:** master
-**Latest pushed commit:** `e017c4b` — feat: Add 5 dedicated mean-reversion indicators and fix report strategy balance
-**Uncommitted changes:**
-- `SESSION_HANDOFF.md` — modified
-- `TO-DO.md` — modified
-- `src/run_clean_backtest.py` — modified (loads from test_dates.json)
-- `src/compare_clean_backtests.py` — modified (loads from test_dates.json)
-- `src/build_test_dates.py` — untracked (new)
-- `src/test_dates.json` — untracked (new)
+**Latest pushed commit:** `568b4ae` — feat: Deploy V3 data-driven weights to production
+**Uncommitted:** `SESSION_HANDOFF.md`, `TO-DO.md`, `src/analyze_indicator_impact.py` (symbol source fix)
 
 ---
 
-**Last Updated:** February 28, 2026
+**Last Updated:** March 3, 2026

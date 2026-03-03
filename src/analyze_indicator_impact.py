@@ -178,17 +178,9 @@ def run_analysis():
     container = create_app_container()
     database = container.get_database()
 
-    # Get symbol list
-    pipeline = [
-        {"$project": {"symbol": 1, "last_day": {"$arrayElemAt": ["$days", -1]}}},
-        {"$match": {
-            "last_day.close": {"$gte": MIN_STOCK_PRICE, "$lte": MAX_STOCK_PRICE},
-            "last_day.avg_volume_20": {"$gte": 100000}
-        }},
-        {"$project": {"symbol": 1, "_id": 0}},
-    ]
-    symbols = sorted([doc["symbol"] for doc in
-                      database["historical_prices_recent"].aggregate(pipeline)])
+    # Get symbol list (same source as backtest pipeline)
+    from bluehorseshoe.core.symbols import get_symbol_name_list
+    symbols = get_symbol_name_list(database=database, active_only=True)
     print(f"Active symbols: {len(symbols)}\n")
 
     # ── Per-date analysis ──────────────────────────────────────────────

@@ -8,20 +8,15 @@
 - ~~Integrate T1 target into prediction pipeline, reports, and paper trading~~ ✅ (`41b4df3`)
 - Future: Monitor T2 stop-to-breakeven after T1 fill (requires real-time order monitoring via IBKR)
 
-### LOO Weight Tuning — IN PROGRESS
-- ~~Kick off broad LOO run~~ (running: 28 dates, Aug 1 → Feb 7, weekly, top 50, hold 10, split)
-- Review LOO analysis results once the broad run completes
-- Single-date hints: `penalty_rsi` may be hurting, `penalty_ema_overextension` valuable — needs multi-date validation
-- Apply suggested weight changes to `src/weights.json` for indicators with strong P&L deltas
-- Re-run backtest to validate improvements before/after weight changes
-
-### Commission handling
-- IBKR has a 1$ commission on buys and sales. A $200 investment that makes 2% raises $4, eating half of the increase.
-- Develop a strategy for dealing with this situation:
-- Option 1: Raise target on lower investment amounts (perhaps in the portfolio calculator)
-- Option 2: Split target in thirds (2%, 3.5%, ATR) (Note: additional splits add additional commissions)
-- Option 3: Enforce a minimum investment size.
-- Option 4: Price floor filter (No trades under $15-$20)
+### Weight Optimization — DONE
+- ~~LOO analysis across 30 stratified dates~~ ✅
+- ~~Leave-one-in analysis to identify indicators worth restoring~~ ✅
+- ~~Three-way backtest comparison (V2 vs V3 vs V3.1)~~ ✅
+- ~~Deploy V3 data-driven weights to production~~ ✅ (`568b4ae`)
+- V3 results: +84.0% total P&L, 61.4% WR, 1.40 PF across 30 dates (vs V2: +71.3%, 59.9%, 1.19)
+- Zeroed underperforming baseline trend indicators (Donchian, SuperTrend, TTM Squeeze, Aroon, Keltner, VWAP)
+- V3.1 (restored ADX + AD_LINE) tested but did not improve over V3 — discarded
+- Reference weights preserved: `src/weights_v2.json`, `src/weights_v3.json`
 
 ### Speed optimization and refactoring
 - Split scoring from backtesting. This is the biggest pain point. Right now, a backtest re-scores all 6,000+ symbols from scratch every time. I'd score once and persist the results, then backtest by replaying against stored scores. That single-date test we're waiting on right now? It should take seconds, not an hour. You'd have a scores table and a separate backtest engine that just reads scores and simulates exits against OHLCV data.
