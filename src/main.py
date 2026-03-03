@@ -95,7 +95,7 @@ if __name__ == "__main__":
             except (ValueError, IndexError):
                 pass # Will default to all symbols
 
-        active_only = "--active-only" in sys.argv
+        active_only = "--all" not in sys.argv  # active-only by default; use --all to override
 
         with create_cli_context() as ctx:
             build_all_symbols_history(BackfillConfig(recent=True, symbols=symbols_filter, active_only=active_only), database=ctx.db)

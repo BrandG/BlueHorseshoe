@@ -340,7 +340,7 @@ class HTMLReporter:
         
         summary_html = f"""
             <div class='top-list-row'>
-                <span><a href='{url}' target='_blank' class='symbol-link'><b>{symbol}</b></a>:<small>{c.get('exchange','UNK')}</small></span>
+                <span><a href='{url}' target='_blank' class='symbol-link'><b>{symbol}</b></a>{"<span title='Connors RSI(2) Setup' style='color:gold'>&#9733;</span>" if c.get('connors_flag') else ""}:<small>{c.get('exchange','UNK')}</small></span>
                 <span><b>{c['score']:.1f}</b></span>
                 <span style='color:#777'>{attitude}</span>
                 <span>{price_info}</span>

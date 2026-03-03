@@ -558,7 +558,16 @@ class SwingTrader:
         if not baseline_data and not mr_data:
             return None
 
-        # 3. Finalize Result
+        # 3. Connors RSI(2) flag for mean reversion candidates
+        connors_flag = False
+        if mr_data and len(df) >= 200:
+            import talib as ta
+            rsi_2 = ta.RSI(df['close'].values, timeperiod=2)
+            sma_200 = df['close'].rolling(200).mean()
+            if not pd.isna(rsi_2[-1]) and not pd.isna(sma_200.iloc[-1]):
+                connors_flag = rsi_2[-1] < 10 and df['close'].iloc[-1] > sma_200.iloc[-1]
+
+        # 4. Finalize Result
         rs_ratio = 1.0
         if ctx.benchmark_df is not None:
             rs_ratio = self.calculate_relative_strength(df, ctx.benchmark_df)
@@ -576,7 +585,8 @@ class SwingTrader:
             'mr_score': mr_data['score'] if mr_data else 0.0,
             'mr_components': mr_data['components'] if mr_data else {},
             'mr_setup': mr_data['setup'] if mr_data else {},
-            'mr_ml_prob': mr_data['ml_prob'] if mr_data else 0.0
+            'mr_ml_prob': mr_data['ml_prob'] if mr_data else 0.0,
+            'connors_flag': connors_flag
         }
         logging.info("Processed %s with results Baseline: %.2f, MR: %.2f", symbol, ret_val['baseline_score'], ret_val['mr_score'])
         return ret_val
@@ -1061,6 +1071,17 @@ class SwingTrader:
         if symbols is None:
             symbols = get_symbol_name_list(database=self.database, active_only=True)
 
+        # Filter to symbols with market cap data (excludes ETFs, warrants, SPACs, shells)
+        mcap_symbols = {
+            d['symbol'] for d in self.database['symbol_overviews'].find(
+                {'MarketCapitalization': {'$exists': True, '$nin': [None, '', '0', 'None']}},
+                {'symbol': 1, '_id': 0}
+            )
+        }
+        before = len(symbols)
+        symbols = [s for s in symbols if s in mcap_symbols]
+        logging.info("Market-cap filter: %d → %d symbols (%d skipped)", before, len(symbols), before - len(symbols))
+
         # Build symbol metadata map
         all_symbols = get_symbols_from_mongo(database=self.database)
         symbol_map = {s['symbol']: s.get('exchange', 'Unknown') for s in all_symbols}
@@ -1122,7 +1143,8 @@ class SwingTrader:
                     "target": setup.get("take_profit", 0),
                     "ml_prob": r.get("mr_ml_prob", 0.0),
                     "sentiment": r.get("sentiment", 0.0),
-                    "reasons": [f"{k}={v:.1f}" for k, v in r['mr_components'].items() if v != 0]
+                    "reasons": [f"{k}={v:.1f}" for k, v in r['mr_components'].items() if v != 0],
+                    "connors_flag": r.get("connors_flag", False)
                 })
 
         # Take top 25 from each strategy so one can't crowd out the other
