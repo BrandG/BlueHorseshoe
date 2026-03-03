@@ -25,3 +25,4 @@ src/logs/*.json
 src/models/*.joblib
 BlueHorseshoe.svg
 BlueHorseshoeBanner.png
+maintenance.log
