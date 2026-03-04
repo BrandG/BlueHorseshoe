@@ -8,6 +8,8 @@ from typing import Optional
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 WEIGHTS_FILE = os.environ.get('WEIGHTS_FILE', '/workspaces/BlueHorseshoe/src/weights.json')
+WEIGHTS_V2_FULL_FILE = os.environ.get('WEIGHTS_V2_FULL_FILE', '/workspaces/BlueHorseshoe/src/weights_v2_full.json')
+WEIGHTS_V3_FILE = os.environ.get('WEIGHTS_V3_FILE', '/workspaces/BlueHorseshoe/src/weights.json')
 
 DEFAULT_WEIGHTS = {
     'trend': {
@@ -216,5 +218,41 @@ class ConfigManager:
             self._weights[category] = {}
         self._weights[category].update(new_weights)
         self.save_weights()
+
+    def load_regime_weights(self):
+        """Loads and caches both V2-full and V3 weight dicts for regime-adaptive selection."""
+        if not hasattr(self, '_regime_weights'):
+            self._regime_weights = {}
+        for label, path in [('v2', WEIGHTS_V2_FULL_FILE), ('v3', WEIGHTS_V3_FILE)]:
+            if os.path.exists(path):
+                with open(path, 'r', encoding='utf-8') as f:
+                    self._regime_weights[label] = json.load(f)
+                logging.info("Regime weights loaded: %s from %s", label, path)
+            else:
+                logging.warning("Regime weights file not found: %s", path)
+
+    def select_weights_for_regime(self, score: int) -> str:
+        """Picks V2 or V3 weights based on regime score and swaps self._weights.
+
+        Rule: V3 for extreme regimes (score <= 2 or >= 9), V2 for favorable (3-8).
+
+        Returns:
+            Label string ('v2' or 'v3') indicating which weights were selected.
+        """
+        if not hasattr(self, '_regime_weights') or not self._regime_weights:
+            self.load_regime_weights()
+
+        if score <= 2 or score >= 9:
+            label = 'v3'
+        else:
+            label = 'v2'
+
+        if label in self._regime_weights:
+            self._weights = self._regime_weights[label].copy()
+            logging.info("Regime score %d → %s weights active", score, label.upper())
+        else:
+            logging.warning("Regime weights '%s' not cached, keeping current weights", label)
+
+        return label
 
 weights_config = ConfigManager()

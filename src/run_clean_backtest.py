@@ -43,6 +43,24 @@ def load_target_dates() -> list:
     return dates
 
 
+def load_regime_scores() -> dict:
+    """Build date -> regime_score mapping from test_dates.json buckets."""
+    with open(TEST_DATES_PATH, "r", encoding="utf-8") as f:
+        data = json.load(f)
+    scores = {}
+    for entries in data["buckets"].values():
+        for entry in entries:
+            scores[entry["date"]] = entry["score"]
+    return scores
+
+
+def select_adaptive_version(regime_score: int) -> str:
+    """Pick V2 or V3 based on regime score. V3 for extremes (<=2 or >=9), V2 for favorable (3-8)."""
+    if regime_score <= 2 or regime_score >= 9:
+        return "v3"
+    return "v2"
+
+
 STRATEGY = "baseline"
 TOP_N = 10
 HOLD_DAYS = 3
@@ -52,6 +70,12 @@ WEIGHT_FILES = {
     "v2":  "/workspaces/BlueHorseshoe/src/weights_v2.json",
     "v3":  "/workspaces/BlueHorseshoe/src/weights_v3.json",
     "v31": "/workspaces/BlueHorseshoe/src/weights_v31.json",
+    "adaptive": None,  # Uses V2 or V3 per-date based on regime score
+}
+
+ADAPTIVE_WEIGHT_FILES = {
+    "v2": "/workspaces/BlueHorseshoe/src/weights_v2_full.json",
+    "v3": "/workspaces/BlueHorseshoe/src/weights_v3.json",
 }
 
 OUTPUT_DIR = Path("/workspaces/BlueHorseshoe/src/logs")
@@ -209,18 +233,43 @@ def print_overall_summary(csv_path: Path) -> None:
 def main():
     parser = argparse.ArgumentParser(description="Resilient clean backtest runner")
     parser.add_argument(
-        "--version", required=True, choices=["v2", "v3", "v31"],
-        help="Weight version to backtest (v2, v3, v31)",
+        "--version", required=True, choices=["v2", "v3", "v31", "adaptive"],
+        help="Weight version to backtest (v2, v3, v31, adaptive)",
     )
     args = parser.parse_args()
 
     version = args.version
-    weights_path = WEIGHT_FILES[version]
+    is_adaptive = version == "adaptive"
     csv_path = output_path(version)
     target_dates = load_target_dates()
 
-    print(f"Clean Backtest Runner — version {version.upper()}")
-    print(f"  Weights file:  {weights_path}")
+    from bluehorseshoe.core.config import weights_config
+
+    if is_adaptive:
+        regime_scores = load_regime_scores()
+        # Pre-load both weight sets
+        adaptive_weights = {}
+        for label, path in ADAPTIVE_WEIGHT_FILES.items():
+            if not os.path.exists(path):
+                print(f"ERROR: Adaptive weights file not found: {path}")
+                sys.exit(1)
+            with open(path, "r", encoding="utf-8") as f:
+                adaptive_weights[label] = json.load(f)
+        print(f"Clean Backtest Runner — version ADAPTIVE")
+        print(f"  V2 weights:    {ADAPTIVE_WEIGHT_FILES['v2']}")
+        print(f"  V3 weights:    {ADAPTIVE_WEIGHT_FILES['v3']}")
+        print(f"  Rule:          V3 for score<=2 or >=9, V2 for 3-8")
+    else:
+        weights_path = WEIGHT_FILES[version]
+        if not os.path.exists(weights_path):
+            print(f"ERROR: Weights file not found: {weights_path}")
+            sys.exit(1)
+        with open(weights_path, "r", encoding="utf-8") as f:
+            new_weights = json.load(f)
+        weights_config._weights = new_weights
+        print(f"Clean Backtest Runner — version {version.upper()}")
+        print(f"  Weights file:  {weights_path}")
+
     print(f"  Output CSV:    {csv_path}")
     print(f"  Strategy:      {STRATEGY}")
     print(f"  Top N:         {TOP_N}")
@@ -228,18 +277,6 @@ def main():
     print(f"  Split-exit:    t1_pct={SPLIT_T1_PCT}")
     print(f"  Dates:         {len(target_dates)}")
     print(flush=True)
-
-    # 1. Load and patch weights
-    if not os.path.exists(weights_path):
-        print(f"ERROR: Weights file not found: {weights_path}")
-        sys.exit(1)
-
-    with open(weights_path, "r", encoding="utf-8") as f:
-        new_weights = json.load(f)
-
-    from bluehorseshoe.core.config import weights_config
-    weights_config._weights = new_weights
-    print(f"  Weights patched from {weights_path}", flush=True)
 
     # 2. Initialize backtester
     from bluehorseshoe.analysis.backtest import (
@@ -306,7 +343,13 @@ def main():
         )
 
         # Re-patch weights (safety: in case anything reloads them)
-        weights_config._weights = new_weights
+        if is_adaptive:
+            score = regime_scores.get(target_date, 5)
+            chosen = select_adaptive_version(score)
+            weights_config._weights = adaptive_weights[chosen]
+            print(f"  regime={score} -> {chosen.upper()} weights", flush=True)
+        else:
+            weights_config._weights = new_weights
 
         # Generate predictions
         predictions = backtester._generate_predictions(symbols, target_date, options)

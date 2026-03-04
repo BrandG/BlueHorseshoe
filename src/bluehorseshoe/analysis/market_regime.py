@@ -141,5 +141,6 @@ class MarketRegime:
         return {
             'status': status,
             'multiplier': multiplier,
+            'score': total_score,
             'details': health_data
         }
