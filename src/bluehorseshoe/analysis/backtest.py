@@ -16,6 +16,7 @@ from dataclasses import dataclass
 from typing import Optional, List, Dict
 import pandas as pd
 from bluehorseshoe.analysis.strategy import SwingTrader, StrategyContext
+from bluehorseshoe.core.scores import ScoreManager
 from bluehorseshoe.core.symbols import get_symbol_name_list
 from bluehorseshoe.data.historical_data import load_historical_data
 from bluehorseshoe.reporting.report_generator import ReportSingleton
@@ -39,6 +40,7 @@ class BacktestOptions:
     aggregation: str = "sum"
     symbols: Optional[List[str]] = None
     max_workers: Optional[int] = None  # Thread pool size for predictions; None = auto
+    use_saved_scores: bool = True  # Load from MongoDB; False = recalculate fresh
 
 @dataclass
 class TradeState:
@@ -101,6 +103,7 @@ class Backtester:
             config = BacktestConfig()
         self.database = database
         self.trader = SwingTrader(database=database)
+        self.score_manager = ScoreManager(database=database) if database is not None else None
         self.config = config
         # Expose config attributes
         self.hold_days = config.hold_days
@@ -560,6 +563,43 @@ class Backtester:
         print(f" Done ({len(symbols)} symbols).", flush=True)
         return symbols
 
+    def _load_saved_predictions(self, target_date: str, options: BacktestOptions) -> Optional[List[Dict]]:
+        """Load pre-computed scores from MongoDB instead of recalculating."""
+        if self.score_manager is None:
+            return None
+
+        strategy_name = "baseline" if options.strategy == "baseline" else "mean_reversion"
+        scores = self.score_manager.get_scores(target_date, strategy=strategy_name)
+
+        if not scores:
+            return None
+
+        score_key = "baseline_score" if options.strategy == "baseline" else "mr_score"
+        setup_key = "baseline_setup" if options.strategy == "baseline" else "mr_setup"
+        ml_prob_key = "baseline_ml_prob" if options.strategy == "baseline" else "mr_ml_prob"
+
+        predictions = []
+        for s in scores:
+            meta = s.get('metadata', {})
+            entry = meta.get('entry_price')
+            if not entry:
+                continue
+            predictions.append({
+                'symbol': s['symbol'],
+                score_key: s['score'],
+                setup_key: {
+                    'entry_price': entry,
+                    'stop_loss': meta.get('stop_loss', 0),
+                    'take_profit': meta.get('take_profit', 0),
+                },
+                ml_prob_key: meta.get('ml_win_prob', 0.0),
+                'stop_multiplier': meta.get('stop_multiplier', 2.0),
+                'target_multiplier': meta.get('target_multiplier', 3.0),
+            })
+
+        logging.info("Loaded %d saved %s scores for %s", len(predictions), options.strategy, target_date)
+        return predictions
+
     def _generate_predictions(self, symbols: List[str], target_date: str, options: BacktestOptions) -> List[Dict]:
         import gc
         max_workers = options.max_workers or min(8, os.cpu_count() or 4)
@@ -728,11 +768,19 @@ class Backtester:
 
         self._print_backtest_header(target_date, options)
 
-        symbols = options.symbols
-        if not symbols:
-            symbols = self._load_symbols()
+        predictions = None
+        if options.use_saved_scores:
+            predictions = self._load_saved_predictions(target_date, options)
+            if predictions:
+                print(f"  > Loaded {len(predictions)} saved scores for {target_date} (skipping re-scoring)")
+            else:
+                print(f"  > No saved scores for {target_date}, falling back to fresh calculation...")
 
-        predictions = self._generate_predictions(symbols, target_date, options)
+        if predictions is None:
+            symbols = options.symbols
+            if not symbols:
+                symbols = self._load_symbols()
+            predictions = self._generate_predictions(symbols, target_date, options)
 
         top_predictions = self._filter_and_sort_predictions(predictions, options)
 

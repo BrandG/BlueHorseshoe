@@ -497,12 +497,14 @@ if __name__ == "__main__":
                     symbols_filter = [s.strip() for s in sys.argv[sys.argv.index("--symbols") + 1].split(",")]
 
                 bt_max_workers = int(sys.argv[sys.argv.index("--workers") + 1]) if "--workers" in sys.argv else None
+                use_saved_scores = "--rescore" not in sys.argv
                 options = BacktestOptions(
                     strategy=strategy,
                     enabled_indicators=enabled_indicators,
                     aggregation=aggregation,
                     symbols=symbols_filter,
                     max_workers=bt_max_workers,
+                    use_saved_scores=use_saved_scores,
                 )
 
                 # Split-exit mode (defaults to atr_tiered / Plan B)
