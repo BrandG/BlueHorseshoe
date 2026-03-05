@@ -1,11 +1,29 @@
 # Session Handoff
 
-**Date:** March 4, 2026
-**Status:** Regime-adaptive weight experiment complete. V3 remains production. No active research droplets.
+**Date:** March 5, 2026
+**Status:** Score-once backtest refactor shipped. V3 weights remain production. No active research droplets.
 
 ---
 
-## What Was Done This Session (March 4)
+## What Was Done This Session (March 5)
+
+1. **Score-once, backtest-separately refactor** (`bd27559`)
+   - Backtests now load pre-computed scores from MongoDB by default instead of re-scoring all ~6,400 symbols
+   - Single-date backtests drop from ~22 min to ~2-3 seconds; range backtests scale linearly
+   - Falls back to fresh `_generate_predictions()` when no saved scores exist for a date
+   - Added `--rescore` CLI flag to force fresh calculation when needed
+   - Changes: `backtest.py` (new `_load_saved_predictions()`, modified `run_backtest()`, `BacktestOptions.use_saved_scores`), `main.py` (`--rescore` flag)
+   - 7 new tests in `test_backtest_saved_scores.py`, all 210 tests passing
+
+### Verified Results
+   - `2026-02-25 baseline`: Loaded 388 saved scores, 4/8 profitable (50%), +0.14% avg PnL — **2.68 sec**
+   - `2026-02-25 mean_reversion`: Loaded 795 saved scores, 5/9 profitable (55.56%), +0.45% avg PnL — **2.77 sec**
+   - Range backtest `2026-02-10 → 2026-02-25` (3 dates): 16 trades, 56.25% WR, +11.98% cumulative — **6.30 sec**
+   - `--rescore` flag verified: bypasses saved scores, recalculates fresh
+
+---
+
+## Previous Session (March 4)
 
 1. **Built regime-adaptive weight selection infrastructure** (`f3ac5d7`)
    - Exposed raw regime score (0-10) in `market_regime.get_market_health()`
@@ -38,7 +56,7 @@
 
 ---
 
-## Previous Session (March 3, Session 2)
+## Earlier Session (March 3, Session 2)
 
 1. **V3.1 backtest completed** — 30/30 dates, V3 won decisively
 2. **Deployed V3 weights to production** (`568b4ae`)
@@ -124,8 +142,8 @@ docker exec bluehorseshoe ./lint.sh                    # Lint
 ## Git Status
 
 **Branch:** master
-**Latest pushed commit:** `f3ac5d7` — feat: Add regime-adaptive weight selection infrastructure
+**Latest pushed commit:** `bd27559` — feat: Load saved scores in backtest instead of re-scoring all symbols
 
 ---
 
-**Last Updated:** March 4, 2026
+**Last Updated:** March 5, 2026

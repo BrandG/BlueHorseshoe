@@ -19,8 +19,16 @@
 - Reference weights preserved: `src/weights_v2.json`, `src/weights_v3.json`
 
 ### Speed optimization and refactoring
-- Split scoring from backtesting. This is the biggest pain point. Right now, a backtest re-scores all 6,000+ symbols from scratch every time. I'd score once and persist the results, then backtest by replaying against stored scores. That single-date test we're waiting on right now? It should take seconds, not an hour. You'd have a scores table and a separate backtest engine that just reads scores and simulates exits against OHLCV data.
 
+#### Score-Once Backtest — DONE
+- ~~Split scoring from backtesting~~ ✅ (`bd27559`)
+  - Backtests now load saved scores from MongoDB's `trade_scores` collection by default
+  - Single-date backtests: ~22 min → ~2-3 sec; range backtests scale linearly
+  - Falls back to fresh `_generate_predictions()` when no saved scores exist
+  - `--rescore` CLI flag forces fresh re-scoring when needed
+  - 7 new tests, 210 total passing
+
+#### Remaining
 - Vectorized backtesting. Instead of looping through symbols one at a time in Python, process all trades as a DataFrame. Entry prices, stop levels, targets — they're all just columns. Each day's OHLCV gets compared against all open positions at once with numpy operations. What currently takes an hour could take seconds.
 
 - Better data provider. Alpha Vantage rate limiting is a constant bottleneck. I'd abstract the data layer so you could swap providers. Polygon.io, Tiingo, or even Yahoo Finance for backtesting purposes — any of them would give you bulk historical data without the 2-calls-per-second constraint.
