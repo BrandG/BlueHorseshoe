@@ -569,7 +569,7 @@ class SwingTrader:
             if not pd.isna(rsi_2[-1]) and not pd.isna(sma_200.iloc[-1]):
                 connors_rsi2 = float(rsi_2[-1])
                 connors_sma200 = float(sma_200.iloc[-1])
-                connors_flag = connors_rsi2 < 10 and df['close'].iloc[-1] > connors_sma200
+                connors_flag = bool(connors_rsi2 < 10 and df['close'].iloc[-1] > connors_sma200)
 
         # 4. Finalize Result
         rs_ratio = 1.0
@@ -1613,7 +1613,7 @@ def _score_symbol_worker(work_item):
             if not pd.isna(rsi_2[-1]) and not pd.isna(sma_200.iloc[-1]):
                 connors_rsi2 = float(rsi_2[-1])
                 connors_sma200 = float(sma_200.iloc[-1])
-                connors_flag = connors_rsi2 < 10 and df['close'].iloc[-1] > connors_sma200
+                connors_flag = bool(connors_rsi2 < 10 and df['close'].iloc[-1] > connors_sma200)
 
         # --- Assemble result (same structure as process_symbol) ---
         rs_ratio = 1.0
