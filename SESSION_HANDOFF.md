@@ -20,6 +20,7 @@
    - `2026-02-25 mean_reversion`: Loaded 795 saved scores, 5/9 profitable (55.56%), +0.45% avg PnL — **2.77 sec**
    - Range backtest `2026-02-10 → 2026-02-25` (3 dates): 16 trades, 56.25% WR, +11.98% cumulative — **6.30 sec**
    - `--rescore` flag verified: bypasses saved scores, recalculates fresh
+   - Range backtest `2026-02-03 → 2026-02-25` MR attempted: 02-03 had no saved scores, triggered fallback (full re-score ~22 min). Killed early — confirms dates without saved scores still work but take the old ~22 min per date. Dates with saved scores in the same range complete instantly.
 
 ---
 
