@@ -558,14 +558,18 @@ class SwingTrader:
         if not baseline_data and not mr_data:
             return None
 
-        # 3. Connors RSI(2) flag for mean reversion candidates
+        # 3. Connors RSI(2) flag — computed for ALL symbols with enough data
         connors_flag = False
-        if mr_data and len(df) >= 200:
+        connors_rsi2 = None
+        connors_sma200 = None
+        if len(df) >= 200:
             import talib as ta
             rsi_2 = ta.RSI(df['close'].values, timeperiod=2)
             sma_200 = df['close'].rolling(200).mean()
             if not pd.isna(rsi_2[-1]) and not pd.isna(sma_200.iloc[-1]):
-                connors_flag = rsi_2[-1] < 10 and df['close'].iloc[-1] > sma_200.iloc[-1]
+                connors_rsi2 = float(rsi_2[-1])
+                connors_sma200 = float(sma_200.iloc[-1])
+                connors_flag = connors_rsi2 < 10 and df['close'].iloc[-1] > connors_sma200
 
         # 4. Finalize Result
         rs_ratio = 1.0
@@ -586,7 +590,9 @@ class SwingTrader:
             'mr_components': mr_data['components'] if mr_data else {},
             'mr_setup': mr_data['setup'] if mr_data else {},
             'mr_ml_prob': mr_data['ml_prob'] if mr_data else 0.0,
-            'connors_flag': connors_flag
+            'connors_flag': connors_flag,
+            'connors_rsi2': connors_rsi2,
+            'connors_sma200': connors_sma200
         }
         logging.info("Processed %s with results Baseline: %.2f, MR: %.2f", symbol, ret_val['baseline_score'], ret_val['mr_score'])
         return ret_val
@@ -932,7 +938,10 @@ class SwingTrader:
                         "target_multiplier": r.get("target_multiplier", 3.0),
                         "components": r["baseline_components"],
                         "atr_discount_used": setup.get("atr_discount_used", 0.20),
-                        "signal_strength": setup.get("signal_strength", "MEDIUM")
+                        "signal_strength": setup.get("signal_strength", "MEDIUM"),
+                        "connors_flag": r.get("connors_flag", False),
+                        "connors_rsi2": r.get("connors_rsi2"),
+                        "connors_sma200": r.get("connors_sma200"),
                     }
                 })
             if r['mr_score'] > 0:
@@ -950,7 +959,10 @@ class SwingTrader:
                         "ml_win_prob": r["mr_ml_prob"],
                         "stop_multiplier": r.get("stop_multiplier", 1.5),
                         "target_multiplier": r.get("target_multiplier", 2.0),
-                        "components": r["mr_components"]
+                        "components": r["mr_components"],
+                        "connors_flag": r.get("connors_flag", False),
+                        "connors_rsi2": r.get("connors_rsi2"),
+                        "connors_sma200": r.get("connors_sma200"),
                     }
                 })
         return score_data
@@ -1147,6 +1159,38 @@ class SwingTrader:
                     "connors_flag": r.get("connors_flag", False)
                 })
 
+        # Build Connors RSI(2) candidates — scanned from full universe independently
+        connors_candidates = []
+        for r in valid_results:
+            if not r.get('connors_flag'):
+                continue
+            # Prefer MR setup data, fall back to baseline
+            if r['mr_score'] > 0:
+                setup = r['mr_setup']
+                score = r['mr_score']
+            elif r['baseline_score'] > 0:
+                setup = r['baseline_setup']
+                score = r['baseline_score']
+            else:
+                continue
+            entry_price = setup.get("entry_price", 0)
+            connors_candidates.append({
+                "symbol": r["symbol"],
+                "exchange": r.get("exchange", "Unknown"),
+                "strategy": "Connors",
+                "score": score,
+                "close": entry_price,
+                "stop_loss": setup.get("stop_loss", 0),
+                "t1_target": entry_price * 1.02 if entry_price > 0 else 0,
+                "target": setup.get("take_profit", 0),
+                "ml_prob": r.get("mr_ml_prob", 0.0) or r.get("baseline_ml_prob", 0.0),
+                "sentiment": r.get("sentiment", 0.0),
+                "connors_rsi2": r.get("connors_rsi2"),
+                "connors_sma200": r.get("connors_sma200"),
+                "reasons": [f"RSI2={r.get('connors_rsi2', 0):.1f}", f"SMA200={r.get('connors_sma200', 0):.1f}"]
+            })
+        connors_candidates = sorted(connors_candidates, key=lambda x: x['score'], reverse=True)[:10]
+
         # Take top 25 from each strategy so one can't crowd out the other
         baseline_cands = sorted(
             [c for c in candidates if c['strategy'] == 'Baseline'],
@@ -1157,7 +1201,7 @@ class SwingTrader:
             key=lambda x: x['score'], reverse=True
         )[:25]
         top_candidates = sorted(
-            baseline_cands + mr_cands,
+            baseline_cands + mr_cands + connors_candidates,
             key=lambda x: x['score'], reverse=True
         )
 
@@ -1558,6 +1602,19 @@ def _score_symbol_worker(work_item):
         if not baseline_data and not mr_data:
             return None
 
+        # --- Connors RSI(2) flag — computed for ALL symbols with enough data ---
+        connors_flag = False
+        connors_rsi2 = None
+        connors_sma200 = None
+        if len(df) >= 200:
+            import talib as ta
+            rsi_2 = ta.RSI(df['close'].values, timeperiod=2)
+            sma_200 = df['close'].rolling(200).mean()
+            if not pd.isna(rsi_2[-1]) and not pd.isna(sma_200.iloc[-1]):
+                connors_rsi2 = float(rsi_2[-1])
+                connors_sma200 = float(sma_200.iloc[-1])
+                connors_flag = connors_rsi2 < 10 and df['close'].iloc[-1] > connors_sma200
+
         # --- Assemble result (same structure as process_symbol) ---
         rs_ratio = 1.0
         if benchmark_df is not None:
@@ -1578,6 +1635,9 @@ def _score_symbol_worker(work_item):
             'mr_setup': mr_data['setup'] if mr_data else {},
             'mr_ml_prob': mr_data['ml_prob'] if mr_data else 0.0,
             'sentiment': sentiment,
+            'connors_flag': connors_flag,
+            'connors_rsi2': connors_rsi2,
+            'connors_sma200': connors_sma200,
         }
         logging.info("Scored %s: Baseline=%.2f, MR=%.2f",
                      symbol, result['baseline_score'], result['mr_score'])

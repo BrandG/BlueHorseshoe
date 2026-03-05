@@ -340,7 +340,7 @@ class HTMLReporter:
         
         summary_html = f"""
             <div class='top-list-row'>
-                <span><a href='{url}' target='_blank' class='symbol-link'><b>{symbol}</b></a>{"<span title='Connors RSI(2) Setup' style='color:gold'>&#9733;</span>" if c.get('connors_flag') else ""}:<small>{c.get('exchange','UNK')}</small></span>
+                <span><a href='{url}' target='_blank' class='symbol-link'><b>{symbol}</b></a>:<small>{c.get('exchange','UNK')}</small></span>
                 <span><b>{c['score']:.1f}</b></span>
                 <span style='color:#777'>{attitude}</span>
                 <span>{price_info}</span>
@@ -450,6 +450,38 @@ class HTMLReporter:
             html.append("<div class='top-list-row'>No candidates found.</div>")
 
         html.append("</div></div>")
+
+        # Connors RSI(2) Setups Section
+        connors_top = [c for c in candidates if c.get('strategy') == 'Connors']
+        html.append("<h2>Connors RSI(2) Setups</h2>")
+        if connors_top:
+            html.append("<table>")
+            html.append("<tr><th>Symbol</th><th>RSI(2)</th><th>Price vs SMA200</th><th>Entry</th><th>Stop</th><th>Target</th><th>Score</th></tr>")
+            for c in connors_top:
+                symbol = c['symbol']
+                url = f"https://finance.yahoo.com/quote/{symbol}"
+                rsi2 = c.get('connors_rsi2', 0) or 0
+                sma200 = c.get('connors_sma200', 0) or 0
+                entry = c.get('close', 0)
+                stop = c.get('stop_loss', 0)
+                target = c.get('target', 0)
+                score = c.get('score', 0)
+                pct_above = ((entry - sma200) / sma200 * 100) if sma200 else 0
+                stop_pct = ((stop - entry) / entry * 100) if entry else 0
+                target_pct = ((target - entry) / entry * 100) if entry else 0
+
+                html.append("<tr>")
+                html.append(f"<td><a href='{url}' target='_blank' class='symbol-link'><strong>{symbol}</strong></a></td>")
+                html.append(f"<td style='color:#c0392b;font-weight:bold'>{rsi2:.1f}</td>")
+                html.append(f"<td>{pct_above:+.1f}% above</td>")
+                html.append(f"<td>${entry:.2f}</td>")
+                html.append(f"<td style='color:#c0392b'>${stop:.2f} <small>({stop_pct:.1f}%)</small></td>")
+                html.append(f"<td style='color:#27ae60'>${target:.2f} <small>(+{target_pct:.1f}%)</small></td>")
+                html.append(f"<td>{score:.1f}</td>")
+                html.append("</tr>")
+            html.append("</table>")
+        else:
+            html.append("<p style='color:#777'>No Connors RSI(2) setups today.</p>")
 
         # Previous Performance Section
         if previous_performance and previous_performance.get('results'):
@@ -714,6 +746,40 @@ class HTMLReporter:
 
         html.append("</div>")
 
+        # Connors RSI(2) Setups Section
+        connors_top = [c for c in candidates if c.get('strategy') == 'Connors']
+        html.append("<div class='strategy-section'>")
+        html.append("<h3>Connors RSI(2) Setups</h3>")
+        if connors_top:
+            html.append("<table>")
+            html.append("<tr><th>Symbol</th><th>RSI(2)</th><th>Price vs SMA200</th><th>Entry</th><th>Stop</th><th>Target</th><th>Score</th></tr>")
+            for c in connors_top:
+                symbol = c['symbol']
+                url = f"https://finance.yahoo.com/quote/{symbol}"
+                rsi2 = c.get('connors_rsi2', 0) or 0
+                sma200 = c.get('connors_sma200', 0) or 0
+                entry = c.get('close', 0)
+                stop = c.get('stop_loss', 0)
+                target = c.get('target', 0)
+                score = c.get('score', 0)
+                pct_above = ((entry - sma200) / sma200 * 100) if sma200 else 0
+                stop_pct = ((stop - entry) / entry * 100) if entry else 0
+                target_pct = ((target - entry) / entry * 100) if entry else 0
+
+                html.append("<tr>")
+                html.append(f"<td><a href='{url}' target='_blank'><strong>{symbol}</strong></a></td>")
+                html.append(f"<td style='color:#c0392b;font-weight:bold'>{rsi2:.1f}</td>")
+                html.append(f"<td>{pct_above:+.1f}% above</td>")
+                html.append(f"<td>${entry:.2f}</td>")
+                html.append(f"<td style='color:#c0392b'>${stop:.2f} <small>({stop_pct:.1f}%)</small></td>")
+                html.append(f"<td style='color:#27ae60'>${target:.2f} <small>(+{target_pct:.1f}%)</small></td>")
+                html.append(f"<td>{score:.1f}</td>")
+                html.append("</tr>")
+            html.append("</table>")
+        else:
+            html.append("<p>No Connors RSI(2) setups today.</p>")
+        html.append("</div>")
+
         # Previous Performance Section
         if previous_performance and previous_performance.get('results'):
             prev_date = previous_performance.get('date', 'Unknown')
@@ -923,7 +989,7 @@ class HTMLReporter:
         # Prepare candidates for JSON serialization
         report_candidates = []
         for c in candidates:
-            report_candidates.append({
+            rc = {
                 'symbol': c.get('symbol', '???'),
                 'exchange': c.get('exchange', ''),
                 'strategy': c.get('strategy', 'Baseline'),
@@ -936,7 +1002,12 @@ class HTMLReporter:
                 'sentiment': float(c.get('sentiment', 0)),
                 'reasons': c.get('reasons', []),
                 'components': {},
-            })
+            }
+            if c.get('connors_rsi2') is not None:
+                rc['connors_rsi2'] = float(c['connors_rsi2'])
+            if c.get('connors_sma200') is not None:
+                rc['connors_sma200'] = float(c['connors_sma200'])
+            report_candidates.append(rc)
         report_candidates.sort(key=lambda x: x['score'], reverse=True)
 
         # Prepare regime data
@@ -1166,6 +1237,7 @@ body::after {
 .strategy-badge { font-size: 0.6rem; padding: 2px 4px; border: 1px solid; letter-spacing: 0; }
 .strategy-badge.baseline { color: var(--neon-green); border-color: var(--neon-green-dim); background: rgba(57,255,20,0.08); }
 .strategy-badge.meanrev { color: var(--neon-purple); border-color: rgba(191,64,255,0.4); background: rgba(191,64,255,0.08); }
+.strategy-badge.connors { color: var(--neon-amber); border-color: var(--neon-amber-dim); background: rgba(255,170,0,0.08); }
 .col-score { display: flex; align-items: center; gap: 6px; }
 .health-bar { width: 60px; height: 12px; background: var(--pixel-dark); border: 1px solid var(--pixel-gray); position: relative; overflow: hidden; }
 .health-bar-fill { height: 100%; transition: width 0.5s ease-out; image-rendering: pixelated; }
@@ -1324,6 +1396,7 @@ function normalizeStrategy(s) {
   if (!s) return 'Baseline';
   const lower = s.toLowerCase();
   if (lower.includes('mean') || lower.includes('reversion') || lower === 'meanrev') return 'MeanRev';
+  if (lower === 'connors') return 'Connors';
   return 'Baseline';
 }
 
@@ -1382,8 +1455,8 @@ function renderLeaderboard() {
     const mlColor = mlPct >= 70 ? 'green' : mlPct >= 50 ? 'amber' : 'red';
     const mlTextClass = mlPct >= 70 ? 'score-high' : mlPct >= 50 ? 'score-mid' : 'score-low';
     const rankClass = rank <= 3 ? 'rank-' + rank : '';
-    const stratClass = c.strategy === 'MeanRev' ? 'meanrev' : 'baseline';
-    const stratLabel = c.strategy === 'MeanRev' ? 'MR' : 'BL';
+    const stratClass = c.strategy === 'Connors' ? 'connors' : c.strategy === 'MeanRev' ? 'meanrev' : 'baseline';
+    const stratLabel = c.strategy === 'Connors' ? 'CR' : c.strategy === 'MeanRev' ? 'MR' : 'BL';
     const sent = c.sentiment || 0;
     const sentClass = sent === 0 ? 'sent-neutral' : sent > 0.15 ? 'sent-bull' : sent < -0.15 ? 'sent-bear' : 'sent-neutral';
     const sentLabel = sent === 0 ? 'N/A' : (sent > 0 ? '\u25B2' : '\u25BC') + sent.toFixed(2);
@@ -1466,6 +1539,12 @@ function buildDetailHTML(c) {
     '<button class="arcade-btn btn-pink" style="font-size:0.7rem;padding:5px 10px" onclick="event.stopPropagation();openCalcForSymbol(\'' + c.symbol + '\',' + c.close + ',' + c.stop_loss + ',' + c.target + ')">CALC SHARES</button>' +
     '<a href="https://finance.yahoo.com/quote/' + c.symbol + '" target="_blank" rel="noopener" class="arcade-btn btn-blue" style="font-size:0.7rem;padding:5px 10px;text-decoration:none;display:inline-block;margin-left:4px">YAHOO</a></div></div>' +
     '<div class="detail-section"><div class="detail-section-title">POWER LEVELS</div>' +
+    (c.strategy === 'Connors' && c.connors_rsi2 !== undefined ?
+      '<div style="display:flex;gap:20px;margin-bottom:10px;font-size:0.7rem;">' +
+      '<span style="color:var(--neon-amber)">RSI(2): ' + c.connors_rsi2.toFixed(1) + '</span>' +
+      (c.connors_sma200 ? '<span style="color:var(--neon-blue)">SMA200: $' + c.connors_sma200.toFixed(2) + '</span>' +
+      '<span style="color:var(--neon-green)">' + ((c.close - c.connors_sma200) / c.connors_sma200 * 100).toFixed(1) + '% above</span>' : '') +
+      '</div>' : '') +
     (indicatorBars || '<div style="font-size:0.7rem;color:var(--pixel-gray)">No component data available</div>') +
     '</div></div>';
 }
@@ -1655,8 +1734,8 @@ function renderPortfolioTable(results) {
     return;
   }
   body.innerHTML = results.map(function(r, i) {
-    var stratClass = r.strategy === 'MeanRev' ? 'meanrev' : 'baseline';
-    var stratLabel = r.strategy === 'MeanRev' ? 'MR' : 'BL';
+    var stratClass = r.strategy === 'Connors' ? 'connors' : r.strategy === 'MeanRev' ? 'meanrev' : 'baseline';
+    var stratLabel = r.strategy === 'Connors' ? 'CR' : r.strategy === 'MeanRev' ? 'MR' : 'BL';
     var t1Val = r.t1_target ? '$' + r.t1_target.toFixed(2) : '---';
     return '<div class="portfolio-table-row">' +
       '<div class="portfolio-col-rank">' + String(i + 1).padStart(2, '0') + '</div>' +
@@ -1751,6 +1830,7 @@ document.addEventListener('DOMContentLoaded', function() {
             '<button class="strategy-tab active" data-filter="all" onclick="filterStrategy(\'all\', this)">ALL</button>',
             '<button class="strategy-tab" data-filter="Baseline" onclick="filterStrategy(\'Baseline\', this)">BASELINE</button>',
             '<button class="strategy-tab" data-filter="MeanRev" onclick="filterStrategy(\'MeanRev\', this)">MEAN REV</button>',
+            '<button class="strategy-tab" data-filter="Connors" onclick="filterStrategy(\'Connors\', this)">CONNORS</button>',
             '</div>',
 
             # Leaderboard

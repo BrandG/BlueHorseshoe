@@ -342,9 +342,68 @@ if __name__ == "__main__":
                     "reasons": [f"{k}={v:.1f}" for k, v in meta.get('components', {}).items() if v != 0]
                 })
 
+            # Build Connors candidates from persisted metadata
+            connors_seen = set()
+            connors_candidates = []
+            # Prefer MR scores (processed second, so iterate them first)
+            for s in mr_scores:
+                meta = s.get('metadata', {})
+                if not meta.get('connors_flag'):
+                    continue
+                sym = s['symbol']
+                if sym in connors_seen:
+                    continue
+                connors_seen.add(sym)
+                entry_price = meta.get('entry_price', 0)
+                if sym not in sentiment_cache:
+                    sentiment_cache[sym] = get_sentiment_score(sym, target_date, database=ctx.db)
+                connors_candidates.append({
+                    "symbol": sym,
+                    "exchange": symbol_map.get(sym, 'Unknown'),
+                    "strategy": "Connors",
+                    "score": s['score'],
+                    "close": entry_price,
+                    "stop_loss": meta.get('stop_loss', 0),
+                    "t1_target": entry_price * 1.02 if entry_price > 0 else 0,
+                    "target": meta.get('take_profit', 0),
+                    "ml_prob": meta.get('ml_win_prob', 0.0),
+                    "sentiment": sentiment_cache[sym],
+                    "connors_rsi2": meta.get('connors_rsi2'),
+                    "connors_sma200": meta.get('connors_sma200'),
+                    "reasons": [f"{k}={v:.1f}" for k, v in meta.get('components', {}).items() if v != 0]
+                })
+            for s in baseline_scores:
+                meta = s.get('metadata', {})
+                if not meta.get('connors_flag'):
+                    continue
+                sym = s['symbol']
+                if sym in connors_seen:
+                    continue
+                connors_seen.add(sym)
+                entry_price = meta.get('entry_price', 0)
+                if sym not in sentiment_cache:
+                    sentiment_cache[sym] = get_sentiment_score(sym, target_date, database=ctx.db)
+                connors_candidates.append({
+                    "symbol": sym,
+                    "exchange": symbol_map.get(sym, 'Unknown'),
+                    "strategy": "Connors",
+                    "score": s['score'],
+                    "close": entry_price,
+                    "stop_loss": meta.get('stop_loss', 0),
+                    "t1_target": entry_price * 1.02 if entry_price > 0 else 0,
+                    "target": meta.get('take_profit', 0),
+                    "ml_prob": meta.get('ml_win_prob', 0.0),
+                    "sentiment": sentiment_cache[sym],
+                    "connors_rsi2": meta.get('connors_rsi2'),
+                    "connors_sma200": meta.get('connors_sma200'),
+                    "reasons": [f"{k}={v:.1f}" for k, v in meta.get('components', {}).items() if v != 0]
+                })
+            connors_candidates.sort(key=lambda x: x['score'], reverse=True)
+            connors_candidates = connors_candidates[:10]
+
             # Sort and Limit
             candidates.sort(key=lambda x: x['score'], reverse=True)
-            top_candidates = candidates[:50]
+            top_candidates = candidates[:50] + connors_candidates
 
             # 5. Generate Report
             # Calculate previous day's performance
