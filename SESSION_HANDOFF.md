@@ -1,11 +1,36 @@
 # Session Handoff
 
-**Date:** March 5, 2026
-**Status:** Score-once backtest refactor shipped. V3 weights remain production. No active research droplets.
+**Date:** March 6, 2026
+**Status:** Vectorized backtesting shipped. V3 weights remain production. No active research droplets.
 
 ---
 
-## What Was Done This Session (March 5)
+## What Was Done This Session (March 6)
+
+1. **Vectorized backtesting** (`fdcf1b9`)
+   - Replaced per-symbol sequential evaluation in `_evaluate_candidates()` with bulk MongoDB aggregation + numpy simulation
+   - **Aggregation pipeline** with `$filter` prunes dates server-side (transfers ~2 future days per symbol instead of 6,600+ full history)
+   - **Numpy vectorized simulation** processes all N trades simultaneously per day-step (4ms for 10 trades vs seconds of `iterrows`)
+   - Supports both single-exit and split-exit (two-tranche) modes
+   - Sequential path preserved as fallback when `database=None` (file-based tests, LOO analyzer)
+   - Changes: `backtest.py` (5 new methods: `_bulk_load_price_data`, `_vectorized_simulate_single_exit`, `_vectorized_simulate_split_exit`, `_evaluate_candidates_vectorized`, dispatch in `_evaluate_candidates`)
+   - 24 new tests in `test_backtest_vectorized.py`, all 278 tests passing, lint clean
+
+### Benchmark Results
+
+| Component | Sequential | Vectorized | Speedup |
+|---|---|---|---|
+| Data loading (10 symbols) | 601ms (10x `find_one`, full docs) | 95ms (1x `aggregate`, filtered) | **6.3x** |
+| Simulation | ~700ms (`iterrows` loops) | 2.9ms (numpy) | **~240x** |
+| **Single-date end-to-end** | **1,304ms** | **100ms** | **13x** |
+| **Range: 10 dates, 100 trades** | **14.37s** | **1.95s** | **7.4x** |
+
+- 0 mismatches across all 100 range backtest trades — identical results to sequential path
+- Key insight: original `find({$in})` was actually slower than individual `find_one()` calls because full 6,600-day docs transferred either way. The real win came from `$filter` in the aggregation pipeline.
+
+---
+
+## Previous Session (March 5)
 
 1. **Score-once, backtest-separately refactor** (`bd27559`)
    - Backtests now load pre-computed scores from MongoDB by default instead of re-scoring all ~6,400 symbols
@@ -149,7 +174,7 @@ docker exec bluehorseshoe ./lint.sh                    # Lint
 ## Git Status
 
 **Branch:** master
-**Latest pushed commit:** `2dc5ec1` — fix: Cast numpy.bool to native bool for BSON serialization in connors_flag
+**Latest pushed commit:** `fdcf1b9` — feat: Vectorized backtesting with bulk MongoDB load and numpy simulation
 
 ---
 
