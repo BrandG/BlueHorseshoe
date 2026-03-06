@@ -14,6 +14,7 @@ import concurrent.futures
 from functools import partial
 from dataclasses import dataclass
 from typing import Optional, List, Dict
+import numpy as np
 import pandas as pd
 from bluehorseshoe.analysis.strategy import SwingTrader, StrategyContext
 from bluehorseshoe.core.scores import ScoreManager
@@ -111,6 +112,52 @@ class Backtester:
         self.trailing_multiplier = config.trailing_multiplier
         self.target_profit_factor = config.target_profit_factor
         self.stop_loss_factor = config.stop_loss_factor
+
+    def _bulk_load_price_data(self, symbols, target_date):
+        """
+        Load future price data for multiple symbols using a MongoDB aggregation
+        pipeline that filters dates server-side to minimize data transfer.
+
+        Args:
+            symbols: List of stock symbols to load.
+            target_date: Analysis date string; returns data after this date.
+
+        Returns:
+            Dict mapping symbol -> DataFrame of future OHLCV data (sorted by date).
+        """
+        collection = self.database['historical_prices']
+
+        # Filter days server-side so we only transfer future data, not 6000+ full history records
+        pipeline = [
+            {"$match": {"symbol": {"$in": symbols}}},
+            {"$project": {
+                "symbol": 1,
+                "_id": 0,
+                "days": {
+                    "$filter": {
+                        "input": "$days",
+                        "as": "d",
+                        "cond": {"$gt": ["$$d.date", target_date]}
+                    }
+                }
+            }}
+        ]
+        cursor = collection.aggregate(pipeline)
+
+        result = {}
+        for doc in cursor:
+            sym = doc['symbol']
+            days = doc.get('days')
+            if not days:
+                continue
+            df = pd.DataFrame(days)
+            if df.empty:
+                continue
+            df['date'] = pd.to_datetime(df['date'])
+            future = df.sort_values('date').reset_index(drop=True)
+            if not future.empty:
+                result[sym] = future
+        return result
 
     def _check_entry(self, row, i, state):
         """Check if entry conditions are met."""
@@ -549,6 +596,597 @@ class Backtester:
 
         return result
 
+    # ------------------------------------------------------------------
+    # Vectorized simulation methods
+    # ------------------------------------------------------------------
+
+    def _vectorized_simulate_single_exit(self, predictions, price_data):
+        """
+        Simulate single-exit trades for all predictions simultaneously using numpy.
+
+        Args:
+            predictions: List of dicts with 'symbol', 'entry_price', 'stop_loss', 'take_profit'.
+            price_data: Dict mapping symbol -> DataFrame of future OHLCV data.
+
+        Returns:
+            List of result dicts (same schema as evaluate_prediction).
+        """
+        n = len(predictions)
+        if n == 0:
+            return []
+
+        # Status codes
+        PENDING, ACTIVE, STOPPED, SUCCESS, LIMIT_EXPIRED = 0, 1, 2, 3, 4
+        CLOSED_PROFIT, CLOSED_LOSS, NO_FUTURE_DATA = 5, 6, 7
+        STATUS_MAP = {
+            STOPPED: 'stopped_out', SUCCESS: 'success',
+            LIMIT_EXPIRED: 'limit_expired', CLOSED_PROFIT: 'closed_profit',
+            CLOSED_LOSS: 'closed_loss', NO_FUTURE_DATA: 'no_future_data',
+            PENDING: 'no_entry',
+        }
+
+        # Build trade parameter arrays
+        entry_prices = np.array([p['entry_price'] for p in predictions], dtype=np.float64)
+        stop_losses = np.array([p['stop_loss'] for p in predictions], dtype=np.float64)
+        take_profits = np.array([p['take_profit'] for p in predictions], dtype=np.float64)
+
+        # Determine max future days across all symbols
+        symbols = [p['symbol'] for p in predictions]
+        dfs = []
+        has_data = np.zeros(n, dtype=bool)
+        for idx, sym in enumerate(symbols):
+            if sym in price_data:
+                dfs.append(price_data[sym])
+                has_data[idx] = True
+            else:
+                dfs.append(None)
+
+        max_days = max((len(df) for df in dfs if df is not None), default=0)
+        if max_days == 0:
+            return [{'symbol': p['symbol'], 'status': 'no_future_data',
+                      'entry': None, 'exit_price': None, 'exit_date': None, 'days_held': 0}
+                     for p in predictions]
+
+        # Build price matrices (N x max_days), NaN-padded
+        opens = np.full((n, max_days), np.nan)
+        highs = np.full((n, max_days), np.nan)
+        lows = np.full((n, max_days), np.nan)
+        closes = np.full((n, max_days), np.nan)
+        # Store dates for exit_date reporting
+        dates = [[None] * max_days for _ in range(n)]
+
+        for idx in range(n):
+            df = dfs[idx]
+            if df is not None:
+                length = len(df)
+                opens[idx, :length] = df['open'].values
+                highs[idx, :length] = df['high'].values
+                lows[idx, :length] = df['low'].values
+                closes[idx, :length] = df['close'].values
+                for d in range(length):
+                    dates[idx][d] = df['date'].iloc[d]
+
+        valid = ~np.isnan(opens)  # N x max_days
+
+        # State arrays
+        status = np.full(n, PENDING, dtype=np.int8)
+        status[~has_data] = NO_FUTURE_DATA
+        actual_entry = np.full(n, np.nan)
+        exit_price = np.full(n, np.nan)
+        exit_day = np.full(n, -1, dtype=np.int32)
+        entry_day = np.full(n, -1, dtype=np.int32)
+
+        hold_days = self.hold_days
+
+        for d in range(max_days):
+            v = valid[:, d]
+            o = opens[:, d]
+            h = highs[:, d]
+            l = lows[:, d]
+            c = closes[:, d]
+
+            # --- PENDING trades: check for entry ---
+            pending = (status == PENDING) & v
+            if pending.any():
+                # Entry triggered: low <= entry_price
+                can_enter = pending & (l <= entry_prices)
+                if can_enter.any():
+                    # Slippage: actual_entry = min(open, entry_price)
+                    ae = np.where(o < entry_prices, o, entry_prices)
+
+                    # Check intraday stop (priority over target)
+                    intra_stop = can_enter & (l <= stop_losses)
+                    if intra_stop.any():
+                        sp = np.where(o < stop_losses, o, stop_losses)
+                        status[intra_stop] = STOPPED
+                        actual_entry[intra_stop] = ae[intra_stop]
+                        exit_price[intra_stop] = sp[intra_stop]
+                        exit_day[intra_stop] = d
+                        entry_day[intra_stop] = d
+
+                    # Check intraday target (only for trades not already stopped)
+                    still_entering = can_enter & (status == PENDING)
+                    intra_target = still_entering & (h >= take_profits)
+                    if intra_target.any():
+                        tp = np.where(o > take_profits, o, take_profits)
+                        status[intra_target] = SUCCESS
+                        actual_entry[intra_target] = ae[intra_target]
+                        exit_price[intra_target] = tp[intra_target]
+                        exit_day[intra_target] = d
+                        entry_day[intra_target] = d
+
+                    # Remaining entries become active
+                    newly_active = can_enter & (status == PENDING)
+                    if newly_active.any():
+                        status[newly_active] = ACTIVE
+                        actual_entry[newly_active] = ae[newly_active]
+                        entry_day[newly_active] = d
+
+                # Limit expired: no entry within hold_days
+                no_entry_expire = pending & ~can_enter & (d >= hold_days)
+                if no_entry_expire.any():
+                    status[no_entry_expire] = LIMIT_EXPIRED
+
+            # --- ACTIVE trades: check exit conditions ---
+            active = (status == ACTIVE) & v
+            if active.any():
+                # Stop loss (priority)
+                hit_stop = active & (l <= stop_losses)
+                if hit_stop.any():
+                    sp = np.where(o < stop_losses, o, stop_losses)
+                    status[hit_stop] = STOPPED
+                    exit_price[hit_stop] = sp[hit_stop]
+                    exit_day[hit_stop] = d
+
+                # Take profit (only if not already stopped this bar)
+                still_active = active & (status == ACTIVE)
+                hit_target = still_active & (h >= take_profits)
+                if hit_target.any():
+                    tp = np.where(o > take_profits, o, take_profits)
+                    status[hit_target] = SUCCESS
+                    exit_price[hit_target] = tp[hit_target]
+                    exit_day[hit_target] = d
+
+                # Time exit
+                still_active2 = active & (status == ACTIVE)
+                time_up = still_active2 & ((d - entry_day) >= hold_days)
+                if time_up.any():
+                    profit_exit = time_up & (c > actual_entry)
+                    loss_exit = time_up & ~profit_exit
+                    status[profit_exit] = CLOSED_PROFIT
+                    status[loss_exit] = CLOSED_LOSS
+                    exit_price[time_up] = c[time_up]
+                    exit_day[time_up] = d
+
+            # Early termination
+            unresolved = (status == PENDING) | (status == ACTIVE)
+            if not unresolved.any():
+                break
+
+        # Mark-to-market: still active trades exit at last valid close
+        still_active = (status == ACTIVE)
+        if still_active.any():
+            for idx in np.where(still_active)[0]:
+                # Find last valid day
+                last_d = np.where(valid[idx])[0]
+                if len(last_d) > 0:
+                    ld = last_d[-1]
+                    exit_price[idx] = closes[idx, ld]
+                    exit_day[idx] = ld
+                    if closes[idx, ld] > actual_entry[idx]:
+                        status[idx] = CLOSED_PROFIT
+                    else:
+                        status[idx] = CLOSED_LOSS
+
+        # Build result list
+        results = []
+        for idx in range(n):
+            s = int(status[idx])
+            ed = int(exit_day[idx])
+            eidx = int(entry_day[idx])
+            results.append({
+                'symbol': symbols[idx],
+                'status': STATUS_MAP.get(s, 'no_entry'),
+                'entry': float(actual_entry[idx]) if not np.isnan(actual_entry[idx]) else None,
+                'exit_price': float(exit_price[idx]) if not np.isnan(exit_price[idx]) else None,
+                'exit_date': dates[idx][ed] if 0 <= ed < max_days else None,
+                'days_held': (ed - eidx) if eidx >= 0 and ed >= 0 else 0,
+            })
+        return results
+
+    def _vectorized_simulate_split_exit(self, predictions, price_data, split_config):
+        """
+        Simulate split-exit (two-tranche) trades for all predictions using numpy.
+
+        Args:
+            predictions: List of dicts with 'symbol', 'entry_price', 'stop_loss', 'take_profit'.
+            price_data: Dict mapping symbol -> DataFrame of future OHLCV data.
+            split_config: SplitExitConfig instance.
+
+        Returns:
+            List of result dicts (same schema as evaluate_prediction_split).
+        """
+        n = len(predictions)
+        if n == 0:
+            return []
+
+        # Phase codes
+        PRE_ENTRY, BOTH_ACTIVE, T1_EXITED, COMPLETE = 0, 1, 2, 3
+
+        # Build trade parameter arrays
+        entry_prices = np.array([p['entry_price'] for p in predictions], dtype=np.float64)
+        stop_losses = np.array([p['stop_loss'] for p in predictions], dtype=np.float64)
+        take_profits = np.array([p['take_profit'] for p in predictions], dtype=np.float64)
+
+        # Compute T1/T2 targets
+        if split_config.mode == 'fixed_pct':
+            t1_targets = entry_prices * (1 + split_config.t1_profit_pct)
+            t2_targets = take_profits.copy()
+        else:
+            # atr_tiered
+            atrs = np.array([p.get('atr', 0) for p in predictions], dtype=np.float64)
+            # Fallback for zero ATR: use half the entry-to-stop distance
+            zero_atr = atrs <= 0
+            atrs[zero_atr] = np.abs(entry_prices[zero_atr] - stop_losses[zero_atr]) / 2
+            t1_targets = entry_prices + split_config.t1_atr_multiple * atrs
+            t2_targets = entry_prices + split_config.t2_atr_multiple * atrs
+
+        # Build price matrices
+        symbols = [p['symbol'] for p in predictions]
+        dfs = []
+        has_data = np.zeros(n, dtype=bool)
+        for idx, sym in enumerate(symbols):
+            if sym in price_data:
+                dfs.append(price_data[sym])
+                has_data[idx] = True
+            else:
+                dfs.append(None)
+
+        max_days = max((len(df) for df in dfs if df is not None), default=0)
+        if max_days == 0:
+            return [{'symbol': p['symbol'], 'status': 'no_future_data',
+                      'entry': None, 'exit_price': None, 'exit_date': None,
+                      'days_held': 0, 'exit_mode': 'split_exit'}
+                     for p in predictions]
+
+        opens = np.full((n, max_days), np.nan)
+        highs = np.full((n, max_days), np.nan)
+        lows = np.full((n, max_days), np.nan)
+        closes = np.full((n, max_days), np.nan)
+        dates = [[None] * max_days for _ in range(n)]
+
+        for idx in range(n):
+            df = dfs[idx]
+            if df is not None:
+                length = len(df)
+                opens[idx, :length] = df['open'].values
+                highs[idx, :length] = df['high'].values
+                lows[idx, :length] = df['low'].values
+                closes[idx, :length] = df['close'].values
+                for d in range(length):
+                    dates[idx][d] = df['date'].iloc[d]
+
+        valid = ~np.isnan(opens)
+
+        # State arrays
+        phase = np.full(n, PRE_ENTRY, dtype=np.int8)
+        phase[~has_data] = COMPLETE
+        actual_entry = np.full(n, np.nan)
+        entry_day = np.full(n, -1, dtype=np.int32)
+
+        t1_status = np.full(n, 0, dtype=np.int8)  # 0=pending, 1=profit, 2=stopped, 3=time_exit, 4=no_entry
+        t1_exit_price = np.full(n, np.nan)
+        t1_exit_day = np.full(n, -1, dtype=np.int32)
+
+        t2_status = np.full(n, 0, dtype=np.int8)
+        t2_exit_price = np.full(n, np.nan)
+        t2_exit_day = np.full(n, -1, dtype=np.int32)
+        t2_stops = stop_losses.copy()  # starts at original stop, moves after T1 exit
+
+        T1_PROFIT, T1_STOPPED, T1_TIME, T1_NO_ENTRY = 1, 2, 3, 4
+
+        hold_days = self.hold_days
+
+        for d in range(max_days):
+            v = valid[:, d]
+            o = opens[:, d]
+            h = highs[:, d]
+            l = lows[:, d]
+            c = closes[:, d]
+
+            # --- PRE_ENTRY ---
+            pre = (phase == PRE_ENTRY) & v
+            if pre.any():
+                can_enter = pre & (l <= entry_prices)
+                if can_enter.any():
+                    ae = np.where(o < entry_prices, o, entry_prices)
+
+                    # Intraday stop (both tranches)
+                    intra_stop = can_enter & (l <= stop_losses)
+                    if intra_stop.any():
+                        sp = np.where(o < stop_losses, o, stop_losses)
+                        actual_entry[intra_stop] = ae[intra_stop]
+                        entry_day[intra_stop] = d
+                        t1_status[intra_stop] = T1_STOPPED
+                        t1_exit_price[intra_stop] = sp[intra_stop]
+                        t1_exit_day[intra_stop] = d
+                        t2_status[intra_stop] = T1_STOPPED
+                        t2_exit_price[intra_stop] = sp[intra_stop]
+                        t2_exit_day[intra_stop] = d
+                        phase[intra_stop] = COMPLETE
+
+                    # Intraday T1 target (not already stopped)
+                    still_pre = can_enter & (phase == PRE_ENTRY)
+                    intra_t1 = still_pre & (h >= t1_targets)
+                    if intra_t1.any():
+                        t1_px = np.where(o > t1_targets, o, t1_targets)
+                        actual_entry[intra_t1] = ae[intra_t1]
+                        entry_day[intra_t1] = d
+                        t1_status[intra_t1] = T1_PROFIT
+                        t1_exit_price[intra_t1] = t1_px[intra_t1]
+                        t1_exit_day[intra_t1] = d
+                        phase[intra_t1] = T1_EXITED
+                        # Move T2 stop to entry - 2%
+                        t2_stops[intra_t1] = ae[intra_t1] * 0.98
+
+                        # Check T2 on same bar
+                        intra_t2 = intra_t1 & (h >= t2_targets)
+                        if intra_t2.any():
+                            t2_px = np.where(o > t2_targets, o, t2_targets)
+                            t2_status[intra_t2] = T1_PROFIT
+                            t2_exit_price[intra_t2] = t2_px[intra_t2]
+                            t2_exit_day[intra_t2] = d
+                            phase[intra_t2] = COMPLETE
+
+                    # Remaining become BOTH_ACTIVE
+                    newly_active = can_enter & (phase == PRE_ENTRY)
+                    if newly_active.any():
+                        actual_entry[newly_active] = ae[newly_active]
+                        entry_day[newly_active] = d
+                        phase[newly_active] = BOTH_ACTIVE
+
+                # Limit expired
+                no_entry_expire = pre & ~(l <= entry_prices) & (d >= hold_days)
+                if no_entry_expire.any():
+                    t1_status[no_entry_expire] = T1_NO_ENTRY
+                    t2_status[no_entry_expire] = T1_NO_ENTRY
+                    phase[no_entry_expire] = COMPLETE
+
+            # --- BOTH_ACTIVE ---
+            both = (phase == BOTH_ACTIVE) & v
+            if both.any():
+                # Stop (both tranches)
+                hit_stop = both & (l <= stop_losses)
+                if hit_stop.any():
+                    sp = np.where(o < stop_losses, o, stop_losses)
+                    t1_status[hit_stop] = T1_STOPPED
+                    t1_exit_price[hit_stop] = sp[hit_stop]
+                    t1_exit_day[hit_stop] = d
+                    t2_status[hit_stop] = T1_STOPPED
+                    t2_exit_price[hit_stop] = sp[hit_stop]
+                    t2_exit_day[hit_stop] = d
+                    phase[hit_stop] = COMPLETE
+
+                # T1 target
+                still_both = both & (phase == BOTH_ACTIVE)
+                hit_t1 = still_both & (h >= t1_targets)
+                if hit_t1.any():
+                    t1_px = np.where(o > t1_targets, o, t1_targets)
+                    t1_status[hit_t1] = T1_PROFIT
+                    t1_exit_price[hit_t1] = t1_px[hit_t1]
+                    t1_exit_day[hit_t1] = d
+                    phase[hit_t1] = T1_EXITED
+                    t2_stops[hit_t1] = actual_entry[hit_t1] * 0.98
+
+                    # T2 on same bar
+                    hit_t1_t2 = hit_t1 & (h >= t2_targets)
+                    if hit_t1_t2.any():
+                        t2_px = np.where(o > t2_targets, o, t2_targets)
+                        t2_status[hit_t1_t2] = T1_PROFIT
+                        t2_exit_price[hit_t1_t2] = t2_px[hit_t1_t2]
+                        t2_exit_day[hit_t1_t2] = d
+                        phase[hit_t1_t2] = COMPLETE
+
+                # Time exit (both)
+                still_both2 = both & (phase == BOTH_ACTIVE)
+                time_up = still_both2 & ((d - entry_day) >= hold_days)
+                if time_up.any():
+                    t1_status[time_up] = T1_TIME
+                    t1_exit_price[time_up] = c[time_up]
+                    t1_exit_day[time_up] = d
+                    t2_status[time_up] = T1_TIME
+                    t2_exit_price[time_up] = c[time_up]
+                    t2_exit_day[time_up] = d
+                    phase[time_up] = COMPLETE
+
+            # --- T1_EXITED ---
+            t1ex = (phase == T1_EXITED) & v
+            if t1ex.any():
+                # T2 stop
+                hit_t2_stop = t1ex & (l <= t2_stops)
+                if hit_t2_stop.any():
+                    sp = np.where(o < t2_stops, o, t2_stops)
+                    t2_status[hit_t2_stop] = T1_STOPPED
+                    t2_exit_price[hit_t2_stop] = sp[hit_t2_stop]
+                    t2_exit_day[hit_t2_stop] = d
+                    phase[hit_t2_stop] = COMPLETE
+
+                # T2 target
+                still_t1ex = t1ex & (phase == T1_EXITED)
+                hit_t2 = still_t1ex & (h >= t2_targets)
+                if hit_t2.any():
+                    t2_px = np.where(o > t2_targets, o, t2_targets)
+                    t2_status[hit_t2] = T1_PROFIT
+                    t2_exit_price[hit_t2] = t2_px[hit_t2]
+                    t2_exit_day[hit_t2] = d
+                    phase[hit_t2] = COMPLETE
+
+                # T2 time exit
+                still_t1ex2 = t1ex & (phase == T1_EXITED)
+                time_up_t2 = still_t1ex2 & ((d - entry_day) >= hold_days)
+                if time_up_t2.any():
+                    t2_status[time_up_t2] = T1_TIME
+                    t2_exit_price[time_up_t2] = c[time_up_t2]
+                    t2_exit_day[time_up_t2] = d
+                    phase[time_up_t2] = COMPLETE
+
+            # Early termination
+            if not ((phase != COMPLETE) & has_data).any():
+                break
+
+        # Mark-to-market: incomplete trades
+        for idx in np.where((phase != COMPLETE) & has_data)[0]:
+            last_valid = np.where(valid[idx])[0]
+            if len(last_valid) == 0:
+                continue
+            ld = last_valid[-1]
+            last_close = closes[idx, ld]
+            last_day = ld
+            if np.isnan(t1_exit_price[idx]):
+                t1_status[idx] = T1_TIME
+                t1_exit_price[idx] = last_close
+                t1_exit_day[idx] = last_day
+            if np.isnan(t2_exit_price[idx]):
+                t2_status[idx] = T1_TIME
+                t2_exit_price[idx] = last_close
+                t2_exit_day[idx] = last_day
+            phase[idx] = COMPLETE
+
+        # No-data trades
+        for idx in np.where(~has_data)[0]:
+            t1_status[idx] = T1_NO_ENTRY
+            t2_status[idx] = T1_NO_ENTRY
+
+        # Build results
+        T_STATUS_MAP = {0: 'pending', 1: 'profit', 2: 'stopped', 3: 'time_exit', 4: 'no_entry'}
+        w = split_config.tranche_weight
+
+        results = []
+        for idx in range(n):
+            sym = symbols[idx]
+            ae = actual_entry[idx]
+            t1s = int(t1_status[idx])
+            t2s = int(t2_status[idx])
+            t1_str = T_STATUS_MAP.get(t1s, 'pending')
+            t2_str = T_STATUS_MAP.get(t2s, 'pending')
+
+            if not has_data[idx]:
+                results.append({
+                    'symbol': sym, 'status': 'no_future_data',
+                    'entry': None, 'exit_price': None, 'exit_date': None,
+                    'days_held': 0, 'exit_mode': 'split_exit',
+                })
+                continue
+
+            if np.isnan(ae) or t1_str == 'no_entry':
+                results.append({
+                    'symbol': sym, 'status': 'no_entry',
+                    'entry': None, 'exit_price': None, 'exit_date': None,
+                    'days_held': 0, 'exit_mode': 'split_exit',
+                })
+                continue
+
+            entry = float(ae)
+            t1_ep = float(t1_exit_price[idx])
+            t2_ep = float(t2_exit_price[idx])
+
+            t1_pnl = ((t1_ep / entry) - 1) * 100
+            t2_pnl = ((t2_ep / entry) - 1) * 100
+            blended_pnl = w * t1_pnl + (1 - w) * t2_pnl
+
+            # Overall status
+            if t1_str == 'profit' and t2_str == 'profit':
+                overall = 'split_full_profit'
+            elif t1_str == 'profit' and t2_str in ('stopped', 'time_exit'):
+                overall = 'split_partial_profit'
+            elif t1_str == 'stopped' and t2_str == 'stopped':
+                overall = 'stopped_out'
+            elif blended_pnl > 0:
+                overall = 'closed_profit'
+            else:
+                overall = 'closed_loss'
+
+            synthetic_exit = entry * (1 + blended_pnl / 100)
+            ed = int(t2_exit_day[idx]) if t2_exit_day[idx] >= 0 else int(t1_exit_day[idx])
+            exit_date = dates[idx][ed] if 0 <= ed < max_days else None
+            eidx = int(entry_day[idx])
+            days_held = (ed - eidx) if eidx >= 0 and ed >= 0 else 0
+
+            results.append({
+                'symbol': sym,
+                'status': overall,
+                'entry': entry,
+                'exit_price': synthetic_exit,
+                'exit_date': exit_date,
+                'days_held': days_held,
+                'blended_pnl_pct': blended_pnl,
+                'tranche1_exit_price': t1_ep,
+                'tranche1_status': t1_str,
+                'tranche1_pnl_pct': t1_pnl,
+                'tranche2_exit_price': t2_ep,
+                'tranche2_status': t2_str,
+                'tranche2_pnl_pct': t2_pnl,
+                'exit_mode': 'split_exit',
+            })
+        return results
+
+    def _evaluate_candidates_vectorized(self, top_predictions, target_date, options,
+                                        split_config=None):
+        """
+        Vectorized version of _evaluate_candidates using bulk data load + numpy simulation.
+
+        Args:
+            top_predictions: List of prediction dicts (pre-sorted, pre-filtered).
+            target_date: Analysis date string.
+            options: BacktestOptions instance.
+            split_config: Optional SplitExitConfig for two-tranche mode.
+
+        Returns:
+            List of result dicts with score/ML metadata attached.
+        """
+        score_key = "baseline_score" if options.strategy == "baseline" else "mr_score"
+        setup_key = "baseline_setup" if options.strategy == "baseline" else "mr_setup"
+        ml_prob_key = "baseline_ml_prob" if options.strategy == "baseline" else "mr_ml_prob"
+
+        # Flatten setup into top-level keys
+        flat_preds = []
+        for pred in top_predictions:
+            setup = pred.get(setup_key, {})
+            flat_preds.append({
+                'symbol': pred['symbol'],
+                'entry_price': setup.get('entry_price'),
+                'stop_loss': setup.get('stop_loss'),
+                'take_profit': setup.get('take_profit'),
+                'atr': pred.get('atr', 0),
+            })
+
+        # Bulk-load price data for all symbols
+        all_symbols = [p['symbol'] for p in flat_preds]
+        price_data = self._bulk_load_price_data(all_symbols, target_date)
+
+        # Dispatch to appropriate simulation
+        if split_config is not None:
+            results = self._vectorized_simulate_split_exit(flat_preds, price_data, split_config)
+        else:
+            results = self._vectorized_simulate_single_exit(flat_preds, price_data)
+
+        # Attach score/ML metadata and log per-trade output
+        for i, result in enumerate(results):
+            pred = top_predictions[i]
+            result[score_key] = pred.get(score_key, 0.0)
+            result[ml_prob_key] = pred.get(ml_prob_key, 0.0)
+
+            score_val = pred.get(score_key, 0.0)
+            ml_prob = pred.get(ml_prob_key, 0.0)
+            msg = f"{pred['symbol']} (Score: {score_val:.2f} | ML: {ml_prob*100:.1f}%): {result['status']}"
+            if result.get('entry') is not None and result.get('exit_price') is not None:
+                pnl = ((result['exit_price'] / result['entry']) - 1) * 100
+                msg += (f" | PnL: {pnl:.2f}% (Entry: {result['entry']:.2f}, "
+                        f"Exit: {result['exit_price']:.2f}, Held: {result['days_held']} days)")
+            ReportSingleton().write(msg)
+
+        return results
+
     def _print_backtest_header(self, target_date: str, options: BacktestOptions) -> None:
         indicator_str = f" | Indicators: {', '.join(options.enabled_indicators)}" if options.enabled_indicators else ""
         header = (
@@ -653,6 +1291,12 @@ class Backtester:
 
     def _evaluate_candidates(self, top_predictions: List[Dict], target_date: str,
                              options: BacktestOptions, split_config: 'Optional[SplitExitConfig]' = None) -> List[Dict]:
+        # Dispatch to vectorized path when database is available
+        if self.database is not None:
+            return self._evaluate_candidates_vectorized(
+                top_predictions, target_date, options, split_config
+            )
+
         results = []
         score_key = "baseline_score" if options.strategy == "baseline" else "mr_score"
         setup_key = "baseline_setup" if options.strategy == "baseline" else "mr_setup"
