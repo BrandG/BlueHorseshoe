@@ -22,6 +22,12 @@
    - `--rescore` flag verified: bypasses saved scores, recalculates fresh
    - Range backtest `2026-02-03 → 2026-02-25` MR attempted: 02-03 had no saved scores, triggered fallback (full re-score ~22 min). Killed early — confirms dates without saved scores still work but take the old ~22 min per date. Dates with saved scores in the same range complete instantly.
 
+2. **Fixed cron pipeline email failure** (`2dc5ec1`)
+   - Cron prediction crashed at `save_scores()` due to `numpy.bool_` in `connors_flag` — BSON can't serialize numpy types
+   - Root cause: `df['close'].iloc[-1] > connors_sma200` returns `numpy.bool_`, not Python `bool`
+   - Fix: wrapped both occurrences (lines 572, 1616 in `strategy.py`) in `bool()`
+   - Re-ran full prediction pipeline (~46 min), scores saved, email sent successfully
+
 ---
 
 ## Previous Session (March 4)
@@ -143,8 +149,8 @@ docker exec bluehorseshoe ./lint.sh                    # Lint
 ## Git Status
 
 **Branch:** master
-**Latest pushed commit:** `bd27559` — feat: Load saved scores in backtest instead of re-scoring all symbols
+**Latest pushed commit:** `2dc5ec1` — fix: Cast numpy.bool to native bool for BSON serialization in connors_flag
 
 ---
 
-**Last Updated:** March 5, 2026
+**Last Updated:** March 6, 2026
