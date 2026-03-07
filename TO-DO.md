@@ -37,9 +37,23 @@
   - 13x speedup single-date (1,304ms → 100ms), 7.4x range (14.37s → 1.95s for 10 dates/100 trades)
   - 24 new tests, all 278 passing
 
-#### Remaining
-- Better data provider. Alpha Vantage rate limiting is a constant bottleneck. Abstract the data layer so you can swap providers. Polygon.io, Tiingo, or even Yahoo Finance for backtesting — any of them would give bulk historical data without the 2-calls-per-second constraint.
+#### Multi-Provider Data Pool — DONE
+- ~~Abstract data layer to swap providers~~ ✅ (`72ee1a7`)
+  - Tiingo (primary), Alpha Vantage, Yahoo Finance — all behind a common `DataProvider` interface
+  - CPS-proportional symbol partitioning across providers with automatic fallback
+  - Concurrent ThreadPoolExecutors per provider, rate-limited independently
+  - ~3,590 symbols updated in ~40 min (vs hours with single AV provider)
 
+#### Market-Cap Symbol Universe — DONE
+- ~~Replace price/volume filter with market cap filter~~ ✅ (`72ee1a7`)
+  - `get_active_symbol_list()` now queries `symbol_overviews` for MarketCap >= $300M
+  - Active universe expanded from ~156 to ~3,591 symbols (pseudo Russell 3000)
+  - Volume gates removed from scoring functions — all symbols get scored
+  - Dead/flat stock filter preserved for halted or pinned names
+  - `--refresh-overviews` / `--ov-limit` flags to backfill AV OVERVIEW data
+  - First full run: 3,590 updated, 5,320 scored, 1,238 candidates produced
+
+#### Remaining
 - Swap MongoDB for something columnar for OHLCV data. Mongo is fine for scores and metadata, but time-series OHLCV data is a natural fit for Parquet files or DuckDB. Reads would be 10-50x faster, no server needed, and you can do vectorized queries. Keep Mongo for the document-shaped stuff (scores, trade journal, config).
 
 - Strategy as a pluggable interface. Something like:
@@ -148,9 +162,9 @@
 - Track max drawdown, Sharpe ratio, and other portfolio-level metrics
 
 ### Data & Infrastructure
-- Full historical backfill — backfill all ~6,000 symbols going back 20 years (full Alpha Vantage history). Currently only recent data is loaded for most symbols. Deep history improves ML training, long-range backtesting, and indicator calculations that depend on long lookback periods (200-day EMA, etc.). Will need to run in batches respecting API rate limits (`-b --resume --limit N`). SPY + QQQ already backfilled to 2000.
+- Full historical backfill — backfill all ~6,000 active symbols going back 20 years. Currently only recent data is loaded for most symbols. Deep history improves ML training, long-range backtesting, and indicator calculations that depend on long lookback periods (200-day EMA, etc.). Will need to run in batches respecting API rate limits (`-b --resume --limit N`). SPY + QQQ already backfilled to 2000.
+- ~~Reduce Alpha Vantage dependency~~ ✅ Multi-provider pool (Tiingo, AV, Yahoo) with automatic fallback
 - Add post-prediction step to track symbols with stale/insufficient data and update an invalid symbols list, so they can be excluded from future runs or flagged for re-backfill
-- Reduce Alpha Vantage dependency — evaluate alternative data sources (Polygon, Tiingo, Yahoo Finance bulk)
 - Add Redis or in-memory caching for repeated indicator calculations during LOO/optimization runs
 - Distributed backtesting — allow running date ranges in parallel across multiple workers
 
