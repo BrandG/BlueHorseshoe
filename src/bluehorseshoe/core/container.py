@@ -11,6 +11,7 @@ from .config import Settings, get_settings
 
 if TYPE_CHECKING:
     from bluehorseshoe.data.ibkr_client import IBKRClient
+    from bluehorseshoe.data.duckdb_store import DuckDBStore
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +25,7 @@ class AppContainer:
     _mongo_client: Optional[MongoClient] = field(default=None, init=False)
     _invalid_symbols: Optional[list] = field(default=None, init=False)
     _ibkr_client: Optional["IBKRClient"] = field(default=None, init=False)
+    _duckdb_store: Optional["DuckDBStore"] = field(default=None, init=False)
 
     def get_mongo_client(self) -> MongoClient:
         """
@@ -67,6 +69,16 @@ class AppContainer:
             self._ibkr_client = IBKRClient(config=config)
         return self._ibkr_client
 
+    def get_historical_store(self) -> "DuckDBStore":
+        """
+        Get or create DuckDBStore for OHLCV data (lazy initialization).
+        """
+        if self._duckdb_store is None:
+            from bluehorseshoe.data.duckdb_store import DuckDBStore  # pylint: disable=import-outside-toplevel
+            self._duckdb_store = DuckDBStore(self.settings.duckdb_path)
+            logger.info("DuckDB store initialized at %s", self.settings.duckdb_path)
+        return self._duckdb_store
+
     def get_invalid_symbols(self) -> list:
         """
         Load and cache the list of invalid symbols.
@@ -99,6 +111,15 @@ class AppContainer:
                 logger.error(f"Error closing IBKR client: {e}")
             finally:
                 self._ibkr_client = None
+
+        if self._duckdb_store is not None:
+            try:
+                self._duckdb_store.close()
+                logger.info("DuckDB store closed successfully")
+            except Exception as e:
+                logger.error(f"Error closing DuckDB store: {e}")
+            finally:
+                self._duckdb_store = None
 
         if self._mongo_client is not None:
             try:

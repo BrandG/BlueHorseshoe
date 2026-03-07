@@ -77,7 +77,8 @@ class SwingTrader:
         ml_inference: Optional[MLInference] = None,
         stop_loss_inference: Optional[StopLossInference] = None,
         profit_target_inference: Optional[ProfitTargetInference] = None,
-        report_writer: Optional[ReportWriter] = None
+        report_writer: Optional[ReportWriter] = None,
+        store=None
     ):
         """
         Initialize SwingTrader with dependency injection.
@@ -89,9 +90,11 @@ class SwingTrader:
             stop_loss_inference: StopLossInference instance. If None, creates new instance.
             profit_target_inference: ProfitTargetInference instance. If None, creates new instance.
             report_writer: ReportWriter instance for logging. If None, uses legacy ReportSingleton.
+            store: DuckDBStore for OHLCV data. If provided, used instead of MongoDB for reads.
         """
         # Store injected dependencies
         self.database = database
+        self.store = store
         self.config = config if config is not None else get_settings()
         self.report_writer = report_writer
 
@@ -597,7 +600,7 @@ class SwingTrader:
         logging.info("Processed %s with results Baseline: %.2f, MR: %.2f", symbol, ret_val['baseline_score'], ret_val['mr_score'])
         return ret_val
     def _load_benchmark_data(self, target_date: Optional[str]) -> Optional[pd.DataFrame]:
-        benchmark_data = load_historical_data("SPY", database=self.database, score_manager_instance=self.score_manager)
+        benchmark_data = load_historical_data("SPY", database=self.database, score_manager_instance=self.score_manager, store=self.store)
         if benchmark_data and benchmark_data.get('days'):
             df = pd.DataFrame(benchmark_data['days'])
             if target_date:
@@ -706,8 +709,8 @@ class SwingTrader:
         Called from Phase 1 (ThreadPoolExecutor in the main process).
         Loads: historical OHLCV, company overview, sentiment score.
         """
-        # 1. Load historical data
-        price_data = load_historical_data(symbol, database=self.database, score_manager_instance=self.score_manager)
+        # 1. Load historical data (DuckDB → MongoDB → file → net)
+        price_data = load_historical_data(symbol, database=self.database, score_manager_instance=self.score_manager, store=self.store)
         if price_data is None or not price_data.get('days'):
             logging.error("Failed to load historical data for %s.", symbol)
             return None
@@ -969,16 +972,18 @@ class SwingTrader:
 
     def _get_previous_trading_date(self, current_date: str) -> Optional[str]:
         """Finds the trading date immediately preceding the current_date."""
-        # Use SPY as proxy for market days
-        data = self.database.historical_prices.find_one(
-            {"symbol": "SPY"},
-            {"days.date": 1}
-        )
-        if not data or 'days' not in data:
-            return None
-            
-        dates = sorted([d['date'] for d in data['days']])
-        
+        # Use DuckDB store if available, otherwise fall back to MongoDB
+        if self.store is not None:
+            dates = self.store.get_symbol_dates("SPY")
+        else:
+            data = self.database.historical_prices.find_one(
+                {"symbol": "SPY"},
+                {"days.date": 1}
+            )
+            if not data or 'days' not in data:
+                return None
+            dates = sorted([d['date'] for d in data['days']])
+
         prev_date = None
         for d in dates:
             if d < current_date:
@@ -1018,16 +1023,21 @@ class SwingTrader:
                 continue
                 
             # Get Price Data for Target Date (Today)
-            price_doc = self.database.historical_prices.find_one(
-                {"symbol": symbol},
-                {"days": {"$elemMatch": {"date": target_date}}}
-            )
-            
-            if not price_doc or 'days' not in price_doc or not price_doc['days']:
-                # Maybe data missing for this symbol?
+            day_data = None
+            if self.store is not None:
+                df_day = self.store.load_symbol(symbol, start_date=target_date, end_date=target_date)
+                if df_day is not None and not df_day.empty:
+                    day_data = df_day.iloc[0].to_dict()
+            else:
+                price_doc = self.database.historical_prices.find_one(
+                    {"symbol": symbol},
+                    {"days": {"$elemMatch": {"date": target_date}}}
+                )
+                if price_doc and 'days' in price_doc and price_doc['days']:
+                    day_data = price_doc['days'][0]
+
+            if day_data is None:
                 continue
-                
-            day_data = price_doc['days'][0]
             
             # Logic
             triggered = day_data['low'] <= entry

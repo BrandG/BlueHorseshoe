@@ -182,21 +182,32 @@ def load_universe_data(
     data_date: Optional[str] = None,
     min_price: float = 1.0,
     database=None,
+    store=None,
 ) -> List[Dict[str, Any]]:
     """
-    Load OHLCV bars for the universe using an Efficient Aggregation Pipeline.
-
-    This replaces the 'Look-Ahead' / 'N+1 Query' loop.
+    Load OHLCV bars for the universe.
+    Uses DuckDB store when available, otherwise falls back to MongoDB aggregation.
 
     Args:
         data_date: Optional target date. If None, uses most recent date.
         min_price: Minimum price filter.
-        database: MongoDB database instance. Required.
+        database: MongoDB database instance. Required when store is not provided.
+        store: DuckDBStore for OHLCV data.
     """
+    # DuckDB path
+    if store is not None:
+        if data_date is None:
+            data_date = store.get_latest_date()
+        if not data_date:
+            return []
+        data_date = _parse_date_str(data_date)
+        print(f"Loading universe for date: {data_date}")
+        return store.load_universe_snapshot(data_date, min_price=min_price)
+
+    # MongoDB fallback
     if database is None:
         raise ValueError("database parameter is required for load_universe_data")
 
-    # 1. If no date provided, find the most recent date in the prices collection
     if data_date is None:
         sample = database["historical_prices_recent"].find_one({}, {"days": {"$slice": -1}})
         if not sample or not sample.get("days"):
@@ -207,12 +218,8 @@ def load_universe_data(
 
     print(f"Loading universe for date: {data_date}")
 
-    # 2. Aggregation Pipeline
     pipeline = [
-        # Match only documents that HAVE this date in their days array
         { "$match": { "days.date": data_date } },
-
-        # Project only the specific day we want using $filter
         { "$project": {
             "symbol": 1,
             "day": {
@@ -223,14 +230,8 @@ def load_universe_data(
                 }
             }
         }},
-
-        # The filter returns an array (of 1 element). Unwind it.
         { "$unwind": "$day" },
-
-        # Filter by minimum price
         { "$match": { "day.close": { "$gte": min_price } } },
-
-        # Format the output to be flat
         { "$project": {
             "_id": 0,
             "symbol": 1,
@@ -243,21 +244,24 @@ def load_universe_data(
         }}
     ]
 
-    # Run the aggregation
     results = list(database["historical_prices_recent"].aggregate(pipeline))
-
     return results
 
-def get_latest_market_date(database=None) -> Optional[str]:
+def get_latest_market_date(database=None, store=None) -> Optional[str]:
     """
     Find the most recent date available in historical_data.
+    Uses DuckDB store when available, otherwise falls back to MongoDB.
 
     Args:
-        database: MongoDB database instance. Required.
+        database: MongoDB database instance. Required when store is not provided.
+        store: DuckDBStore for OHLCV data.
 
     Returns:
         Latest date string or None if no data found.
     """
+    if store is not None:
+        return store.get_latest_date()
+
     if database is None:
         raise ValueError("database parameter is required for get_latest_market_date")
 

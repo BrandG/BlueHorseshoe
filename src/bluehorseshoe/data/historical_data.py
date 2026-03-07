@@ -99,9 +99,10 @@ def load_historical_data_from_mongo(symbol, db_instance):
     return data
 
 
-def save_historical_data_to_mongo(symbol, data, db_instance):
+def save_historical_data_to_mongo(symbol, data, db_instance, store=None):
     """
     Saves historical stock price data for a given symbol, performing an upsert operation.
+    Also writes to DuckDB store when provided (dual-write).
     """
     # Create a copy to avoid modifying the original dict's _id if it exists
     save_data = data.copy()
@@ -120,6 +121,14 @@ def save_historical_data_to_mongo(symbol, data, db_instance):
     recent_collection = db_instance['historical_prices_recent']
     recent_collection.update_one(
         {"symbol": symbol}, {"$set": recent_data}, upsert=True)
+
+    # Dual-write to DuckDB
+    if store is not None and 'days' in data:
+        try:
+            df = pd.DataFrame(data['days'])
+            store.save_symbol(symbol, df, full_name=data.get('full_name', symbol))
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            logging.warning("DuckDB dual-write failed for %s: %s", symbol, e)
 
 def get_backfill_checkpoint(database):
     """
@@ -183,13 +192,14 @@ class BackfillConfig:
     limit: Optional[int] = None
     active_only: bool = False
 
-def build_all_symbols_history(config: Optional[BackfillConfig] = None, database=None):
+def build_all_symbols_history(config: Optional[BackfillConfig] = None, database=None, store=None):
     """
     Builds historical data for all stock symbols and saves them to MongoDB.
 
     Args:
         config: BackfillConfig for controlling the backfill process
         database: MongoDB database instance. Required for checkpoint operations.
+        store: Optional DuckDBStore for dual-write.
     """
     if config is None:
         config = BackfillConfig()
@@ -262,7 +272,8 @@ def build_all_symbols_history(config: Optional[BackfillConfig] = None, database=
             future = executor.submit(
                 process_symbol, row, idx, total_symbols,
                 config.save_to_file, config.recent, database,
-                provider=provider, fallback_providers=pool.providers
+                provider=provider, fallback_providers=pool.providers,
+                store=store
             )
             all_futures[future] = sym
 
@@ -290,7 +301,7 @@ def build_all_symbols_history(config: Optional[BackfillConfig] = None, database=
 
 
 def process_symbol(row, index, total_symbols, save_to_file, recent, database,
-                   provider=None, fallback_providers=None):
+                   provider=None, fallback_providers=None, store=None):
     """
     Processes a stock symbol by loading its historical data, validating it,
     calculating technical indicators, and saving the data to MongoDB and optionally to a file.
@@ -304,6 +315,7 @@ def process_symbol(row, index, total_symbols, save_to_file, recent, database,
         database: MongoDB database instance
         provider: Assigned DataProvider instance (optional, uses pool fallback if None)
         fallback_providers: List of all providers for fallback on failure
+        store: Optional DuckDBStore for dual-write
     """
     symbol = row['symbol']
     name = row['name']
@@ -407,7 +419,7 @@ def process_symbol(row, index, total_symbols, save_to_file, recent, database,
 
         logging.info('%d - %s (%d%%) - size: %d', index, symbol, percentage, len(net_data["days"]))
         print(f"Processed {symbol}: {len(net_data['days'])} days")
-        save_historical_data_to_mongo(symbol, net_data, database)
+        save_historical_data_to_mongo(symbol, net_data, database, store=store)
 
         if save_to_file:
             save_data_to_file(symbol, net_data)
@@ -502,7 +514,7 @@ def load_historical_data_from_file(symbol):
     return {}
 
 
-def load_historical_data(symbol, database=None, score_manager_instance=None):
+def load_historical_data(symbol, database=None, score_manager_instance=None, store=None):
     """
     Loads historical stock price data for a given symbol from a file or the network.
 
@@ -510,6 +522,7 @@ def load_historical_data(symbol, database=None, score_manager_instance=None):
         symbol: Stock symbol to load
         database: MongoDB database instance. If None, creates temporary container for backward compatibility.
         score_manager_instance: ScoreManager instance. If None, uses global singleton for backward compatibility.
+        store: Optional DuckDBStore. If provided, tries DuckDB first and passes to save for dual-write.
 
     Returns:
         Dictionary containing historical data with 'days' list
@@ -522,7 +535,13 @@ def load_historical_data(symbol, database=None, score_manager_instance=None):
     else:
         db_instance = database
 
-    data = load_historical_data_from_mongo(symbol, db_instance)
+    # DuckDB is the primary source; file and network are fallbacks.
+    # MongoDB is no longer consulted for OHLCV reads.
+    data = {}
+    if store is not None:
+        data = store.load_symbol_dict(symbol)
+        if data:
+            logging.debug("Loaded %s from DuckDB (%d days)", symbol, len(data.get('days', [])))
     if not data:
         data = load_historical_data_from_file(symbol)
     if not data:
@@ -541,7 +560,7 @@ def load_historical_data(symbol, database=None, score_manager_instance=None):
             if len(days) >= 20 and ('ema_20' not in days[-1] or 'avg_volume_20' not in days[-1]):
                 df = pd.DataFrame(days)
                 data['days'] = get_technical_indicators(df)
-                save_historical_data_to_mongo(symbol, data, db_instance)
+                save_historical_data_to_mongo(symbol, data, db_instance, store=store)
 
                 # Also update score
                 try:

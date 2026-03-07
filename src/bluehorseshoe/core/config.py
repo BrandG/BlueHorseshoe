@@ -159,6 +159,9 @@ class Settings(BaseSettings):
     # Provider pool
     provider_max_retries: int = 1
 
+    # DuckDB
+    duckdb_path: str = "/workspaces/BlueHorseshoe/data/ohlcv.duckdb"
+
     # Feature Flags
     holiday_mode: bool = False
 

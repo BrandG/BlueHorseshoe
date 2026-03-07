@@ -216,28 +216,18 @@ def test_get_active_symbol_list_empty():
     assert result == set()
 
 
-@patch('bluehorseshoe.data.historical_data.load_historical_data_from_mongo')
 @patch('bluehorseshoe.data.historical_data.load_historical_data_from_file')
 @patch('bluehorseshoe.data.historical_data.load_historical_data_from_net')
-def test_load_historical_data(mock_net, mock_file, mock_mongo):
+def test_load_historical_data(mock_net, mock_file):
     """
-    Test the load_historical_data function.
-
-    This test mocks the network, file, and MongoDB interactions to verify that
-    the load_historical_data function returns the expected result for a given
-    symbol.
-
-    Args:
-        mock_net (Mock): Mock object for network interactions.
-        mock_file (Mock): Mock object for file interactions.
-        mock_mongo (Mock): Mock object for MongoDB interactions.
+    Test the load_historical_data function falls back through file → network
+    when no DuckDB store is provided.
 
     Asserts:
         The result is not None.
         The result contains the correct symbol ('AAPL').
         The result contains a 'days' key.
     """
-    mock_mongo.return_value = None
     mock_file.return_value = None
     mock_net.return_value = {'symbol': 'AAPL', 'days': []}
 

@@ -24,8 +24,14 @@ from bluehorseshoe.analysis.technical_analyzer import TechnicalAnalyzer
 from bluehorseshoe.analysis.constants import MIN_STOCK_PRICE, MAX_STOCK_PRICE, MIN_VOLUME_THRESHOLD
 
 
-def load_symbol_data(symbol):
+def load_symbol_data(symbol, store=None):
     """Load full data for a symbol."""
+    if store is not None:
+        df = store.load_symbol(symbol)
+        if df is not None and not df.empty:
+            df['date'] = pd.to_datetime(df['date'])
+            return df.sort_values('date').reset_index(drop=True)
+
     doc = db.historical_prices_recent.find_one({"symbol": symbol})
     if not doc or not doc.get('days'):
         doc = db.historical_prices.find_one({"symbol": symbol})

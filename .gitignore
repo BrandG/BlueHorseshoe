@@ -26,3 +26,5 @@ src/models/*.joblib
 BlueHorseshoe.svg
 BlueHorseshoeBanner.png
 maintenance.log
+data/*.duckdb
+data/*.duckdb.wal

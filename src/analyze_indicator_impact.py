@@ -112,15 +112,19 @@ def analyze_variant(scored: list[dict], v2_top10_syms: set[str]) -> dict:
     }
 
 
-def load_and_prepare(database, symbol: str, target_ts: pd.Timestamp) -> pd.DataFrame | None:
-    """Load one symbol from historical_prices_recent, filter & enrich."""
-    doc = database["historical_prices_recent"].find_one(
-        {"symbol": symbol}, {"days": 1, "_id": 0}
-    )
-    if not doc or not doc.get("days"):
-        return None
+def load_and_prepare(database, symbol: str, target_ts: pd.Timestamp, store=None) -> pd.DataFrame | None:
+    """Load one symbol, filter & enrich."""
+    df = None
+    if store is not None:
+        df = store.load_symbol(symbol)
 
-    df = pd.DataFrame(doc["days"])
+    if df is None:
+        doc = database["historical_prices_recent"].find_one(
+            {"symbol": symbol}, {"days": 1, "_id": 0}
+        )
+        if not doc or not doc.get("days"):
+            return None
+        df = pd.DataFrame(doc["days"])
     if "date" not in df.columns or len(df) < 30:
         return None
 

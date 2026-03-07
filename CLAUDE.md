@@ -46,7 +46,7 @@ BlueHorseshoe is a quantitative swing trading system that:
 ## Technology Stack
 
 - **Language:** Python 3.12
-- **Database:** MongoDB 7 (stores historical data and scores)
+- **Database:** DuckDB (OHLCV time-series storage), MongoDB 7 (scores, journal, overviews, symbols, news)
 - **API:** FastAPI + Uvicorn (async background jobs via BackgroundTasks)
 - **Analysis:** TA-Lib, pandas_ta, NumPy, Pandas, Scikit-learn
 - **Containerization:** Docker + Docker Compose (2 containers: bluehorseshoe, mongo)
@@ -85,6 +85,7 @@ BlueHorseshoe is a quantitative swing trading system that:
 
 **`src/bluehorseshoe/data/`** - Data ingestion:
 - `historical_data.py`: Fetches OHLCV data from Alpha Vantage with rate limiting (respects `ALPHAVANTAGE_CPS`)
+- `duckdb_store.py`: `DuckDBStore` — embedded columnar storage for OHLCV time-series data (replaces MongoDB for reads)
 
 **`src/bluehorseshoe/api/`** - FastAPI server:
 - `main.py`: FastAPI app with lifespan management (DI container)
@@ -100,9 +101,9 @@ BlueHorseshoe is a quantitative swing trading system that:
 
 ### Data Flow
 
-1. **Data Ingestion** (`-u` or `-b`): `historical_data.py` fetches OHLCV from Alpha Vantage → stores in MongoDB (`daily_data` collection)
+1. **Data Ingestion** (`-u` or `-b`): `historical_data.py` fetches OHLCV from providers → stores in DuckDB (`data/ohlcv.duckdb`) and MongoDB (dual-write)
 2. **Prediction** (`-p`): `SwingTrader.swing_predict()` →
-   - Loads historical data for all symbols
+   - Loads historical data for all symbols from DuckDB (primary) with file/net fallback
    - Checks market regime (advisory)
    - For each symbol: `TechnicalAnalyzer` calculates baseline/mean reversion scores
    - Filters by price ($5-$500), volume (>100k avg), risk/reward ratio (>1.0)
@@ -139,6 +140,7 @@ Weights are stored in `src/weights.json` and loaded via `config.py`. Categories:
 - `ALPHAVANTAGE_CPS`: Rate limit (calls per second) - use 2 to avoid rate limit errors
 - `MONGO_URI`: MongoDB connection string (default: `mongodb://mongo:27017`)
 - `MONGO_DB`: Database name (default: `bluehorseshoe`)
+- `DUCKDB_PATH`: Path to DuckDB file for OHLCV storage (default: `/workspaces/BlueHorseshoe/data/ohlcv.duckdb`)
 - Email settings for notifications (SMTP_SERVER, SMTP_USER, SMTP_PASSWORD, EMAIL_RECIPIENT)
 - `PAPER_TRADING_ENABLED`: Enable automatic bracket order submission after prediction (default: `false`)
 - `PAPER_TOTAL_INVESTMENT`: Total capital to deploy across positions (default: `10000`)
@@ -182,7 +184,8 @@ Test fixtures in `test_*.py` files include:
 2. **Market Regime Data:** Index ETFs (SPY, QQQ) need full backfill (`-b --symbols SPY,QQQ`) to ensure 200+ days for EMA calculations. Standard `-u` only fetches 100 days.
 3. **Test Data:** Ensure fixtures have price volatility (high-low range >1%) to avoid "Dead Stock" filter false positives.
 4. **Column Checks:** When adding indicators, use `Series.index` for column presence checks to avoid value-based subsetting errors.
-5. **Dependency Injection:** New code should use injected `database`, `config`, `report_writer` instead of global singletons. CLI context manager (`create_cli_context()`) handles cleanup.
+5. **Dependency Injection:** New code should use injected `database`, `config`, `report_writer`, `store` instead of global singletons. CLI context manager (`create_cli_context()`) handles cleanup. Use `ctx.store` for OHLCV reads.
+6. **DuckDB is the primary OHLCV store.** MongoDB `historical_prices` and `historical_prices_recent` collections are still written to (dual-write) but no longer read from in the main pipeline. New OHLCV code should use `DuckDBStore` via `ctx.store`.
 
 ## Development Workflow
 
@@ -197,6 +200,9 @@ Test fixtures in `test_*.py` files include:
 
 - **Main Entry:** `src/main.py`
 - **Strategy Core:** `src/bluehorseshoe/analysis/strategy.py`
+- **OHLCV Store:** `src/bluehorseshoe/data/duckdb_store.py` (DuckDB backend)
+- **OHLCV Data:** `data/ohlcv.duckdb` (not checked into git)
+- **Migration:** `src/migrate_to_duckdb.py` (one-time MongoDB → DuckDB)
 - **Indicator Config:** `src/weights.json`
 - **Environment:** `docker/.env` (copy from `.env.example`)
 - **Logs:** `src/logs/` directory

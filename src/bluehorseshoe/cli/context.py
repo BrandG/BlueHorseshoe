@@ -56,6 +56,11 @@ class CLIContext:
         return self._container.get_ibkr_client()
 
     @property
+    def store(self):
+        """Access to DuckDB historical data store."""
+        return self._container.get_historical_store()
+
+    @property
     def invalid_symbols(self) -> list:
         """Access to list of invalid symbols."""
         return self._container.get_invalid_symbols()

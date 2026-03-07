@@ -92,18 +92,20 @@ class SplitTradeState:
 class Backtester:
     """Class for orchestrating historical backtests of the trading strategy."""
 
-    def __init__(self, config: BacktestConfig = None, database=None):
+    def __init__(self, config: BacktestConfig = None, database=None, store=None):
         """
         Initialize Backtester with optional dependency injection.
 
         Args:
             config: BacktestConfig instance
             database: MongoDB database instance. If None, uses global singleton.
+            store: DuckDBStore for OHLCV data. If provided, used for bulk price loads.
         """
         if config is None:
             config = BacktestConfig()
         self.database = database
-        self.trader = SwingTrader(database=database)
+        self.store = store
+        self.trader = SwingTrader(database=database, store=store)
         self.score_manager = ScoreManager(database=database) if database is not None else None
         self.config = config
         # Expose config attributes
@@ -115,8 +117,8 @@ class Backtester:
 
     def _bulk_load_price_data(self, symbols, target_date):
         """
-        Load future price data for multiple symbols using a MongoDB aggregation
-        pipeline that filters dates server-side to minimize data transfer.
+        Load future price data for multiple symbols.
+        Uses DuckDB bulk load when available, otherwise falls back to MongoDB aggregation.
 
         Args:
             symbols: List of stock symbols to load.
@@ -125,9 +127,20 @@ class Backtester:
         Returns:
             Dict mapping symbol -> DataFrame of future OHLCV data (sorted by date).
         """
+        # DuckDB path: single columnar scan
+        if self.store is not None:
+            bulk = self.store.load_symbols_bulk(symbols, start_date=target_date)
+            result = {}
+            for sym, df in bulk.items():
+                df['date'] = pd.to_datetime(df['date'])
+                df = df.sort_values('date').reset_index(drop=True)
+                if not df.empty:
+                    result[sym] = df
+            return result
+
+        # MongoDB fallback
         collection = self.database['historical_prices']
 
-        # Filter days server-side so we only transfer future data, not 6000+ full history records
         pipeline = [
             {"$match": {"symbol": {"$in": symbols}}},
             {"$project": {
@@ -244,7 +257,7 @@ class Backtester:
         if price_df is not None:
             df = price_df
         else:
-            price_data = load_historical_data(symbol, database=self.database)
+            price_data = load_historical_data(symbol, database=self.database, store=self.store)
             if not price_data or 'days' not in price_data:
                 return {'symbol': symbol, 'status': 'data_error'}
 
@@ -535,7 +548,7 @@ class Backtester:
         if price_df is not None:
             df = price_df
         else:
-            price_data = load_historical_data(symbol, database=self.database)
+            price_data = load_historical_data(symbol, database=self.database, store=self.store)
             if not price_data or 'days' not in price_data:
                 return {'symbol': symbol, 'status': 'data_error', 'exit_mode': 'split_exit'}
 

@@ -1,74 +1,96 @@
 # Session Handoff
 
 **Date:** March 7, 2026
-**Status:** Market-cap universe and multi-provider pool shipped. Full 3.5k symbol pipeline verified end-to-end.
+**Status:** DuckDB migration complete. OHLCV storage moved from MongoDB to DuckDB. File optimized from 4.0 GB to 484 MB.
 
 ---
 
-## What Was Done This Session (March 7)
+## What Was Done This Session (March 7, Session 2)
 
-1. **Market-cap-based symbol universe** (`72ee1a7`)
-   - Rewrote `get_active_symbol_list()` to query `symbol_overviews` for MarketCapitalization >= $300M
-   - Active universe expanded from **~156 to ~3,591 symbols** (pseudo Russell 3000)
-   - Added `MIN_MARKET_CAP = 300_000_000` constant to `constants.py`
-   - Added `backfill_overviews()` to `symbols.py` for fetching missing AV OVERVIEW data
-   - Added `--refresh-overviews` / `--ov-limit N` flags to `-u` handler in `main.py`
+### DuckDB Migration — All 4 Phases Complete
 
-2. **Removed volume gates from scoring**
-   - Removed `avg_volume_20 < MIN_VOLUME_THRESHOLD` early-exit from `calculate_baseline_score()`, `calculate_mean_reversion_score()`, and `DetailedScorer.score_all_indicators()`
-   - Dead/flat stock filter (`_is_dead_or_flat`) preserved
-   - Volume data still computed and available via `vol_ratio` in candidate output
+1. **Phase 1: Foundation**
+   - Added `duckdb>=1.2.0` to `docker/requirements.txt`
+   - Created `src/bluehorseshoe/data/duckdb_store.py` — `DuckDBStore` class with save/load/bulk/snapshot methods
+   - Added `duckdb_path` to `config.py` Settings, `get_historical_store()` to `container.py`, `store` property to `context.py`
+   - Created `src/tests/test_duckdb_store.py` (23 tests)
 
-3. **Multi-provider data pool** (also in `72ee1a7`, pre-staged from prior work)
-   - Tiingo (primary), Alpha Vantage, Yahoo Finance behind common `DataProvider` interface
-   - CPS-proportional symbol partitioning with automatic fallback on failure
-   - Concurrent ThreadPoolExecutors per provider, rate-limited independently
+2. **Phase 2: Migration + dual-write**
+   - Created `src/migrate_to_duckdb.py` — migrated 11,291 symbols, 28.5M rows
+   - Added `store=None` param to `save_historical_data_to_mongo()`, `process_symbol()`, `build_all_symbols_history()`, `load_historical_data()`
+   - DuckDB dual-write wired through `-u` and `-b` handlers in `main.py`
 
-4. **Full pipeline verification**
-   - Update: 3,590 completed, 0 failed (~40 min)
-   - Prediction: 5,320 scored from 5,414 total, **1,238 candidates** produced (~51 min)
-   - Reports generated and email sent successfully
+3. **Phase 3: Switch reads to DuckDB**
+   - `SwingTrader.__init__()` — accepts `store`, passes through to all data loads
+   - `strategy.py` — `_preload_symbol_data()`, `_load_benchmark_data()`, `_get_previous_trading_date()`, `get_previous_performance()` all use DuckDB when available
+   - `backtest.py` — `Backtester` and `_bulk_load_price_data()` use `store.load_symbols_bulk()`
+   - `service.py` — `load_universe_data()` and `get_latest_market_date()` use DuckDB
+   - `main.py` — passes `ctx.store` to all consumers
 
-### Key Files Modified
-- `src/bluehorseshoe/analysis/constants.py` — `MIN_MARKET_CAP`
-- `src/bluehorseshoe/analysis/technical_analyzer.py` — Volume gates removed (lines 259, 304)
-- `src/bluehorseshoe/analysis/indicators/detailed_scoring.py` — Volume gate removed (line 158)
-- `src/bluehorseshoe/data/historical_data.py` — `get_active_symbol_list()` rewrite + provider pool integration
-- `src/bluehorseshoe/core/symbols.py` — `backfill_overviews()`
-- `src/bluehorseshoe/data/provider_pool.py` — New: provider pool with partitioning
-- `src/bluehorseshoe/data/providers/` — New: tiingo.py, alphavantage.py, yahoo.py, base.py
-- `src/main.py` — `--refresh-overviews` / `--ov-limit` flags
-- `docker/docker-compose.yml` — Yahoo/AV data env vars
-- `src/bluehorseshoe/core/config.py` — Provider settings
+4. **Phase 4: Cleanup**
+   - Removed MongoDB from `load_historical_data()` read chain (now: DuckDB → file → net)
+   - Updated standalone scripts (`build_test_dates.py`, `compare_v2_v3.py`, `compare_backtest.py`, `analyze_indicator_impact.py`)
+   - Added DuckDB dual-write to `upsert_historical_to_mongo()` in `symbols.py`
+
+5. **Schema optimization (this context window)**
+   - Slimmed to OHLCV-only (7 columns, dropped 25 redundant indicator columns)
+   - Removed primary key index — ART index cost 1.66 GB (3x the data), zone maps are faster for our query patterns
+   - **Final file size: 484 MB** (down from 4.0 GB original — 88% reduction)
+
+### Verified
+- Dual-write: ran `-u --symbols SPY,QQQ`, confirmed rows increased and latest date updated
+- DuckDB reads: ran `-p --symbols SPY,QQQ,AAPL`, confirmed log output "Loaded SPY from DuckDB (6626 days)"
+- Data parity: 20/20 random symbol spot-checks match MongoDB
+- Benchmarks: no-index is faster (single load 18ms→13ms, bulk50 579ms→134ms)
+- All 340 tests passing, lint passing
 
 ---
 
 ## Previous Sessions Summary
 
-- **March 6:** Vectorized backtesting (`fdcf1b9`) — 13x speedup single-date, 7.4x range
-- **March 5:** Score-once backtest refactor (`bd27559`) — 22 min → 2-3 sec; connors_flag BSON fix (`2dc5ec1`)
+- **March 7 (Session 1):** Market-cap universe (~3,591 symbols), multi-provider pool (Tiingo/AV/Yahoo), volume gates removed
+- **March 6:** Vectorized backtesting — 13x speedup single-date, 7.4x range
+- **March 5:** Score-once backtest refactor — 22 min → 2-3 sec; connors_flag BSON fix
 - **March 4:** Regime-adaptive weight selection tested and rejected; research droplet destroyed
-- **March 3:** V3 weights deployed to production (`568b4ae`)
+- **March 3:** V3 weights deployed to production
 
 ---
 
 ## Next Steps
 
-- **Monitor steady-state timing** — Tonight's cron run should show real update speed (most symbols already up-to-date, skip logic kicks in). Expect significantly faster than the 40-min first run.
-- **Prediction pipeline timing** — ~51 min for 5.3k symbols may need optimization if it grows. CPU scoring is the bottleneck (2 processes on 3 CPUs). Consider increasing worker count or chunking strategy.
-- **Backfill overviews for remaining symbols** — ~2,000 NASDAQ/NYSE symbols still missing overviews. Run `python src/main.py -u --refresh-overviews --ov-limit 500` in batches.
-- **Full historical backfill** — Many of the 3,500 newly-tracked symbols only have ~6 months of data. Deep backfill (`-b`) would improve indicator calculations and ML training.
+- **Run full prediction pipeline** to measure end-to-end timing improvement with DuckDB (previously ~51 min for 5.3k symbols — Phase 1 preload should be much faster)
+- **Consider dropping MongoDB OHLCV collections** (`historical_prices`, `historical_prices_recent`) — DuckDB is now the sole read source; MongoDB still receives dual-writes as a safety net. Dropping would free significant MongoDB storage.
+- **Backfill overviews for remaining symbols** — ~2,000 NASDAQ/NYSE symbols still missing overviews. Run `-u --refresh-overviews --ov-limit 500` in batches.
+- **Full historical backfill** — Many of the 3,500 newly-tracked symbols only have ~6 months of data
 - See `TO-DO.md` for full backlog
 
 ---
 
 ## Key Decisions
 
-- **$300M market cap floor** — Gives ~3,591 symbols, closely matching Russell 3000. Configurable via `MIN_MARKET_CAP` constant.
-- **Volume gate removed from scoring, not from reports** — All symbols get scored; `vol_ratio` still available in candidate output for eyeballing liquidity. Downstream filters (price, R/R ratio) still apply.
-- **`--ov-limit` (not `--limit`)** for overview backfill — Avoids ambiguity with `-b --limit` which caps symbol count during data backfill.
-- **V3 weights remain production** — No changes to scoring weights this session
-- **Container limits**: 6GB RAM / 3 CPUs. Full pipeline now ~91 min (40 update + 51 predict) for first run
+- **No primary key index** — DuckDB's ART index for PK on 28M rows cost 1.66 GB (77% of file). Dropped it. Zone maps handle our `WHERE symbol = ?` queries efficiently; uniqueness enforced by DELETE-before-INSERT in `save_symbol()`. Benchmarks confirmed faster without it.
+- **OHLCV-only storage** — 25 indicator columns (RSI, MACD, ADX, etc.) dropped from DuckDB. They're always recomputed from raw OHLCV by `get_technical_indicators()` during every ingestion.
+- **MongoDB dual-write retained** — Both write paths still active as a safety net. Can be removed once confidence is established.
+- **$300M market cap floor** — ~3,591 symbols. Configurable via `MIN_MARKET_CAP` constant.
+- **V3 weights remain production** — No changes to scoring weights
+
+---
+
+## Key Files (DuckDB Migration)
+
+| File | Role |
+|------|------|
+| `src/bluehorseshoe/data/duckdb_store.py` | DuckDB storage backend |
+| `src/bluehorseshoe/data/historical_data.py` | Write path (dual-write), read path (DuckDB-first) |
+| `src/bluehorseshoe/core/container.py` | `get_historical_store()` |
+| `src/bluehorseshoe/core/config.py` | `duckdb_path` setting |
+| `src/bluehorseshoe/analysis/strategy.py` | `store` wired through prediction pipeline |
+| `src/bluehorseshoe/analysis/backtest.py` | `store` wired through backtester |
+| `src/bluehorseshoe/core/service.py` | `load_universe_data()`, `get_latest_market_date()` |
+| `src/main.py` | Passes `ctx.store` to all consumers |
+| `src/migrate_to_duckdb.py` | One-time migration script |
+| `src/tests/test_duckdb_store.py` | 23 unit tests |
+| `data/ohlcv.duckdb` | The database file (484 MB, 28.5M rows, 11,291 symbols) |
 
 ---
 
@@ -96,12 +118,11 @@ doctl compute droplet delete bh-research --force
 
 ### Production
 ```bash
-docker exec bluehorseshoe python src/main.py -p                          # Prediction (~51 min with 5k symbols)
-docker exec bluehorseshoe python src/main.py -u                          # Data update (active-only, ~40 min first run)
+docker exec bluehorseshoe python src/main.py -p                          # Prediction
+docker exec bluehorseshoe python src/main.py -u                          # Data update (active-only)
 docker exec bluehorseshoe python src/main.py -u --all                    # Data update (all 11k symbols)
 docker exec bluehorseshoe python src/main.py -u --refresh-overviews      # Update + backfill missing overviews
-docker exec bluehorseshoe python src/main.py -u --refresh-overviews --ov-limit 500  # Backfill capped at 500
-docker exec bluehorseshoe pytest -v                                      # Tests (273 passing)
+docker exec bluehorseshoe pytest -v                                      # Tests (340 passing)
 docker exec bluehorseshoe ./lint.sh                                      # Lint
 ```
 
@@ -121,6 +142,7 @@ docker exec bluehorseshoe ./lint.sh                                      # Lint
 
 **Branch:** master
 **Latest pushed commit:** `a50a09f` — docs: Update TO-DO with multi-provider pool and market-cap universe completion
+**Unpushed:** All DuckDB migration work (Phases 1-4 + schema optimization)
 
 ---
 

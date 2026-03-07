@@ -108,7 +108,7 @@ if __name__ == "__main__":
                         pass
                 backfill_overviews(ctx.db, limit=ov_limit)
 
-            build_all_symbols_history(BackfillConfig(recent=True, symbols=symbols_filter, active_only=active_only), database=ctx.db)
+            build_all_symbols_history(BackfillConfig(recent=True, symbols=symbols_filter, active_only=active_only), database=ctx.db, store=ctx.store)
             logging.info("Recent historical data updated.")
     elif "-b" in sys.argv:
         resume = "--resume" in sys.argv
@@ -127,7 +127,7 @@ if __name__ == "__main__":
                 pass
 
         with create_cli_context() as ctx:
-            build_all_symbols_history(BackfillConfig(recent=False, resume=resume, limit=limit, symbols=symbols_filter), database=ctx.db)
+            build_all_symbols_history(BackfillConfig(recent=False, resume=resume, limit=limit, symbols=symbols_filter), database=ctx.db, store=ctx.store)
             logging.info("Full historical data updated.")
     elif "-p" in sys.argv:
         logging.info('Predicting next midpoints...')
@@ -141,7 +141,7 @@ if __name__ == "__main__":
                 pass
 
             if not target_date:
-                target_date = get_latest_market_date(database=ctx.db)
+                target_date = get_latest_market_date(database=ctx.db, store=ctx.store)
                 logging.info("No date provided for -p, defaulting to latest: %s", target_date)
 
             enabled_indicators = None
@@ -164,7 +164,8 @@ if __name__ == "__main__":
             trader = SwingTrader(
                 database=ctx.db,
                 config=ctx.config,
-                report_writer=ctx.report_writer
+                report_writer=ctx.report_writer,
+                store=ctx.store
             )
 
             # Progress callback for pipeline status tracking
@@ -272,7 +273,7 @@ if __name__ == "__main__":
                 pass
 
             if not target_date:
-                target_date = get_latest_market_date(database=ctx.db)
+                target_date = get_latest_market_date(database=ctx.db, store=ctx.store)
                 logging.info("No date provided for -r, defaulting to latest: %s", target_date)
 
             logging.info("Regenerating report for %s...", target_date)
@@ -417,7 +418,7 @@ if __name__ == "__main__":
 
             # 5. Generate Report
             # Calculate previous day's performance
-            trader = SwingTrader(database=ctx.db)
+            trader = SwingTrader(database=ctx.db, store=ctx.store)
             prev_perf = trader.get_previous_performance(target_date)
 
             reporter = HTMLReporter(database=ctx.db)
@@ -488,7 +489,7 @@ if __name__ == "__main__":
                     use_trailing_stop=use_trailing,
                     trailing_multiplier=trailing_mult
                 )
-                tester = Backtester(config=config, database=ctx.db)
+                tester = Backtester(config=config, database=ctx.db, store=ctx.store)
 
                 strategy = "baseline"
                 if "--strategy" in sys.argv:
@@ -566,7 +567,7 @@ if __name__ == "__main__":
                 if "--end" in sys.argv:
                     end_date = sys.argv[sys.argv.index("--end") + 1]
                 if not end_date:
-                    end_date = get_latest_market_date(database=ctx.db)
+                    end_date = get_latest_market_date(database=ctx.db, store=ctx.store)
 
                 interval = 7
                 if "--interval" in sys.argv:
@@ -635,7 +636,7 @@ if __name__ == "__main__":
                 if "--end" in sys.argv:
                     end_date = sys.argv[sys.argv.index("--end") + 1]
                 if not end_date:
-                    end_date = get_latest_market_date(database=ctx.db)
+                    end_date = get_latest_market_date(database=ctx.db, store=ctx.store)
 
                 interval = 7
                 if "--interval" in sys.argv:
@@ -692,7 +693,7 @@ if __name__ == "__main__":
                 if "--end" in sys.argv:
                     end_date = sys.argv[sys.argv.index("--end") + 1]
                 if not end_date:
-                    end_date = get_latest_market_date(database=ctx.db)
+                    end_date = get_latest_market_date(database=ctx.db, store=ctx.store)
 
                 interval = 14
                 if "--interval" in sys.argv:

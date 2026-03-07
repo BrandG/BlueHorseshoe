@@ -296,16 +296,18 @@ def fetch_daily_ohlc_from_net(symbol: str, recent: bool = False) -> Dict[str, An
     return {"symbol": sym, "days": days}
 
 
-def upsert_historical_to_mongo(symbol: str, days: List[Dict[str, Any]], database=None) -> None:
+def upsert_historical_to_mongo(symbol: str, days: List[Dict[str, Any]], database=None, store=None) -> None:
     """
     Store full historical days in historical_prices,
     plus a recent slice in historical_prices_recent.
     Merges with existing data to prevent truncation.
+    Also writes to DuckDB store when provided.
 
     Args:
         symbol: Stock symbol.
         days: List of OHLCV day dictionaries.
         database: MongoDB database instance. Required.
+        store: Optional DuckDBStore for dual-write.
     """
     sym = symbol.upper().strip()
     if not sym:
@@ -340,6 +342,16 @@ def upsert_historical_to_mongo(symbol: str, days: List[Dict[str, Any]], database
     recent_days = merged_days[-RECENT_TRADING_DAYS:] if merged_days else []
     recent_doc = {"symbol": sym, "days": recent_days, "last_updated": now}
     _prices_recent.update_one({"symbol": sym}, {"$set": recent_doc}, upsert=True)
+
+    # Dual-write to DuckDB
+    if store is not None and merged_days:
+        try:
+            import pandas as pd  # pylint: disable=import-outside-toplevel
+            _df = pd.DataFrame(merged_days)
+            store.save_symbol(sym, _df, full_name=sym)
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            import logging as _log  # pylint: disable=import-outside-toplevel
+            _log.warning("DuckDB dual-write failed for %s: %s", sym, e)
 
 
 def refresh_historical_for_symbol(symbol: str, recent: bool = False, database=None) -> Dict[str, Any]:

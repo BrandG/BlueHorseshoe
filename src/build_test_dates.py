@@ -39,8 +39,13 @@ BUCKETS = ['strong_bull', 'mild_bull', 'neutral', 'mild_bear', 'strong_bear']
 MIN_GAP_DAYS = 5
 
 
-def load_symbol_df(db, symbol: str) -> pd.DataFrame:
-    """Load full history for a symbol from MongoDB (historical_prices collection)."""
+def load_symbol_df(db, symbol: str, store=None) -> pd.DataFrame:
+    """Load full history for a symbol from DuckDB (or MongoDB fallback)."""
+    if store is not None:
+        df = store.load_symbol(symbol)
+        if df is not None and not df.empty:
+            df['date'] = pd.to_datetime(df['date'])
+            return df.sort_values('date').reset_index(drop=True)
     doc = db['historical_prices'].find_one({'symbol': symbol})
     if not doc or not doc.get('days'):
         return pd.DataFrame()
