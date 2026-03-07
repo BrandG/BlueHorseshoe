@@ -82,3 +82,6 @@ ENTRY_DISCOUNT_BY_SIGNAL = {
 
 # Feature flag to enable/disable dynamic entry
 ENABLE_DYNAMIC_ENTRY = True  # Set to False to revert to 0.2 ATR default
+
+# Market Cap Universe Filter
+MIN_MARKET_CAP = 300_000_000  # $300M — approximate Russell 3000 floor

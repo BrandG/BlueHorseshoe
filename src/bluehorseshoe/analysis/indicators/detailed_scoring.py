@@ -155,7 +155,7 @@ class DetailedScorer:
             - weighted_scores: {category.sub_indicator: weighted_score} (after weight multiplication)
             - total_score: sum of all weighted scores + baseline modifiers
         """
-        if len(days) == 0 or days.iloc[-1].get('avg_volume_20', 0) < MIN_VOLUME_THRESHOLD:
+        if len(days) == 0:
             return {}, {}, 0.0
 
         if TechnicalAnalyzer._is_dead_or_flat(days):

@@ -28,10 +28,17 @@
   - `--rescore` CLI flag forces fresh re-scoring when needed
   - 7 new tests, 210 total passing
 
-#### Remaining
-- Vectorized backtesting. Instead of looping through symbols one at a time in Python, process all trades as a DataFrame. Entry prices, stop levels, targets — they're all just columns. Each day's OHLCV gets compared against all open positions at once with numpy operations. What currently takes an hour could take seconds.
+#### Vectorized Backtesting — DONE
+- ~~Bulk MongoDB load + numpy simulation replacing per-symbol sequential loops~~ ✅ (`fdcf1b9`)
+  - MongoDB aggregation pipeline with `$filter` prunes dates server-side (~2 future days transferred per symbol vs 6,600+ full history)
+  - Numpy vectorized simulation processes all N trades simultaneously per day-step
+  - Supports both single-exit and split-exit (two-tranche) modes
+  - Sequential path preserved as fallback when `database=None`
+  - 13x speedup single-date (1,304ms → 100ms), 7.4x range (14.37s → 1.95s for 10 dates/100 trades)
+  - 24 new tests, all 278 passing
 
-- Better data provider. Alpha Vantage rate limiting is a constant bottleneck. I'd abstract the data layer so you could swap providers. Polygon.io, Tiingo, or even Yahoo Finance for backtesting purposes — any of them would give you bulk historical data without the 2-calls-per-second constraint.
+#### Remaining
+- Better data provider. Alpha Vantage rate limiting is a constant bottleneck. Abstract the data layer so you can swap providers. Polygon.io, Tiingo, or even Yahoo Finance for backtesting — any of them would give bulk historical data without the 2-calls-per-second constraint.
 
 - Swap MongoDB for something columnar for OHLCV data. Mongo is fine for scores and metadata, but time-series OHLCV data is a natural fit for Parquet files or DuckDB. Reads would be 10-50x faster, no server needed, and you can do vectorized queries. Keep Mongo for the document-shaped stuff (scores, trade journal, config).
 

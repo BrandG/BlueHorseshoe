@@ -97,12 +97,11 @@ class TestDetailedScorer:
         assert weighted == {}
         assert total == 0.0
 
-    def test_low_volume_returns_empty(self, base_data):
-        """Below-minimum volume should return empty results."""
-        base_data['avg_volume_20'] = 100  # Below MIN_VOLUME_THRESHOLD
+    def test_low_volume_still_scored(self, base_data):
+        """Low volume symbols should still be scored (volume gate removed)."""
+        base_data['avg_volume_20'] = 100  # Low volume, but still scored
         raw, weighted, total = DetailedScorer.score_all_indicators(base_data)
-        assert raw == {}
-        assert total == 0.0
+        assert len(raw) > 0  # Should produce indicator scores
 
     def test_get_setup_data(self, base_data):
         """Setup data should contain required keys."""

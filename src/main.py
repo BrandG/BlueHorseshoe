@@ -98,6 +98,16 @@ if __name__ == "__main__":
         active_only = "--all" not in sys.argv  # active-only by default; use --all to override
 
         with create_cli_context() as ctx:
+            if "--refresh-overviews" in sys.argv:
+                from bluehorseshoe.core.symbols import backfill_overviews  # pylint: disable=import-outside-toplevel
+                ov_limit = None
+                if "--ov-limit" in sys.argv:
+                    try:
+                        ov_limit = int(sys.argv[sys.argv.index("--ov-limit") + 1])
+                    except (ValueError, IndexError):
+                        pass
+                backfill_overviews(ctx.db, limit=ov_limit)
+
             build_all_symbols_history(BackfillConfig(recent=True, symbols=symbols_filter, active_only=active_only), database=ctx.db)
             logging.info("Recent historical data updated.")
     elif "-b" in sys.argv:

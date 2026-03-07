@@ -10,6 +10,7 @@ from bluehorseshoe.data.historical_data import (
     save_historical_data_to_mongo,
     build_all_symbols_history,
     get_technical_indicators,
+    get_active_symbol_list,
     load_historical_data,
     BackfillConfig
 )
@@ -102,33 +103,42 @@ def test_save_historical_data_to_mongo():
     mock_collection.update_one.assert_called()
 
 @patch('bluehorseshoe.data.historical_data.get_symbol_list', return_value=[{'symbol': 'AAPL', 'name': 'Apple Inc.'}])
-@patch('bluehorseshoe.data.historical_data.load_historical_data_from_net', return_value={'symbol': 'AAPL', 'full_name': 'Apple', 'days':
-    [{'date': '2023-01-01', 'open': 100.0, 'close': 105.0, 'high': 110.0, 'low': 90.0, 'volume': 1000}]})
+@patch('bluehorseshoe.data.historical_data._get_provider_pool')
 @patch('bluehorseshoe.data.historical_data.save_historical_data_to_mongo')
-def test_build_all_symbols_history(mock_save_historical_data_to_mongo, mock_load_historical_data_from_net, mock_get_symbol_list):
+def test_build_all_symbols_history(mock_save_historical_data_to_mongo, mock_get_pool, mock_get_symbol_list):
     """
-    Test the build_all_symbols_history function.
+    Test the build_all_symbols_history function uses provider pool dispatch.
 
-    This test verifies that the build_all_symbols_history function correctly:
-    - Calls the get_symbol_list function once.
-    - Calls the load_historical_data_from_net function once with the stock symbol 'AAPL' and recent set to False.
-    - Calls the save_historical_data_to_mongo function once.
-    - Ensures that the first argument passed to save_historical_data_to_mongo is 'AAPL'.
-    - Ensures that the second argument passed to save_historical_data_to_mongo contains a key 'days'.
-    - Ensures that the value associated with the 'days' key is a list.
-
-    Args:
-        mock_save_historical_data_to_mongo (Mock): Mock for the save_historical_data_to_mongo function.
-        mock_load_historical_data_from_net (Mock): Mock for the load_historical_data_from_net function.
-        mock_get_symbol_list (Mock): Mock for the get_symbol_list function.
+    Verifies:
+    - get_symbol_list is called once
+    - Provider pool's partition_symbols is called
+    - Provider fetch is called for the symbol
+    - save_historical_data_to_mongo is called with correct data
     """
+    # Set up a fake provider returned by the pool
+    fake_provider = MagicMock()
+    fake_provider.name = "tiingo"
+    fake_provider.config = MagicMock(cps=5, enabled=True, priority=0)
+    fake_provider.is_available.return_value = True
+    fake_provider.fetch.return_value = {
+        'symbol': 'AAPL', 'full_name': 'Apple', 'name': 'AAPL',
+        'days': [{'date': '2023-01-01', 'open': 100.0, 'close': 105.0,
+                  'high': 110.0, 'low': 90.0, 'volume': 1000}]
+    }
+
+    mock_pool = MagicMock()
+    mock_pool.providers = [fake_provider]
+    mock_pool.partition_symbols.return_value = {"tiingo": ["AAPL"]}
+    mock_get_pool.return_value = mock_pool
+
     mock_db = MagicMock()
     mock_collection = MagicMock()
     mock_db.__getitem__.return_value = mock_collection
 
     build_all_symbols_history(BackfillConfig(), database=mock_db)
     mock_get_symbol_list.assert_called_once()
-    mock_load_historical_data_from_net.assert_called_once_with(stock_symbol='AAPL', recent=False)
+    mock_pool.partition_symbols.assert_called_once()
+    fake_provider.fetch.assert_called_once_with('AAPL', recent=False)
     mock_save_historical_data_to_mongo.assert_called_once()
     args, _ = mock_save_historical_data_to_mongo.call_args
     assert args[0] == 'AAPL'
@@ -161,6 +171,50 @@ def test_get_technical_indicators():
     df = pd.DataFrame(data)
     result = get_technical_indicators(df)
     assert 'ema_20' in result[0]
+
+def test_get_active_symbol_list_market_cap():
+    """
+    Test that get_active_symbol_list queries symbol_overviews by market cap
+    and returns the correct set of symbols.
+    """
+    mock_db = MagicMock()
+    mock_overviews = MagicMock()
+    mock_db.__getitem__.return_value = mock_overviews
+
+    # Simulate aggregation returning two symbols above the market cap threshold
+    mock_overviews.aggregate.return_value = [
+        {"symbol": "AAPL"},
+        {"symbol": "MSFT"},
+    ]
+
+    result = get_active_symbol_list(mock_db)
+
+    # Verify it queries symbol_overviews (not historical_prices_recent)
+    mock_db.__getitem__.assert_called_with("symbol_overviews")
+    mock_overviews.aggregate.assert_called_once()
+
+    # Verify the pipeline structure
+    pipeline = mock_overviews.aggregate.call_args[0][0]
+    assert len(pipeline) == 4  # $match, $addFields, $match, $project
+    assert "$addFields" in pipeline[1]
+    assert "mcap_num" in pipeline[1]["$addFields"]
+
+    assert result == {"AAPL", "MSFT"}
+
+
+def test_get_active_symbol_list_empty():
+    """
+    Test that get_active_symbol_list returns an empty set when no symbols
+    meet the market cap threshold.
+    """
+    mock_db = MagicMock()
+    mock_overviews = MagicMock()
+    mock_db.__getitem__.return_value = mock_overviews
+    mock_overviews.aggregate.return_value = []
+
+    result = get_active_symbol_list(mock_db)
+    assert result == set()
+
 
 @patch('bluehorseshoe.data.historical_data.load_historical_data_from_mongo')
 @patch('bluehorseshoe.data.historical_data.load_historical_data_from_file')

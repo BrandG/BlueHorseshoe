@@ -6,84 +6,35 @@ from dataclasses import dataclass
 from typing import List, Optional
 import pandas as pd
 import requests
-from ratelimit import limits, sleep_and_retry #pylint: disable=import-error
 from pymongo.errors import ServerSelectionTimeoutError, PyMongoError
 import talib as ta
 from bluehorseshoe.core.config import get_settings
 from bluehorseshoe.core.symbols import get_symbol_list
 from bluehorseshoe.core.scores import ScoreManager
 from bluehorseshoe.analysis.technical_analyzer import TechnicalAnalyzer
-from bluehorseshoe.analysis.constants import MIN_STOCK_PRICE, MAX_STOCK_PRICE, MIN_VOLUME_THRESHOLD
+from bluehorseshoe.analysis.constants import MIN_STOCK_PRICE, MAX_STOCK_PRICE, MIN_VOLUME_THRESHOLD, MIN_MARKET_CAP
+from bluehorseshoe.data.provider_pool import create_provider_pool_from_env
 
 
-# Rate Limit Configuration
-CPS = int(os.environ.get("TIINGO_CPS", os.environ.get("ALPHAVANTAGE_CPS", "2")))
-TIINGO_API_KEY = os.environ.get("TIINGO_API_KEY", "")
+# Lazy-initialized provider pool singleton
+_provider_pool = None
 
-@sleep_and_retry
-@limits(calls=1, period=1.0/CPS)
+
+def _get_provider_pool():
+    """Get or create the provider pool singleton."""
+    global _provider_pool  # pylint: disable=global-statement
+    if _provider_pool is None:
+        _provider_pool = create_provider_pool_from_env()
+    return _provider_pool
+
+
 def load_historical_data_from_net(stock_symbol, recent=False):
     """
-    Fetch historical stock data from Tiingo API.
-    Uses split/dividend-adjusted prices (adjOpen, adjHigh, adjLow, adjClose).
+    Fetch historical stock data via the provider pool.
+    Backward-compatible wrapper — tries providers in priority order.
     """
-    symbol = {'name': stock_symbol}
-
-    url = f"https://api.tiingo.com/tiingo/daily/{stock_symbol}/prices"
-    headers = {
-        'Content-Type': 'application/json',
-        'Authorization': f'Token {TIINGO_API_KEY}'
-    }
-    params = {'resampleFreq': 'daily'}
-
-    if recent:
-        # ~6 months back covers the 100-day compact equivalent plus indicator warmup
-        start = (pd.Timestamp.now() - pd.Timedelta(days=180)).strftime('%Y-%m-%d')
-        params['startDate'] = start
-    else:
-        # Full backfill — request from 2000 to get max history
-        params['startDate'] = '2000-01-01'
-
-    response = requests.get(url, headers=headers, params=params, timeout=30)
-
-    if response.status_code == 404:
-        logging.error("Tiingo: ticker not found: %s", stock_symbol)
-        return None
-    if response.status_code == 429:
-        logging.error("Tiingo: rate limit hit for %s", stock_symbol)
-        return None
-    response.raise_for_status()
-
-    json_data = response.json()
-
-    if not json_data:
-        logging.error("Tiingo: empty response for %s", stock_symbol)
-        return None
-
-    symbol['days'] = []
-    for record in json_data:
-        # Use adjusted prices (accounts for splits and dividends)
-        adj_open = round(float(record.get('adjOpen', record.get('open', 0))), 4)
-        adj_high = round(float(record.get('adjHigh', record.get('high', 0))), 4)
-        adj_low = round(float(record.get('adjLow', record.get('low', 0))), 4)
-        adj_close = round(float(record.get('adjClose', record.get('close', 0))), 4)
-        volume = int(record.get('adjVolume', record.get('volume', 0)))
-
-        # Parse ISO 8601 date (e.g. "2023-01-03T00:00:00+00:00") to YYYY-MM-DD
-        date_str = str(record.get('date', ''))[:10]
-
-        daily_data = {
-            'date': date_str,
-            'open': adj_open,
-            'high': adj_high,
-            'low': adj_low,
-            'close': adj_close,
-            'volume': volume,
-        }
-        daily_data['midpoint'] = round((adj_open + adj_close) / 2, 4)
-        symbol['days'].append(daily_data)
-
-    return symbol
+    pool = _get_provider_pool()
+    return pool.fetch_single(stock_symbol, recent=recent)
 
 
 def check_market_status(symbol='SPY'):
@@ -203,20 +154,23 @@ def set_backfill_checkpoint(symbol, database):
 
 def get_active_symbol_list(database):
     """
-    Query historical_prices_recent to find symbols passing price and volume filters.
-    Returns a set of symbol strings that had a last close in the tradeable range
-    with sufficient average volume.
+    Build the tradeable symbol universe using market cap from symbol_overviews.
+    Returns symbols with MarketCapitalization >= MIN_MARKET_CAP.
     """
     pipeline = [
-        {"$project": {"symbol": 1, "last_day": {"$arrayElemAt": ["$days", -1]}}},
         {"$match": {
-            "last_day.close": {"$gte": MIN_STOCK_PRICE, "$lte": MAX_STOCK_PRICE},
-            "last_day.avg_volume_20": {"$gte": MIN_VOLUME_THRESHOLD}
+            "MarketCapitalization": {"$exists": True, "$nin": ["", "None", None, "0"]},
         }},
+        {"$addFields": {"mcap_num": {"$toLong": "$MarketCapitalization"}}},
+        {"$match": {"mcap_num": {"$gte": MIN_MARKET_CAP}}},
         {"$project": {"symbol": 1, "_id": 0}}
     ]
-    results = database["historical_prices_recent"].aggregate(pipeline)
-    return {doc["symbol"] for doc in results}
+    results = database["symbol_overviews"].aggregate(pipeline)
+    active = {doc["symbol"] for doc in results}
+
+    logging.info("Active universe: %d symbols with market cap >= $%dM",
+                 len(active), MIN_MARKET_CAP // 1_000_000)
+    return active
 
 @dataclass
 class BackfillConfig:
@@ -279,28 +233,53 @@ def build_all_symbols_history(config: Optional[BackfillConfig] = None, database=
         logging.info("No symbols to process.")
         return
 
-    max_workers = min(8, len(work_items))
+    # Build provider pool and partition symbols across providers
+    pool = _get_provider_pool()
+    symbols = [row['symbol'] for row, _ in work_items]
+    assignments = pool.partition_symbols(symbols)
+    work_map = {row['symbol']: (row, idx) for row, idx in work_items}
+
+    logging.info("Multi-provider dispatch: %s",
+                 ", ".join(f"{p.name}={len(assignments.get(p.name, []))} symbols"
+                           for p in pool.providers))
+
+    all_futures = {}
+    executors = []
+
+    for provider in pool.providers:
+        provider_syms = assignments.get(provider.name, [])
+        if not provider_syms:
+            continue
+        # Threads >= CPS so rate limiter is the bottleneck, not thread count
+        workers = min(max(provider.config.cps + 1, 2), len(provider_syms))
+        executor = ThreadPoolExecutor(
+            max_workers=workers,
+            thread_name_prefix=f"prov-{provider.name}"
+        )
+        executors.append(executor)
+        for sym in provider_syms:
+            row, idx = work_map[sym]
+            future = executor.submit(
+                process_symbol, row, idx, total_symbols,
+                config.save_to_file, config.recent, database,
+                provider=provider, fallback_providers=pool.providers
+            )
+            all_futures[future] = sym
+
+    # Collect results
     completed = 0
     failed = 0
+    for future in as_completed(all_futures):
+        sym = all_futures[future]
+        try:
+            future.result()
+            completed += 1
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            failed += 1
+            logging.error("Failed to process %s: %s", sym, e)
 
-    logging.info("Processing %d symbols with %d concurrent workers", len(work_items), max_workers)
-
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        futures = {
-            executor.submit(
-                process_symbol, row, idx, total_symbols,
-                config.save_to_file, config.recent, database
-            ): row['symbol']
-            for row, idx in work_items
-        }
-        for future in as_completed(futures):
-            sym = futures[future]
-            try:
-                future.result()
-                completed += 1
-            except Exception as e:  # pylint: disable=broad-exception-caught
-                failed += 1
-                logging.error("Failed to process %s: %s", sym, e)
+    for executor in executors:
+        executor.shutdown(wait=False)
 
     # Checkpoint the last symbol in the work list
     if work_items:
@@ -310,7 +289,8 @@ def build_all_symbols_history(config: Optional[BackfillConfig] = None, database=
 
 
 
-def process_symbol(row, index, total_symbols, save_to_file, recent, database):
+def process_symbol(row, index, total_symbols, save_to_file, recent, database,
+                   provider=None, fallback_providers=None):
     """
     Processes a stock symbol by loading its historical data, validating it,
     calculating technical indicators, and saving the data to MongoDB and optionally to a file.
@@ -322,6 +302,8 @@ def process_symbol(row, index, total_symbols, save_to_file, recent, database):
         save_to_file: Whether to save data to file
         recent: Whether to fetch recent data only
         database: MongoDB database instance
+        provider: Assigned DataProvider instance (optional, uses pool fallback if None)
+        fallback_providers: List of all providers for fallback on failure
     """
     symbol = row['symbol']
     name = row['name']
@@ -356,7 +338,17 @@ def process_symbol(row, index, total_symbols, save_to_file, recent, database):
         logging.warning("Optimization check failed for %s: %s. Proceeding to fetch.", symbol, e)
 
     try:
-        net_data = load_historical_data_from_net(stock_symbol=symbol, recent=recent)
+        # Use assigned provider (with fallback) or legacy pool path
+        if provider is not None:
+            net_data = provider.fetch(symbol, recent=recent)
+            if net_data is None and fallback_providers:
+                for fp in fallback_providers:
+                    if fp is not provider:
+                        net_data = fp.fetch(symbol, recent=recent)
+                        if net_data is not None:
+                            break
+        else:
+            net_data = load_historical_data_from_net(stock_symbol=symbol, recent=recent)
         if not validate_net_data(net_data, symbol, name):
             return
 

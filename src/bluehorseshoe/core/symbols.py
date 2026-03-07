@@ -542,6 +542,41 @@ def get_sentiment_score(symbol: str, target_date: str | date, database=None) -> 
     return sum(scores) / len(scores) if scores else 0.0
 
 
+def backfill_overviews(database, limit=None):
+    """
+    Fetch AV OVERVIEW for symbols missing from symbol_overviews.
+    Skips NYSE ARCA (mostly ETFs — AV has no overview for them).
+    """
+    existing = {doc["symbol"] for doc in
+                database["symbol_overviews"].find({}, {"symbol": 1, "_id": 0})}
+
+    # Only backfill stocks (skip ETF-heavy exchanges)
+    candidates = database["symbols"].find(
+        {"symbol": {"$nin": list(existing)},
+         "exchange": {"$nin": ["NYSE ARCA"]}},
+        {"symbol": 1, "_id": 0}
+    ).sort("symbol", 1)
+
+    symbols = [doc["symbol"] for doc in candidates]
+    if limit:
+        symbols = symbols[:limit]
+
+    logging.info("Backfilling overviews for %d symbols", len(symbols))
+
+    fetched = 0
+    for sym in symbols:
+        try:
+            overview = fetch_overview_from_net(sym)
+            if overview and "Symbol" in overview:
+                upsert_overview_to_mongo(sym, overview, database=database)
+                fetched += 1
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            logging.error("Overview fetch failed for %s: %s", sym, e)
+
+    logging.info("Overview backfill complete: %d/%d fetched", fetched, len(symbols))
+    return fetched
+
+
 def get_historical_from_mongo(symbol: str, recent: bool = False, database=None) -> List[Dict[str, Any]]:
     """
     Load historical data for a symbol from MongoDB.

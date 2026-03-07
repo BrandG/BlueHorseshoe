@@ -256,7 +256,7 @@ class TechnicalAnalyzer:
         Trend-following scoring: Rewards strength, momentum, and breakouts.
         'aggregation' can be 'sum' or 'product'.
         """
-        if len(days) == 0 or days.iloc[-1].get('avg_volume_20', 0) < MIN_VOLUME_THRESHOLD:
+        if len(days) == 0:
             return {"total": 0.0}
 
         if TechnicalAnalyzer._is_dead_or_flat(days):
@@ -301,7 +301,7 @@ class TechnicalAnalyzer:
         Negative-lift indicators (overextension signals) become buy signals for
         reversion opportunity detection.
         """
-        if len(days) == 0 or days.iloc[-1].get('avg_volume_20', 0) < MIN_VOLUME_THRESHOLD:
+        if len(days) == 0:
             return {"total": 0.0}
 
         if TechnicalAnalyzer._is_dead_or_flat(days):

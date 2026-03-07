@@ -81,9 +81,11 @@ def test_volume_exhaustion(base_data):
     scores = TechnicalAnalyzer.calculate_technical_score(data)
     assert scores['penalty_volume_exhaustion'] == -3.0
 
-def test_low_volume_early_exit(base_data):
-    """Verify that low volume results in an early exit with 0.0 total."""
+def test_low_volume_still_scored(base_data):
+    """Verify that low volume symbols are still scored (volume gate removed)."""
     data = base_data.copy()
-    data.loc[data.index[-1], "avg_volume_20"] = 1000 # Below MIN_VOLUME_THRESHOLD (100,000)
+    data.loc[data.index[-1], "avg_volume_20"] = 1000  # Low volume, but still scored
     scores = TechnicalAnalyzer.calculate_technical_score(data)
-    assert scores == {"total": 0.0}
+    assert "total" in scores
+    # Should produce a non-trivial score (volume gate no longer blocks scoring)
+    assert scores != {"total": 0.0}

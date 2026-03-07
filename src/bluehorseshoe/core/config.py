@@ -149,6 +149,16 @@ class Settings(BaseSettings):
     paper_total_investment: float = 10000.0
     paper_max_positions: int = 10
 
+    # Yahoo Finance
+    yahoo_enabled: bool = True
+    yahoo_cps: int = 1
+
+    # Alpha Vantage data fetching (key already in Settings; this enables EOD use)
+    alphavantage_data_enabled: bool = True
+
+    # Provider pool
+    provider_max_retries: int = 1
+
     # Feature Flags
     holiday_mode: bool = False
 
