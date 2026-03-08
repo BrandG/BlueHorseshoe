@@ -101,7 +101,7 @@ BlueHorseshoe is a quantitative swing trading system that:
 
 ### Data Flow
 
-1. **Data Ingestion** (`-u` or `-b`): `historical_data.py` fetches OHLCV from providers → stores in DuckDB (`data/ohlcv.duckdb`) and MongoDB (dual-write)
+1. **Data Ingestion** (`-u` or `-b`): `historical_data.py` fetches OHLCV from providers → stores in DuckDB (`data/ohlcv.duckdb`)
 2. **Prediction** (`-p`): `SwingTrader.swing_predict()` →
    - Loads historical data for all symbols from DuckDB (primary) with file/net fallback
    - Checks market regime (advisory)
@@ -185,7 +185,7 @@ Test fixtures in `test_*.py` files include:
 3. **Test Data:** Ensure fixtures have price volatility (high-low range >1%) to avoid "Dead Stock" filter false positives.
 4. **Column Checks:** When adding indicators, use `Series.index` for column presence checks to avoid value-based subsetting errors.
 5. **Dependency Injection:** New code should use injected `database`, `config`, `report_writer`, `store` instead of global singletons. CLI context manager (`create_cli_context()`) handles cleanup. Use `ctx.store` for OHLCV reads.
-6. **DuckDB is the primary OHLCV store.** MongoDB `historical_prices` and `historical_prices_recent` collections are still written to (dual-write) but no longer read from in the main pipeline. New OHLCV code should use `DuckDBStore` via `ctx.store`.
+6. **DuckDB is the sole OHLCV store.** MongoDB `historical_prices` and `historical_prices_recent` collections are no longer read from or written to. All OHLCV operations use `DuckDBStore` via `ctx.store`.
 
 ## Development Workflow
 

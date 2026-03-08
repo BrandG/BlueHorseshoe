@@ -972,17 +972,9 @@ class SwingTrader:
 
     def _get_previous_trading_date(self, current_date: str) -> Optional[str]:
         """Finds the trading date immediately preceding the current_date."""
-        # Use DuckDB store if available, otherwise fall back to MongoDB
-        if self.store is not None:
-            dates = self.store.get_symbol_dates("SPY")
-        else:
-            data = self.database.historical_prices.find_one(
-                {"symbol": "SPY"},
-                {"days.date": 1}
-            )
-            if not data or 'days' not in data:
-                return None
-            dates = sorted([d['date'] for d in data['days']])
+        if self.store is None:
+            return None
+        dates = self.store.get_symbol_dates("SPY")
 
         prev_date = None
         for d in dates:
@@ -1028,13 +1020,6 @@ class SwingTrader:
                 df_day = self.store.load_symbol(symbol, start_date=target_date, end_date=target_date)
                 if df_day is not None and not df_day.empty:
                     day_data = df_day.iloc[0].to_dict()
-            else:
-                price_doc = self.database.historical_prices.find_one(
-                    {"symbol": symbol},
-                    {"days": {"$elemMatch": {"date": target_date}}}
-                )
-                if price_doc and 'days' in price_doc and price_doc['days']:
-                    day_data = price_doc['days'][0]
 
             if day_data is None:
                 continue

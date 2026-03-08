@@ -31,22 +31,15 @@ TEST_SYMBOLS = [
 
 def load_symbol_data(db, symbol, target_date, store=None):
     """Load and prepare data for a symbol up to target date."""
-    if store is not None:
-        df = store.load_symbol(symbol)
-        if df is not None and not df.empty:
-            df['date'] = pd.to_datetime(df['date'])
-            df = df[df['date'] <= target_date]
-            return df if len(df) >= 60 else None
-
-    doc = db.historical_prices.find_one({"symbol": symbol})
-    if not doc or not doc.get('days'):
+    if store is None:
         return None
-
-    df = pd.DataFrame(doc['days'])
-    if 'date' not in df.columns:
+    df = store.load_symbol(symbol)
+    if df is None or df.empty:
         return None
-
     df['date'] = pd.to_datetime(df['date'])
+    df = df[df['date'] <= target_date]
+    if len(df) < 60:
+        return None
     df = df[df['date'] <= target_date]
 
     if len(df) < 60:

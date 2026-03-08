@@ -11,10 +11,12 @@ from fastapi import FastAPI, Query, HTTPException, Body
 from pymongo import MongoClient
 
 from bluehorseshoe.core import service
-from bluehorseshoe.core.symbols import refresh_symbols, refresh_historical_for_symbol, get_historical_from_mongo
+from bluehorseshoe.core.symbols import refresh_symbols, refresh_historical_for_symbol, get_historical
 from bluehorseshoe.core.batch_loader import run_historical_batch, clear_checkpoint
+from bluehorseshoe.core.container import create_app_container
 
 app = FastAPI()
+_container = create_app_container()
 
 @app.get("/health")
 def health():
@@ -59,7 +61,8 @@ def backtest(
 @app.post("/run_daily")
 def run_daily():
     """Triggers the daily run."""
-    return service.run_daily()
+    store = _container.get_historical_store()
+    return service.run_daily(store=store)
 
 @app.post("/trigger")
 @app.get("/trigger")
@@ -101,12 +104,14 @@ def load_symbols():
 @app.get("/load_symbol/{symbol}")
 def load_symbol(symbol: str, recent: bool = False):
     """Refreshes historical data for a given symbol."""
-    return refresh_historical_for_symbol(symbol, recent=recent)
+    store = _container.get_historical_store()
+    return refresh_historical_for_symbol(symbol, recent=recent, store=store)
 
 @app.get("/historicals/{symbol}")
-def historicals(symbol: str, recent: bool = False):
+def historicals(symbol: str):
     """Gets historical data for a given symbol."""
-    return {"symbol": symbol, "days": get_historical_from_mongo(symbol, recent=recent)}
+    store = _container.get_historical_store()
+    return {"symbol": symbol, "days": get_historical(symbol, store=store)}
 
 @app.post("/run_historical_batch")
 @app.get("/run_historical_batch")

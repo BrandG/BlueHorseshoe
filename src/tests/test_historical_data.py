@@ -6,8 +6,7 @@ import pandas as pd
 
 from bluehorseshoe.data.historical_data import (
     load_historical_data_from_net,
-    load_historical_data_from_mongo,
-    save_historical_data_to_mongo,
+    save_historical_data,
     build_all_symbols_history,
     get_technical_indicators,
     get_active_symbol_list,
@@ -56,56 +55,22 @@ def test_load_historical_data_from_net(mock_get):
     assert result['days'][0]['close'] == 105.0
     assert result['days'][0]['volume'] == 1000
 
-def test_load_historical_data_from_mongo():
+def test_save_historical_data():
     """
-    Test the load_historical_data_from_mongo function to ensure it correctly loads
-    historical data from a MongoDB collection.
-
-    Mocks:
-        - mock_db: A mock database object.
-        - mock_collection: A mock collection object within the database.
-        - mock_collection.find_one: Mocked to return a dictionary with 'symbol' and 'days' keys.
-
-    Asserts:
-        - The result is not None.
-        - The 'symbol' key in the result is 'AAPL'.
-        - The 'days' key is present in the result.
+    Test save_historical_data writes to DuckDB store.
     """
-    mock_db = MagicMock()
-    mock_collection = MagicMock()
-    mock_collection.find_one.return_value = {'symbol': 'AAPL', 'days': []}
-    mock_db.__getitem__.return_value = mock_collection
+    mock_store = MagicMock()
 
-    result = load_historical_data_from_mongo('AAPL', mock_db)
-    assert result is not None
-    assert result['symbol'] == 'AAPL'
-    assert 'days' in result
-
-def test_save_historical_data_to_mongo():
-    """
-    Test the save_historical_data_to_mongo function to ensure it correctly saves data to MongoDB.
-
-    Mocks:
-        - mock_db (MagicMock): Mocked MongoDB database.
-        - mock_collection (MagicMock): Mocked MongoDB collection.
-
-    Test:
-        - Mocks the MongoDB database and collection.
-        - Calls the save_historical_data_to_mongo function with sample data.
-        - Asserts that the update_one method on the mocked collection is called.
-    """
-    mock_db = MagicMock()
-    mock_collection = MagicMock()
-    mock_db.__getitem__.return_value = mock_collection
-
-    data = {'symbol': 'AAPL', 'days': []}
-    save_historical_data_to_mongo('AAPL', data, mock_db)
-    mock_collection.update_one.assert_called()
+    data = {'symbol': 'AAPL', 'full_name': 'Apple', 'days': [
+        {'date': '2023-01-01', 'open': 100.0, 'high': 110.0, 'low': 90.0, 'close': 105.0, 'volume': 1000}
+    ]}
+    save_historical_data('AAPL', data, mock_store)
+    mock_store.save_symbol.assert_called_once()
 
 @patch('bluehorseshoe.data.historical_data.get_symbol_list', return_value=[{'symbol': 'AAPL', 'name': 'Apple Inc.'}])
 @patch('bluehorseshoe.data.historical_data._get_provider_pool')
-@patch('bluehorseshoe.data.historical_data.save_historical_data_to_mongo')
-def test_build_all_symbols_history(mock_save_historical_data_to_mongo, mock_get_pool, mock_get_symbol_list):
+@patch('bluehorseshoe.data.historical_data.save_historical_data')
+def test_build_all_symbols_history(mock_save_historical_data, mock_get_pool, mock_get_symbol_list):
     """
     Test the build_all_symbols_history function uses provider pool dispatch.
 
@@ -113,7 +78,7 @@ def test_build_all_symbols_history(mock_save_historical_data_to_mongo, mock_get_
     - get_symbol_list is called once
     - Provider pool's partition_symbols is called
     - Provider fetch is called for the symbol
-    - save_historical_data_to_mongo is called with correct data
+    - save_historical_data is called with correct data
     """
     # Set up a fake provider returned by the pool
     fake_provider = MagicMock()
@@ -135,12 +100,15 @@ def test_build_all_symbols_history(mock_save_historical_data_to_mongo, mock_get_
     mock_collection = MagicMock()
     mock_db.__getitem__.return_value = mock_collection
 
-    build_all_symbols_history(BackfillConfig(), database=mock_db)
+    mock_store = MagicMock()
+    mock_store.load_symbol_dict.return_value = {}
+
+    build_all_symbols_history(BackfillConfig(), database=mock_db, store=mock_store)
     mock_get_symbol_list.assert_called_once()
     mock_pool.partition_symbols.assert_called_once()
     fake_provider.fetch.assert_called_once_with('AAPL', recent=False)
-    mock_save_historical_data_to_mongo.assert_called_once()
-    args, _ = mock_save_historical_data_to_mongo.call_args
+    mock_save_historical_data.assert_called_once()
+    args, _ = mock_save_historical_data.call_args
     assert args[0] == 'AAPL'
     assert 'days' in args[1]
     assert isinstance(args[1]['days'], list)
@@ -220,7 +188,7 @@ def test_get_active_symbol_list_empty():
 @patch('bluehorseshoe.data.historical_data.load_historical_data_from_net')
 def test_load_historical_data(mock_net, mock_file):
     """
-    Test the load_historical_data function falls back through file → network
+    Test the load_historical_data function falls back through file -> network
     when no DuckDB store is provided.
 
     Asserts:

@@ -46,7 +46,7 @@ def update_symbol_universe(database):
         logging.error("Failed to update symbol universe: %s", e)
         print(f"❌ Error: {e}")
 
-def update_history_batch(database, limit: int = 0, recent_only: bool = True):
+def update_history_batch(database, limit: int = 0, recent_only: bool = True, store=None):
     """
     Step 2: Loop through symbols in DB and update their price history.
 
@@ -54,6 +54,7 @@ def update_history_batch(database, limit: int = 0, recent_only: bool = True):
         database: MongoDB database instance.
         limit: Max number of symbols to update (0 for all).
         recent_only: If True, fetches 'compact' data (faster, less data).
+        store: DuckDBStore instance for OHLCV storage.
     """
     print(f"\n--- STEP 2: Updating Price History (Recent Only: {recent_only}) ---")
 
@@ -82,7 +83,7 @@ def update_history_batch(database, limit: int = 0, recent_only: bool = True):
 
         try:
             # This function already has the @limits decorator for rate limiting
-            symbols.refresh_historical_for_symbol(ticker, recent=recent_only, database=database)
+            symbols.refresh_historical_for_symbol(ticker, recent=recent_only, database=database, store=store)
             success_count += 1
 
         except (RequestException, PyMongoError, RuntimeError, ValueError) as e:
@@ -204,7 +205,8 @@ def main():
         if args.history or args.full:
             # Default to recent=True unless --deep is passed
             recent_mode = not args.deep
-            update_history_batch(database, limit=args.limit, recent_only=recent_mode)
+            store = container.get_historical_store()
+            update_history_batch(database, limit=args.limit, recent_only=recent_mode, store=store)
 
         if args.overviews or args.full:
             update_overviews_batch(database, limit=args.limit)

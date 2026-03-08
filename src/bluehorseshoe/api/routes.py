@@ -9,7 +9,7 @@ from bluehorseshoe.api.models import PredictionRequest, TaskSubmission, TaskStat
 from bluehorseshoe.api.tasks import (
     predict_task, run_daily_pipeline, task_store, new_task_id,
 )
-from bluehorseshoe.core.dependencies import get_database, get_config, get_ibkr_client
+from bluehorseshoe.core.dependencies import get_database, get_config, get_ibkr_client, get_store
 from bluehorseshoe.core.config import Settings
 from bluehorseshoe.core.service import get_latest_market_date
 from bluehorseshoe.data.ibkr_client import IBKRClient
@@ -418,6 +418,7 @@ async def predict_candidates(
     request: PredictionRequest,
     background_tasks: BackgroundTasks,
     db: Database = Depends(get_database),
+    store=Depends(get_store),
 ):
     """
     Submit a prediction job to run in the background.
@@ -425,7 +426,7 @@ async def predict_candidates(
     """
     target_date = request.target_date
     if not target_date:
-        target_date = get_latest_market_date(db)
+        target_date = get_latest_market_date(store=store)
         if not target_date:
             raise HTTPException(status_code=404, detail="No market data available to determine latest date.")
 

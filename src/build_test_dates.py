@@ -40,19 +40,14 @@ MIN_GAP_DAYS = 5
 
 
 def load_symbol_df(db, symbol: str, store=None) -> pd.DataFrame:
-    """Load full history for a symbol from DuckDB (or MongoDB fallback)."""
-    if store is not None:
-        df = store.load_symbol(symbol)
-        if df is not None and not df.empty:
-            df['date'] = pd.to_datetime(df['date'])
-            return df.sort_values('date').reset_index(drop=True)
-    doc = db['historical_prices'].find_one({'symbol': symbol})
-    if not doc or not doc.get('days'):
+    """Load full history for a symbol from DuckDB."""
+    if store is None:
         return pd.DataFrame()
-    df = pd.DataFrame(doc['days'])
-    df['date'] = pd.to_datetime(df['date'])
-    df = df.sort_values('date').reset_index(drop=True)
-    return df
+    df = store.load_symbol(symbol)
+    if df is not None and not df.empty:
+        df['date'] = pd.to_datetime(df['date'])
+        return df.sort_values('date').reset_index(drop=True)
+    return pd.DataFrame()
 
 
 def compute_regime_scores(db, start_date: str = '2024-06-01', end_date: str = '2026-02-28'):

@@ -148,8 +148,7 @@ class DuckDBStore:
         end_date: Optional[str] = None,
     ) -> dict:
         """
-        Returns ``{'days': [row_dicts], 'full_name': ...}`` — drop-in
-        replacement for ``load_historical_data_from_mongo()``.
+        Returns ``{'days': [row_dicts], 'full_name': ...}`` dict format.
         """
         df = self.load_symbol(symbol, start_date=start_date, end_date=end_date)
         if df is None:

@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from typing import List, Optional
 import pandas as pd
 import requests
-from pymongo.errors import ServerSelectionTimeoutError, PyMongoError
+from pymongo.errors import PyMongoError
 import talib as ta
 from bluehorseshoe.core.config import get_settings
 from bluehorseshoe.core.symbols import get_symbol_list
@@ -83,52 +83,16 @@ def check_market_status(symbol='SPY'):
         return False
 
 
-def load_historical_data_from_mongo(symbol, db_instance):
+def save_historical_data(symbol, data, store):
     """
-    Loads historical stock price data from MongoDB for a given symbol.
+    Saves historical stock price data for a given symbol to DuckDB.
     """
-    data = {}
-    try:
-        collection = db_instance['historical_prices']
-        data = collection.find_one({"symbol": symbol})
-        if data is None:
-            data = {}
-    except (ServerSelectionTimeoutError, OSError, PyMongoError) as e:
-        logging.error("Error accessing MongoDB: %s", e)
-
-    return data
-
-
-def save_historical_data_to_mongo(symbol, data, db_instance, store=None):
-    """
-    Saves historical stock price data for a given symbol, performing an upsert operation.
-    Also writes to DuckDB store when provided (dual-write).
-    """
-    # Create a copy to avoid modifying the original dict's _id if it exists
-    save_data = data.copy()
-    if '_id' in save_data:
-        del save_data['_id']
-
-    save_data['last_updated'] = pd.Timestamp.now().isoformat()
-
-    collection = db_instance['historical_prices']
-    collection.update_one({"symbol": symbol}, {"$set": save_data}, upsert=True)
-
-    # Store just the last year of data in a separate collection
-    recent_data = save_data.copy()
-    if 'days' in recent_data:
-        recent_data['days'] = save_data['days'][-240:]
-    recent_collection = db_instance['historical_prices_recent']
-    recent_collection.update_one(
-        {"symbol": symbol}, {"$set": recent_data}, upsert=True)
-
-    # Dual-write to DuckDB
     if store is not None and 'days' in data:
         try:
             df = pd.DataFrame(data['days'])
             store.save_symbol(symbol, df, full_name=data.get('full_name', symbol))
         except Exception as e:  # pylint: disable=broad-exception-caught
-            logging.warning("DuckDB dual-write failed for %s: %s", symbol, e)
+            logging.warning("DuckDB save failed for %s: %s", symbol, e)
 
 def get_backfill_checkpoint(database):
     """
@@ -194,12 +158,12 @@ class BackfillConfig:
 
 def build_all_symbols_history(config: Optional[BackfillConfig] = None, database=None, store=None):
     """
-    Builds historical data for all stock symbols and saves them to MongoDB.
+    Builds historical data for all stock symbols and saves them to DuckDB.
 
     Args:
         config: BackfillConfig for controlling the backfill process
-        database: MongoDB database instance. Required for checkpoint operations.
-        store: Optional DuckDBStore for dual-write.
+        database: MongoDB database instance. Required for checkpoint and score operations.
+        store: DuckDBStore for OHLCV storage.
     """
     if config is None:
         config = BackfillConfig()
@@ -304,7 +268,7 @@ def process_symbol(row, index, total_symbols, save_to_file, recent, database,
                    provider=None, fallback_providers=None, store=None):
     """
     Processes a stock symbol by loading its historical data, validating it,
-    calculating technical indicators, and saving the data to MongoDB and optionally to a file.
+    calculating technical indicators, and saving the data to DuckDB.
 
     Args:
         row: Symbol row with 'symbol' and 'name' keys
@@ -312,22 +276,23 @@ def process_symbol(row, index, total_symbols, save_to_file, recent, database,
         total_symbols: Total number of symbols
         save_to_file: Whether to save data to file
         recent: Whether to fetch recent data only
-        database: MongoDB database instance
+        database: MongoDB database instance (used for score saves)
         provider: Assigned DataProvider instance (optional, uses pool fallback if None)
         fallback_providers: List of all providers for fallback on failure
-        store: Optional DuckDBStore for dual-write
+        store: DuckDBStore for OHLCV storage
     """
     symbol = row['symbol']
     name = row['name']
     percentage = round(index/total_symbols*100)
 
-    # Load existing data from MongoDB to merge with or check for updates
+    # Load existing data from DuckDB to merge with or check for updates
     existing_data = {}
     try:
-        existing_data = load_historical_data_from_mongo(symbol, database)
+        if store is not None:
+            existing_data = store.load_symbol_dict(symbol)
         if existing_data and 'days' in existing_data and existing_data['days']:
             last_stored_date = existing_data['days'][-1]['date']
-            
+
             # OPTIMIZATION: Check if data is already up-to-date
             now_ny = pd.Timestamp.now(tz='US/Eastern')
             today = now_ny.date()
@@ -341,7 +306,7 @@ def process_symbol(row, index, total_symbols, save_to_file, recent, database,
                 target_date -= pd.Timedelta(days=1)
             elif target_date.weekday() == 6: # Sunday -> Friday
                 target_date -= pd.Timedelta(days=2)
-                
+
             if str(target_date) <= last_stored_date:
                 logging.info("Skipping %s: Data up to date (%s)", symbol, last_stored_date)
                 return
@@ -419,7 +384,7 @@ def process_symbol(row, index, total_symbols, save_to_file, recent, database,
 
         logging.info('%d - %s (%d%%) - size: %d', index, symbol, percentage, len(net_data["days"]))
         print(f"Processed {symbol}: {len(net_data['days'])} days")
-        save_historical_data_to_mongo(symbol, net_data, database, store=store)
+        save_historical_data(symbol, net_data, store)
 
         if save_to_file:
             save_data_to_file(symbol, net_data)
@@ -516,13 +481,14 @@ def load_historical_data_from_file(symbol):
 
 def load_historical_data(symbol, database=None, score_manager_instance=None, store=None):
     """
-    Loads historical stock price data for a given symbol from a file or the network.
+    Loads historical stock price data for a given symbol.
+    Read chain: DuckDB → file → network.
 
     Args:
         symbol: Stock symbol to load
-        database: MongoDB database instance. If None, creates temporary container for backward compatibility.
-        score_manager_instance: ScoreManager instance. If None, uses global singleton for backward compatibility.
-        store: Optional DuckDBStore. If provided, tries DuckDB first and passes to save for dual-write.
+        database: MongoDB database instance (used for score saves only).
+        score_manager_instance: ScoreManager instance. If None, creates one from database.
+        store: DuckDBStore. If provided, tries DuckDB first and saves recalculated data.
 
     Returns:
         Dictionary containing historical data with 'days' list
@@ -536,7 +502,6 @@ def load_historical_data(symbol, database=None, score_manager_instance=None, sto
         db_instance = database
 
     # DuckDB is the primary source; file and network are fallbacks.
-    # MongoDB is no longer consulted for OHLCV reads.
     data = {}
     if store is not None:
         data = store.load_symbol_dict(symbol)
@@ -560,7 +525,7 @@ def load_historical_data(symbol, database=None, score_manager_instance=None, sto
             if len(days) >= 20 and ('ema_20' not in days[-1] or 'avg_volume_20' not in days[-1]):
                 df = pd.DataFrame(days)
                 data['days'] = get_technical_indicators(df)
-                save_historical_data_to_mongo(symbol, data, db_instance, store=store)
+                save_historical_data(symbol, data, store)
 
                 # Also update score
                 try:
@@ -569,7 +534,6 @@ def load_historical_data(symbol, database=None, score_manager_instance=None, sto
                     total_score = score_components.pop("total", 0.0)
                     last_date = data['days'][-1]['date']
 
-                    # Use injected score manager or fall back to global singleton
                     sm = score_manager_instance if score_manager_instance is not None else ScoreManager(database=db_instance)
                     sm.save_scores([
                         {

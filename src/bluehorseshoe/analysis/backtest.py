@@ -127,49 +127,16 @@ class Backtester:
         Returns:
             Dict mapping symbol -> DataFrame of future OHLCV data (sorted by date).
         """
-        # DuckDB path: single columnar scan
-        if self.store is not None:
-            bulk = self.store.load_symbols_bulk(symbols, start_date=target_date)
-            result = {}
-            for sym, df in bulk.items():
-                df['date'] = pd.to_datetime(df['date'])
-                df = df.sort_values('date').reset_index(drop=True)
-                if not df.empty:
-                    result[sym] = df
-            return result
+        if self.store is None:
+            return {}
 
-        # MongoDB fallback
-        collection = self.database['historical_prices']
-
-        pipeline = [
-            {"$match": {"symbol": {"$in": symbols}}},
-            {"$project": {
-                "symbol": 1,
-                "_id": 0,
-                "days": {
-                    "$filter": {
-                        "input": "$days",
-                        "as": "d",
-                        "cond": {"$gt": ["$$d.date", target_date]}
-                    }
-                }
-            }}
-        ]
-        cursor = collection.aggregate(pipeline)
-
+        bulk = self.store.load_symbols_bulk(symbols, start_date=target_date)
         result = {}
-        for doc in cursor:
-            sym = doc['symbol']
-            days = doc.get('days')
-            if not days:
-                continue
-            df = pd.DataFrame(days)
-            if df.empty:
-                continue
+        for sym, df in bulk.items():
             df['date'] = pd.to_datetime(df['date'])
-            future = df.sort_values('date').reset_index(drop=True)
-            if not future.empty:
-                result[sym] = future
+            df = df.sort_values('date').reset_index(drop=True)
+            if not df.empty:
+                result[sym] = df
         return result
 
     def _check_entry(self, row, i, state):
@@ -1304,8 +1271,8 @@ class Backtester:
 
     def _evaluate_candidates(self, top_predictions: List[Dict], target_date: str,
                              options: BacktestOptions, split_config: 'Optional[SplitExitConfig]' = None) -> List[Dict]:
-        # Dispatch to vectorized path when database is available
-        if self.database is not None:
+        # Dispatch to vectorized path when DuckDB store is available
+        if self.store is not None:
             return self._evaluate_candidates_vectorized(
                 top_predictions, target_date, options, split_config
             )

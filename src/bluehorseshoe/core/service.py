@@ -88,12 +88,13 @@ def handle_trigger_action(action: str, payload: Dict[str, Any], database=None) -
             "available_actions": ["hello", "test_db", "backfill_overviews"],
         }
 
-def run_daily(database=None) -> Dict[str, Any]:
+def run_daily(database=None, store=None) -> Dict[str, Any]:
     """
     Main Daily Scan Routine.
 
     Args:
         database: MongoDB database instance. Required.
+        store: DuckDBStore for OHLCV data.
     """
     if database is None:
         raise ValueError("database parameter is required for run_daily")
@@ -102,7 +103,7 @@ def run_daily(database=None) -> Dict[str, Any]:
     report_date = date.today().isoformat()
 
     # 2. Load universe data EFFICIENTLY
-    universe_data = load_universe_data(database=database)
+    universe_data = load_universe_data(store=store)
 
     if not universe_data:
         return {"error": "No data found for scanning"}
@@ -181,89 +182,38 @@ def _parse_date_str(d: str) -> str:
 def load_universe_data(
     data_date: Optional[str] = None,
     min_price: float = 1.0,
-    database=None,
     store=None,
+    **_kwargs,
 ) -> List[Dict[str, Any]]:
     """
-    Load OHLCV bars for the universe.
-    Uses DuckDB store when available, otherwise falls back to MongoDB aggregation.
+    Load OHLCV bars for the universe from DuckDB.
 
     Args:
         data_date: Optional target date. If None, uses most recent date.
         min_price: Minimum price filter.
-        database: MongoDB database instance. Required when store is not provided.
-        store: DuckDBStore for OHLCV data.
+        store: DuckDBStore for OHLCV data. Required.
     """
-    # DuckDB path
-    if store is not None:
-        if data_date is None:
-            data_date = store.get_latest_date()
-        if not data_date:
-            return []
-        data_date = _parse_date_str(data_date)
-        print(f"Loading universe for date: {data_date}")
-        return store.load_universe_snapshot(data_date, min_price=min_price)
-
-    # MongoDB fallback
-    if database is None:
-        raise ValueError("database parameter is required for load_universe_data")
+    if store is None:
+        raise ValueError("store parameter is required for load_universe_data")
 
     if data_date is None:
-        sample = database["historical_prices_recent"].find_one({}, {"days": {"$slice": -1}})
-        if not sample or not sample.get("days"):
-            return []
-        data_date = _parse_date_str(sample["days"][0].get("date"))
-    else:
-        data_date = _parse_date_str(data_date)
-
+        data_date = store.get_latest_date()
+    if not data_date:
+        return []
+    data_date = _parse_date_str(data_date)
     print(f"Loading universe for date: {data_date}")
+    return store.load_universe_snapshot(data_date, min_price=min_price)
 
-    pipeline = [
-        { "$match": { "days.date": data_date } },
-        { "$project": {
-            "symbol": 1,
-            "day": {
-                "$filter": {
-                    "input": "$days",
-                    "as": "d",
-                    "cond": { "$eq": ["$$d.date", data_date] }
-                }
-            }
-        }},
-        { "$unwind": "$day" },
-        { "$match": { "day.close": { "$gte": min_price } } },
-        { "$project": {
-            "_id": 0,
-            "symbol": 1,
-            "date": "$day.date",
-            "open": "$day.open",
-            "high": "$day.high",
-            "low": "$day.low",
-            "close": "$day.close",
-            "volume": "$day.volume"
-        }}
-    ]
-
-    results = list(database["historical_prices_recent"].aggregate(pipeline))
-    return results
-
-def get_latest_market_date(database=None, store=None) -> Optional[str]:
+def get_latest_market_date(store=None, **_kwargs) -> Optional[str]:
     """
-    Find the most recent date available in historical_data.
-    Uses DuckDB store when available, otherwise falls back to MongoDB.
+    Find the most recent date available in historical data.
 
     Args:
-        database: MongoDB database instance. Required when store is not provided.
-        store: DuckDBStore for OHLCV data.
+        store: DuckDBStore for OHLCV data. Required.
 
     Returns:
         Latest date string or None if no data found.
     """
-    if store is not None:
-        return store.get_latest_date()
-
-    if database is None:
-        raise ValueError("database parameter is required for get_latest_market_date")
-
-    latest = database.historical_prices.find_one({}, {'days.date': 1}, sort=[('days.date', -1)])
-    return latest['days'][-1]['date'] if latest else None
+    if store is None:
+        raise ValueError("store parameter is required for get_latest_market_date")
+    return store.get_latest_date()

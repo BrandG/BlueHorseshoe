@@ -1,11 +1,11 @@
 """
-symbols.py (v1.2)
+symbols.py (v1.3)
 
 Core utilities for:
 1) Fetching active symbols from Alpha Vantage and upserting to MongoDB.
 2) Loading symbols from MongoDB.
-3) Fetching historical OHLC data for one symbol from Alpha Vantage and upserting to MongoDB.
-4) Loading historical OHLC data from MongoDB.
+3) Fetching historical OHLC data for one symbol from Alpha Vantage and saving to DuckDB.
+4) Loading historical OHLC data from DuckDB.
 """
 
 from __future__ import annotations
@@ -296,82 +296,46 @@ def fetch_daily_ohlc_from_net(symbol: str, recent: bool = False) -> Dict[str, An
     return {"symbol": sym, "days": days}
 
 
-def upsert_historical_to_mongo(symbol: str, days: List[Dict[str, Any]], database=None, store=None) -> None:
+def upsert_historical(symbol: str, days: List[Dict[str, Any]], store=None, **_kwargs) -> None:
     """
-    Store full historical days in historical_prices,
-    plus a recent slice in historical_prices_recent.
-    Merges with existing data to prevent truncation.
-    Also writes to DuckDB store when provided.
+    Save historical OHLCV days to DuckDB, merging with existing data.
 
     Args:
         symbol: Stock symbol.
         days: List of OHLCV day dictionaries.
-        database: MongoDB database instance. Required.
-        store: Optional DuckDBStore for dual-write.
+        store: DuckDBStore instance. Required.
     """
     sym = symbol.upper().strip()
     if not sym:
         raise ValueError("symbol is required")
 
-    if database is None:
-        raise ValueError("database parameter is required for upsert_historical_to_mongo")
+    if store is None:
+        raise ValueError("store parameter is required for upsert_historical")
 
-    _prices = database["historical_prices"]
-    _prices_recent = database["historical_prices_recent"]
-
-    now = datetime.utcnow().isoformat()
-
-    # Load existing days to merge
-    existing_doc = _prices.find_one({"symbol": sym}, {"days": 1})
-    if existing_doc and "days" in existing_doc:
-        import pandas as pd
-        df_existing = pd.DataFrame(existing_doc["days"])
-        df_new = pd.DataFrame(days)
-        # Combine and drop duplicates based on date
-        df_merged = pd.concat([df_existing, df_new]).drop_duplicates(subset=['date'])
-        df_merged = df_merged.sort_values(by='date').reset_index(drop=True)
-        merged_days = df_merged.to_dict(orient='records')
-    else:
-        merged_days = days
-
-    # Update Full History
-    full_doc = {"symbol": sym, "days": merged_days, "last_updated": now}
-    _prices.update_one({"symbol": sym}, {"$set": full_doc}, upsert=True)
-
-    # Update Recent History (Used for scanning)
-    recent_days = merged_days[-RECENT_TRADING_DAYS:] if merged_days else []
-    recent_doc = {"symbol": sym, "days": recent_days, "last_updated": now}
-    _prices_recent.update_one({"symbol": sym}, {"$set": recent_doc}, upsert=True)
-
-    # Dual-write to DuckDB
-    if store is not None and merged_days:
-        try:
-            import pandas as pd  # pylint: disable=import-outside-toplevel
-            _df = pd.DataFrame(merged_days)
-            store.save_symbol(sym, _df, full_name=sym)
-        except Exception as e:  # pylint: disable=broad-exception-caught
-            import logging as _log  # pylint: disable=import-outside-toplevel
-            _log.warning("DuckDB dual-write failed for %s: %s", sym, e)
+    import pandas as pd  # pylint: disable=import-outside-toplevel
+    _df = pd.DataFrame(days)
+    store.save_symbol(sym, _df, full_name=sym)
 
 
-def refresh_historical_for_symbol(symbol: str, recent: bool = False, database=None) -> Dict[str, Any]:
+def refresh_historical_for_symbol(symbol: str, recent: bool = False, database=None, store=None) -> Dict[str, Any]:
     """
-    Fetch OHLC from net and upsert to Mongo.
+    Fetch OHLC from net and save to DuckDB.
 
     Args:
         symbol: Stock symbol.
         recent: If True, fetch compact data; if False, fetch full history.
-        database: MongoDB database instance. Required.
+        database: MongoDB database instance (unused, kept for caller compatibility).
+        store: DuckDBStore instance. Required.
     """
-    if database is None:
-        raise ValueError("database parameter is required for refresh_historical_for_symbol")
+    if store is None:
+        raise ValueError("store parameter is required for refresh_historical_for_symbol")
 
     data = fetch_daily_ohlc_from_net(symbol, recent=recent)
     days = data.get("days", [])
     if not days:
         raise RuntimeError(f"No historical days returned for {symbol}")
 
-    upsert_historical_to_mongo(data["symbol"], days, database=database)
+    upsert_historical(data["symbol"], days, store=store)
 
     return {
         "symbol": data["symbol"],
@@ -589,23 +553,20 @@ def backfill_overviews(database, limit=None):
     return fetched
 
 
-def get_historical_from_mongo(symbol: str, recent: bool = False, database=None) -> List[Dict[str, Any]]:
+def get_historical(symbol: str, store=None, **_kwargs) -> List[Dict[str, Any]]:
     """
-    Load historical data for a symbol from MongoDB.
+    Load historical OHLCV data for a symbol from DuckDB.
 
     Args:
         symbol: Stock symbol.
-        recent: If True, load from recent prices collection; if False, load from full history.
-        database: MongoDB database instance. Required.
+        store: DuckDBStore instance. Required.
     """
-    if database is None:
-        raise ValueError("database parameter is required for get_historical_from_mongo")
+    if store is None:
+        raise ValueError("store parameter is required for get_historical")
 
     sym = symbol.upper().strip()
     if not sym:
         raise ValueError("symbol is required")
 
-    col = database["historical_prices_recent"] if recent else database["historical_prices"]
-
-    doc = col.find_one({"symbol": sym}, {"_id": 0, "days": 1})
-    return (doc or {}).get("days", [])
+    data = store.load_symbol_dict(sym)
+    return data.get("days", []) if data else []

@@ -54,6 +54,18 @@ def get_config(container: AppContainer = Depends(get_container)) -> Settings:
     """
     return container.settings
 
+def get_store(container: AppContainer = Depends(get_container)):
+    """
+    Get DuckDB historical store instance.
+
+    Args:
+        container: AppContainer (injected by FastAPI)
+
+    Returns:
+        DuckDBStore instance for OHLCV data
+    """
+    return container.get_historical_store()
+
 def get_ibkr_client(container: AppContainer = Depends(get_container)) -> IBKRClient:
     """
     Get IBKRClient instance for real-time market data.

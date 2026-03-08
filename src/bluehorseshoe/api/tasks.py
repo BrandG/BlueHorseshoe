@@ -49,7 +49,7 @@ def update_market_data_task(task_id: str | None = None):
     container = create_app_container()
     try:
         container.get_mongo_client().server_info()
-        build_all_symbols_history(BackfillConfig(recent=True), database=container.get_database())
+        build_all_symbols_history(BackfillConfig(recent=True), database=container.get_database(), store=container.get_historical_store())
         logger.info("Market data update completed.")
         return "Data Updated"
     except Exception as e:

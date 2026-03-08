@@ -1,16 +1,16 @@
 """
-Tests for vectorized backtesting: bulk MongoDB load + numpy simulation.
+Tests for vectorized backtesting: bulk DuckDB load + numpy simulation.
 
 Covers:
 1. Parity: single-exit  — vectorized vs sequential produce identical results
 2. Parity: split-exit   — same for two-tranche mode
 3. All single-exit statuses — success, stopped_out, limit_expired, closed_profit, closed_loss, no_future_data
-4. Bulk load — verify single find() with $in
+4. Bulk load — verify DuckDB store.load_symbols_bulk() is called
 5. Mixed data availability — some symbols have data, some don't
 6. Intraday stop on entry bar — stop-before-target priority
 7. Mark-to-market — trade active when data ends
 8. Empty predictions — returns empty list
-9. No database fallback — database=None routes to sequential path
+9. No store fallback — store=None routes to sequential path
 10. Split-exit: full profit, partial profit, both stopped
 """
 
@@ -35,20 +35,16 @@ def _make_future_df(bars):
     return pd.DataFrame(rows)
 
 
-def _make_mongo_doc(symbol, bars):
-    """Build a MongoDB-style document with 'symbol' and 'days' list."""
-    days = [{'date': d, 'open': o, 'high': h, 'low': l, 'close': c}
-            for d, o, h, l, c in bars]
-    return {'symbol': symbol, 'days': days}
-
-
-def _mock_db_with_docs(docs):
-    """Create a mock database whose historical_prices.aggregate() returns docs."""
-    db = MagicMock()
-    collection = MagicMock()
-    collection.aggregate.return_value = docs
-    db.__getitem__ = MagicMock(return_value=collection)
-    return db, collection
+def _make_store_with_data(data_by_symbol):
+    """Create a mock DuckDB store whose load_symbols_bulk() returns DataFrames."""
+    store = MagicMock()
+    bulk_result = {}
+    for sym, bars in data_by_symbol.items():
+        df = pd.DataFrame([{'date': d, 'open': o, 'high': h, 'low': l, 'close': c}
+                          for d, o, h, l, c in bars])
+        bulk_result[sym] = df
+    store.load_symbols_bulk.return_value = bulk_result
+    return store
 
 
 def _make_prediction(symbol, entry, stop, target, score=5.0, ml_prob=0.5):
@@ -269,30 +265,22 @@ class TestAllSingleExitStatuses:
 
 
 # ---------------------------------------------------------------------------
-# 4. Bulk load — verify find() called once with $in
+# 4. Bulk load — verify DuckDB store is called
 # ---------------------------------------------------------------------------
 
 class TestBulkLoad:
-    """Verify _bulk_load_price_data makes a single aggregate query."""
+    """Verify _bulk_load_price_data calls store.load_symbols_bulk()."""
 
     def test_single_query(self):
         bars_a = [('2026-01-02', 100, 101, 99, 100), ('2026-01-03', 101, 102, 100, 101)]
         bars_b = [('2026-01-02', 50, 51, 49, 50)]
-        docs = [_make_mongo_doc('AAPL', bars_a), _make_mongo_doc('MSFT', bars_b)]
-        db, collection = _mock_db_with_docs(docs)
+        store = _make_store_with_data({'AAPL': bars_a, 'MSFT': bars_b})
 
-        bt = Backtester(config=BacktestConfig(), database=db)
+        bt = Backtester(config=BacktestConfig(), database=None, store=store)
         result = bt._bulk_load_price_data(['AAPL', 'MSFT'], '2026-01-01')
 
-        # Verify single aggregate() call with $in in the $match stage
-        collection.aggregate.assert_called_once()
-        pipeline = collection.aggregate.call_args[0][0]
-        match_stage = pipeline[0]
-        assert '$match' in match_stage
-        assert 'AAPL' in match_stage['$match']['symbol']['$in']
-        assert 'MSFT' in match_stage['$match']['symbol']['$in']
+        store.load_symbols_bulk.assert_called_once_with(['AAPL', 'MSFT'], start_date='2026-01-01')
 
-        # Verify returned DataFrames
         assert 'AAPL' in result
         assert 'MSFT' in result
         assert len(result['AAPL']) == 2
@@ -307,12 +295,10 @@ class TestMixedDataAvailability:
     """Some symbols have data, some don't."""
 
     def test_partial_data(self):
-        # Only AAPL has data, MSFT doesn't
         bars = [('2026-01-02', 100, 100.5, 99.5, 100), ('2026-01-03', 101, 110, 100, 108)]
-        docs = [_make_mongo_doc('AAPL', bars)]
-        db, _ = _mock_db_with_docs(docs)
+        store = _make_store_with_data({'AAPL': bars})
 
-        bt = Backtester(config=BacktestConfig(hold_days=3), database=db)
+        bt = Backtester(config=BacktestConfig(hold_days=3), database=None, store=store)
         price_data = bt._bulk_load_price_data(['AAPL', 'MSFT'], '2026-01-01')
 
         preds = [
@@ -404,15 +390,15 @@ class TestEmptyPredictions:
 
 
 # ---------------------------------------------------------------------------
-# 9. No database fallback
+# 9. No store fallback
 # ---------------------------------------------------------------------------
 
-class TestNoDatabaseFallback:
-    """database=None should route to sequential path in _evaluate_candidates."""
+class TestNoStoreFallback:
+    """store=None should route to sequential path in _evaluate_candidates."""
 
     def test_sequential_path_used(self):
         bt = Backtester(config=BacktestConfig(), database=None)
-        assert bt.database is None
+        assert bt.store is None
 
         pred = _make_prediction('TEST', 100, 95, 108)
         options = BacktestOptions(strategy="baseline")
@@ -423,10 +409,9 @@ class TestNoDatabaseFallback:
             mock_eval.assert_called_once()
             mock_vec.assert_not_called()
 
-    def test_vectorized_path_used_with_db(self):
-        db = MagicMock()
-        db.__getitem__ = MagicMock(return_value=MagicMock())
-        bt = Backtester(config=BacktestConfig(), database=db)
+    def test_vectorized_path_used_with_store(self):
+        store = MagicMock()
+        bt = Backtester(config=BacktestConfig(), database=None, store=store)
 
         pred = _make_prediction('TEST', 100, 95, 108)
         options = BacktestOptions(strategy="baseline")
@@ -525,15 +510,14 @@ class TestEvaluateCandidatesVectorized:
     """End-to-end test of _evaluate_candidates_vectorized."""
 
     def test_end_to_end(self):
-        bars = [
+        bars_data = {'TEST': [
             ('2026-01-01', 100, 101, 99, 100),
             ('2026-01-02', 100, 100.5, 99.5, 100),
             ('2026-01-03', 101, 110, 100, 108),
-        ]
-        docs = [_make_mongo_doc('TEST', bars)]
-        db, _ = _mock_db_with_docs(docs)
+        ]}
+        store = _make_store_with_data(bars_data)
 
-        bt = Backtester(config=BacktestConfig(hold_days=3), database=db)
+        bt = Backtester(config=BacktestConfig(hold_days=3), database=None, store=store)
         pred = _make_prediction('TEST', 100, 95, 108)
         options = BacktestOptions(strategy="baseline")
 

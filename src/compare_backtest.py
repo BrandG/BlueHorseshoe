@@ -19,30 +19,23 @@ STOP_PCT = 0.02     # 2% stop
 client = MongoClient('mongodb://mongo:27017')
 db = client['bluehorseshoe']
 
+from bluehorseshoe.data.duckdb_store import DuckDBStore
 from bluehorseshoe.core.config import weights_config
+
+_store = DuckDBStore()
 from bluehorseshoe.analysis.technical_analyzer import TechnicalAnalyzer
 from bluehorseshoe.analysis.constants import MIN_STOCK_PRICE, MAX_STOCK_PRICE, MIN_VOLUME_THRESHOLD
 
 
 def load_symbol_data(symbol, store=None):
-    """Load full data for a symbol."""
-    if store is not None:
-        df = store.load_symbol(symbol)
-        if df is not None and not df.empty:
-            df['date'] = pd.to_datetime(df['date'])
-            return df.sort_values('date').reset_index(drop=True)
-
-    doc = db.historical_prices_recent.find_one({"symbol": symbol})
-    if not doc or not doc.get('days'):
-        doc = db.historical_prices.find_one({"symbol": symbol})
-    if not doc or not doc.get('days'):
+    """Load full data for a symbol from DuckDB."""
+    if store is None:
         return None
-    df = pd.DataFrame(doc['days'])
-    if 'date' not in df.columns:
-        return None
-    df['date'] = pd.to_datetime(df['date'])
-    df = df.sort_values('date').reset_index(drop=True)
-    return df
+    df = store.load_symbol(symbol)
+    if df is not None and not df.empty:
+        df['date'] = pd.to_datetime(df['date'])
+        return df.sort_values('date').reset_index(drop=True)
+    return None
 
 
 def score_symbol(df, target_date):
@@ -191,9 +184,9 @@ def main():
     # Get a good sample of liquid symbols
     # Use the symbols from the NASDAQ list
     # Get symbols directly from MongoDB
-    all_symbols = sorted(db.historical_prices_recent.distinct('symbol'))
-    if not all_symbols:
-        all_symbols = sorted(db.historical_prices.distinct('symbol'))
+    all_symbols = sorted(
+        r[0] for r in _store.con.execute("SELECT DISTINCT symbol FROM ohlcv").fetchall()
+    )
     print(f"Total symbols: {len(all_symbols)}")
 
     # Score a manageable subset - take every Nth symbol for speed

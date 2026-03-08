@@ -142,6 +142,7 @@ def run_historical_batch(
     recent_only: bool = RECENT_ONLY,
     sleep_seconds: float = SLEEP_BETWEEN,
     classify: bool = False,
+    store=None,
 ) -> Dict[str, Any]:
     """
     Run a single batch of historical loads.
@@ -153,6 +154,7 @@ def run_historical_batch(
         recent_only: If True, fetch compact data.
         sleep_seconds: Sleep time between API calls.
         classify: If True, process all symbols; if False, only active symbols.
+        store: DuckDBStore instance for OHLCV storage.
 
     Returns a summary payload suitable for logs / API.
     """
@@ -180,7 +182,7 @@ def run_historical_batch(
     for sym in symbols:
         last_symbol = sym
         try:
-            refresh_historical_for_symbol(sym, recent=recent_only, database=database)
+            refresh_historical_for_symbol(sym, recent=recent_only, database=database, store=store)
             stats["successes"] += 1
             processed_total += 1
             logging.info("Loaded %s (%d/%d this batch)", sym,
@@ -209,13 +211,14 @@ def run_historical_batch(
         "recent_only": recent_only,
     }
 
-def classify_symbols_batch(database, limit=50, sleep_seconds=1.2):
+def classify_symbols_batch(database, limit=50, sleep_seconds=1.2, store=None):
     """Classify a batch of symbols by updating their data.
 
     Args:
         database: MongoDB database instance.
         limit: Maximum number of symbols to process.
         sleep_seconds: Sleep time between API calls.
+        store: DuckDBStore instance for OHLCV storage.
     """
     ck = get_checkpoint(database)
     last_symbol = ck.get("last_symbol")
@@ -229,7 +232,7 @@ def classify_symbols_batch(database, limit=50, sleep_seconds=1.2):
     for sym in symbols:
         fetch_daily_ohlc_from_net(sym, recent=True)  # compact
 
-        refresh_historical_for_symbol(sym, True, database=database)
+        refresh_historical_for_symbol(sym, True, database=database, store=store)
 
         processed_total += 1
         set_checkpoint(database, sym, processed_total, run_count)
@@ -240,6 +243,6 @@ def classify_symbols_batch(database, limit=50, sleep_seconds=1.2):
 if __name__ == "__main__":
     container = create_app_container()
     try:
-        run_historical_batch(container.get_database())
+        run_historical_batch(container.get_database(), store=container.get_historical_store())
     finally:
         container.close()
