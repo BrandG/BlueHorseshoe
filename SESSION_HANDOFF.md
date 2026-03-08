@@ -1,53 +1,40 @@
 # Session Handoff
 
-**Date:** March 7, 2026
-**Status:** DuckDB migration complete. OHLCV storage moved from MongoDB to DuckDB. File optimized from 4.0 GB to 484 MB.
+**Date:** March 8, 2026
+**Status:** MongoDB OHLCV fully removed. DuckDB is the sole OHLCV store with thread-safe access. Full pipeline verified.
 
 ---
 
-## What Was Done This Session (March 7, Session 2)
+## What Was Done This Session (March 8)
 
-### DuckDB Migration — All 4 Phases Complete
+### MongoDB OHLCV Removal
+- Removed all MongoDB dual-write code for OHLCV (`historical_prices`, `historical_prices_recent`)
+- Deleted `load_historical_data_from_mongo()`, renamed `save_historical_data_to_mongo()` → `save_historical_data()` (DuckDB-only)
+- Removed MongoDB read fallbacks from `strategy.py`, `backtest.py`, `service.py`
+- Renamed `upsert_historical_to_mongo()` → `upsert_historical()`, `get_historical_from_mongo()` → `get_historical()` in `symbols.py`
+- Updated all callers: `api.py`, `batch_loader.py`, `maintenance.py`, `dependencies.py`, `routes.py`, `tasks.py`
+- Updated tests and standalone scripts
+- MongoDB remains in use for non-OHLCV collections (scores, journal, overviews, checkpoints, symbols)
 
-1. **Phase 1: Foundation**
-   - Added `duckdb>=1.2.0` to `docker/requirements.txt`
-   - Created `src/bluehorseshoe/data/duckdb_store.py` — `DuckDBStore` class with save/load/bulk/snapshot methods
-   - Added `duckdb_path` to `config.py` Settings, `get_historical_store()` to `container.py`, `store` property to `context.py`
-   - Created `src/tests/test_duckdb_store.py` (23 tests)
-
-2. **Phase 2: Migration + dual-write**
-   - Created `src/migrate_to_duckdb.py` — migrated 11,291 symbols, 28.5M rows
-   - Added `store=None` param to `save_historical_data_to_mongo()`, `process_symbol()`, `build_all_symbols_history()`, `load_historical_data()`
-   - DuckDB dual-write wired through `-u` and `-b` handlers in `main.py`
-
-3. **Phase 3: Switch reads to DuckDB**
-   - `SwingTrader.__init__()` — accepts `store`, passes through to all data loads
-   - `strategy.py` — `_preload_symbol_data()`, `_load_benchmark_data()`, `_get_previous_trading_date()`, `get_previous_performance()` all use DuckDB when available
-   - `backtest.py` — `Backtester` and `_bulk_load_price_data()` use `store.load_symbols_bulk()`
-   - `service.py` — `load_universe_data()` and `get_latest_market_date()` use DuckDB
-   - `main.py` — passes `ctx.store` to all consumers
-
-4. **Phase 4: Cleanup**
-   - Removed MongoDB from `load_historical_data()` read chain (now: DuckDB → file → net)
-   - Updated standalone scripts (`build_test_dates.py`, `compare_v2_v3.py`, `compare_backtest.py`, `analyze_indicator_impact.py`)
-   - Added DuckDB dual-write to `upsert_historical_to_mongo()` in `symbols.py`
-
-5. **Schema optimization (this context window)**
-   - Slimmed to OHLCV-only (7 columns, dropped 25 redundant indicator columns)
-   - Removed primary key index — ART index cost 1.66 GB (3x the data), zone maps are faster for our query patterns
-   - **Final file size: 484 MB** (down from 4.0 GB original — 88% reduction)
+### DuckDB Thread-Safety Fix
+- `-u` update hung at 86% after dual-write removal — root cause: `ThreadPoolExecutor` workers concurrently accessing `self._con` (not thread-safe)
+- Added `threading.RLock()` to `DuckDBStore`, wrapped all `self._con.execute()` calls with `with self._lock:`
+- Used `RLock` (reentrant) because `load_symbol_dict()` calls `load_symbol()` + `get_metadata()` — regular `Lock` would deadlock
+- Fixed `close()` to use `getattr()` for safe cleanup when `__init__` fails partway
 
 ### Verified
-- Dual-write: ran `-u --symbols SPY,QQQ`, confirmed rows increased and latest date updated
-- DuckDB reads: ran `-p --symbols SPY,QQQ,AAPL`, confirmed log output "Loaded SPY from DuckDB (6626 days)"
-- Data parity: 20/20 random symbol spot-checks match MongoDB
-- Benchmarks: no-index is faster (single load 18ms→13ms, bulk50 579ms→134ms)
-- All 340 tests passing, lint passing
+- `-u` update: 3,590 symbols in 203 seconds, 0 failures
+- `-p` prediction: 5,414 symbols in 79 minutes, reports generated successfully
+- 339 tests passing, lint clean
+
+### TO-DO Updates
+- Added infrastructure items: research droplet DuckDB access, DuckDB periodic backups, non-git file backup strategy
 
 ---
 
 ## Previous Sessions Summary
 
+- **March 7 (Session 2):** DuckDB migration complete — all 4 phases, schema optimization (4.0 GB → 484 MB)
 - **March 7 (Session 1):** Market-cap universe (~3,591 symbols), multi-provider pool (Tiingo/AV/Yahoo), volume gates removed
 - **March 6:** Vectorized backtesting — 13x speedup single-date, 7.4x range
 - **March 5:** Score-once backtest refactor — 22 min → 2-3 sec; connors_flag BSON fix
@@ -58,39 +45,48 @@
 
 ## Next Steps
 
-- **Run full prediction pipeline** to measure end-to-end timing improvement with DuckDB (previously ~51 min for 5.3k symbols — Phase 1 preload should be much faster)
-- **Consider dropping MongoDB OHLCV collections** (`historical_prices`, `historical_prices_recent`) — DuckDB is now the sole read source; MongoDB still receives dual-writes as a safety net. Dropping would free significant MongoDB storage.
-- **Backfill overviews for remaining symbols** — ~2,000 NASDAQ/NYSE symbols still missing overviews. Run `-u --refresh-overviews --ov-limit 500` in batches.
+- **Backfill overviews** — ~2,000 symbols still missing overviews. Run `-u --refresh-overviews --ov-limit 500` in batches.
 - **Full historical backfill** — Many of the 3,500 newly-tracked symbols only have ~6 months of data
+- **DuckDB backup strategy** — No backup exists for `data/ohlcv.duckdb` (484 MB). Add periodic snapshots.
+- **Strategy as pluggable interface** — Refactor Baseline/MR behind `Strategy(ABC)` so adding shorts is trivial
+- **Event-driven backtest** — Model trades as orders fed through daily bars (handles split exits, trailing stops, shorts as order types)
 - See `TO-DO.md` for full backlog
 
 ---
 
 ## Key Decisions
 
-- **No primary key index** — DuckDB's ART index for PK on 28M rows cost 1.66 GB (77% of file). Dropped it. Zone maps handle our `WHERE symbol = ?` queries efficiently; uniqueness enforced by DELETE-before-INSERT in `save_symbol()`. Benchmarks confirmed faster without it.
-- **OHLCV-only storage** — 25 indicator columns (RSI, MACD, ADX, etc.) dropped from DuckDB. They're always recomputed from raw OHLCV by `get_technical_indicators()` during every ingestion.
-- **MongoDB dual-write retained** — Both write paths still active as a safety net. Can be removed once confidence is established.
+- **No primary key index** — DuckDB's ART index for PK on 28M rows cost 1.66 GB (77% of file). Dropped it. Zone maps handle our `WHERE symbol = ?` queries efficiently; uniqueness enforced by DELETE-before-INSERT in `save_symbol()`.
+- **OHLCV-only storage** — 25 indicator columns dropped from DuckDB. Always recomputed from raw OHLCV.
+- **MongoDB OHLCV dual-write removed** — DuckDB is the sole OHLCV store. MongoDB retains scores, journal, overviews, checkpoints, symbols.
+- **RLock for DuckDB thread safety** — All connection access serialized. Reentrant lock avoids deadlocks from nested method calls.
 - **$300M market cap floor** — ~3,591 symbols. Configurable via `MIN_MARKET_CAP` constant.
 - **V3 weights remain production** — No changes to scoring weights
 
 ---
 
-## Key Files (DuckDB Migration)
+## Key Files
 
 | File | Role |
 |------|------|
-| `src/bluehorseshoe/data/duckdb_store.py` | DuckDB storage backend |
-| `src/bluehorseshoe/data/historical_data.py` | Write path (dual-write), read path (DuckDB-first) |
+| `src/bluehorseshoe/data/duckdb_store.py` | DuckDB storage backend (thread-safe via RLock) |
+| `src/bluehorseshoe/data/historical_data.py` | Write path (DuckDB-only), read path (DuckDB → file → net) |
 | `src/bluehorseshoe/core/container.py` | `get_historical_store()` |
 | `src/bluehorseshoe/core/config.py` | `duckdb_path` setting |
 | `src/bluehorseshoe/analysis/strategy.py` | `store` wired through prediction pipeline |
 | `src/bluehorseshoe/analysis/backtest.py` | `store` wired through backtester |
 | `src/bluehorseshoe/core/service.py` | `load_universe_data()`, `get_latest_market_date()` |
 | `src/main.py` | Passes `ctx.store` to all consumers |
-| `src/migrate_to_duckdb.py` | One-time migration script |
-| `src/tests/test_duckdb_store.py` | 23 unit tests |
 | `data/ohlcv.duckdb` | The database file (484 MB, 28.5M rows, 11,291 symbols) |
+
+---
+
+## Pipeline Timing (March 8)
+
+| Pipeline | Symbols | Time |
+|----------|---------|------|
+| `-u` (data update) | 3,590 | 3 min 23 sec |
+| `-p` (prediction) | 5,414 | 79 min |
 
 ---
 
@@ -98,6 +94,7 @@
 
 ### Research Droplet
 - **Status:** DESTROYED (March 4, 2026)
+- **Note:** When re-creating, must SCP `data/ohlcv.duckdb` to the droplet — DuckDB is now the sole OHLCV store (no MongoDB fallback)
 *************** DO NOT EDIT THE FOLLOWING SECTION WHEN UPDATING SESSION_HANDOFF.md
 **IMPORTANT:** All SSH commands to the research droplet MUST `cd /root/BlueHorseshoe` first.
 The default login directory is `/root`, NOT the repo directory.
@@ -118,11 +115,11 @@ doctl compute droplet delete bh-research --force
 
 ### Production
 ```bash
-docker exec bluehorseshoe python src/main.py -p                          # Prediction
-docker exec bluehorseshoe python src/main.py -u                          # Data update (active-only)
+docker exec bluehorseshoe python src/main.py -p                          # Prediction (~79 min)
+docker exec bluehorseshoe python src/main.py -u                          # Data update (~3.5 min)
 docker exec bluehorseshoe python src/main.py -u --all                    # Data update (all 11k symbols)
 docker exec bluehorseshoe python src/main.py -u --refresh-overviews      # Update + backfill missing overviews
-docker exec bluehorseshoe pytest -v                                      # Tests (340 passing)
+docker exec bluehorseshoe pytest -v                                      # Tests (339 passing)
 docker exec bluehorseshoe ./lint.sh                                      # Lint
 ```
 
@@ -141,9 +138,8 @@ docker exec bluehorseshoe ./lint.sh                                      # Lint
 ## Git Status
 
 **Branch:** master
-**Latest pushed commit:** `a50a09f` — docs: Update TO-DO with multi-provider pool and market-cap universe completion
-**Unpushed:** All DuckDB migration work (Phases 1-4 + schema optimization)
+**Latest commit:** `4f095e4` — fix: Add thread-safety locks to DuckDBStore and update TO-DO
 
 ---
 
-**Last Updated:** March 7, 2026
+**Last Updated:** March 8, 2026
