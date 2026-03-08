@@ -224,6 +224,49 @@ class CandlestickIndicator(Indicator):
 
         return 1.0 if belt_hold[-1] >= 100 else -1.0 if belt_hold[-1] <= -100 else 0.0
 
+    def find_engulfing(self) -> float:
+        """
+        Detects the Engulfing candlestick pattern in the provided data.
+
+        Uses TA-Lib CDLENGULFING to identify bullish and bearish engulfing patterns.
+        A bullish engulfing occurs when a small bearish candle is followed by a larger
+        bullish candle that completely engulfs the prior body. Bearish is the inverse.
+
+        Returns:
+            float:
+                1.0 if a Bullish Engulfing pattern is detected,
+                -1.0 if a Bearish Engulfing pattern is detected,
+                0.0 if no Engulfing pattern is detected.
+        """
+        engulfing = talib.CDLENGULFING(  # type: ignore
+            self.days['open'].values,
+            self.days['high'].values,
+            self.days['low'].values,
+            self.days['close'].values)
+
+        return 1.0 if engulfing[-1] >= 100 else -1.0 if engulfing[-1] <= -100 else 0.0
+
+    def find_hammer(self) -> float:
+        """
+        Detects the Hammer candlestick pattern in the provided data.
+
+        Uses TA-Lib CDLHAMMER to identify hammer patterns. A hammer has a small body
+        near the top of the range with a long lower shadow, signaling buyers defended
+        a support level. Hammer is always a bullish signal.
+
+        Returns:
+            float:
+                1.0 if a Hammer pattern is detected,
+                0.0 if no Hammer pattern is detected.
+        """
+        hammer = talib.CDLHAMMER(  # type: ignore
+            self.days['open'].values,
+            self.days['high'].values,
+            self.days['low'].values,
+            self.days['close'].values)
+
+        return 1.0 if hammer[-1] >= 100 else 0.0
+
     def get_score(self, enabled_sub_indicators: Optional[list[str]] = None, aggregation: str = "sum") -> IndicatorScore:
         """
         Calculate the combined score based on various candlestick patterns.
@@ -235,7 +278,9 @@ class CandlestickIndicator(Indicator):
             'soldiers': (self.detect_three_white_soldiers, 'THREE_WHITE_SOLDIERS_MULTIPLIER'),
             'methods': (self.find_rise_fall_3_methods, 'RISE_FALL_3_METHODS_MULTIPLIER'),
             'marubozu': (self.find_marubozu, 'MARUBOZU_MULTIPLIER'),
-            'belt_hold': (self.find_belt_hold, 'BELT_HOLD_MULTIPLIER')
+            'belt_hold': (self.find_belt_hold, 'BELT_HOLD_MULTIPLIER'),
+            'engulfing': (self.find_engulfing, 'ENGULFING_MULTIPLIER'),
+            'hammer': (self.find_hammer, 'HAMMER_MULTIPLIER'),
         }
 
         for name, (func, weight_key) in sub_map.items():

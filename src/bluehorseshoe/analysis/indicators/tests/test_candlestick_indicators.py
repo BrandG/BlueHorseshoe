@@ -167,6 +167,82 @@ def test_find_belt_hold():
     indicator = CandlestickIndicator(sample_data())
     assert indicator.find_belt_hold() == 0.0
 
+def test_find_engulfing():
+    """Test that find_engulfing returns 0.0 for flat sample data (no pattern)."""
+    indicator = CandlestickIndicator(sample_data())
+    assert indicator.find_engulfing() == 0.0
+
+def test_find_engulfing_bullish():
+    """Test bullish engulfing detection with crafted data."""
+    # Build base data then end with a bearish candle followed by a larger bullish candle
+    data = sample_data().copy()
+    n = len(data)
+    # Second-to-last: bearish candle (open > close)
+    data.loc[n - 2, 'open'] = 30.0
+    data.loc[n - 2, 'high'] = 30.5
+    data.loc[n - 2, 'low'] = 28.0
+    data.loc[n - 2, 'close'] = 28.5
+    # Last: bullish candle that engulfs prior body (open below prior close, close above prior open)
+    data.loc[n - 1, 'open'] = 27.0
+    data.loc[n - 1, 'high'] = 32.0
+    data.loc[n - 1, 'low'] = 26.5
+    data.loc[n - 1, 'close'] = 31.0
+    indicator = CandlestickIndicator(data)
+    assert indicator.find_engulfing() == 1.0
+
+def test_find_engulfing_bearish():
+    """Test bearish engulfing detection with crafted data."""
+    data = sample_data().copy()
+    n = len(data)
+    # Second-to-last: bullish candle (open < close)
+    data.loc[n - 2, 'open'] = 28.5
+    data.loc[n - 2, 'high'] = 30.5
+    data.loc[n - 2, 'low'] = 28.0
+    data.loc[n - 2, 'close'] = 30.0
+    # Last: bearish candle that engulfs prior body (open above prior close, close below prior open)
+    data.loc[n - 1, 'open'] = 31.0
+    data.loc[n - 1, 'high'] = 32.0
+    data.loc[n - 1, 'low'] = 26.5
+    data.loc[n - 1, 'close'] = 27.0
+    indicator = CandlestickIndicator(data)
+    assert indicator.find_engulfing() == -1.0
+
+def test_find_hammer():
+    """Test that find_hammer returns 0.0 for flat sample data (no pattern)."""
+    indicator = CandlestickIndicator(sample_data())
+    assert indicator.find_hammer() == 0.0
+
+def test_find_hammer_detected():
+    """Test hammer detection with crafted data (small body at top, long lower shadow)."""
+    # TA-Lib CDLHAMMER requires a clear downtrend preceding the hammer candle.
+    # Build a sustained downtrend over 30 candles, ending with a hammer.
+    rows = []
+    price = 50.0
+    for i in range(29):
+        o = price
+        c = price - 1.0
+        h = o + 0.3
+        l = c - 0.3
+        rows.append({'open': o, 'high': h, 'low': l, 'close': c})
+        price = c
+    # Last candle: hammer — tiny body at top, long lower shadow, no upper shadow
+    rows.append({'open': 21.0, 'high': 21.1, 'low': 14.0, 'close': 21.05})
+    data = pd.DataFrame(rows).astype(float)
+    indicator = CandlestickIndicator(data)
+    assert indicator.find_hammer() == 1.0
+
+def test_get_score_includes_new_patterns():
+    """Test that get_score includes engulfing and hammer sub-indicators."""
+    indicator = CandlestickIndicator(sample_data())
+    score = indicator.get_score()
+    # With flat data all patterns return 0 so total should be 0
+    assert score == IndicatorScore(buy=0.0, sell=0.0)
+    # Verify new sub-indicators are in the sub_map by enabling only them
+    score_engulfing = indicator.get_score(enabled_sub_indicators=['engulfing'])
+    assert score_engulfing == IndicatorScore(buy=0.0, sell=0.0)
+    score_hammer = indicator.get_score(enabled_sub_indicators=['hammer'])
+    assert score_hammer == IndicatorScore(buy=0.0, sell=0.0)
+
 def test_calculate_score():
     """
     Test the calculate_score method of the CandlestickIndicator class.

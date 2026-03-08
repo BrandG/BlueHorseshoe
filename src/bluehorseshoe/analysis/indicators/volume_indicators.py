@@ -128,6 +128,58 @@ class VolumeIndicator(Indicator):
             return -1.0
         return 1.0
 
+    def calculate_rvol(self, window: int = 20) -> float:
+        """
+        Calculate Relative Volume (RVOL) score.
+
+        RVOL measures today's volume relative to the average of the previous
+        N days. High RVOL confirms breakouts with real participation; low RVOL
+        flags low-conviction moves.
+
+        Formula:
+            RVOL = today's volume / mean(previous N days' volume)
+
+        Scoring:
+        • -2.0 if RVOL < 0.5 (very low participation)
+        • -1.0 if RVOL < 0.8 (below average)
+        •  0.0 if 0.8 <= RVOL <= 1.2 (normal)
+        • +1.0 if 1.2 < RVOL <= 1.5 (above average)
+        • +1.5 if 1.5 < RVOL < 2.0 (high — breakout confirmation)
+        • +2.0 if RVOL >= 2.0 (very high — strong confirmation)
+
+        Args:
+            window: Lookback period for average volume (default: 20 days).
+                    Requires window + 1 rows (N prior days + today).
+
+        Returns:
+            float: Score from -2.0 to +2.0 based on RVOL ratio
+        """
+        if len(self.days) < window + 1:
+            return 0.0
+
+        # Exclude today from the average to avoid look-ahead
+        prior_volume = self.days['volume'].iloc[-(window + 1):-1]
+        avg_volume = prior_volume.mean()
+
+        if avg_volume == 0:
+            return 0.0
+
+        today_volume = self.days['volume'].iloc[-1]
+        rvol = today_volume / avg_volume
+
+        if rvol >= 2.0:
+            return 2.0
+        elif rvol >= 1.5:
+            return 1.5
+        elif rvol > 1.2:
+            return 1.0
+        elif rvol >= 0.8:
+            return 0.0
+        elif rvol >= 0.5:
+            return -1.0
+        else:
+            return -2.0
+
     def calculate_cmf_with_ta(self, window: int = 20, threshold: float = 0.05) -> float:
         """
         Calculates Chaikin Money Flow (CMF) using the 'ta' library and
@@ -423,7 +475,8 @@ class VolumeIndicator(Indicator):
             'mfi': (self.calculate_mfi, 'MFI_MULTIPLIER'),
             'vwap': (self.calculate_vwap, 'VWAP_MULTIPLIER'),
             'force_index': (self.calculate_force_index, 'FORCE_INDEX_MULTIPLIER'),
-            'ad_line': (self.calculate_ad_line, 'AD_LINE_MULTIPLIER')
+            'ad_line': (self.calculate_ad_line, 'AD_LINE_MULTIPLIER'),
+            'rvol': (self.calculate_rvol, 'RVOL_MULTIPLIER')
         }
 
         for name, (func, weight_key) in sub_map.items():

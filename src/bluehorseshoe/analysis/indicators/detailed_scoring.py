@@ -95,6 +95,7 @@ class DetailedScorer:
                 'vwap': (inst.calculate_vwap, 'VWAP_MULTIPLIER'),
                 'force_index': (inst.calculate_force_index, 'FORCE_INDEX_MULTIPLIER'),
                 'ad_line': (inst.calculate_ad_line, 'AD_LINE_MULTIPLIER'),
+                'rvol': (inst.calculate_rvol, 'RVOL_MULTIPLIER'),
             }
         elif cls_name == 'CandlestickIndicator':
             inst = indicator_instance
@@ -103,6 +104,8 @@ class DetailedScorer:
                 'methods': (inst.find_rise_fall_3_methods, 'RISE_FALL_3_METHODS_MULTIPLIER'),
                 'marubozu': (inst.find_marubozu, 'MARUBOZU_MULTIPLIER'),
                 'belt_hold': (inst.find_belt_hold, 'BELT_HOLD_MULTIPLIER'),
+                'engulfing': (inst.find_engulfing, 'ENGULFING_MULTIPLIER'),
+                'hammer': (inst.find_hammer, 'HAMMER_MULTIPLIER'),
             }
         elif cls_name == 'MovingAverageIndicator':
             inst = indicator_instance

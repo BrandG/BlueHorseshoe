@@ -5,7 +5,7 @@
 ### New Indicators
 
 - **Relative Volume (RVOL)** — Replace the crude binary avg-volume gate (>100k → pass/fail) with a proper RVOL ratio: `current_volume / 20-day_avg_volume`. Useful for confirming breakouts in the Baseline strategy — a breakout on 2x+ normal volume is far more reliable than one on low participation. Score could be tiered (e.g. RVOL < 0.8 → penalty, 1.0-1.5 → neutral, 1.5-2.0 → bonus, >2.0 → strong bonus). Add to `volume_indicators.py`.
-- **Engulfing & Hammer candlestick patterns** — TA-Lib has `CDLENGULFING` and `CDLHAMMER` ready to call. These are two of the most reliable reversal patterns and would complement the Mean Reversion strategy well (confirming that buyers are defending a level after an oversold dip). Add alongside existing patterns in `candlestick_indicators.py` with configurable weight multipliers in `weights.json`.
+- ~~**Engulfing & Hammer candlestick patterns**~~ **Done** — Added `find_engulfing()` (CDLENGULFING) and `find_hammer()` (CDLHAMMER) to `CandlestickIndicator` with weight multipliers in `weights.json` (baseline: engulfing 1.0, hammer 0.5; MR: engulfing 1.5, hammer 2.0).
 
 ### Architecture & Refactoring
 

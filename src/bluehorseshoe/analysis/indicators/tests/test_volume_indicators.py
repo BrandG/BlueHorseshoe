@@ -183,6 +183,52 @@ def test_score_obv_trend():
     expected_result = 1.0  # Corrected from 0.0 after fixing inversion
     assert result == expected_result, f"Expected {expected_result}, but got {result}"
 
+def test_calculate_rvol_normal_volume():
+    """Test RVOL with constant volume — all days same volume gives RVOL ~1.0, score 0.0."""
+    vi = VolumeIndicator(sample_data())
+    result = vi.calculate_rvol()
+    assert result == 0.0, f"Expected 0.0 for constant volume, but got {result}"
+
+def test_calculate_rvol_high_volume():
+    """Test RVOL with last day volume 2x+ the prior average — score 2.0."""
+    data = sample_data()
+    data.loc[data.index[-1], 'volume'] = 300000  # ~3x the 100001 avg
+    vi = VolumeIndicator(data)
+    result = vi.calculate_rvol()
+    assert result == 2.0, f"Expected 2.0 for very high volume, but got {result}"
+
+def test_calculate_rvol_low_volume():
+    """Test RVOL with last day volume < 0.5x the prior average — score -2.0."""
+    data = sample_data()
+    data.loc[data.index[-1], 'volume'] = 30000  # ~0.3x the 100001 avg
+    vi = VolumeIndicator(data)
+    result = vi.calculate_rvol()
+    assert result == -2.0, f"Expected -2.0 for very low volume, but got {result}"
+
+def test_calculate_rvol_above_average():
+    """Test RVOL with last day volume ~1.3x the prior average — score 1.0."""
+    data = sample_data()
+    data.loc[data.index[-1], 'volume'] = 130000  # ~1.3x the 100001 avg
+    vi = VolumeIndicator(data)
+    result = vi.calculate_rvol()
+    assert result == 1.0, f"Expected 1.0 for above-average volume, but got {result}"
+
+def test_calculate_rvol_insufficient_data():
+    """Test RVOL with fewer than 21 rows — returns 0.0."""
+    short_data = sample_data().head(15)  # Only 15 rows, need 21
+    vi = VolumeIndicator(short_data)
+    result = vi.calculate_rvol()
+    assert result == 0.0, f"Expected 0.0 for insufficient data, but got {result}"
+
+def test_get_score_includes_rvol():
+    """Test that get_score() includes RVOL when enabled."""
+    vi = VolumeIndicator(sample_data())
+    result_with = vi.get_score(enabled_sub_indicators=['rvol'])
+    result_without = vi.get_score(enabled_sub_indicators=['obv'])
+    # RVOL on constant volume = 0.0 * 1.5 = 0.0, but verify it runs without error
+    assert isinstance(result_with.buy, float)
+    assert isinstance(result_without.buy, float)
+
 def test_calculate_score():
     """Test the calculate_score method of the VolumeIndicator class.
 
