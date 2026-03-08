@@ -945,6 +945,7 @@ class SwingTrader:
                         "connors_flag": r.get("connors_flag", False),
                         "connors_rsi2": r.get("connors_rsi2"),
                         "connors_sma200": r.get("connors_sma200"),
+                        "sentiment": r.get("sentiment", 0.0),
                     }
                 })
             if r['mr_score'] > 0:
@@ -966,6 +967,7 @@ class SwingTrader:
                         "connors_flag": r.get("connors_flag", False),
                         "connors_rsi2": r.get("connors_rsi2"),
                         "connors_sma200": r.get("connors_sma200"),
+                        "sentiment": r.get("sentiment", 0.0),
                     }
                 })
         return score_data

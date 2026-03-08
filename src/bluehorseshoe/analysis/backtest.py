@@ -1150,11 +1150,12 @@ class Backtester:
         else:
             results = self._vectorized_simulate_single_exit(flat_preds, price_data)
 
-        # Attach score/ML metadata and log per-trade output
+        # Attach score/ML/sentiment metadata and log per-trade output
         for i, result in enumerate(results):
             pred = top_predictions[i]
             result[score_key] = pred.get(score_key, 0.0)
             result[ml_prob_key] = pred.get(ml_prob_key, 0.0)
+            result['sentiment'] = pred.get('sentiment', 0.0)
 
             score_val = pred.get(score_key, 0.0)
             ml_prob = pred.get(ml_prob_key, 0.0)
@@ -1213,6 +1214,7 @@ class Backtester:
                 ml_prob_key: meta.get('ml_win_prob', 0.0),
                 'stop_multiplier': meta.get('stop_multiplier', 2.0),
                 'target_multiplier': meta.get('target_multiplier', 3.0),
+                'sentiment': meta.get('sentiment', 0.0),
             })
 
         logging.info("Loaded %d saved %s scores for %s", len(predictions), options.strategy, target_date)
@@ -1297,6 +1299,7 @@ class Backtester:
             # Add prediction metadata to result for CSV logging
             eval_result[score_key] = pred.get(score_key, 0.0)
             eval_result[ml_prob_key] = pred.get(ml_prob_key, 0.0)
+            eval_result['sentiment'] = pred.get('sentiment', 0.0)
 
             results.append(eval_result)
 
@@ -1332,7 +1335,7 @@ class Backtester:
 
         with open(log_path, 'a', newline='', encoding='utf-8') as csvfile:
             fieldnames = [
-                'date', 'symbol', 'strategy', 'score', 'ml_prob',
+                'date', 'symbol', 'strategy', 'score', 'ml_prob', 'sentiment',
                 'entry', 'stop_loss', 'take_profit', 'exit_price',
                 'exit_date', 'days_held', 'status', 'outcome', 'profit_loss',
                 't1_status', 't1_pnl', 't2_status', 't2_pnl'
@@ -1364,6 +1367,7 @@ class Backtester:
                     'strategy': options.strategy,
                     'score': result.get(score_key, 0.0),
                     'ml_prob': result.get(ml_prob_key, 0.0),
+                    'sentiment': result.get('sentiment', 0.0),
                     'entry': result.get('entry', ''),
                     'stop_loss': result.get('stop_loss', ''),
                     'take_profit': result.get('take_profit', ''),
