@@ -12,6 +12,7 @@ Usage:
     store.close()
 """
 import logging
+import threading
 from typing import Dict, List, Optional
 
 import duckdb
@@ -42,6 +43,7 @@ class DuckDBStore:
     def __init__(self, db_path: str = ":memory:"):
         self._db_path = db_path
         self._con = duckdb.connect(db_path)
+        self._lock = threading.RLock()
         self._init_schema()
 
     # ------------------------------------------------------------------
@@ -76,6 +78,9 @@ class DuckDBStore:
         Only core OHLCV columns (date, open, high, low, close, volume) are
         persisted.  Indicator columns in *df* are silently dropped — they are
         always recomputed from raw OHLCV during ingestion.
+
+        Thread-safe: serialized via _lock since the DuckDB Python
+        connection object is not thread-safe.
         """
         if df is None or df.empty:
             return
@@ -90,20 +95,21 @@ class DuckDBStore:
         df_cols = list(df.columns)
         cols_sql = ", ".join(f'"{c}"' for c in df_cols)
 
-        # Delete existing rows for this symbol+date combo, then insert
-        # (DuckDB INSERT OR REPLACE requires matching all columns)
-        self._con.execute(
-            "DELETE FROM ohlcv WHERE symbol = ? AND date IN (SELECT date FROM df)",
-            [symbol],
-        )
-        self._con.execute(f"INSERT INTO ohlcv ({cols_sql}) SELECT {cols_sql} FROM df")
+        with self._lock:
+            # Delete existing rows for this symbol+date combo, then insert
+            # (DuckDB INSERT OR REPLACE requires matching all columns)
+            self._con.execute(
+                "DELETE FROM ohlcv WHERE symbol = ? AND date IN (SELECT date FROM df)",
+                [symbol],
+            )
+            self._con.execute(f"INSERT INTO ohlcv ({cols_sql}) SELECT {cols_sql} FROM df")
 
-        # Update metadata
-        ts = pd.Timestamp.now().isoformat()
-        self._con.execute("""
-            INSERT OR REPLACE INTO symbol_metadata (symbol, full_name, last_updated)
-            VALUES (?, ?, ?)
-        """, [symbol, full_name or symbol, ts])
+            # Update metadata
+            ts = pd.Timestamp.now().isoformat()
+            self._con.execute("""
+                INSERT OR REPLACE INTO symbol_metadata (symbol, full_name, last_updated)
+                VALUES (?, ?, ?)
+            """, [symbol, full_name or symbol, ts])
 
     # ------------------------------------------------------------------
     # Read — single symbol
@@ -130,9 +136,10 @@ class DuckDBStore:
             params.append(end_date)
 
         where = " AND ".join(clauses)
-        df = self._con.execute(
-            f"SELECT * FROM ohlcv WHERE {where} ORDER BY date", params
-        ).fetchdf()
+        with self._lock:
+            df = self._con.execute(
+                f"SELECT * FROM ohlcv WHERE {where} ORDER BY date", params
+            ).fetchdf()
 
         if df.empty:
             return None
@@ -186,9 +193,10 @@ class DuckDBStore:
             where += " AND date > ?"
             params.append(start_date)
 
-        df = self._con.execute(
-            f"SELECT * FROM ohlcv WHERE {where} ORDER BY symbol, date", params
-        ).fetchdf()
+        with self._lock:
+            df = self._con.execute(
+                f"SELECT * FROM ohlcv WHERE {where} ORDER BY symbol, date", params
+            ).fetchdf()
 
         if df.empty:
             return {}
@@ -209,12 +217,13 @@ class DuckDBStore:
 
         Returns a list of flat dicts suitable for DataFrame construction.
         """
-        df = self._con.execute("""
-            SELECT symbol, date, open, high, low, close, volume
-            FROM ohlcv
-            WHERE date = ? AND close >= ?
-            ORDER BY symbol
-        """, [date, min_price]).fetchdf()
+        with self._lock:
+            df = self._con.execute("""
+                SELECT symbol, date, open, high, low, close, volume
+                FROM ohlcv
+                WHERE date = ? AND close >= ?
+                ORDER BY symbol
+            """, [date, min_price]).fetchdf()
 
         if df.empty:
             return []
@@ -225,39 +234,44 @@ class DuckDBStore:
     # ------------------------------------------------------------------
     def get_latest_date(self) -> Optional[str]:
         """Return the most recent date across all symbols."""
-        row = self._con.execute("SELECT MAX(date) FROM ohlcv").fetchone()
+        with self._lock:
+            row = self._con.execute("SELECT MAX(date) FROM ohlcv").fetchone()
         return row[0] if row and row[0] else None
 
     def get_symbol_dates(self, symbol: str) -> List[str]:
         """Return sorted list of dates for a symbol."""
-        rows = self._con.execute(
-            "SELECT date FROM ohlcv WHERE symbol = ? ORDER BY date", [symbol]
-        ).fetchall()
+        with self._lock:
+            rows = self._con.execute(
+                "SELECT date FROM ohlcv WHERE symbol = ? ORDER BY date", [symbol]
+            ).fetchall()
         return [r[0] for r in rows]
 
     def get_metadata(self, symbol: str) -> Optional[Dict]:
         """Return metadata dict for a symbol, or None."""
-        row = self._con.execute(
-            "SELECT symbol, full_name, last_updated FROM symbol_metadata WHERE symbol = ?",
-            [symbol],
-        ).fetchone()
+        with self._lock:
+            row = self._con.execute(
+                "SELECT symbol, full_name, last_updated FROM symbol_metadata WHERE symbol = ?",
+                [symbol],
+            ).fetchone()
         if row is None:
             return None
         return {"symbol": row[0], "full_name": row[1], "last_updated": row[2]}
 
     def symbol_count(self) -> int:
         """Return number of distinct symbols stored."""
-        row = self._con.execute("SELECT COUNT(DISTINCT symbol) FROM ohlcv").fetchone()
+        with self._lock:
+            row = self._con.execute("SELECT COUNT(DISTINCT symbol) FROM ohlcv").fetchone()
         return row[0] if row else 0
 
     def row_count(self, symbol: Optional[str] = None) -> int:
         """Return total row count, optionally filtered by symbol."""
-        if symbol:
-            row = self._con.execute(
-                "SELECT COUNT(*) FROM ohlcv WHERE symbol = ?", [symbol]
-            ).fetchone()
-        else:
-            row = self._con.execute("SELECT COUNT(*) FROM ohlcv").fetchone()
+        with self._lock:
+            if symbol:
+                row = self._con.execute(
+                    "SELECT COUNT(*) FROM ohlcv WHERE symbol = ?", [symbol]
+                ).fetchone()
+            else:
+                row = self._con.execute("SELECT COUNT(*) FROM ohlcv").fetchone()
         return row[0] if row else 0
 
     # ------------------------------------------------------------------
@@ -265,9 +279,10 @@ class DuckDBStore:
     # ------------------------------------------------------------------
     def close(self) -> None:
         """Close the DuckDB connection."""
-        if self._con is not None:
+        con = getattr(self, "_con", None)
+        if con is not None:
             try:
-                self._con.close()
+                con.close()
             except Exception:  # pylint: disable=broad-exception-caught
                 pass
             self._con = None
