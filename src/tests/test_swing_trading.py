@@ -161,7 +161,8 @@ def test_process_symbol(swing_trader, sample_data, mocker): # pylint: disable=re
     # Mock holiday_mode on the config object instead of GlobalData
     swing_trader.config.holiday_mode = False
     mocker.patch('bluehorseshoe.analysis.strategy.MIN_RR_RATIO_BASELINE', 0.0)
-    mocker.patch('bluehorseshoe.analysis.strategy.MIN_RR_RATIO_MEAN_REVERSION', 0.0)
+    mocker.patch('bluehorseshoe.analysis.strategy_interface.MIN_RR_RATIO_BASELINE', 0.0)
+    mocker.patch('bluehorseshoe.analysis.strategy_interface.MIN_RR_RATIO_MEAN_REVERSION', 0.0)
     mocker.patch('bluehorseshoe.analysis.strategy.MAX_RISK_PERCENT', 1.0)
     # Mocking now to a Sunday so BDay(1) is Friday (Jan 2)
     mocker.patch('bluehorseshoe.analysis.strategy.pd.Timestamp.now', return_value=pd.Timestamp('2026-01-04'))

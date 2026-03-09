@@ -1,39 +1,45 @@
 # Session Handoff
 
-**Date:** March 8, 2026
-**Status:** MongoDB OHLCV fully removed. DuckDB is the sole OHLCV store with thread-safe access. Full pipeline verified.
+**Date:** March 9, 2026
+**Status:** Pluggable strategy interface complete. All strategies (Baseline, MR) are self-contained classes behind `TradingStrategy` ABC. Adding a third strategy requires zero downstream changes.
 
 ---
 
-## What Was Done This Session (March 8)
+## What Was Done This Session (March 9)
 
-### MongoDB OHLCV Removal
-- Removed all MongoDB dual-write code for OHLCV (`historical_prices`, `historical_prices_recent`)
-- Deleted `load_historical_data_from_mongo()`, renamed `save_historical_data_to_mongo()` → `save_historical_data()` (DuckDB-only)
-- Removed MongoDB read fallbacks from `strategy.py`, `backtest.py`, `service.py`
-- Renamed `upsert_historical_to_mongo()` → `upsert_historical()`, `get_historical_from_mongo()` → `get_historical()` in `symbols.py`
-- Updated all callers: `api.py`, `batch_loader.py`, `maintenance.py`, `dependencies.py`, `routes.py`, `tasks.py`
-- Updated tests and standalone scripts
-- MongoDB remains in use for non-OHLCV collections (scores, journal, overviews, checkpoints, symbols)
+### Pluggable Strategy Interface (8-Phase Refactor)
+Replaced 40+ `if strategy == "baseline"` branches across 7 files with a generic strategy loop pattern.
 
-### DuckDB Thread-Safety Fix
-- `-u` update hung at 86% after dual-write removal — root cause: `ThreadPoolExecutor` workers concurrently accessing `self._con` (not thread-safe)
-- Added `threading.RLock()` to `DuckDBStore`, wrapped all `self._con.execute()` calls with `with self._lock:`
-- Used `RLock` (reentrant) because `load_symbol_dict()` calls `load_symbol()` + `get_metadata()` — regular `Lock` would deadlock
-- Fixed `close()` to use `getattr()` for safe cleanup when `__init__` fails partway
+**New files:**
+- `strategy_interface.py` — `TradingStrategy` ABC, `StrategyResult` dataclass, `BaselineStrategy`, `MeanReversionStrategy` (stateless, picklable for ProcessPoolExecutor)
+- `strategy_registry.py` — `get_strategy()`, `get_all_strategies()`, `get_strategy_keys()` central registry
+
+**Migrated consumers:**
+- `backtest.py` — 13 ternary branches → `get_strategy_keys()` calls
+- `technical_analyzer.py` — added `calculate_score_for_strategy()`, old `calculate_technical_score()` delegates via registry
+- `html_reporter.py` — strategy filtering uses `get_all_strategies()` loop
+- `journal.py` — `_build_signal_docs()` single loop over strategies (was two duplicate loops)
+- `strategy.py` — `SwingTrader` accepts `strategies` param; `process_symbol()`, `_score_symbol_worker()`, `_prepare_scores_for_save()`, `swing_predict()` all use generic strategy loops
+
+**Removed deprecated code:**
+- `_process_baseline()`, `_process_mr()` from `SwingTrader`
+- `_worker_process_baseline()`, `_worker_process_mr()` module-level functions
+
+**Test updates:**
+- 4 new test files/updates (37 new tests)
+- Updated mocks in `test_connors_section.py`, `test_swing_trading.py`, `test_strategy_bearish.py` to use `StrategyResult`/strategy objects
+- 408 tests passing, lint clean
 
 ### Verified
-- `-u` update: 3,590 symbols in 203 seconds, 0 failures
-- `-p` prediction: 5,414 symbols in 79 minutes, reports generated successfully
-- 339 tests passing, lint clean
-
-### TO-DO Updates
-- Added infrastructure items: research droplet DuckDB access, DuckDB periodic backups, non-git file backup strategy
+- All 408 tests passing
+- Lint clean
+- Result dict shape unchanged — backward compatible with MongoDB schema and all downstream consumers
 
 ---
 
 ## Previous Sessions Summary
 
+- **March 8:** MongoDB OHLCV dual-write removed, DuckDB thread-safety fix (RLock), new indicators (RVOL, Engulfing, Hammer)
 - **March 7 (Session 2):** DuckDB migration complete — all 4 phases, schema optimization (4.0 GB → 484 MB)
 - **March 7 (Session 1):** Market-cap universe (~3,591 symbols), multi-provider pool (Tiingo/AV/Yahoo), volume gates removed
 - **March 6:** Vectorized backtesting — 13x speedup single-date, 7.4x range
@@ -45,17 +51,22 @@
 
 ## Next Steps
 
+- **Add a third strategy (e.g. Shorts)** — Now trivial: subclass `TradingStrategy`, register in `strategy_registry.py`, done
+- **Event-driven backtest** — Model trades as orders fed through daily bars (handles split exits, trailing stops, shorts as order types)
 - **Backfill overviews** — ~2,000 symbols still missing overviews. Run `-u --refresh-overviews --ov-limit 500` in batches.
 - **Full historical backfill** — Many of the 3,500 newly-tracked symbols only have ~6 months of data
 - **DuckDB backup strategy** — No backup exists for `data/ohlcv.duckdb` (484 MB). Add periodic snapshots.
-- **Strategy as pluggable interface** — Refactor Baseline/MR behind `Strategy(ABC)` so adding shorts is trivial
-- **Event-driven backtest** — Model trades as orders fed through daily bars (handles split exits, trailing stops, shorts as order types)
 - See `TO-DO.md` for full backlog
 
 ---
 
 ## Key Decisions
 
+- **Strategy objects are stateless and picklable** — They receive `trader` as a parameter to `process()`, not stored state. Critical for `ProcessPoolExecutor` workers.
+- **Result dict shape preserved** — `process_symbol()` still returns `{baseline_score, mr_score, ...}` — all downstream code sees no change.
+- **MongoDB schema unchanged** — `strategy` field stores `"baseline"` or `"mean_reversion"` — the strategy's `.name` property returns these exact strings.
+- **Connors stays as a flag, not a strategy** — Piggybacks on setup data from other strategies. Can become a third strategy later.
+- **`calculate_technical_score()` kept as backward-compat wrapper** — Widely used (tests, scripts, `historical_data.py`). Internally delegates via registry.
 - **No primary key index** — DuckDB's ART index for PK on 28M rows cost 1.66 GB (77% of file). Dropped it. Zone maps handle our `WHERE symbol = ?` queries efficiently; uniqueness enforced by DELETE-before-INSERT in `save_symbol()`.
 - **OHLCV-only storage** — 25 indicator columns dropped from DuckDB. Always recomputed from raw OHLCV.
 - **MongoDB OHLCV dual-write removed** — DuckDB is the sole OHLCV store. MongoDB retains scores, journal, overviews, checkpoints, symbols.
@@ -73,8 +84,10 @@
 | `src/bluehorseshoe/data/historical_data.py` | Write path (DuckDB-only), read path (DuckDB → file → net) |
 | `src/bluehorseshoe/core/container.py` | `get_historical_store()` |
 | `src/bluehorseshoe/core/config.py` | `duckdb_path` setting |
-| `src/bluehorseshoe/analysis/strategy.py` | `store` wired through prediction pipeline |
-| `src/bluehorseshoe/analysis/backtest.py` | `store` wired through backtester |
+| `src/bluehorseshoe/analysis/strategy_interface.py` | `TradingStrategy` ABC, `BaselineStrategy`, `MeanReversionStrategy` |
+| `src/bluehorseshoe/analysis/strategy_registry.py` | `get_strategy()`, `get_all_strategies()`, `get_strategy_keys()` |
+| `src/bluehorseshoe/analysis/strategy.py` | `SwingTrader` — uses strategy loop via `self.strategies` |
+| `src/bluehorseshoe/analysis/backtest.py` | Uses `get_strategy_keys()` for all key resolution |
 | `src/bluehorseshoe/core/service.py` | `load_universe_data()`, `get_latest_market_date()` |
 | `src/main.py` | Passes `ctx.store` to all consumers |
 | `data/ohlcv.duckdb` | The database file (484 MB, 28.5M rows, 11,291 symbols) |
@@ -119,7 +132,7 @@ docker exec bluehorseshoe python src/main.py -p                          # Predi
 docker exec bluehorseshoe python src/main.py -u                          # Data update (~3.5 min)
 docker exec bluehorseshoe python src/main.py -u --all                    # Data update (all 11k symbols)
 docker exec bluehorseshoe python src/main.py -u --refresh-overviews      # Update + backfill missing overviews
-docker exec bluehorseshoe pytest -v                                      # Tests (339 passing)
+docker exec bluehorseshoe pytest -v                                      # Tests (408 passing)
 docker exec bluehorseshoe ./lint.sh                                      # Lint
 ```
 
@@ -138,8 +151,9 @@ docker exec bluehorseshoe ./lint.sh                                      # Lint
 ## Git Status
 
 **Branch:** master
-**Latest commit:** `4f095e4` — fix: Add thread-safety locks to DuckDBStore and update TO-DO
+**Latest commit:** `e26d5be` — feat: Add Engulfing, Hammer candlestick patterns and RVOL volume indicator
+**Uncommitted:** Pluggable strategy interface refactor (8 phases)
 
 ---
 
-**Last Updated:** March 8, 2026
+**Last Updated:** March 9, 2026

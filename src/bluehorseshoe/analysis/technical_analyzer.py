@@ -19,6 +19,7 @@ from bluehorseshoe.analysis.constants import (
     PENALTY_RSI_THRESHOLD_MODERATE, PENALTY_RSI_SCORE_MODERATE,
     PENALTY_VOLUME_EXHAUSTION
 )
+from bluehorseshoe.analysis.strategy_registry import get_strategy
 from bluehorseshoe.analysis.indicators.candlestick_indicators import CandlestickIndicator
 from bluehorseshoe.analysis.indicators.limit_indicators import LimitIndicator
 from bluehorseshoe.analysis.indicators.momentum_indicators import MomentumIndicator
@@ -110,18 +111,63 @@ class TechnicalAnalyzer:
         """
         Calculate a technical score based on the specified strategy.
         Returns a dictionary of component scores for granular analysis.
+
+        Delegates to ``calculate_score_for_strategy()`` via the strategy
+        registry so that new strategies are automatically supported.
         """
-        if strategy == "mean_reversion":
-            return TechnicalAnalyzer.calculate_mean_reversion_score(
-                days,
-                enabled_indicators=enabled_indicators,
-                aggregation=aggregation
-            )
-        return TechnicalAnalyzer.calculate_baseline_score(
-            days,
+        strat_obj = get_strategy(strategy)
+        return TechnicalAnalyzer.calculate_score_for_strategy(
+            days, strat_obj,
             enabled_indicators=enabled_indicators,
-            aggregation=aggregation
+            aggregation=aggregation,
         )
+
+    @staticmethod
+    def calculate_score_for_strategy(
+        days: pd.DataFrame,
+        strategy,
+        enabled_indicators: Optional[list[str]] = None,
+        aggregation: str = "sum"
+    ) -> Dict[str, float]:
+        """
+        Calculate a technical score using a ``TradingStrategy`` object.
+
+        Uses ``strategy.weight_prefix`` to load the correct indicator weights.
+        """
+        if len(days) == 0:
+            return {"total": 0.0}
+
+        if TechnicalAnalyzer._is_dead_or_flat(days):
+            return {"total": 0.0}
+
+        # Parse granular indicators if provided (e.g., "momentum:macd")
+        indicator_filters = {}
+        if enabled_indicators:
+            for item in enabled_indicators:
+                if ":" in item:
+                    group, sub = item.split(":", 1)
+                    if group not in indicator_filters:
+                        indicator_filters[group] = []
+                    indicator_filters[group].append(sub)
+                else:
+                    indicator_filters[item] = None
+
+        total_score, components, active_count = TechnicalAnalyzer._score_indicators(
+            days, indicator_filters, aggregation,
+            weight_prefix=strategy.weight_prefix,
+        )
+
+        if active_count == 0:
+            total_score = 0.0
+
+        # Apply baseline modifiers (same penalties/bonuses for all strategies)
+        if not enabled_indicators:
+            mod_score, mod_components = TechnicalAnalyzer._calculate_baseline_modifiers(days)
+            total_score += mod_score
+            components.update(mod_components)
+
+        components["total"] = float(total_score)
+        return components
 
     @staticmethod
     def _calculate_baseline_modifiers(days: pd.DataFrame) -> tuple[float, Dict[str, float]]:

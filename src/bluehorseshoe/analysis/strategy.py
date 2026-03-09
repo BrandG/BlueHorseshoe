@@ -34,9 +34,8 @@ from ta.volatility import AverageTrueRange
 from bluehorseshoe.analysis.constants import (
     MIN_STOCK_PRICE, MAX_STOCK_PRICE,
     ATR_WINDOW,
-    MIN_RR_RATIO_BASELINE, MIN_RR_RATIO_MEAN_REVERSION,
+    MIN_RR_RATIO_BASELINE,
     MAX_RISK_PERCENT,
-    REQUIRE_WEEKLY_UPTREND,
     SIGNAL_STRENGTH_THRESHOLDS,
     ENTRY_DISCOUNT_BY_SIGNAL,
     ENABLE_DYNAMIC_ENTRY
@@ -53,6 +52,7 @@ from bluehorseshoe.core.symbols import (
     get_sentiment_score, fetch_news_sentiment_from_net, upsert_news_sentiment_to_mongo,
 )
 from bluehorseshoe.analysis.ml_utils import build_ml_features
+from bluehorseshoe.analysis.strategy_registry import get_all_strategies
 from bluehorseshoe.data.historical_data import load_historical_data
 from bluehorseshoe.reporting.report_generator import ReportWriter, ReportSingleton
 
@@ -78,7 +78,8 @@ class SwingTrader:
         stop_loss_inference: Optional[StopLossInference] = None,
         profit_target_inference: Optional[ProfitTargetInference] = None,
         report_writer: Optional[ReportWriter] = None,
-        store=None
+        store=None,
+        strategies=None
     ):
         """
         Initialize SwingTrader with dependency injection.
@@ -91,10 +92,12 @@ class SwingTrader:
             profit_target_inference: ProfitTargetInference instance. If None, creates new instance.
             report_writer: ReportWriter instance for logging. If None, uses legacy ReportSingleton.
             store: DuckDBStore for OHLCV data. If provided, used instead of MongoDB for reads.
+            strategies: List of TradingStrategy objects. If None, uses all registered strategies.
         """
         # Store injected dependencies
         self.database = database
         self.store = store
+        self.strategies = strategies if strategies is not None else get_all_strategies()
         self.config = config if config is not None else get_settings()
         self.report_writer = report_writer
 
@@ -403,149 +406,6 @@ class SwingTrader:
 
         return df, price_data, yesterday
 
-    def _process_baseline(self, df: pd.DataFrame, symbol: str, yesterday: dict, ctx: StrategyContext) -> Optional[Dict]:
-        """Process Baseline strategy logic."""
-        # Regime Filter: Skip momentum during bearish regimes
-        # UPDATED (Jan 2026): User requested to bypass this hard filter.
-        # if ctx.market_health and ctx.market_health['status'] == 'Bearish':
-        #    return None
-
-        # Dynamic Regime Filtering:
-        # In Bear/Neutral markets, we MUST have a Weekly Uptrend to avoid "bull traps".
-        # In strong Bull markets, we can relax this to capture early reversals or strong daily momentum.
-        should_enforce_weekly = REQUIRE_WEEKLY_UPTREND
-        if ctx.market_health and ctx.market_health['status'] == 'Bullish':
-            should_enforce_weekly = False
-
-        is_uptrend = self.is_weekly_uptrend(df)
-        if should_enforce_weekly and not is_uptrend:
-            # print(f"DEBUG: {symbol} - Baseline failed weekly uptrend")
-            return None
-
-        # *** STEP 1: Calculate score FIRST ***
-        score_components = self.technical_analyzer.calculate_baseline_score(
-            df,
-            enabled_indicators=ctx.enabled_indicators,
-            aggregation=ctx.aggregation
-        )
-        technical_score = score_components.get("total", 0.0)
-
-        # *** STEP 2: Calculate baseline setup with ML stop/target and actual technical_score ***
-        ml_stop_multiplier = 2.0
-        ml_target_multiplier = self.profit_target_inference.predict_profit_target_multiplier(
-            symbol, score_components,
-            target_date=str(yesterday['date'])[:10],
-            strategy="baseline"
-        )
-        baseline_setup = self.calculate_baseline_setup(
-            df, ml_stop_multiplier=ml_stop_multiplier,
-            ml_target_multiplier=ml_target_multiplier,
-            technical_score=technical_score
-        )
-
-        # Validation checks
-        if not baseline_setup['is_realistic']:
-            return None
-
-        entry_price = baseline_setup['entry_price']
-        if not MIN_STOCK_PRICE < entry_price < MAX_STOCK_PRICE:
-            print(f"DEBUG: {symbol} - Baseline price out of range: {entry_price}")
-            return None
-
-        if baseline_setup['rr_ratio'] < MIN_RR_RATIO_BASELINE:
-            return None
-
-        # Apply Relative Strength (RS) Bonus
-        rs_multiplier = weights_config.get_weights('momentum').get('RS_MULTIPLIER', 1.0)
-        if ctx.benchmark_df is not None and rs_multiplier != 0.0:
-            rs_ratio = self.calculate_relative_strength(df, ctx.benchmark_df)
-            if rs_ratio > 1.10:
-                rs_bonus = 5.0
-            elif rs_ratio > 1.0:
-                rs_bonus = 2.0
-            else:
-                rs_bonus = -2.0
-            rs_bonus *= rs_multiplier
-            score_components["rs_index"] = rs_bonus
-            score_components["total"] += rs_bonus
-
-        # Apply Score Acceleration Bonus
-        accel_multiplier = weights_config.get_weights('trend').get('SCORE_ACCEL_MULTIPLIER', 0.0)
-        if accel_multiplier != 0.0 and hasattr(ctx, 'score_history'):
-            history = ctx.score_history.get(symbol, [])
-            accel_bonus = self._calculate_score_acceleration(history) * accel_multiplier
-            score_components["score_acceleration"] = accel_bonus
-            score_components["total"] += accel_bonus
-
-        # Calculate ML Win Probability
-        ml_prob = self.ml_inference.predict_probability(
-            symbol,
-            score_components,
-            target_date=str(yesterday['date'])[:10],
-            strategy="baseline"
-        )
-
-        return {
-            "score": score_components.pop("total", 0.0),
-            "components": score_components,
-            "setup": baseline_setup,
-            "ml_prob": ml_prob,
-            "stop_multiplier": ml_stop_multiplier,
-            "target_multiplier": ml_target_multiplier
-        }
-
-    def _process_mr(self, df: pd.DataFrame, symbol: str, yesterday: dict, ctx: StrategyContext) -> Optional[Dict]:
-        """Process Mean Reversion strategy logic."""
-        score_components_mr = self.technical_analyzer.calculate_technical_score(
-            df,
-            strategy="mean_reversion",
-            enabled_indicators=ctx.enabled_indicators,
-            aggregation=ctx.aggregation
-        )
-
-        # Predict ML Stop Loss Multiplier
-        ml_stop_multiplier_mr = self.stop_loss_inference.predict_stop_loss_multiplier(
-            symbol,
-            score_components_mr,
-            target_date=str(yesterday['date'])[:10]
-        )
-
-        # Predict ML Profit Target Multiplier
-        ml_target_multiplier_mr = self.profit_target_inference.predict_profit_target_multiplier(
-            symbol,
-            score_components_mr,
-            target_date=str(yesterday['date'])[:10],
-            strategy="mean_reversion"
-        )
-
-        mr_setup = self.calculate_mean_reversion_setup(df, ml_stop_multiplier=ml_stop_multiplier_mr, ml_target_multiplier=ml_target_multiplier_mr)
-        if not mr_setup['is_realistic']:
-            return None
-
-        entry_price = mr_setup['entry_price']
-        if not MIN_STOCK_PRICE < entry_price < MAX_STOCK_PRICE:
-            return None
-
-        if mr_setup['rr_ratio'] < MIN_RR_RATIO_MEAN_REVERSION:
-            return None
-
-        # Calculate ML Win Probability
-        ml_prob_mr = self.ml_inference.predict_probability(
-            symbol,
-            score_components_mr,
-            target_date=str(yesterday['date'])[:10],
-            strategy="mean_reversion"
-        )
-
-        return {
-            "score": score_components_mr.pop("total", 0.0),
-            "components": score_components_mr,
-            "setup": mr_setup,
-            "ml_prob": ml_prob_mr,
-            "stop_multiplier": ml_stop_multiplier_mr,
-            "target_multiplier": ml_target_multiplier_mr
-        }
-
     def process_symbol(self, symbol: str, ctx: StrategyContext) -> Optional[Dict]:
         """Process a single symbol and return its trading data."""
         # 1. Load and Validate Data
@@ -554,11 +414,14 @@ class SwingTrader:
             return None
         df, price_data, yesterday = data_result
 
-        # 2. Process Strategies
-        baseline_data = self._process_baseline(df, symbol, yesterday, ctx)
-        mr_data = self._process_mr(df, symbol, yesterday, ctx)
+        # 2. Process all registered strategies
+        strategy_results = {}
+        for strategy in self.strategies:
+            result = strategy.process(self, df, symbol, yesterday, ctx)
+            if result is not None:
+                strategy_results[strategy.name] = result
 
-        if not baseline_data and not mr_data:
+        if not strategy_results:
             return None
 
         # 3. Connors RSI(2) flag — computed for ALL symbols with enough data
@@ -574,7 +437,7 @@ class SwingTrader:
                 connors_sma200 = float(sma_200.iloc[-1])
                 connors_flag = bool(connors_rsi2 < 10 and df['close'].iloc[-1] > connors_sma200)
 
-        # 4. Finalize Result
+        # 4. Finalize Result — build backward-compatible dict using strategy keys
         rs_ratio = 1.0
         if ctx.benchmark_df is not None:
             rs_ratio = self.calculate_relative_strength(df, ctx.benchmark_df)
@@ -585,19 +448,26 @@ class SwingTrader:
             'exchange': ctx.symbol_map.get(symbol, 'Unknown') if ctx.symbol_map else 'Unknown',
             'date': str(yesterday['date']),
             'rs_ratio': rs_ratio,
-            'baseline_score': baseline_data['score'] if baseline_data else 0.0,
-            'baseline_components': baseline_data['components'] if baseline_data else {},
-            'baseline_setup': baseline_data['setup'] if baseline_data else {},
-            'baseline_ml_prob': baseline_data['ml_prob'] if baseline_data else 0.0,
-            'mr_score': mr_data['score'] if mr_data else 0.0,
-            'mr_components': mr_data['components'] if mr_data else {},
-            'mr_setup': mr_data['setup'] if mr_data else {},
-            'mr_ml_prob': mr_data['ml_prob'] if mr_data else 0.0,
             'connors_flag': connors_flag,
             'connors_rsi2': connors_rsi2,
-            'connors_sma200': connors_sma200
+            'connors_sma200': connors_sma200,
         }
-        logging.info("Processed %s with results Baseline: %.2f, MR: %.2f", symbol, ret_val['baseline_score'], ret_val['mr_score'])
+
+        for strategy in self.strategies:
+            sr = strategy_results.get(strategy.name)
+            ret_val[strategy.score_key] = sr.score if sr else 0.0
+            ret_val[strategy.components_key] = sr.components if sr else {}
+            ret_val[strategy.setup_key] = sr.setup if sr else {}
+            ret_val[strategy.ml_prob_key] = sr.ml_prob if sr else 0.0
+            if sr:
+                ret_val['stop_multiplier'] = sr.stop_multiplier
+                ret_val['target_multiplier'] = sr.target_multiplier
+
+        score_parts = " | ".join(
+            f"{s.display_name}: {ret_val.get(s.score_key, 0):.2f}"
+            for s in self.strategies
+        )
+        logging.info("Processed %s with results %s", symbol, score_parts)
         return ret_val
     def _load_benchmark_data(self, target_date: Optional[str]) -> Optional[pd.DataFrame]:
         benchmark_data = load_historical_data("SPY", database=self.database, score_manager_instance=self.score_manager, store=self.store)
@@ -907,69 +777,50 @@ class SwingTrader:
                      len(all_results), total_valid, total_symbols)
         return all_results
 
-    def _report_top_candidates(self, results, strategy_key, setup_key, title):
+    def _report_top_candidates(self, results, strategy_key, setup_key, title, ml_prob_key=None):
         sorted_results = sorted([r for r in results if r[strategy_key] > 0], key=lambda x: x[strategy_key], reverse=True)
         self._write_report(f'\n--- Top 5 {title} Candidates ---')
+        if ml_prob_key is None:
+            ml_prob_key = 'baseline_ml_prob' if 'baseline' in strategy_key else 'mr_ml_prob'
         for i in range(min(5, len(sorted_results))):
             res = sorted_results[i]
             setup = res[setup_key]
-            prob_key = 'baseline_ml_prob' if 'baseline' in strategy_key else 'mr_ml_prob'
             self._write_report(
                 f"{res['symbol']} - Entry: {setup['entry_price']:.2f} | "
                 f"Stop: {setup['stop_loss']:.2f} (SL Mult: {res.get('stop_multiplier', 0):.1f}) | "
                 f"Exit: {setup['take_profit']:.2f} (TP Mult: {res.get('target_multiplier', 0):.1f}) | "
-                f"Score: {res[strategy_key]:.2f} | ML Win%: {res[prob_key]*100:.1f}% - Name: {res['name']}"
+                f"Score: {res[strategy_key]:.2f} | ML Win%: {res[ml_prob_key]*100:.1f}% - Name: {res['name']}"
             )
 
     def _prepare_scores_for_save(self, valid_results) -> List[Dict]:
         score_data = []
         for r in valid_results:
-            if r['baseline_score'] > 0:
-                setup = r['baseline_setup']
-                score_data.append({
-                    "symbol": r["symbol"],
-                    "date": r["date"][:10],
-                    "score": r["baseline_score"],
-                    "strategy": "baseline",
-                    "version": "1.6",
-                    "metadata": {
-                        "entry_price": setup["entry_price"],
-                        "stop_loss": setup["stop_loss"],
-                        "take_profit": setup["take_profit"],
-                        "ml_win_prob": r["baseline_ml_prob"],
-                        "stop_multiplier": r.get("stop_multiplier", 2.0),
-                        "target_multiplier": r.get("target_multiplier", 3.0),
-                        "components": r["baseline_components"],
-                        "atr_discount_used": setup.get("atr_discount_used", 0.20),
-                        "signal_strength": setup.get("signal_strength", "MEDIUM"),
-                        "connors_flag": r.get("connors_flag", False),
-                        "connors_rsi2": r.get("connors_rsi2"),
-                        "connors_sma200": r.get("connors_sma200"),
-                        "sentiment": r.get("sentiment", 0.0),
-                    }
-                })
-            if r['mr_score'] > 0:
-                setup = r['mr_setup']
-                score_data.append({
-                    "symbol": r["symbol"],
-                    "date": r["date"][:10],
-                    "score": r["mr_score"],
-                    "strategy": "mean_reversion",
-                    "version": "1.6",
-                    "metadata": {
-                        "entry_price": setup["entry_price"],
-                        "stop_loss": setup["stop_loss"],
-                        "take_profit": setup["take_profit"],
-                        "ml_win_prob": r["mr_ml_prob"],
-                        "stop_multiplier": r.get("stop_multiplier", 1.5),
-                        "target_multiplier": r.get("target_multiplier", 2.0),
-                        "components": r["mr_components"],
-                        "connors_flag": r.get("connors_flag", False),
-                        "connors_rsi2": r.get("connors_rsi2"),
-                        "connors_sma200": r.get("connors_sma200"),
-                        "sentiment": r.get("sentiment", 0.0),
-                    }
-                })
+            for strat in self.strategies:
+                score = r.get(strat.score_key, 0)
+                if score > 0:
+                    setup = r.get(strat.setup_key, {})
+                    score_data.append({
+                        "symbol": r["symbol"],
+                        "date": r["date"][:10],
+                        "score": score,
+                        "strategy": strat.name,
+                        "version": "1.6",
+                        "metadata": {
+                            "entry_price": setup.get("entry_price", 0),
+                            "stop_loss": setup.get("stop_loss", 0),
+                            "take_profit": setup.get("take_profit", 0),
+                            "ml_win_prob": r.get(strat.ml_prob_key, 0.0),
+                            "stop_multiplier": r.get("stop_multiplier", strat.default_stop_multiplier),
+                            "target_multiplier": r.get("target_multiplier", strat.default_target_multiplier),
+                            "components": r.get(strat.components_key, {}),
+                            "atr_discount_used": setup.get("atr_discount_used", 0.0),
+                            "signal_strength": setup.get("signal_strength", "MEDIUM"),
+                            "connors_flag": r.get("connors_flag", False),
+                            "connors_rsi2": r.get("connors_rsi2"),
+                            "connors_sma200": r.get("connors_sma200"),
+                            "sentiment": r.get("sentiment", 0.0),
+                        }
+                    })
         return score_data
 
     def _get_previous_trading_date(self, current_date: str) -> Optional[str]:
@@ -1109,78 +960,78 @@ class SwingTrader:
 
         # 4. Report & Collect Data
         # We print to console/txt via ReportSingleton inside these helpers
-        self._report_top_candidates(valid_results, 'baseline_score', 'baseline_setup', 'Baseline (Trend)')
-        self._report_top_candidates(valid_results, 'mr_score', 'mr_setup', 'Mean Reversion (Dip)')
+        # Report top candidates per strategy
+        _strategy_titles = {"baseline": "Baseline (Trend)", "mean_reversion": "Mean Reversion (Dip)"}
+        for strat in self.strategies:
+            title = _strategy_titles.get(strat.name, strat.display_name)
+            self._report_top_candidates(
+                valid_results, strat.score_key, strat.setup_key, title,
+                ml_prob_key=strat.ml_prob_key,
+            )
 
         # 5. Save
         if valid_results:
             score_data = self._prepare_scores_for_save(valid_results)
             self.score_manager.save_scores(score_data)
-            logging.info("Saved %d scores (Baseline & Mean Reversion) to trade_scores", len(score_data))
+            logging.info("Saved %d scores (%d strategies) to trade_scores",
+                         len(score_data), len(self.strategies))
 
         # 6. Prepare Return Data for HTML Reporter
         candidates = []
         for r in valid_results:
-            # Flatten results for the reporter
-            if r['baseline_score'] > 0:
-                setup = r['baseline_setup']
-                entry_price = setup.get("entry_price", 0)
-                candidates.append({
-                    "symbol": r["symbol"],
-                    "exchange": r.get("exchange", "Unknown"),
-                    "strategy": "Baseline",
-                    "score": r["baseline_score"],
-                    "close": entry_price,
-                    "stop_loss": setup.get("stop_loss", 0),
-                    "t1_target": entry_price * 1.02 if entry_price > 0 else 0,
-                    "target": setup.get("take_profit", 0),
-                    "ml_prob": r.get("baseline_ml_prob", 0.0),
-                    "sentiment": r.get("sentiment", 0.0),
-                    "reasons": [f"{k}={v:.1f}" for k, v in r['baseline_components'].items() if v != 0]
-                })
-            if r['mr_score'] > 0:
-                setup = r['mr_setup']
-                entry_price = setup.get("entry_price", 0)
-                candidates.append({
-                    "symbol": r["symbol"],
-                    "exchange": r.get("exchange", "Unknown"),
-                    "strategy": "MeanRev",
-                    "score": r["mr_score"],
-                    "close": entry_price,
-                    "stop_loss": setup.get("stop_loss", 0),
-                    "t1_target": entry_price * 1.02 if entry_price > 0 else 0,
-                    "target": setup.get("take_profit", 0),
-                    "ml_prob": r.get("mr_ml_prob", 0.0),
-                    "sentiment": r.get("sentiment", 0.0),
-                    "reasons": [f"{k}={v:.1f}" for k, v in r['mr_components'].items() if v != 0],
-                    "connors_flag": r.get("connors_flag", False)
-                })
+            for strat in self.strategies:
+                score = r.get(strat.score_key, 0)
+                if score > 0:
+                    setup = r.get(strat.setup_key, {})
+                    entry_price = setup.get("entry_price", 0)
+                    cand = {
+                        "symbol": r["symbol"],
+                        "exchange": r.get("exchange", "Unknown"),
+                        "strategy": strat.display_name,
+                        "score": score,
+                        "close": entry_price,
+                        "stop_loss": setup.get("stop_loss", 0),
+                        "t1_target": entry_price * 1.02 if entry_price > 0 else 0,
+                        "target": setup.get("take_profit", 0),
+                        "ml_prob": r.get(strat.ml_prob_key, 0.0),
+                        "sentiment": r.get("sentiment", 0.0),
+                        "reasons": [
+                            f"{k}={v:.1f}"
+                            for k, v in r.get(strat.components_key, {}).items()
+                            if v != 0
+                        ],
+                    }
+                    if r.get("connors_flag"):
+                        cand["connors_flag"] = True
+                    candidates.append(cand)
 
         # Build Connors RSI(2) candidates — scanned from full universe independently
         connors_candidates = []
         for r in valid_results:
             if not r.get('connors_flag'):
                 continue
-            # Prefer MR setup data, fall back to baseline
-            if r['mr_score'] > 0:
-                setup = r['mr_setup']
-                score = r['mr_score']
-            elif r['baseline_score'] > 0:
-                setup = r['baseline_setup']
-                score = r['baseline_score']
-            else:
+            # Prefer MR setup data, fall back to baseline (iterate strategies in reverse priority)
+            best_setup = None
+            best_score = 0
+            best_ml_prob = 0.0
+            for strat in reversed(self.strategies):
+                if r.get(strat.score_key, 0) > 0:
+                    best_setup = r.get(strat.setup_key, {})
+                    best_score = r[strat.score_key]
+                    best_ml_prob = r.get(strat.ml_prob_key, 0.0)
+            if not best_setup:
                 continue
-            entry_price = setup.get("entry_price", 0)
+            entry_price = best_setup.get("entry_price", 0)
             connors_candidates.append({
                 "symbol": r["symbol"],
                 "exchange": r.get("exchange", "Unknown"),
                 "strategy": "Connors",
-                "score": score,
+                "score": best_score,
                 "close": entry_price,
-                "stop_loss": setup.get("stop_loss", 0),
+                "stop_loss": best_setup.get("stop_loss", 0),
                 "t1_target": entry_price * 1.02 if entry_price > 0 else 0,
-                "target": setup.get("take_profit", 0),
-                "ml_prob": r.get("mr_ml_prob", 0.0) or r.get("baseline_ml_prob", 0.0),
+                "target": best_setup.get("take_profit", 0),
+                "ml_prob": best_ml_prob,
                 "sentiment": r.get("sentiment", 0.0),
                 "connors_rsi2": r.get("connors_rsi2"),
                 "connors_sma200": r.get("connors_sma200"),
@@ -1189,17 +1040,16 @@ class SwingTrader:
         connors_candidates = sorted(connors_candidates, key=lambda x: x['score'], reverse=True)[:10]
 
         # Take top 25 from each strategy so one can't crowd out the other
-        baseline_cands = sorted(
-            [c for c in candidates if c['strategy'] == 'Baseline'],
-            key=lambda x: x['score'], reverse=True
-        )[:25]
-        mr_cands = sorted(
-            [c for c in candidates if c['strategy'] == 'MeanRev'],
-            key=lambda x: x['score'], reverse=True
-        )[:25]
+        strategy_cands = []
+        for strat in self.strategies:
+            strat_top = sorted(
+                [c for c in candidates if c['strategy'] == strat.display_name],
+                key=lambda x: x['score'], reverse=True,
+            )[:25]
+            strategy_cands.extend(strat_top)
         top_candidates = sorted(
-            baseline_cands + mr_cands + connors_candidates,
-            key=lambda x: x['score'], reverse=True
+            strategy_cands + connors_candidates,
+            key=lambda x: x['score'], reverse=True,
         )
 
         # 5b. Freeze Signal Journal (immutable record)
@@ -1269,12 +1119,14 @@ def _init_worker(overlay_paths, stop_loss_path, profit_target_paths, shared_ctx)
     # Create compute-only SwingTrader (bypass __init__ to avoid DB connections)
     trader = SwingTrader.__new__(SwingTrader)
     trader.technical_analyzer = TechnicalAnalyzer()
+    trader.strategies = get_all_strategies()
 
     # Reconstruct benchmark DataFrame from dict-of-lists
     benchmark_data = shared_ctx.get('benchmark_data')
 
     _worker_state = {
         'trader': trader,
+        'strategies': trader.strategies,
         'benchmark_df': pd.DataFrame(benchmark_data) if benchmark_data else None,
         'market_health': shared_ctx.get('market_health'),
         'enabled_indicators': shared_ctx.get('enabled_indicators'),
@@ -1431,135 +1283,6 @@ def _worker_ml_predict_profit_target(components, overview, sentiment, strategy="
     return max(1.5, min(2.5, recommended_multiplier))
 
 
-def _worker_process_baseline(trader, df, yesterday, benchmark_df, market_health,
-                              enabled_indicators, aggregation, overview, sentiment,
-                              symbol=None):
-    """
-    Replicate SwingTrader._process_baseline() without DB access.
-    Uses pre-loaded ML models for win probability prediction.
-    """
-    # Weekly uptrend check
-    should_enforce_weekly = REQUIRE_WEEKLY_UPTREND
-    if market_health and market_health.get('status') == 'Bullish':
-        should_enforce_weekly = False
-
-    is_uptrend = trader.is_weekly_uptrend(df)
-    if should_enforce_weekly and not is_uptrend:
-        return None
-
-    # Step 1: Calculate technical score
-    score_components = trader.technical_analyzer.calculate_baseline_score(
-        df, enabled_indicators=enabled_indicators, aggregation=aggregation
-    )
-    technical_score = score_components.get("total", 0.0)
-
-    # Step 2: Baseline setup with ML stop/target and actual technical_score
-    ml_stop_multiplier = 2.0
-    ml_target_multiplier = _worker_ml_predict_profit_target(
-        score_components, overview, sentiment, strategy="baseline"
-    )
-    baseline_setup = trader.calculate_baseline_setup(
-        df, ml_stop_multiplier=ml_stop_multiplier,
-        ml_target_multiplier=ml_target_multiplier,
-        technical_score=technical_score
-    )
-
-    # Validation
-    if not baseline_setup['is_realistic']:
-        return None
-
-    entry_price = baseline_setup['entry_price']
-    if not MIN_STOCK_PRICE < entry_price < MAX_STOCK_PRICE:
-        return None
-
-    if baseline_setup['rr_ratio'] < MIN_RR_RATIO_BASELINE:
-        return None
-
-    # Relative Strength bonus
-    rs_multiplier = weights_config.get_weights('momentum').get('RS_MULTIPLIER', 1.0)
-    if benchmark_df is not None and rs_multiplier != 0.0:
-        rs_ratio = trader.calculate_relative_strength(df, benchmark_df)
-        if rs_ratio > 1.10:
-            rs_bonus = 5.0
-        elif rs_ratio > 1.0:
-            rs_bonus = 2.0
-        else:
-            rs_bonus = -2.0
-        rs_bonus *= rs_multiplier
-        score_components["rs_index"] = rs_bonus
-        score_components["total"] += rs_bonus
-
-    # Score Acceleration bonus
-    accel_multiplier = weights_config.get_weights('trend').get('SCORE_ACCEL_MULTIPLIER', 0.0)
-    if accel_multiplier != 0.0:
-        score_history = _worker_state.get('score_history', {})
-        history = score_history.get(symbol, [])
-        accel_bonus = SwingTrader._calculate_score_acceleration(history) * accel_multiplier
-        score_components["score_acceleration"] = accel_bonus
-        score_components["total"] += accel_bonus
-
-    # ML Win Probability (using worker's pre-loaded models, no DB)
-    ml_prob = _worker_ml_predict_probability(
-        score_components, overview, sentiment, strategy="baseline"
-    )
-
-    return {
-        "score": score_components.pop("total", 0.0),
-        "components": score_components,
-        "setup": baseline_setup,
-        "ml_prob": ml_prob,
-        "stop_multiplier": ml_stop_multiplier,
-        "target_multiplier": ml_target_multiplier
-    }
-
-
-def _worker_process_mr(trader, df, yesterday, enabled_indicators, aggregation,
-                        overview, sentiment):
-    """
-    Replicate SwingTrader._process_mr() without DB access.
-    Uses pre-loaded ML models for stop loss and win probability prediction.
-    """
-    score_components_mr = trader.technical_analyzer.calculate_technical_score(
-        df, strategy="mean_reversion",
-        enabled_indicators=enabled_indicators, aggregation=aggregation
-    )
-
-    # ML stop loss multiplier (using worker's pre-loaded models, no DB)
-    ml_stop_multiplier_mr = _worker_ml_predict_stop_loss(
-        score_components_mr, overview, sentiment
-    )
-
-    # ML profit target multiplier (using worker's pre-loaded models, no DB)
-    ml_target_multiplier_mr = _worker_ml_predict_profit_target(
-        score_components_mr, overview, sentiment, strategy="mean_reversion"
-    )
-
-    mr_setup = trader.calculate_mean_reversion_setup(df, ml_stop_multiplier=ml_stop_multiplier_mr, ml_target_multiplier=ml_target_multiplier_mr)
-    if not mr_setup['is_realistic']:
-        return None
-
-    entry_price = mr_setup['entry_price']
-    if not MIN_STOCK_PRICE < entry_price < MAX_STOCK_PRICE:
-        return None
-
-    if mr_setup['rr_ratio'] < MIN_RR_RATIO_MEAN_REVERSION:
-        return None
-
-    # ML Win Probability (using worker's pre-loaded models, no DB)
-    ml_prob_mr = _worker_ml_predict_probability(
-        score_components_mr, overview, sentiment, strategy="mean_reversion"
-    )
-
-    return {
-        "score": score_components_mr.pop("total", 0.0),
-        "components": score_components_mr,
-        "setup": mr_setup,
-        "ml_prob": ml_prob_mr,
-        "stop_multiplier": ml_stop_multiplier_mr,
-        "target_multiplier": ml_target_multiplier_mr
-    }
-
-
 def _score_symbol_worker(work_item):
     """
     CPU worker for ProcessPoolExecutor.
@@ -1568,35 +1291,30 @@ def _score_symbol_worker(work_item):
     """
     try:
         trader = _worker_state['trader']
+        strategies = _worker_state['strategies']
         benchmark_df = _worker_state['benchmark_df']
-        market_health = _worker_state['market_health']
-        enabled_indicators = _worker_state['enabled_indicators']
-        aggregation = _worker_state['aggregation']
+        overview = work_item['overview']
+        sentiment = work_item['sentiment']
 
         symbol = work_item['symbol']
         full_name = work_item['full_name']
         exchange = work_item['exchange']
-        overview = work_item['overview']
-        sentiment = work_item['sentiment']
 
         # Reconstruct DataFrame from dict-of-lists
         df = pd.DataFrame(work_item['df_data'])
         yesterday = dict(df.iloc[-1])
 
-        # --- Process Baseline Strategy ---
-        baseline_data = _worker_process_baseline(
-            trader, df, yesterday, benchmark_df, market_health,
-            enabled_indicators, aggregation, overview, sentiment,
-            symbol=symbol
-        )
+        # --- Process all strategies via strategy interface ---
+        strategy_results = {}
+        for strategy in strategies:
+            sr = strategy.process_worker(
+                trader, df, symbol, yesterday, _worker_state,
+                overview, sentiment,
+            )
+            if sr is not None:
+                strategy_results[strategy.name] = sr
 
-        # --- Process Mean Reversion Strategy ---
-        mr_data = _worker_process_mr(
-            trader, df, yesterday, enabled_indicators, aggregation,
-            overview, sentiment
-        )
-
-        if not baseline_data and not mr_data:
+        if not strategy_results:
             return None
 
         # --- Connors RSI(2) flag — computed for ALL symbols with enough data ---
@@ -1612,7 +1330,7 @@ def _score_symbol_worker(work_item):
                 connors_sma200 = float(sma_200.iloc[-1])
                 connors_flag = bool(connors_rsi2 < 10 and df['close'].iloc[-1] > connors_sma200)
 
-        # --- Assemble result (same structure as process_symbol) ---
+        # --- Assemble result using strategy keys (same structure as process_symbol) ---
         rs_ratio = 1.0
         if benchmark_df is not None:
             rs_ratio = trader.calculate_relative_strength(df, benchmark_df)
@@ -1623,21 +1341,27 @@ def _score_symbol_worker(work_item):
             'exchange': exchange,
             'date': str(yesterday['date']),
             'rs_ratio': rs_ratio,
-            'baseline_score': baseline_data['score'] if baseline_data else 0.0,
-            'baseline_components': baseline_data['components'] if baseline_data else {},
-            'baseline_setup': baseline_data['setup'] if baseline_data else {},
-            'baseline_ml_prob': baseline_data['ml_prob'] if baseline_data else 0.0,
-            'mr_score': mr_data['score'] if mr_data else 0.0,
-            'mr_components': mr_data['components'] if mr_data else {},
-            'mr_setup': mr_data['setup'] if mr_data else {},
-            'mr_ml_prob': mr_data['ml_prob'] if mr_data else 0.0,
             'sentiment': sentiment,
             'connors_flag': connors_flag,
             'connors_rsi2': connors_rsi2,
             'connors_sma200': connors_sma200,
         }
-        logging.info("Scored %s: Baseline=%.2f, MR=%.2f",
-                     symbol, result['baseline_score'], result['mr_score'])
+
+        for strategy in strategies:
+            sr = strategy_results.get(strategy.name)
+            result[strategy.score_key] = sr.score if sr else 0.0
+            result[strategy.components_key] = sr.components if sr else {}
+            result[strategy.setup_key] = sr.setup if sr else {}
+            result[strategy.ml_prob_key] = sr.ml_prob if sr else 0.0
+            if sr:
+                result['stop_multiplier'] = sr.stop_multiplier
+                result['target_multiplier'] = sr.target_multiplier
+
+        score_parts = " | ".join(
+            f"{s.display_name}={result.get(s.score_key, 0):.2f}"
+            for s in strategies
+        )
+        logging.info("Scored %s: %s", symbol, score_parts)
         return result
 
     except Exception as e:  # pylint: disable=broad-exception-caught

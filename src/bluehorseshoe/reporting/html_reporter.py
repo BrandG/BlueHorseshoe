@@ -10,6 +10,7 @@ import pandas as pd
 import mplfinance as mpf
 from datetime import datetime
 from typing import List, Dict, Any
+from bluehorseshoe.analysis.strategy_registry import get_all_strategies
 from bluehorseshoe.data.historical_data import load_historical_data
 
 class HTMLReporter:
@@ -360,19 +361,20 @@ class HTMLReporter:
         """
         # Filter top candidates for each strategy (sort by score, then ML confidence)
         top_n = self.TOP_CANDIDATES_PER_STRATEGY
-        baseline_top = sorted([c for c in candidates if c.get('strategy') == 'Baseline'],
-                              key=lambda x: (x.get('score', 0), x.get('ml_prob', 0)),
-                              reverse=True)[:top_n]
-        meanrev_top = sorted([c for c in candidates if c.get('strategy') == 'MeanRev'],
-                            key=lambda x: (x.get('score', 0), x.get('ml_prob', 0)),
-                            reverse=True)[:top_n]
+        strategy_tops = {}
+        for strat in get_all_strategies():
+            tops = sorted(
+                [c for c in candidates if c.get('strategy') == strat.display_name],
+                key=lambda x: (x.get('score', 0), x.get('ml_prob', 0)),
+                reverse=True,
+            )[:top_n]
+            for c in tops:
+                c['chart_b64'] = self._generate_sparkline(c['symbol'])
+            strategy_tops[strat.display_name] = tops
 
-        # Generate Sparklines
-        for c in baseline_top:
-            c['chart_b64'] = self._generate_sparkline(c['symbol'])
-            
-        for c in meanrev_top:
-            c['chart_b64'] = self._generate_sparkline(c['symbol'])
+        # Keep backward-compatible aliases for rendering sections
+        baseline_top = strategy_tops.get('Baseline', [])
+        meanrev_top = strategy_tops.get('MeanRev', [])
 
         html = [
             "<!DOCTYPE html>",
@@ -585,12 +587,15 @@ class HTMLReporter:
         """
         # Filter top candidates for each strategy (sort by score, then ML confidence)
         top_n = self.TOP_CANDIDATES_PER_STRATEGY
-        baseline_top = sorted([c for c in candidates if c.get('strategy') == 'Baseline'],
-                              key=lambda x: (x.get('score', 0), x.get('ml_prob', 0)),
-                              reverse=True)[:top_n]
-        meanrev_top = sorted([c for c in candidates if c.get('strategy') == 'MeanRev'],
-                            key=lambda x: (x.get('score', 0), x.get('ml_prob', 0)),
-                            reverse=True)[:top_n]
+        strategy_tops = {}
+        for strat in get_all_strategies():
+            strategy_tops[strat.display_name] = sorted(
+                [c for c in candidates if c.get('strategy') == strat.display_name],
+                key=lambda x: (x.get('score', 0), x.get('ml_prob', 0)),
+                reverse=True,
+            )[:top_n]
+        baseline_top = strategy_tops.get('Baseline', [])
+        meanrev_top = strategy_tops.get('MeanRev', [])
 
         # Inline CSS optimized for email clients
         email_css = """

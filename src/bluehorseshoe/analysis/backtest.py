@@ -17,6 +17,7 @@ from typing import Optional, List, Dict
 import numpy as np
 import pandas as pd
 from bluehorseshoe.analysis.strategy import SwingTrader, StrategyContext
+from bluehorseshoe.analysis.strategy_registry import get_strategy_keys
 from bluehorseshoe.core.scores import ScoreManager
 from bluehorseshoe.core.symbols import get_symbol_name_list
 from bluehorseshoe.data.historical_data import load_historical_data
@@ -1124,9 +1125,8 @@ class Backtester:
         Returns:
             List of result dicts with score/ML metadata attached.
         """
-        score_key = "baseline_score" if options.strategy == "baseline" else "mr_score"
-        setup_key = "baseline_setup" if options.strategy == "baseline" else "mr_setup"
-        ml_prob_key = "baseline_ml_prob" if options.strategy == "baseline" else "mr_ml_prob"
+        keys = get_strategy_keys(options.strategy)
+        score_key, setup_key, ml_prob_key = keys['score_key'], keys['setup_key'], keys['ml_prob_key']
 
         # Flatten setup into top-level keys
         flat_preds = []
@@ -1187,15 +1187,13 @@ class Backtester:
         if self.score_manager is None:
             return None
 
-        strategy_name = "baseline" if options.strategy == "baseline" else "mean_reversion"
-        scores = self.score_manager.get_scores(target_date, strategy=strategy_name)
+        scores = self.score_manager.get_scores(target_date, strategy=options.strategy)
 
         if not scores:
             return None
 
-        score_key = "baseline_score" if options.strategy == "baseline" else "mr_score"
-        setup_key = "baseline_setup" if options.strategy == "baseline" else "mr_setup"
-        ml_prob_key = "baseline_ml_prob" if options.strategy == "baseline" else "mr_ml_prob"
+        keys = get_strategy_keys(options.strategy)
+        score_key, setup_key, ml_prob_key = keys['score_key'], keys['setup_key'], keys['ml_prob_key']
 
         predictions = []
         for s in scores:
@@ -1263,7 +1261,7 @@ class Backtester:
         return predictions
 
     def _filter_and_sort_predictions(self, predictions: List[Dict], options: BacktestOptions) -> List[Dict]:
-        score_key = "baseline_score" if options.strategy == "baseline" else "mr_score"
+        score_key = get_strategy_keys(options.strategy)['score_key']
         valid_predictions = sorted(
             (p for p in predictions if p is not None and p.get(score_key, 0.0) > 0),
             key=lambda x: x.get(score_key, 0.0),
@@ -1280,9 +1278,8 @@ class Backtester:
             )
 
         results = []
-        score_key = "baseline_score" if options.strategy == "baseline" else "mr_score"
-        setup_key = "baseline_setup" if options.strategy == "baseline" else "mr_setup"
-        ml_prob_key = "baseline_ml_prob" if options.strategy == "baseline" else "mr_ml_prob"
+        keys = get_strategy_keys(options.strategy)
+        score_key, setup_key, ml_prob_key = keys['score_key'], keys['setup_key'], keys['ml_prob_key']
 
         for pred in top_predictions:
             # Flatten strategy-specific setup for evaluate_prediction
@@ -1330,8 +1327,8 @@ class Backtester:
         # Ensure logs directory exists
         log_path.parent.mkdir(parents=True, exist_ok=True)
 
-        score_key = "baseline_score" if options.strategy == "baseline" else "mr_score"
-        ml_prob_key = "baseline_ml_prob" if options.strategy == "baseline" else "mr_ml_prob"
+        keys = get_strategy_keys(options.strategy)
+        score_key, ml_prob_key = keys['score_key'], keys['ml_prob_key']
 
         with open(log_path, 'a', newline='', encoding='utf-8') as csvfile:
             fieldnames = [

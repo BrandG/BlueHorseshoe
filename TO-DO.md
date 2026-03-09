@@ -4,23 +4,12 @@
 
 ### New Indicators
 
-- **Relative Volume (RVOL)** — Replace the crude binary avg-volume gate (>100k → pass/fail) with a proper RVOL ratio: `current_volume / 20-day_avg_volume`. Useful for confirming breakouts in the Baseline strategy — a breakout on 2x+ normal volume is far more reliable than one on low participation. Score could be tiered (e.g. RVOL < 0.8 → penalty, 1.0-1.5 → neutral, 1.5-2.0 → bonus, >2.0 → strong bonus). Add to `volume_indicators.py`.
+- ~~**Relative Volume (RVOL)**~~ **Done** — Added `calculate_rvol()` to `VolumeIndicator` with tiered scoring: RVOL < 0.5 → -2.0, 0.5-0.8 → -1.0, 0.8-1.2 → 0.0, 1.2-1.5 → +0.5, 1.5-2.0 → +1.0, >2.0 → +2.0. Registered in `get_score()`, `detailed_scoring.py`, and `weights.json` (baseline: 1.5, MR: 0.0 — volume confirmation matters for breakouts but not for mean reversion dips).
 - ~~**Engulfing & Hammer candlestick patterns**~~ **Done** — Added `find_engulfing()` (CDLENGULFING) and `find_hammer()` (CDLHAMMER) to `CandlestickIndicator` with weight multipliers in `weights.json` (baseline: engulfing 1.0, hammer 0.5; MR: engulfing 1.5, hammer 2.0).
 
 ### Architecture & Refactoring
 
-- Strategy as a pluggable interface:
-
-  ```python
-  class Strategy(ABC):
-      def score(self, data: pd.DataFrame) -> float: ...
-      def entry_price(self, data: pd.DataFrame) -> float: ...
-      def stop_loss(self, data: pd.DataFrame) -> float: ...
-      def take_profit(self, data: pd.DataFrame) -> float: ...
-      def direction(self) -> Literal['long', 'short']: ...
-  ```
-
-  Baseline, MR, and Shorts would all implement the same interface. The backtest engine wouldn't care which strategy generated the trade — it just processes entries, stops, and targets. Adding shorts becomes trivial because the engine already handles direction.
+- ~~**Strategy as a pluggable interface**~~ **Done** — Implemented `TradingStrategy` ABC in `strategy_interface.py` with `BaselineStrategy` and `MeanReversionStrategy`. Central registry in `strategy_registry.py` (`get_strategy()`, `get_all_strategies()`, `get_strategy_keys()`). All consumers (backtest, reporter, journal, SwingTrader, worker functions) now loop over strategy objects instead of hardcoded if/else branches. Adding a third strategy (e.g. shorts) requires only: subclass `TradingStrategy`, register in `strategy_registry.py` — zero changes to downstream code.
 
 - Event-driven backtest with an order book. Instead of the current "check high/low against levels" approach, model it as: generate orders → feed daily bars → match orders → update positions. That naturally handles split exits, trailing stops, breakeven stops, shorts — all as different order types rather than special-case code paths.
 
@@ -106,6 +95,7 @@
   - Normalize features to comparable scales before fitting (score is 0-30, sentiment -1 to +1, ML prob 0-1)
   - Use leave-one-date-out cross-validation to guard against overfitting (small sample size until more batch dates accumulate)
   - Prerequisite: accumulate several more weeks of journal_signals with sentiment data before fitting is meaningful
+  - **Interim signal hierarchy** (until meta-score is built): ML Win% as gate (skip < ~55%), Score for ranking among survivors, Sentiment as tiebreaker only for baseline picks. Sentiment is weakest signal — AV can't backfill historical data so it was never validated against outcomes, and for MR picks negative sentiment is expected (oversold names have bad news by definition).
 - Use split-exit outcome data as additional training signal
 
 ### Monitoring & Ops

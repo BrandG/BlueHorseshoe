@@ -2,6 +2,7 @@ import pytest
 import pandas as pd
 from unittest.mock import MagicMock
 from bluehorseshoe.analysis.strategy import SwingTrader, StrategyContext, TechnicalAnalyzer
+from bluehorseshoe.analysis.strategy_interface import BaselineStrategy
 
 @pytest.fixture
 def sample_data():
@@ -31,26 +32,24 @@ def sample_data():
 
 def test_process_baseline_bearish_regime(sample_data, mocker):
     """
-    Test that _process_baseline returns a result even in a Bearish regime
+    Test that BaselineStrategy.process() returns a result even in a Bearish regime
     after the filter was removed.
     """
     trader = SwingTrader()
-    
+
     # Mock dependencies
     trader.ml_inference.predict_probability = MagicMock(return_value=0.6)
     trader.profit_target_inference.predict_profit_target_multiplier = MagicMock(return_value=3.0)
-    
+
     # Context with Bearish regime
     ctx = StrategyContext(
         market_health={'status': 'Bearish', 'multiplier': 0.0}
     )
-    
-    # Since is_weekly_uptrend might fail on small sample, mock it or ensure sample is good.
-    # The sample_data is strictly increasing, so it should pass uptrend check.
-    
-    # Call internal method
+
+    # Call via strategy interface
+    baseline = BaselineStrategy()
     last_row = sample_data.iloc[-1]
-    result = trader._process_baseline(sample_data, "TEST", dict(last_row), ctx)
-    
+    result = baseline.process(trader, sample_data, "TEST", dict(last_row), ctx)
+
     assert result is not None
-    assert 'score' in result
+    assert result.score is not None

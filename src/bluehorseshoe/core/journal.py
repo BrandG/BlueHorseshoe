@@ -17,6 +17,7 @@ from typing import List, Dict, Any, Optional
 from pymongo.database import Database
 from pymongo.errors import DuplicateKeyError
 
+from bluehorseshoe.analysis.strategy_registry import get_all_strategies
 from bluehorseshoe.core.config import weights_config
 from bluehorseshoe.analysis.constants import (
     MIN_RR_RATIO_BASELINE,
@@ -123,73 +124,42 @@ class SignalJournal:
         Transform valid_results into journal_signals documents.
         Signals are ranked within their strategy by score descending.
         """
-        baseline_items: List[Dict[str, Any]] = []
-        mr_items: List[Dict[str, Any]] = []
-
-        for r in valid_results:
-            if r.get("baseline_score", 0) > 0:
-                baseline_items.append(r)
-            if r.get("mr_score", 0) > 0:
-                mr_items.append(r)
-
-        baseline_items.sort(key=lambda x: x["baseline_score"], reverse=True)
-        mr_items.sort(key=lambda x: x["mr_score"], reverse=True)
-
         docs: List[Dict[str, Any]] = []
 
-        for rank, r in enumerate(baseline_items, start=1):
-            setup = r.get("baseline_setup", {})
-            entry_price = setup.get("entry_price", 0)
-            docs.append(
-                {
-                    "batch_date": batch_date,
-                    "rank": rank,
-                    "symbol": r["symbol"],
-                    "strategy": "baseline",
-                    "composite_score": r["baseline_score"],
-                    "ml_win_probability": r.get("baseline_ml_prob", 0.0),
-                    "signal_strength": setup.get("signal_strength", "MEDIUM"),
-                    "entry_price": entry_price,
-                    "stop_loss": setup.get("stop_loss", 0),
-                    "take_profit_t1": (
-                        round(entry_price * 1.02, 4) if entry_price > 0 else 0
-                    ),
-                    "take_profit_t2": setup.get("take_profit", 0),
-                    "risk_reward_ratio": setup.get("rr_ratio", 0),
-                    "atr_discount_used": setup.get("atr_discount_used", 0.20),
-                    "stop_multiplier": r.get("stop_multiplier", 2.0),
-                    "target_multiplier": r.get("target_multiplier", 3.0),
-                    "sentiment": r.get("sentiment", 0.0),
-                    "components": r.get("baseline_components", {}),
-                }
-            )
+        for strat in get_all_strategies():
+            # Collect results that scored positively for this strategy
+            items = [
+                r for r in valid_results
+                if r.get(strat.score_key, 0) > 0
+            ]
+            items.sort(key=lambda x: x[strat.score_key], reverse=True)
 
-        for rank, r in enumerate(mr_items, start=1):
-            setup = r.get("mr_setup", {})
-            entry_price = setup.get("entry_price", 0)
-            docs.append(
-                {
-                    "batch_date": batch_date,
-                    "rank": rank,
-                    "symbol": r["symbol"],
-                    "strategy": "mean_reversion",
-                    "composite_score": r["mr_score"],
-                    "ml_win_probability": r.get("mr_ml_prob", 0.0),
-                    "signal_strength": setup.get("signal_strength", "N/A"),
-                    "entry_price": entry_price,
-                    "stop_loss": setup.get("stop_loss", 0),
-                    "take_profit_t1": (
-                        round(entry_price * 1.02, 4) if entry_price > 0 else 0
-                    ),
-                    "take_profit_t2": setup.get("take_profit", 0),
-                    "risk_reward_ratio": setup.get("rr_ratio", 0),
-                    "atr_discount_used": setup.get("atr_discount_used", 0.0),
-                    "stop_multiplier": r.get("stop_multiplier", 1.5),
-                    "target_multiplier": r.get("target_multiplier", 2.0),
-                    "sentiment": r.get("sentiment", 0.0),
-                    "components": r.get("mr_components", {}),
-                }
-            )
+            for rank, r in enumerate(items, start=1):
+                setup = r.get(strat.setup_key, {})
+                entry_price = setup.get("entry_price", 0)
+                docs.append(
+                    {
+                        "batch_date": batch_date,
+                        "rank": rank,
+                        "symbol": r["symbol"],
+                        "strategy": strat.name,
+                        "composite_score": r[strat.score_key],
+                        "ml_win_probability": r.get(strat.ml_prob_key, 0.0),
+                        "signal_strength": setup.get("signal_strength", "MEDIUM"),
+                        "entry_price": entry_price,
+                        "stop_loss": setup.get("stop_loss", 0),
+                        "take_profit_t1": (
+                            round(entry_price * 1.02, 4) if entry_price > 0 else 0
+                        ),
+                        "take_profit_t2": setup.get("take_profit", 0),
+                        "risk_reward_ratio": setup.get("rr_ratio", 0),
+                        "atr_discount_used": setup.get("atr_discount_used", 0.0),
+                        "stop_multiplier": r.get("stop_multiplier", strat.default_stop_multiplier),
+                        "target_multiplier": r.get("target_multiplier", strat.default_target_multiplier),
+                        "sentiment": r.get("sentiment", 0.0),
+                        "components": r.get(strat.components_key, {}),
+                    }
+                )
 
         return docs
 

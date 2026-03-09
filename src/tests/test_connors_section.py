@@ -13,6 +13,7 @@ import numpy as np
 import pandas as pd
 from unittest.mock import MagicMock, patch
 from bluehorseshoe.analysis.strategy import SwingTrader, StrategyContext, _score_symbol_worker
+from bluehorseshoe.analysis.strategy_interface import StrategyResult
 from bluehorseshoe.reporting.html_reporter import HTMLReporter
 
 
@@ -75,14 +76,14 @@ def test_connors_flag_ungated_from_mr(mock_database, long_df, mocker):
     mocker.patch('bluehorseshoe.analysis.strategy.pd.Timestamp.now',
                  return_value=pd.Timestamp('2026-01-04'))
 
-    # Mock _process_baseline to return data, _process_mr to return None
-    baseline_result = {
-        'score': 40.0, 'components': {'trend': 3.0},
-        'setup': {'entry_price': 90.0, 'stop_loss': 85.0, 'take_profit': 100.0, 'rr_ratio': 2.0},
-        'ml_prob': 0.5, 'stop_multiplier': 1.0, 'target_multiplier': 1.0
-    }
-    mocker.patch.object(trader, '_process_baseline', return_value=baseline_result)
-    mocker.patch.object(trader, '_process_mr', return_value=None)
+    # Mock strategy.process() — baseline returns data, MR returns None
+    baseline_sr = StrategyResult(
+        score=40.0, components={'trend': 3.0},
+        setup={'entry_price': 90.0, 'stop_loss': 85.0, 'take_profit': 100.0, 'rr_ratio': 2.0},
+        ml_prob=0.5, stop_multiplier=1.0, target_multiplier=1.0,
+    )
+    trader.strategies[0].process = MagicMock(return_value=baseline_sr)  # baseline
+    trader.strategies[1].process = MagicMock(return_value=None)         # mean_reversion
 
     ctx = StrategyContext()
     result = trader.process_symbol('TEST', ctx)
@@ -108,19 +109,19 @@ def test_connors_values_populated(mock_database, long_df, mocker):
     mocker.patch('bluehorseshoe.analysis.strategy.pd.Timestamp.now',
                  return_value=pd.Timestamp('2026-01-04'))
 
-    # Mock both strategies to return data
-    baseline_result = {
-        'score': 40.0, 'components': {'trend': 3.0},
-        'setup': {'entry_price': 90.0, 'stop_loss': 85.0, 'take_profit': 100.0, 'rr_ratio': 2.0},
-        'ml_prob': 0.5, 'stop_multiplier': 1.0, 'target_multiplier': 1.0
-    }
-    mr_result = {
-        'score': 35.0, 'components': {'rsi': -2.0},
-        'setup': {'entry_price': 90.0, 'stop_loss': 85.0, 'take_profit': 100.0, 'rr_ratio': 2.0},
-        'ml_prob': 0.6, 'stop_multiplier': 1.0, 'target_multiplier': 1.0
-    }
-    mocker.patch.object(trader, '_process_baseline', return_value=baseline_result)
-    mocker.patch.object(trader, '_process_mr', return_value=mr_result)
+    # Mock strategy.process() — both return data
+    baseline_sr = StrategyResult(
+        score=40.0, components={'trend': 3.0},
+        setup={'entry_price': 90.0, 'stop_loss': 85.0, 'take_profit': 100.0, 'rr_ratio': 2.0},
+        ml_prob=0.5, stop_multiplier=1.0, target_multiplier=1.0,
+    )
+    mr_sr = StrategyResult(
+        score=35.0, components={'rsi': -2.0},
+        setup={'entry_price': 90.0, 'stop_loss': 85.0, 'take_profit': 100.0, 'rr_ratio': 2.0},
+        ml_prob=0.6, stop_multiplier=1.0, target_multiplier=1.0,
+    )
+    trader.strategies[0].process = MagicMock(return_value=baseline_sr)  # baseline
+    trader.strategies[1].process = MagicMock(return_value=mr_sr)        # mean_reversion
 
     ctx = StrategyContext()
     result = trader.process_symbol('TEST', ctx)
