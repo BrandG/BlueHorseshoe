@@ -1,44 +1,46 @@
 # Session Handoff
 
-**Date:** March 9, 2026
-**Status:** Pluggable strategy interface complete. All strategies (Baseline, MR) are self-contained classes behind `TradingStrategy` ABC. Adding a third strategy requires zero downstream changes.
+**Date:** March 10, 2026
+**Status:** Automated backup system deployed. DuckDB + MongoDB + ML models backed up daily to Google Drive via rclone.
 
 ---
 
-## What Was Done This Session (March 9)
+## What Was Done This Session (March 10)
 
-### Pluggable Strategy Interface (8-Phase Refactor)
-Replaced 40+ `if strategy == "baseline"` branches across 7 files with a generic strategy loop pattern.
+### Automated Backup to Google Drive
+Implemented daily backup of all critical untracked data to Google Drive via rclone.
 
 **New files:**
-- `strategy_interface.py` — `TradingStrategy` ABC, `StrategyResult` dataclass, `BaselineStrategy`, `MeanReversionStrategy` (stateless, picklable for ProcessPoolExecutor)
-- `strategy_registry.py` — `get_strategy()`, `get_all_strategies()`, `get_strategy_keys()` central registry
+- `backup.sh` — Main backup script (runs on host, not Docker). Pipeline safety check → DuckDB WAL flush + compress → selective mongodump (7 collections) + compress → ML models compress → bundle → rclone upload → rotate old backups. Email alerts on failure.
+- `backup.conf` — Configuration (paths, retention counts, collection list). Sources `docker/.env` for SMTP creds and `MONGO_BIND_IP` at runtime — no secrets in file.
 
-**Migrated consumers:**
-- `backtest.py` — 13 ternary branches → `get_strategy_keys()` calls
-- `technical_analyzer.py` — added `calculate_score_for_strategy()`, old `calculate_technical_score()` delegates via registry
-- `html_reporter.py` — strategy filtering uses `get_all_strategies()` loop
-- `journal.py` — `_build_signal_docs()` single loop over strategies (was two duplicate loops)
-- `strategy.py` — `SwingTrader` accepts `strategies` param; `process_symbol()`, `_score_symbol_worker()`, `_prepare_scores_for_save()`, `swing_predict()` all use generic strategy loops
+**Backup details:**
+- **Schedule:** Cron at 05:00 UTC daily (after 02:00 pipeline completes)
+- **Rotation:** Weekdays → `daily/` (keep 7), Sundays → `weekly/` (keep 4)
+- **Archive size:** ~215 MB per backup (~2.2 GB total on Drive)
+- **Components:** DuckDB (~140 MB compressed), MongoDB 7 collections (~50 MB), ML models (~25 MB)
+- **Safety:** Checks `pipeline_status.json` + `docker top` before running; `set -euo pipefail`; `trap cleanup EXIT`
+- **MongoDB collections:** `trade_scores`, `journal_batches`, `journal_signals`, `symbols`, `symbol_overviews`, `symbol_news`, `loader_checkpoints` (skips dead `historical_prices*`)
 
-**Removed deprecated code:**
-- `_process_baseline()`, `_process_mr()` from `SwingTrader`
-- `_worker_process_baseline()`, `_worker_process_mr()` module-level functions
-
-**Test updates:**
-- 4 new test files/updates (37 new tests)
-- Updated mocks in `test_connors_section.py`, `test_swing_trading.py`, `test_strategy_bearish.py` to use `StrategyResult`/strategy objects
-- 408 tests passing, lint clean
+**Infrastructure setup (one-time, completed):**
+- rclone installed on host, Google Drive remote configured via headless auth flow
+- Remote folders created: `gdrive:BlueHorseshoe/backups/{daily,weekly}/`
+- Cron entry installed
 
 ### Verified
-- All 408 tests passing
-- Lint clean
-- Result dict shape unchanged — backward compatible with MongoDB schema and all downstream consumers
+- Manual backup run completed successfully
+- Archive uploaded and visible on Google Drive
+
+## What Was Done Last Session (March 9)
+
+### Pluggable Strategy Interface (8-Phase Refactor)
+Replaced 40+ `if strategy == "baseline"` branches across 7 files with a generic strategy loop pattern. See previous handoff for full details. 408 tests passing, lint clean.
 
 ---
 
 ## Previous Sessions Summary
 
+- **March 9:** Pluggable strategy interface — `TradingStrategy` ABC, `BaselineStrategy`, `MeanReversionStrategy`, central registry
 - **March 8:** MongoDB OHLCV dual-write removed, DuckDB thread-safety fix (RLock), new indicators (RVOL, Engulfing, Hammer)
 - **March 7 (Session 2):** DuckDB migration complete — all 4 phases, schema optimization (4.0 GB → 484 MB)
 - **March 7 (Session 1):** Market-cap universe (~3,591 symbols), multi-provider pool (Tiingo/AV/Yahoo), volume gates removed
@@ -55,7 +57,6 @@ Replaced 40+ `if strategy == "baseline"` branches across 7 files with a generic 
 - **Event-driven backtest** — Model trades as orders fed through daily bars (handles split exits, trailing stops, shorts as order types)
 - **Backfill overviews** — ~2,000 symbols still missing overviews. Run `-u --refresh-overviews --ov-limit 500` in batches.
 - **Full historical backfill** — Many of the 3,500 newly-tracked symbols only have ~6 months of data
-- **DuckDB backup strategy** — No backup exists for `data/ohlcv.duckdb` (484 MB). Add periodic snapshots.
 - See `TO-DO.md` for full backlog
 
 ---
@@ -91,6 +92,8 @@ Replaced 40+ `if strategy == "baseline"` branches across 7 files with a generic 
 | `src/bluehorseshoe/core/service.py` | `load_universe_data()`, `get_latest_market_date()` |
 | `src/main.py` | Passes `ctx.store` to all consumers |
 | `data/ohlcv.duckdb` | The database file (484 MB, 28.5M rows, 11,291 symbols) |
+| `backup.sh` | Daily backup script (host-side, cron at 05:00 UTC) |
+| `backup.conf` | Backup configuration (paths, retention, collection list) |
 
 ---
 
@@ -137,6 +140,7 @@ docker exec bluehorseshoe ./lint.sh                                      # Lint
 ```
 
 **Cron pipeline:** Runs at 02:00 UTC (Mon-Sat)
+**Cron backup:** Runs at 05:00 UTC daily → Google Drive via rclone
 
 ---
 
@@ -151,9 +155,9 @@ docker exec bluehorseshoe ./lint.sh                                      # Lint
 ## Git Status
 
 **Branch:** master
-**Latest commit:** `e26d5be` — feat: Add Engulfing, Hammer candlestick patterns and RVOL volume indicator
-**Uncommitted:** Pluggable strategy interface refactor (8 phases)
+**Latest commit:** `a7e881d` — refactor: Pluggable strategy interface
+**Uncommitted:** `backup.sh`, `backup.conf` (backup system)
 
 ---
 
-**Last Updated:** March 9, 2026
+**Last Updated:** March 10, 2026

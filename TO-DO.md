@@ -74,8 +74,8 @@
 - Add Redis or in-memory caching for repeated indicator calculations during LOO/optimization runs
 - Distributed backtesting — allow running date ranges in parallel across multiple workers
 - Research droplet DuckDB access — when spinning up `bh-research`, SCP `data/ohlcv.duckdb` as part of the setup process. Previously the droplet queried MongoDB over the network; now DuckDB is the sole OHLCV store so the file must be copied. Consider scripting this into the droplet provisioning workflow.
-- DuckDB periodic backups — `data/ohlcv.duckdb` (484 MB, 28.5M rows) is not in git and has no backup. A crashed process can leave stale WAL files or corrupt the database. Add a cron job or script to create dated snapshots (e.g. `ohlcv_2026-03-08.duckdb`) to local storage or remote (S3/DO Spaces/Google Drive).
-- Non-git file backup strategy — critical files not tracked by git include: DuckDB (`data/ohlcv.duckdb`), ML models (`src/models/*.joblib`), MongoDB data (scores, journal, overviews, checkpoints), `.env` (API keys), backtest logs/reports. Evaluate a lightweight automated backup to Google Drive, S3, or DigitalOcean Spaces on a schedule.
+- ~~**DuckDB periodic backups**~~ **Done** — `backup.sh` runs daily at 05:00 UTC via cron. Flushes DuckDB WAL, compresses DuckDB + selective mongodump (7 collections) + ML models into a single `.tar` archive, uploads to Google Drive via rclone. Weekday backups go to `daily/` (keep 7), Sunday to `weekly/` (keep 4). ~215 MB per archive. Pipeline safety check prevents running during `-u`/`-p`. Failure alerts via email.
+- ~~**Non-git file backup strategy**~~ **Done** — Covered by the same `backup.sh` script above. DuckDB, MongoDB (scores, journal, overviews, symbols, news, checkpoints), and ML models are all included. Config in `backup.conf`, creds sourced from `docker/.env` at runtime.
 
 ## Long Term
 
