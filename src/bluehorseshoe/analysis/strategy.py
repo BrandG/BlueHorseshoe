@@ -49,7 +49,7 @@ from bluehorseshoe.core.config import Settings, get_settings, weights_config
 from bluehorseshoe.core.scores import ScoreManager
 from bluehorseshoe.core.symbols import (
     get_symbol_name_list, get_symbols_from_mongo, get_overview_from_mongo,
-    get_sentiment_score_with_count, save_sentiment_snapshots,
+    get_sentiment_score, get_sentiment_score_with_count, save_sentiment_snapshots,
     fetch_news_sentiment_from_net, upsert_news_sentiment_to_mongo,
 )
 from bluehorseshoe.analysis.ml_utils import build_ml_features
