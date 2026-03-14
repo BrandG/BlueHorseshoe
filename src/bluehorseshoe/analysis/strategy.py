@@ -49,7 +49,8 @@ from bluehorseshoe.core.config import Settings, get_settings, weights_config
 from bluehorseshoe.core.scores import ScoreManager
 from bluehorseshoe.core.symbols import (
     get_symbol_name_list, get_symbols_from_mongo, get_overview_from_mongo,
-    get_sentiment_score, fetch_news_sentiment_from_net, upsert_news_sentiment_to_mongo,
+    get_sentiment_score_with_count, save_sentiment_snapshots,
+    fetch_news_sentiment_from_net, upsert_news_sentiment_to_mongo,
 )
 from bluehorseshoe.analysis.ml_utils import build_ml_features
 from bluehorseshoe.analysis.strategy_registry import get_all_strategies
@@ -1079,13 +1080,33 @@ class SwingTrader:
             except Exception:  # pylint: disable=broad-except
                 logging.warning("Failed to fetch sentiment for %s, keeping existing value", sym)
 
-        # Recalculate sentiment scores with fresh data
-        sentiment_cache: Dict[str, float] = {}
+        # Recalculate sentiment scores with fresh data and collect snapshots
+        sentiment_cache: Dict[str, tuple] = {}
+        sentiment_snapshots: List[Dict[str, Any]] = []
+        target_date_str = str(ctx.target_date)
         for c in top_candidates:
             sym = c["symbol"]
             if sym not in sentiment_cache:
-                sentiment_cache[sym] = get_sentiment_score(sym, ctx.target_date, database=self.database)
-            c["sentiment"] = sentiment_cache[sym]
+                sentiment_cache[sym] = get_sentiment_score_with_count(
+                    sym, ctx.target_date, database=self.database
+                )
+                score, count = sentiment_cache[sym]
+                if score != 0.0:
+                    sentiment_snapshots.append({
+                        "symbol": sym,
+                        "date": target_date_str,
+                        "score": score,
+                        "article_count": count,
+                    })
+            c["sentiment"] = sentiment_cache[sym][0]
+
+        # Persist sentiment snapshots (non-fatal)
+        try:
+            if sentiment_snapshots:
+                saved = save_sentiment_snapshots(sentiment_snapshots, database=self.database)
+                logging.info("Saved %d sentiment snapshots for %s", saved, target_date_str)
+        except Exception:  # pylint: disable=broad-except
+            logging.warning("Failed to save sentiment snapshots (non-fatal)")
 
         return {
             "regime": market_health,

@@ -478,7 +478,9 @@ def _normalize_target_date(target_date: str | date) -> datetime | None:
     return None
 
 
-def get_sentiment_score(symbol: str, target_date: str | date, database=None) -> float:
+def get_sentiment_score_with_count(
+    symbol: str, target_date: str | date, database=None
+) -> tuple[float, int]:
     """
     Calculates an average sentiment score for a symbol up to a target date.
     Lookback is 7 days.
@@ -487,17 +489,20 @@ def get_sentiment_score(symbol: str, target_date: str | date, database=None) -> 
         symbol: Stock symbol.
         target_date: Target date for sentiment analysis.
         database: MongoDB database instance. Required.
+
+    Returns:
+        Tuple of (average_score, article_count).
     """
     if database is None:
-        raise ValueError("database parameter is required for get_sentiment_score")
+        raise ValueError("database parameter is required for get_sentiment_score_with_count")
 
     feed = get_news_sentiment_from_mongo(symbol, database=database)
     target_dt = _normalize_target_date(target_date)
 
     if not feed or not target_dt:
-        return 0.0
+        return 0.0, 0
 
-    scores = []
+    scores: List[float] = []
     symbol_upper = symbol.upper()
 
     for item in feed:
@@ -515,7 +520,84 @@ def get_sentiment_score(symbol: str, target_date: str | date, database=None) -> 
                     except (ValueError, TypeError):
                         pass
 
-    return sum(scores) / len(scores) if scores else 0.0
+    avg = sum(scores) / len(scores) if scores else 0.0
+    return avg, len(scores)
+
+
+def get_sentiment_score(symbol: str, target_date: str | date, database=None) -> float:
+    """
+    Calculates an average sentiment score for a symbol up to a target date.
+    Lookback is 7 days.
+
+    Args:
+        symbol: Stock symbol.
+        target_date: Target date for sentiment analysis.
+        database: MongoDB database instance. Required.
+    """
+    score, _ = get_sentiment_score_with_count(symbol, target_date, database=database)
+    return score
+
+
+def save_sentiment_snapshots(
+    snapshots: List[Dict[str, Any]], database=None
+) -> int:
+    """
+    Bulk upsert daily sentiment snapshots to MongoDB.
+
+    Each snapshot: {"symbol": str, "date": str, "score": float, "article_count": int}
+    Unique index on (symbol, date). Returns number of upserted/modified docs.
+
+    Args:
+        snapshots: List of snapshot dicts.
+        database: MongoDB database instance. Required.
+    """
+    if not snapshots:
+        return 0
+
+    if database is None:
+        raise ValueError("database parameter is required for save_sentiment_snapshots")
+
+    col = database["sentiment_snapshots"]
+    col.create_index([("symbol", 1), ("date", 1)], unique=True)
+
+    ops = [
+        UpdateOne(
+            {"symbol": s["symbol"], "date": s["date"]},
+            {"$set": {
+                "score": s["score"],
+                "article_count": s["article_count"],
+                "updated_at": datetime.utcnow(),
+            }},
+            upsert=True,
+        )
+        for s in snapshots
+    ]
+
+    result: BulkWriteResult = col.bulk_write(ops, ordered=False)
+    return (result.upserted_count or 0) + (result.modified_count or 0)
+
+
+def get_sentiment_history(
+    symbol: str, limit: int = 30, database=None
+) -> List[Dict[str, Any]]:
+    """
+    Query last N sentiment snapshots for a symbol, newest first.
+
+    Args:
+        symbol: Stock symbol.
+        limit: Maximum number of snapshots to return.
+        database: MongoDB database instance. Required.
+    """
+    if database is None:
+        raise ValueError("database parameter is required for get_sentiment_history")
+
+    col = database["sentiment_snapshots"]
+    cursor = (
+        col.find({"symbol": symbol.upper().strip()}, {"_id": 0})
+        .sort("date", -1)
+        .limit(limit)
+    )
+    return list(cursor)
 
 
 def backfill_overviews(database, limit=None):
