@@ -19,3 +19,4 @@ pandas_ta
 pylint
 pydantic-settings
 duckdb>=1.2.0
+vaderSentiment>=3.3.2

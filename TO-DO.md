@@ -27,11 +27,20 @@
   - Consider weighting sentiment more heavily for baseline/trend-following than mean reversion (oversold names often have bad news by definition)
 - Phase 2b: Diversify sentiment sources beyond AlphaVantage NEWS_SENTIMENT
   - AV only returns current news (can't backfill historical sentiment) and the 7-day averaging window may wash out signal
-  - **Fear & Greed Index** (CNN) — market-wide sentiment proxy, free, good regime overlay
-  - **Social media sentiment** (StockTwits API, Reddit via PRAW) — crowd/retail sentiment, often a leading indicator for small/mid-cap
-  - **Options flow / put-call ratio** — institutional sentiment proxy, available via CBOE or broker APIs
-  - **Earnings sentiment** — NLP on earnings call transcripts (e.g. via SEC EDGAR XBRL filings)
-  - **FinBERT / custom NLP** — run our own sentiment model on headlines or SEC filings for higher accuracy than AV's generic scoring
+  - Daily snapshots now stored in `sentiment_snapshots` collection during `-p` (score + article_count per symbol per date)
+  - After ~1 month of data, analyze rate-of-change and sentiment-price divergence signals
+  - **Sources to add (per-symbol):**
+    - [ ] **Tiingo News** — news headlines with sentiment, already have API key + rate limiter; lowest friction to add
+    - [ ] **StockTwits** — free API, bullish/bearish message counts per symbol, retail/crowd sentiment
+    - [ ] **Finviz** — news headlines (scrape + NLP scoring)
+  - **Sources to add (market-wide, one score per day):**
+    - [ ] **VIX** — implied volatility proxy, store as daily snapshot; could backfill from DuckDB if VIX is in symbol list
+    - [ ] **AAII Bull/Bear Survey** — weekly institutional sentiment survey
+    - [ ] **CNN Fear & Greed Index** — composite market sentiment (7 indicators)
+  - **Future / higher effort:**
+    - **Options flow / put-call ratio** — institutional sentiment proxy, available via CBOE or broker APIs
+    - **Earnings sentiment** — NLP on earnings call transcripts (e.g. via SEC EDGAR XBRL filings)
+    - **FinBERT / custom NLP** — run our own sentiment model on headlines or SEC filings for higher accuracy than AV's generic scoring
   - Design as pluggable `SentimentProvider` interface so multiple sources can be aggregated with configurable weights
 - Phase 3 (only if Phase 2 shows value): Explore LLM-based enrichment for nuanced reads
   - High cost/latency per call — only justified if structured sentiment proves insufficient

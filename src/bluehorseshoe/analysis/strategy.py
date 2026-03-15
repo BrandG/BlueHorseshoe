@@ -52,6 +52,10 @@ from bluehorseshoe.core.symbols import (
     get_sentiment_score, get_sentiment_score_with_count, save_sentiment_snapshots,
     fetch_news_sentiment_from_net, upsert_news_sentiment_to_mongo,
 )
+from bluehorseshoe.data.tiingo_news import (
+    fetch_tiingo_news, score_articles, upsert_tiingo_news_to_mongo,
+    get_tiingo_sentiment_score_with_count,
+)
 from bluehorseshoe.analysis.ml_utils import build_ml_features
 from bluehorseshoe.analysis.strategy_registry import get_all_strategies
 from bluehorseshoe.data.historical_data import load_historical_data
@@ -820,6 +824,7 @@ class SwingTrader:
                             "connors_rsi2": r.get("connors_rsi2"),
                             "connors_sma200": r.get("connors_sma200"),
                             "sentiment": r.get("sentiment", 0.0),
+                            "sentiment_tiingo": r.get("sentiment_tiingo", 0.0),
                         }
                     })
         return score_data
@@ -996,6 +1001,7 @@ class SwingTrader:
                         "target": setup.get("take_profit", 0),
                         "ml_prob": r.get(strat.ml_prob_key, 0.0),
                         "sentiment": r.get("sentiment", 0.0),
+                        "sentiment_tiingo": r.get("sentiment_tiingo", 0.0),
                         "reasons": [
                             f"{k}={v:.1f}"
                             for k, v in r.get(strat.components_key, {}).items()
@@ -1034,6 +1040,7 @@ class SwingTrader:
                 "target": best_setup.get("take_profit", 0),
                 "ml_prob": best_ml_prob,
                 "sentiment": r.get("sentiment", 0.0),
+                "sentiment_tiingo": r.get("sentiment_tiingo", 0.0),
                 "connors_rsi2": r.get("connors_rsi2"),
                 "connors_sma200": r.get("connors_sma200"),
                 "reasons": [f"RSI2={r.get('connors_rsi2', 0):.1f}", f"SMA200={r.get('connors_sma200', 0):.1f}"]
@@ -1097,8 +1104,40 @@ class SwingTrader:
                         "date": target_date_str,
                         "score": score,
                         "article_count": count,
+                        "source": "alphavantage",
                     })
             c["sentiment"] = sentiment_cache[sym][0]
+
+        # Tiingo news sentiment (data collection — no ML/report impact yet)
+        tiingo_cache: Dict[str, tuple] = {}
+        if get_settings().tiingo_api_key:
+            logging.info("Fetching Tiingo news sentiment for %d symbols", len(unique_symbols))
+            for sym in unique_symbols:
+                try:
+                    articles = fetch_tiingo_news(sym)
+                    if articles:
+                        score_articles(articles)
+                        upsert_tiingo_news_to_mongo(sym, articles, database=self.database)
+                except Exception:  # pylint: disable=broad-except
+                    logging.warning("Tiingo news fetch failed for %s (non-fatal)", sym)
+
+            # Build Tiingo snapshots
+            for c in top_candidates:
+                sym = c["symbol"]
+                if sym not in tiingo_cache:
+                    tiingo_cache[sym] = get_tiingo_sentiment_score_with_count(
+                        sym, ctx.target_date, database=self.database
+                    )
+                    t_score, t_count = tiingo_cache[sym]
+                    if t_score != 0.0:
+                        sentiment_snapshots.append({
+                            "symbol": sym,
+                            "date": target_date_str,
+                            "score": t_score,
+                            "article_count": t_count,
+                            "source": "tiingo",
+                        })
+                c["sentiment_tiingo"] = tiingo_cache[sym][0]
 
         # Persist sentiment snapshots (non-fatal)
         try:

@@ -167,3 +167,63 @@ def test_get_sentiment_history_requires_database():
     """Raises ValueError when database is None."""
     with pytest.raises(ValueError, match="database parameter is required"):
         get_sentiment_history("AAPL")
+
+
+# ── source-aware snapshots ───────────────────────────────────────────
+
+def test_save_snapshot_with_source(mock_database):
+    """Verifies source field is included in filter and $set."""
+    col = mock_database["sentiment_snapshots"]
+    mock_result = MagicMock()
+    mock_result.upserted_count = 1
+    mock_result.modified_count = 0
+    col.bulk_write.return_value = mock_result
+
+    snapshots = [
+        {"symbol": "AAPL", "date": "2026-03-14", "score": 0.3,
+         "article_count": 5, "source": "tiingo"},
+    ]
+
+    save_sentiment_snapshots(snapshots, database=mock_database)
+
+    ops = col.bulk_write.call_args[0][0]
+    update_op = ops[0]
+    # Filter must include source="tiingo"
+    assert update_op._filter["source"] == "tiingo"
+    # $set must include source="tiingo"
+    assert update_op._doc["$set"]["source"] == "tiingo"
+
+
+def test_save_snapshot_default_source(mock_database):
+    """Snapshots without explicit source default to 'alphavantage'."""
+    col = mock_database["sentiment_snapshots"]
+    mock_result = MagicMock()
+    mock_result.upserted_count = 1
+    mock_result.modified_count = 0
+    col.bulk_write.return_value = mock_result
+
+    snapshots = [
+        {"symbol": "AAPL", "date": "2026-03-14", "score": 0.5, "article_count": 2},
+    ]
+
+    save_sentiment_snapshots(snapshots, database=mock_database)
+
+    ops = col.bulk_write.call_args[0][0]
+    update_op = ops[0]
+    assert update_op._filter["source"] == "alphavantage"
+    assert update_op._doc["$set"]["source"] == "alphavantage"
+
+
+def test_get_sentiment_history_with_source_filter(mock_database):
+    """Verifies source parameter is passed to MongoDB query filter."""
+    col = mock_database["sentiment_snapshots"]
+    cursor = MagicMock()
+    cursor.sort.return_value = cursor
+    cursor.limit.return_value = []
+    col.find.return_value = cursor
+
+    get_sentiment_history("AAPL", limit=10, database=mock_database, source="tiingo")
+
+    col.find.assert_called_once_with(
+        {"symbol": "AAPL", "source": "tiingo"}, {"_id": 0}
+    )

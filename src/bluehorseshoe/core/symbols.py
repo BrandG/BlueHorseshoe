@@ -544,8 +544,9 @@ def save_sentiment_snapshots(
     """
     Bulk upsert daily sentiment snapshots to MongoDB.
 
-    Each snapshot: {"symbol": str, "date": str, "score": float, "article_count": int}
-    Unique index on (symbol, date). Returns number of upserted/modified docs.
+    Each snapshot: {"symbol": str, "date": str, "score": float,
+                    "article_count": int, "source": str (optional, default "alphavantage")}
+    Unique index on (symbol, date, source). Returns number of upserted/modified docs.
 
     Args:
         snapshots: List of snapshot dicts.
@@ -558,14 +559,25 @@ def save_sentiment_snapshots(
         raise ValueError("database parameter is required for save_sentiment_snapshots")
 
     col = database["sentiment_snapshots"]
-    col.create_index([("symbol", 1), ("date", 1)], unique=True)
+
+    # Migrate index from (symbol, date) to (symbol, date, source)
+    try:
+        col.drop_index("symbol_1_date_1")
+    except Exception:  # pylint: disable=broad-except
+        pass  # Index may not exist yet
+    col.create_index([("symbol", 1), ("date", 1), ("source", 1)], unique=True)
 
     ops = [
         UpdateOne(
-            {"symbol": s["symbol"], "date": s["date"]},
+            {
+                "symbol": s["symbol"],
+                "date": s["date"],
+                "source": s.get("source", "alphavantage"),
+            },
             {"$set": {
                 "score": s["score"],
                 "article_count": s["article_count"],
+                "source": s.get("source", "alphavantage"),
                 "updated_at": datetime.utcnow(),
             }},
             upsert=True,
@@ -578,7 +590,7 @@ def save_sentiment_snapshots(
 
 
 def get_sentiment_history(
-    symbol: str, limit: int = 30, database=None
+    symbol: str, limit: int = 30, database=None, source: Optional[str] = None
 ) -> List[Dict[str, Any]]:
     """
     Query last N sentiment snapshots for a symbol, newest first.
@@ -587,13 +599,17 @@ def get_sentiment_history(
         symbol: Stock symbol.
         limit: Maximum number of snapshots to return.
         database: MongoDB database instance. Required.
+        source: Optional provider filter (e.g. "alphavantage", "tiingo").
     """
     if database is None:
         raise ValueError("database parameter is required for get_sentiment_history")
 
     col = database["sentiment_snapshots"]
+    query: Dict[str, Any] = {"symbol": symbol.upper().strip()}
+    if source:
+        query["source"] = source
     cursor = (
-        col.find({"symbol": symbol.upper().strip()}, {"_id": 0})
+        col.find(query, {"_id": 0})
         .sort("date", -1)
         .limit(limit)
     )

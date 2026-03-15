@@ -529,7 +529,7 @@ class HTMLReporter:
                                reverse=True)[:self.TOP_CANDIDATES_TABLE_LIMIT]
         html.append(f"<h2>Top Candidates ({len(top_candidates)})</h2>")
         html.append("<table>")
-        html.append("<tr><th>Symbol</th><th>Exchange</th><th>Strategy</th><th>Score</th><th>Sentiment</th><th>Close Price</th><th>Indicators</th></tr>")
+        html.append("<tr><th>Symbol</th><th>Exchange</th><th>Strategy</th><th>Score</th><th>Sentiment (AV)</th><th>Sentiment (Tiingo)</th><th>Close Price</th><th>Indicators</th></tr>")
 
 
         for cand in top_candidates:
@@ -546,6 +546,7 @@ class HTMLReporter:
             html.append(f"<td>{cand.get('strategy', 'N/A')}</td>")
             html.append(f"<td class='{score_cls}'>{score:.2f}</td>")
             html.append(f"<td>{self._get_sentiment_display(cand.get('sentiment', 0.0))}</td>")
+            html.append(f"<td>{self._get_sentiment_display(cand.get('sentiment_tiingo', 0.0))}</td>")
             html.append(f"<td>{cand.get('close', 'N/A')}</td>")
             html.append(f"<td><small>{indicators}</small></td>")
             html.append("</tr>")
@@ -669,7 +670,7 @@ class HTMLReporter:
 
         if baseline_top:
             html.append("<table>")
-            html.append("<tr><th>Symbol</th><th>Score</th><th>Sentiment</th><th>ML Confidence</th><th>Entry</th><th>Stop</th><th>T1 (+2%)</th><th>T2 Target</th></tr>")
+            html.append("<tr><th>Symbol</th><th>Score</th><th>Sent (AV)</th><th>Sent (Tiingo)</th><th>ML Confidence</th><th>Entry</th><th>Stop</th><th>T1 (+2%)</th><th>T2 Target</th></tr>")
             for c in baseline_top:
                 symbol = c['symbol']
                 url = f"https://finance.yahoo.com/quote/{symbol}"
@@ -695,6 +696,7 @@ class HTMLReporter:
                 html.append(f"<td><a href='{url}' target='_blank'><strong>{symbol}</strong></a></td>")
                 html.append(f"<td class='{score_cls}'>{score:.1f}</td>")
                 html.append(f"<td>{self._get_sentiment_display(c.get('sentiment', 0.0))}</td>")
+                html.append(f"<td>{self._get_sentiment_display(c.get('sentiment_tiingo', 0.0))}</td>")
                 html.append(f"<td>{ml_prob*100:.0f}%</td>")
                 html.append(f"<td>${entry:.2f}</td>")
                 html.append(f"<td style='color:#c0392b;font-weight:bold'>${stop:.2f} <span style='font-size:0.85em'>({stop_pct:.1f}%)</span></td>")
@@ -713,7 +715,7 @@ class HTMLReporter:
 
         if meanrev_top:
             html.append("<table>")
-            html.append("<tr><th>Symbol</th><th>Score</th><th>Sentiment</th><th>ML Confidence</th><th>Entry</th><th>Stop</th><th>T1 (+2%)</th><th>T2 Target</th></tr>")
+            html.append("<tr><th>Symbol</th><th>Score</th><th>Sent (AV)</th><th>Sent (Tiingo)</th><th>ML Confidence</th><th>Entry</th><th>Stop</th><th>T1 (+2%)</th><th>T2 Target</th></tr>")
             for c in meanrev_top:
                 symbol = c['symbol']
                 url = f"https://finance.yahoo.com/quote/{symbol}"
@@ -739,6 +741,7 @@ class HTMLReporter:
                 html.append(f"<td><a href='{url}' target='_blank'><strong>{symbol}</strong></a></td>")
                 html.append(f"<td class='{score_cls}'>{score:.1f}</td>")
                 html.append(f"<td>{self._get_sentiment_display(c.get('sentiment', 0.0))}</td>")
+                html.append(f"<td>{self._get_sentiment_display(c.get('sentiment_tiingo', 0.0))}</td>")
                 html.append(f"<td>{ml_prob*100:.0f}%</td>")
                 html.append(f"<td>${entry:.2f}</td>")
                 html.append(f"<td style='color:#c0392b;font-weight:bold'>${stop:.2f} <span style='font-size:0.85em'>({stop_pct:.1f}%)</span></td>")
@@ -840,7 +843,7 @@ class HTMLReporter:
 
         html.append(f"<h2>All Top Candidates ({len(top_candidates)})</h2>")
         html.append("<table>")
-        html.append("<tr><th>Symbol</th><th>Strategy</th><th>Score</th><th>Sentiment</th><th>ML</th><th>Price</th><th>Top Indicators</th></tr>")
+        html.append("<tr><th>Symbol</th><th>Strategy</th><th>Score</th><th>Sent (AV)</th><th>Sent (Tiingo)</th><th>ML</th><th>Price</th><th>Top Indicators</th></tr>")
 
         for cand in top_candidates:
             score = cand.get('score', 0)
@@ -868,6 +871,7 @@ class HTMLReporter:
             html.append(f"<td>{cand.get('strategy', 'N/A')}</td>")
             html.append(f"<td class='{score_cls}'>{score:.1f}</td>")
             html.append(f"<td>{self._get_sentiment_display(cand.get('sentiment', 0.0))}</td>")
+            html.append(f"<td>{self._get_sentiment_display(cand.get('sentiment_tiingo', 0.0))}</td>")
             html.append(f"<td>{ml_prob*100:.0f}%</td>")
             html.append(f"<td>${cand.get('close', 0):.2f}</td>")
             html.append(f"<td class='small-text'>{top_indicators}</td>")
@@ -1005,6 +1009,7 @@ class HTMLReporter:
                 'target': float(c.get('target', 0)),
                 'ml_prob': float(c.get('ml_prob', 0)),
                 'sentiment': float(c.get('sentiment', 0)),
+                'sentiment_tiingo': float(c.get('sentiment_tiingo', 0)),
                 'reasons': c.get('reasons', []),
                 'components': {},
             }
@@ -1210,7 +1215,7 @@ body::after {
   box-shadow: 0 0 15px rgba(255,170,0,0.1); margin-bottom: 16px;
 }
 .leaderboard-header {
-  display: grid; grid-template-columns: 28px 40px 90px 1fr 60px 100px 100px 80px 80px 110px 80px;
+  display: grid; grid-template-columns: 28px 40px 90px 1fr 60px 60px 100px 100px 80px 80px 110px 80px;
   padding: 10px 12px; border-bottom: 2px solid var(--neon-amber);
   font-size: 0.8rem; color: var(--neon-amber); text-shadow: 0 0 4px var(--neon-amber);
   letter-spacing: 1px; background: rgba(255,170,0,0.05);
@@ -1224,7 +1229,7 @@ body::after {
 .leaderboard-body::-webkit-scrollbar-thumb { background: var(--neon-amber-dim); border: 1px solid var(--neon-amber); }
 @keyframes row-enter { from { opacity: 0; transform: translateX(-20px); } to { opacity: 1; transform: translateX(0); } }
 .leaderboard-row {
-  display: grid; grid-template-columns: 28px 40px 90px 1fr 60px 100px 100px 80px 80px 110px 80px;
+  display: grid; grid-template-columns: 28px 40px 90px 1fr 60px 60px 100px 100px 80px 80px 110px 80px;
   padding: 10px 12px; border-bottom: 1px solid rgba(85,85,112,0.3);
   font-size: 0.9rem; cursor: pointer; transition: background 0.1s;
   animation: row-enter 0.3s ease-out both;
@@ -1257,6 +1262,10 @@ body::after {
 .col-sent.sent-bull { color: var(--neon-green); text-shadow: 0 0 4px rgba(57,255,20,0.5); }
 .col-sent.sent-bear { color: var(--neon-red); text-shadow: 0 0 4px rgba(255,51,51,0.5); }
 .col-sent.sent-neutral { color: var(--pixel-gray); }
+.col-sent-tiingo { display: flex; align-items: center; font-size: 0.8rem; }
+.col-sent-tiingo.sent-bull { color: var(--neon-green); text-shadow: 0 0 4px rgba(57,255,20,0.5); }
+.col-sent-tiingo.sent-bear { color: var(--neon-red); text-shadow: 0 0 4px rgba(255,51,51,0.5); }
+.col-sent-tiingo.sent-neutral { color: var(--pixel-gray); }
 .col-price { display: flex; align-items: center; color: var(--pixel-white); }
 .col-stop { display: flex; align-items: center; color: var(--neon-red); text-shadow: 0 0 4px rgba(255,51,51,0.5); }
 .col-target { display: flex; align-items: center; color: var(--neon-green); text-shadow: 0 0 4px rgba(57,255,20,0.5); }
@@ -1331,16 +1340,15 @@ body::after {
 .portfolio-summary-value { font-size: 0.7rem; color: var(--neon-green); text-shadow: 0 0 4px var(--neon-green); }
 .portfolio-summary-value.risk { color: var(--neon-red); text-shadow: 0 0 4px var(--neon-red); }
 .portfolio-summary-value.rr { color: var(--neon-blue); text-shadow: 0 0 4px var(--neon-blue); }
-.portfolio-table-header { display: grid; grid-template-columns: 50px 130px 100px 120px 100px 100px 120px 130px 110px 110px; padding: 8px 6px; border-bottom: 2px solid var(--neon-amber); font-size: 0.9rem; color: var(--neon-amber); text-shadow: 0 0 4px var(--neon-amber); letter-spacing: 1px; }
+.portfolio-table-header { display: grid; grid-template-columns: 50px 130px 110px 120px 120px 100px 120px 110px 110px; gap: 0 14px; padding: 8px 6px; border-bottom: 2px solid var(--neon-amber); font-size: 0.9rem; color: var(--neon-amber); text-shadow: 0 0 4px var(--neon-amber); letter-spacing: 1px; }
 .portfolio-table-body { max-height: 50vh; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--neon-pink-dim) var(--pixel-dark); }
 .portfolio-table-body::-webkit-scrollbar { width: 6px; }
 .portfolio-table-body::-webkit-scrollbar-track { background: var(--pixel-dark); }
 .portfolio-table-body::-webkit-scrollbar-thumb { background: var(--neon-pink-dim); border: 1px solid var(--neon-pink); }
-.portfolio-table-row { display: grid; grid-template-columns: 50px 130px 100px 120px 100px 100px 120px 130px 110px 110px; padding: 8px 6px; border-bottom: 1px solid rgba(85,85,112,0.3); font-size: 1.2rem; align-items: center; }
+.portfolio-table-row { display: grid; grid-template-columns: 50px 130px 110px 120px 120px 100px 120px 110px 110px; gap: 0 14px; padding: 8px 6px; border-bottom: 1px solid rgba(85,85,112,0.3); font-size: 1.2rem; align-items: center; }
 .portfolio-table-row:nth-child(even) { background: rgba(22,22,42,0.4); }
 .portfolio-col-rank { color: var(--neon-amber); }
 .portfolio-col-symbol { color: var(--neon-blue); text-shadow: 0 0 4px var(--neon-blue); }
-.portfolio-col-strategy { font-size: 0.5rem; }
 .portfolio-col-stop { color: var(--neon-red); text-shadow: 0 0 4px var(--neon-red); }
 .portfolio-col-alloc { color: var(--neon-green); text-shadow: 0 0 4px var(--neon-green); }
 .portfolio-col-pct { color: var(--pixel-white); }
@@ -1364,24 +1372,24 @@ body::after {
 /* Calc button in toolbar */
 .toolbar { display: flex; gap: 8px; margin-bottom: 12px; justify-content: flex-end; }
 @media (max-width: 900px) {
-  .leaderboard-header, .leaderboard-row { grid-template-columns: 24px 30px 70px 1fr 50px 80px 80px 60px 60px 90px 60px; font-size: 0.7rem; padding: 8px 6px; }
+  .leaderboard-header, .leaderboard-row { grid-template-columns: 24px 30px 70px 1fr 50px 50px 80px 80px 60px 60px 90px 60px; font-size: 0.7rem; padding: 8px 6px; }
   .marquee-title { font-size: 1rem; }
   .detail-grid { grid-template-columns: 1fr; }
   .status-bar { grid-template-columns: 1fr; }
   .health-bar { width: 40px; }
   .prev-perf-header, .prev-perf-row { grid-template-columns: 70px 50px 1fr 80px 60px; font-size: 0.7rem; }
-  .portfolio-table-header, .portfolio-table-row { grid-template-columns: 30px 70px 65px 70px 60px 60px 70px 70px; }
+  .portfolio-table-header, .portfolio-table-row { grid-template-columns: 30px 70px 65px 70px 70px 60px 60px; }
   .portfolio-col-risk, .portfolio-col-reward { display: none; }
   .portfolio-summary { grid-template-columns: repeat(2, 1fr); }
 }
 @media (max-width: 600px) {
   .leaderboard-header, .leaderboard-row { grid-template-columns: 24px 30px 1fr 70px 70px; }
-  .col-stop, .col-t1, .col-target, .col-rr, .col-ml, .col-sent { display: none; }
+  .col-stop, .col-t1, .col-target, .col-rr, .col-ml, .col-sent, .col-sent-tiingo { display: none; }
   .marquee-title { font-size: 0.7rem; letter-spacing: 2px; }
   .prev-perf-header, .prev-perf-row { grid-template-columns: 60px 1fr 70px 60px; }
   .prev-perf-header span:nth-child(2), .prev-perf-row span:nth-child(2) { display: none; }
   .portfolio-table-header, .portfolio-table-row { grid-template-columns: 30px 1fr 60px 60px 60px 60px; }
-  .portfolio-col-strategy, .portfolio-col-stop, .portfolio-col-t1, .portfolio-col-target { display: none; }
+  .portfolio-col-stop, .portfolio-col-t1, .portfolio-col-target { display: none; }
 }
 </style>"""
 
@@ -1465,6 +1473,9 @@ function renderLeaderboard() {
     const sent = c.sentiment || 0;
     const sentClass = sent === 0 ? 'sent-neutral' : sent > 0.15 ? 'sent-bull' : sent < -0.15 ? 'sent-bear' : 'sent-neutral';
     const sentLabel = sent === 0 ? 'N/A' : (sent > 0 ? '\u25B2' : '\u25BC') + sent.toFixed(2);
+    const sentT = c.sentiment_tiingo || 0;
+    const sentTClass = sentT === 0 ? 'sent-neutral' : sentT > 0.15 ? 'sent-bull' : sentT < -0.15 ? 'sent-bear' : 'sent-neutral';
+    const sentTLabel = sentT === 0 ? 'N/A' : (sentT > 0 ? '\u25B2' : '\u25BC') + sentT.toFixed(2);
     const scoreWidth = Math.min(100, (score / 80) * 100);
     const mlPips = Math.round(mlPct / 10);
     const detailId = 'detail-' + i;
@@ -1483,6 +1494,7 @@ function renderLeaderboard() {
       '<div class="col-symbol"><span class="symbol-name">' + c.symbol + '</span><span class="strategy-badge ' + stratClass + '">' + stratLabel + '</span></div>' +
       '<div class="col-score"><div class="health-bar"><div class="health-bar-fill ' + scoreClass + '" style="width:' + scoreWidth + '%"></div></div><span class="score-value ' + scoreTextClass + '">' + score.toFixed(1) + '</span></div>' +
       '<div class="col-sent ' + sentClass + '">' + sentLabel + '</div>' +
+      '<div class="col-sent-tiingo ' + sentTClass + '">' + sentTLabel + '</div>' +
       '<div class="col-price">$' + c.close.toFixed(2) + '</div>' +
       '<div class="col-stop">$' + c.stop_loss.toFixed(2) + '</div>' +
       '<div class="col-t1" style="color:var(--neon-amber);text-shadow:0 0 4px var(--neon-amber)">$' + (c.t1_target ? c.t1_target.toFixed(2) : '---') + '</div>' +
@@ -1745,12 +1757,11 @@ function renderPortfolioTable(results) {
     return '<div class="portfolio-table-row">' +
       '<div class="portfolio-col-rank">' + String(i + 1).padStart(2, '0') + '</div>' +
       '<div class="portfolio-col-symbol">' + r.symbol + '</div>' +
-      '<div class="portfolio-col-strategy"><span class="strategy-badge ' + stratClass + '">' + stratLabel + '</span></div>' +
+      '<div class="portfolio-col-shares">' + r.shares.toFixed(2) + '</div>' +
       '<div class="portfolio-col-price">$' + r.close.toFixed(2) + '</div>' +
+      '<div class="portfolio-col-stop">$' + r.stop_loss.toFixed(2) + '</div>' +
       '<div class="portfolio-col-t1" style="color:var(--neon-amber);text-shadow:0 0 4px var(--neon-amber)">' + t1Val + '</div>' +
       '<div class="portfolio-col-target" style="color:var(--neon-green)">$' + r.target.toFixed(2) + '</div>' +
-      '<div class="portfolio-col-stop">$' + r.stop_loss.toFixed(2) + '</div>' +
-      '<div class="portfolio-col-shares">' + r.shares.toFixed(2) + '</div>' +
       '<div class="portfolio-col-risk">-$' + r.risk.toFixed(0) + '</div>' +
       '<div class="portfolio-col-reward">+$' + r.reward.toFixed(0) + '</div></div>';
   }).join('');
@@ -1774,6 +1785,7 @@ document.addEventListener('DOMContentLoaded', function() {
       target: c.target || 0,
       ml_prob: c.ml_prob || 0,
       sentiment: c.sentiment || 0,
+      sentiment_tiingo: c.sentiment_tiingo || 0,
       reasons: c.reasons || [],
       components: c.components || {}
     };
@@ -1841,7 +1853,7 @@ document.addEventListener('DOMContentLoaded', function() {
             # Leaderboard
             '<div class="leaderboard" id="leaderboard" style="display:none">',
             '<div class="leaderboard-header">',
-            '<div></div><div>#</div><div>SYMBOL</div><div>SCORE</div><div>SENT</div><div>ENTRY</div><div>STOP</div><div>T1</div><div>T2</div><div>ML PROB</div><div>R:R</div>',
+            '<div></div><div>#</div><div>SYMBOL</div><div>SCORE</div><div>AV</div><div>TIINGO</div><div>ENTRY</div><div>STOP</div><div>T1</div><div>T2</div><div>ML PROB</div><div>R:R</div>',
             '</div>',
             '<div class="leaderboard-body" id="leaderboardBody"></div>',
             '</div>',
@@ -1914,7 +1926,7 @@ document.addEventListener('DOMContentLoaded', function() {
             '<div class="portfolio-summary-item"><div class="portfolio-summary-label">PORTFOLIO R:R</div><div class="portfolio-summary-value rr" id="portfolioRR">---</div></div>',
             '</div>',
             '<div class="portfolio-table-header">',
-            '<div>#</div><div>SYM</div><div class="portfolio-col-strategy">STRAT</div><div>PRICE</div><div class="portfolio-col-t1">T1</div><div class="portfolio-col-target">T2</div><div class="portfolio-col-stop">STOP</div><div>SHARES</div><div class="portfolio-col-risk">RISK</div><div class="portfolio-col-reward">RWD</div>',
+            '<div>#</div><div>SYM</div><div>QTY</div><div>PRICE</div><div class="portfolio-col-stop">STOP</div><div class="portfolio-col-t1">T1</div><div class="portfolio-col-target">T2</div><div class="portfolio-col-risk">RISK</div><div class="portfolio-col-reward">RWD</div>',
             '</div>',
             '<div class="portfolio-table-body" id="portfolioTableBody"></div>',
             '</div></div>',
