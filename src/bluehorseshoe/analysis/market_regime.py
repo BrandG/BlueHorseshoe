@@ -136,6 +136,18 @@ class MarketRegime:
             total_score += 1
         health_data['breadth'] = breadth
 
+        # VIX contribution: low VIX = bullish, high = bearish
+        from bluehorseshoe.data.vix import get_vix_snapshot
+        vix = get_vix_snapshot(target_date) if target_date else None
+        if vix:
+            health_data['VIX'] = vix
+            if vix['close'] <= 15:
+                total_score += 2
+            elif vix['close'] <= 20:
+                total_score += 1
+            elif vix['close'] > 30:
+                total_score -= 1
+
         status, multiplier = MarketRegime._get_final_status(total_score)
 
         return {

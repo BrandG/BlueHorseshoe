@@ -195,6 +195,10 @@ if __name__ == "__main__":
                 regime_for_html['spy_price'] = spy_details.get('close', 'N/A')
                 regime_for_html['spy_ma50'] = spy_details.get('ema50', 'N/A')
                 regime_for_html['spy_ma200'] = spy_details.get('ema200', 'N/A')
+                vix_details = regime_for_html.get('details', {}).get('VIX', {})
+                if vix_details:
+                    regime_for_html['vix_close'] = vix_details.get('close', 'N/A')
+                    regime_for_html['vix_fear'] = vix_details.get('fear_level', '')
 
                 reporter = HTMLReporter(database=ctx.db)
 
@@ -287,6 +291,10 @@ if __name__ == "__main__":
             market_health['spy_price'] = spy_details.get('close', 'N/A')
             market_health['spy_ma50'] = spy_details.get('ema50', 'N/A')
             market_health['spy_ma200'] = spy_details.get('ema200', 'N/A')
+            vix_details = market_health.get('details', {}).get('VIX', {})
+            if vix_details:
+                market_health['vix_close'] = vix_details.get('close', 'N/A')
+                market_health['vix_fear'] = vix_details.get('fear_level', '')
 
             # 2. Fetch Scores
             from bluehorseshoe.core.scores import ScoreManager
@@ -302,6 +310,7 @@ if __name__ == "__main__":
             from bluehorseshoe.core.symbols import get_symbols_from_mongo, get_sentiment_score
             from bluehorseshoe.data.tiingo_news import get_tiingo_sentiment_score_with_count
             from bluehorseshoe.data.stocktwits import get_stocktwits_sentiment_score_with_count
+            from bluehorseshoe.data.finviz_news import get_finviz_sentiment_score_with_count
             all_symbols = get_symbols_from_mongo(database=ctx.db)
             symbol_map = {s['symbol']: s.get('exchange', 'Unknown') for s in all_symbols}
 
@@ -310,6 +319,7 @@ if __name__ == "__main__":
             sentiment_cache = {}
             tiingo_sentiment_cache = {}
             stocktwits_sentiment_cache = {}
+            finviz_sentiment_cache = {}
 
             # Process Baseline
             for s in baseline_scores:
@@ -323,6 +333,8 @@ if __name__ == "__main__":
                     tiingo_sentiment_cache[sym] = meta.get('sentiment_tiingo') if meta.get('sentiment_tiingo') else get_tiingo_sentiment_score_with_count(sym, target_date, database=ctx.db)[0]
                 if sym not in stocktwits_sentiment_cache:
                     stocktwits_sentiment_cache[sym] = meta.get('sentiment_stocktwits') if meta.get('sentiment_stocktwits') else get_stocktwits_sentiment_score_with_count(sym, target_date, database=ctx.db)[0]
+                if sym not in finviz_sentiment_cache:
+                    finviz_sentiment_cache[sym] = meta.get('sentiment_finviz') if meta.get('sentiment_finviz') else get_finviz_sentiment_score_with_count(sym, target_date, database=ctx.db)[0]
                 entry_price = meta.get('entry_price', 0)
                 candidates.append({
                     "symbol": sym,
@@ -337,6 +349,7 @@ if __name__ == "__main__":
                     "sentiment": sentiment_cache[sym],
                     "sentiment_tiingo": tiingo_sentiment_cache[sym],
                     "sentiment_stocktwits": stocktwits_sentiment_cache[sym],
+                    "sentiment_finviz": finviz_sentiment_cache[sym],
                     "reasons": [f"{k}={v:.1f}" for k, v in meta.get('components', {}).items() if v != 0]
                 })
 
@@ -352,6 +365,8 @@ if __name__ == "__main__":
                     tiingo_sentiment_cache[sym] = meta.get('sentiment_tiingo') if meta.get('sentiment_tiingo') else get_tiingo_sentiment_score_with_count(sym, target_date, database=ctx.db)[0]
                 if sym not in stocktwits_sentiment_cache:
                     stocktwits_sentiment_cache[sym] = meta.get('sentiment_stocktwits') if meta.get('sentiment_stocktwits') else get_stocktwits_sentiment_score_with_count(sym, target_date, database=ctx.db)[0]
+                if sym not in finviz_sentiment_cache:
+                    finviz_sentiment_cache[sym] = meta.get('sentiment_finviz') if meta.get('sentiment_finviz') else get_finviz_sentiment_score_with_count(sym, target_date, database=ctx.db)[0]
                 entry_price = meta.get('entry_price', 0)
                 candidates.append({
                     "symbol": sym,
@@ -366,6 +381,7 @@ if __name__ == "__main__":
                     "sentiment": sentiment_cache[sym],
                     "sentiment_tiingo": tiingo_sentiment_cache[sym],
                     "sentiment_stocktwits": stocktwits_sentiment_cache[sym],
+                    "sentiment_finviz": finviz_sentiment_cache[sym],
                     "reasons": [f"{k}={v:.1f}" for k, v in meta.get('components', {}).items() if v != 0]
                 })
 
@@ -388,6 +404,8 @@ if __name__ == "__main__":
                     tiingo_sentiment_cache[sym] = meta.get('sentiment_tiingo') if meta.get('sentiment_tiingo') else get_tiingo_sentiment_score_with_count(sym, target_date, database=ctx.db)[0]
                 if sym not in stocktwits_sentiment_cache:
                     stocktwits_sentiment_cache[sym] = meta.get('sentiment_stocktwits') if meta.get('sentiment_stocktwits') else get_stocktwits_sentiment_score_with_count(sym, target_date, database=ctx.db)[0]
+                if sym not in finviz_sentiment_cache:
+                    finviz_sentiment_cache[sym] = meta.get('sentiment_finviz') if meta.get('sentiment_finviz') else get_finviz_sentiment_score_with_count(sym, target_date, database=ctx.db)[0]
                 connors_candidates.append({
                     "symbol": sym,
                     "exchange": symbol_map.get(sym, 'Unknown'),
@@ -401,6 +419,7 @@ if __name__ == "__main__":
                     "sentiment": sentiment_cache[sym],
                     "sentiment_tiingo": tiingo_sentiment_cache[sym],
                     "sentiment_stocktwits": stocktwits_sentiment_cache[sym],
+                    "sentiment_finviz": finviz_sentiment_cache[sym],
                     "connors_rsi2": meta.get('connors_rsi2'),
                     "connors_sma200": meta.get('connors_sma200'),
                     "reasons": [f"{k}={v:.1f}" for k, v in meta.get('components', {}).items() if v != 0]
@@ -420,6 +439,8 @@ if __name__ == "__main__":
                     tiingo_sentiment_cache[sym] = meta.get('sentiment_tiingo') if meta.get('sentiment_tiingo') else get_tiingo_sentiment_score_with_count(sym, target_date, database=ctx.db)[0]
                 if sym not in stocktwits_sentiment_cache:
                     stocktwits_sentiment_cache[sym] = meta.get('sentiment_stocktwits') if meta.get('sentiment_stocktwits') else get_stocktwits_sentiment_score_with_count(sym, target_date, database=ctx.db)[0]
+                if sym not in finviz_sentiment_cache:
+                    finviz_sentiment_cache[sym] = meta.get('sentiment_finviz') if meta.get('sentiment_finviz') else get_finviz_sentiment_score_with_count(sym, target_date, database=ctx.db)[0]
                 connors_candidates.append({
                     "symbol": sym,
                     "exchange": symbol_map.get(sym, 'Unknown'),
@@ -433,6 +454,7 @@ if __name__ == "__main__":
                     "sentiment": sentiment_cache[sym],
                     "sentiment_tiingo": tiingo_sentiment_cache[sym],
                     "sentiment_stocktwits": stocktwits_sentiment_cache[sym],
+                    "sentiment_finviz": finviz_sentiment_cache[sym],
                     "connors_rsi2": meta.get('connors_rsi2'),
                     "connors_sma200": meta.get('connors_sma200'),
                     "reasons": [f"{k}={v:.1f}" for k, v in meta.get('components', {}).items() if v != 0]

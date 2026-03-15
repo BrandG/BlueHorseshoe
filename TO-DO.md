@@ -30,11 +30,11 @@
   - Daily snapshots now stored in `sentiment_snapshots` collection during `-p` (score + article_count per symbol per date)
   - After ~1 month of data, analyze rate-of-change and sentiment-price divergence signals
   - **Sources to add (per-symbol):**
-    - [ ] **Tiingo News** — news headlines with sentiment, already have API key + rate limiter; lowest friction to add
-    - [ ] **StockTwits** — free API, bullish/bearish message counts per symbol, retail/crowd sentiment
-    - [ ] **Finviz** — news headlines (scrape + NLP scoring)
+    - [x] **Tiingo News** — **Done** (`0e0fe88`). Fetch headlines via Tiingo News API, score with VADER, store in `symbol_news_tiingo` collection. Snapshots saved with `source: "tiingo"`. Both AV and Tiingo sentiment displayed side-by-side in all reports (standard, email, arcade).
+    - [x] **StockTwits** — **Done** (`6586ba2`). Fetch 30 most recent messages per symbol from free public API, score using bull/bear tag ratio (no NLP), store in `symbol_news_stocktwits` collection. Snapshots saved with `source: "stocktwits"`. All 3 sentiment sources (AV, Tiingo, ST) displayed side-by-side in reports.
+    - [x] **Finviz** — **Done**. Fetch per-symbol news headlines via `finvizfinance` library, score with VADER, store in `symbol_news_finviz` collection. Snapshots saved with `source: "finviz"`. All 4 sentiment sources (AV, Tiingo, ST, FV) displayed side-by-side in reports.
   - **Sources to add (market-wide, one score per day):**
-    - [ ] **VIX** — implied volatility proxy, store as daily snapshot; could backfill from DuckDB if VIX is in symbol list
+    - [x] **VIX** — **Done** (`vix.py`). Fetch daily OHLC from CBOE free API, compute close/change/SMA-20/percentile/fear-level. Integrated into `MarketRegime.get_market_health()` (±2 score points), arcade status bar (4th panel), standard/email regime tables, and `sentiment_snapshots` collection.
     - [ ] **AAII Bull/Bear Survey** — weekly institutional sentiment survey
     - [ ] **CNN Fear & Greed Index** — composite market sentiment (7 indicators)
   - **Future / higher effort:**
