@@ -529,7 +529,7 @@ class HTMLReporter:
                                reverse=True)[:self.TOP_CANDIDATES_TABLE_LIMIT]
         html.append(f"<h2>Top Candidates ({len(top_candidates)})</h2>")
         html.append("<table>")
-        html.append("<tr><th>Symbol</th><th>Exchange</th><th>Strategy</th><th>Score</th><th>Sentiment (AV)</th><th>Sentiment (Tiingo)</th><th>Close Price</th><th>Indicators</th></tr>")
+        html.append("<tr><th>Symbol</th><th>Exchange</th><th>Strategy</th><th>Score</th><th>Sentiment (AV)</th><th>Sentiment (Tiingo)</th><th>Sentiment (ST)</th><th>Close Price</th><th>Indicators</th></tr>")
 
 
         for cand in top_candidates:
@@ -547,6 +547,7 @@ class HTMLReporter:
             html.append(f"<td class='{score_cls}'>{score:.2f}</td>")
             html.append(f"<td>{self._get_sentiment_display(cand.get('sentiment', 0.0))}</td>")
             html.append(f"<td>{self._get_sentiment_display(cand.get('sentiment_tiingo', 0.0))}</td>")
+            html.append(f"<td>{self._get_sentiment_display(cand.get('sentiment_stocktwits', 0.0))}</td>")
             html.append(f"<td>{cand.get('close', 'N/A')}</td>")
             html.append(f"<td><small>{indicators}</small></td>")
             html.append("</tr>")
@@ -670,7 +671,7 @@ class HTMLReporter:
 
         if baseline_top:
             html.append("<table>")
-            html.append("<tr><th>Symbol</th><th>Score</th><th>Sent (AV)</th><th>Sent (Tiingo)</th><th>ML Confidence</th><th>Entry</th><th>Stop</th><th>T1 (+2%)</th><th>T2 Target</th></tr>")
+            html.append("<tr><th>Symbol</th><th>Score</th><th>Sent (AV)</th><th>Sent (TI)</th><th>Sent (ST)</th><th>ML Confidence</th><th>Entry</th><th>Stop</th><th>T1 (+2%)</th><th>T2 Target</th></tr>")
             for c in baseline_top:
                 symbol = c['symbol']
                 url = f"https://finance.yahoo.com/quote/{symbol}"
@@ -697,6 +698,7 @@ class HTMLReporter:
                 html.append(f"<td class='{score_cls}'>{score:.1f}</td>")
                 html.append(f"<td>{self._get_sentiment_display(c.get('sentiment', 0.0))}</td>")
                 html.append(f"<td>{self._get_sentiment_display(c.get('sentiment_tiingo', 0.0))}</td>")
+                html.append(f"<td>{self._get_sentiment_display(c.get('sentiment_stocktwits', 0.0))}</td>")
                 html.append(f"<td>{ml_prob*100:.0f}%</td>")
                 html.append(f"<td>${entry:.2f}</td>")
                 html.append(f"<td style='color:#c0392b;font-weight:bold'>${stop:.2f} <span style='font-size:0.85em'>({stop_pct:.1f}%)</span></td>")
@@ -715,7 +717,7 @@ class HTMLReporter:
 
         if meanrev_top:
             html.append("<table>")
-            html.append("<tr><th>Symbol</th><th>Score</th><th>Sent (AV)</th><th>Sent (Tiingo)</th><th>ML Confidence</th><th>Entry</th><th>Stop</th><th>T1 (+2%)</th><th>T2 Target</th></tr>")
+            html.append("<tr><th>Symbol</th><th>Score</th><th>Sent (AV)</th><th>Sent (TI)</th><th>Sent (ST)</th><th>ML Confidence</th><th>Entry</th><th>Stop</th><th>T1 (+2%)</th><th>T2 Target</th></tr>")
             for c in meanrev_top:
                 symbol = c['symbol']
                 url = f"https://finance.yahoo.com/quote/{symbol}"
@@ -742,6 +744,7 @@ class HTMLReporter:
                 html.append(f"<td class='{score_cls}'>{score:.1f}</td>")
                 html.append(f"<td>{self._get_sentiment_display(c.get('sentiment', 0.0))}</td>")
                 html.append(f"<td>{self._get_sentiment_display(c.get('sentiment_tiingo', 0.0))}</td>")
+                html.append(f"<td>{self._get_sentiment_display(c.get('sentiment_stocktwits', 0.0))}</td>")
                 html.append(f"<td>{ml_prob*100:.0f}%</td>")
                 html.append(f"<td>${entry:.2f}</td>")
                 html.append(f"<td style='color:#c0392b;font-weight:bold'>${stop:.2f} <span style='font-size:0.85em'>({stop_pct:.1f}%)</span></td>")
@@ -843,7 +846,7 @@ class HTMLReporter:
 
         html.append(f"<h2>All Top Candidates ({len(top_candidates)})</h2>")
         html.append("<table>")
-        html.append("<tr><th>Symbol</th><th>Strategy</th><th>Score</th><th>Sent (AV)</th><th>Sent (Tiingo)</th><th>ML</th><th>Price</th><th>Top Indicators</th></tr>")
+        html.append("<tr><th>Symbol</th><th>Strategy</th><th>Score</th><th>Sent (AV)</th><th>Sent (TI)</th><th>Sent (ST)</th><th>ML</th><th>Price</th><th>Top Indicators</th></tr>")
 
         for cand in top_candidates:
             score = cand.get('score', 0)
@@ -872,6 +875,7 @@ class HTMLReporter:
             html.append(f"<td class='{score_cls}'>{score:.1f}</td>")
             html.append(f"<td>{self._get_sentiment_display(cand.get('sentiment', 0.0))}</td>")
             html.append(f"<td>{self._get_sentiment_display(cand.get('sentiment_tiingo', 0.0))}</td>")
+            html.append(f"<td>{self._get_sentiment_display(cand.get('sentiment_stocktwits', 0.0))}</td>")
             html.append(f"<td>{ml_prob*100:.0f}%</td>")
             html.append(f"<td>${cand.get('close', 0):.2f}</td>")
             html.append(f"<td class='small-text'>{top_indicators}</td>")
@@ -1010,6 +1014,7 @@ class HTMLReporter:
                 'ml_prob': float(c.get('ml_prob', 0)),
                 'sentiment': float(c.get('sentiment', 0)),
                 'sentiment_tiingo': float(c.get('sentiment_tiingo', 0)),
+                'sentiment_stocktwits': float(c.get('sentiment_stocktwits', 0)),
                 'reasons': c.get('reasons', []),
                 'components': {},
             }
@@ -1215,7 +1220,7 @@ body::after {
   box-shadow: 0 0 15px rgba(255,170,0,0.1); margin-bottom: 16px;
 }
 .leaderboard-header {
-  display: grid; grid-template-columns: 28px 40px 90px 1fr 60px 60px 100px 100px 80px 80px 110px 80px;
+  display: grid; grid-template-columns: 28px 40px 90px 1fr 60px 60px 60px 100px 100px 80px 80px 110px 80px;
   padding: 10px 12px; border-bottom: 2px solid var(--neon-amber);
   font-size: 0.8rem; color: var(--neon-amber); text-shadow: 0 0 4px var(--neon-amber);
   letter-spacing: 1px; background: rgba(255,170,0,0.05);
@@ -1229,7 +1234,7 @@ body::after {
 .leaderboard-body::-webkit-scrollbar-thumb { background: var(--neon-amber-dim); border: 1px solid var(--neon-amber); }
 @keyframes row-enter { from { opacity: 0; transform: translateX(-20px); } to { opacity: 1; transform: translateX(0); } }
 .leaderboard-row {
-  display: grid; grid-template-columns: 28px 40px 90px 1fr 60px 60px 100px 100px 80px 80px 110px 80px;
+  display: grid; grid-template-columns: 28px 40px 90px 1fr 60px 60px 60px 100px 100px 80px 80px 110px 80px;
   padding: 10px 12px; border-bottom: 1px solid rgba(85,85,112,0.3);
   font-size: 0.9rem; cursor: pointer; transition: background 0.1s;
   animation: row-enter 0.3s ease-out both;
@@ -1266,6 +1271,10 @@ body::after {
 .col-sent-tiingo.sent-bull { color: var(--neon-green); text-shadow: 0 0 4px rgba(57,255,20,0.5); }
 .col-sent-tiingo.sent-bear { color: var(--neon-red); text-shadow: 0 0 4px rgba(255,51,51,0.5); }
 .col-sent-tiingo.sent-neutral { color: var(--pixel-gray); }
+.col-sent-st { display: flex; align-items: center; font-size: 0.8rem; }
+.col-sent-st.sent-bull { color: var(--neon-green); text-shadow: 0 0 4px rgba(57,255,20,0.5); }
+.col-sent-st.sent-bear { color: var(--neon-red); text-shadow: 0 0 4px rgba(255,51,51,0.5); }
+.col-sent-st.sent-neutral { color: var(--pixel-gray); }
 .col-price { display: flex; align-items: center; color: var(--pixel-white); }
 .col-stop { display: flex; align-items: center; color: var(--neon-red); text-shadow: 0 0 4px rgba(255,51,51,0.5); }
 .col-target { display: flex; align-items: center; color: var(--neon-green); text-shadow: 0 0 4px rgba(57,255,20,0.5); }
@@ -1372,7 +1381,7 @@ body::after {
 /* Calc button in toolbar */
 .toolbar { display: flex; gap: 8px; margin-bottom: 12px; justify-content: flex-end; }
 @media (max-width: 900px) {
-  .leaderboard-header, .leaderboard-row { grid-template-columns: 24px 30px 70px 1fr 50px 50px 80px 80px 60px 60px 90px 60px; font-size: 0.7rem; padding: 8px 6px; }
+  .leaderboard-header, .leaderboard-row { grid-template-columns: 24px 30px 70px 1fr 50px 50px 50px 80px 80px 60px 60px 90px 60px; font-size: 0.7rem; padding: 8px 6px; }
   .marquee-title { font-size: 1rem; }
   .detail-grid { grid-template-columns: 1fr; }
   .status-bar { grid-template-columns: 1fr; }
@@ -1384,7 +1393,7 @@ body::after {
 }
 @media (max-width: 600px) {
   .leaderboard-header, .leaderboard-row { grid-template-columns: 24px 30px 1fr 70px 70px; }
-  .col-stop, .col-t1, .col-target, .col-rr, .col-ml, .col-sent, .col-sent-tiingo { display: none; }
+  .col-stop, .col-t1, .col-target, .col-rr, .col-ml, .col-sent, .col-sent-tiingo, .col-sent-st { display: none; }
   .marquee-title { font-size: 0.7rem; letter-spacing: 2px; }
   .prev-perf-header, .prev-perf-row { grid-template-columns: 60px 1fr 70px 60px; }
   .prev-perf-header span:nth-child(2), .prev-perf-row span:nth-child(2) { display: none; }
@@ -1476,6 +1485,9 @@ function renderLeaderboard() {
     const sentT = c.sentiment_tiingo || 0;
     const sentTClass = sentT === 0 ? 'sent-neutral' : sentT > 0.15 ? 'sent-bull' : sentT < -0.15 ? 'sent-bear' : 'sent-neutral';
     const sentTLabel = sentT === 0 ? 'N/A' : (sentT > 0 ? '\u25B2' : '\u25BC') + sentT.toFixed(2);
+    const sentST = c.sentiment_stocktwits || 0;
+    const sentSTClass = sentST === 0 ? 'sent-neutral' : sentST > 0.15 ? 'sent-bull' : sentST < -0.15 ? 'sent-bear' : 'sent-neutral';
+    const sentSTLabel = sentST === 0 ? 'N/A' : (sentST > 0 ? '\u25B2' : '\u25BC') + sentST.toFixed(2);
     const scoreWidth = Math.min(100, (score / 80) * 100);
     const mlPips = Math.round(mlPct / 10);
     const detailId = 'detail-' + i;
@@ -1495,6 +1507,7 @@ function renderLeaderboard() {
       '<div class="col-score"><div class="health-bar"><div class="health-bar-fill ' + scoreClass + '" style="width:' + scoreWidth + '%"></div></div><span class="score-value ' + scoreTextClass + '">' + score.toFixed(1) + '</span></div>' +
       '<div class="col-sent ' + sentClass + '">' + sentLabel + '</div>' +
       '<div class="col-sent-tiingo ' + sentTClass + '">' + sentTLabel + '</div>' +
+      '<div class="col-sent-st ' + sentSTClass + '">' + sentSTLabel + '</div>' +
       '<div class="col-price">$' + c.close.toFixed(2) + '</div>' +
       '<div class="col-stop">$' + c.stop_loss.toFixed(2) + '</div>' +
       '<div class="col-t1" style="color:var(--neon-amber);text-shadow:0 0 4px var(--neon-amber)">$' + (c.t1_target ? c.t1_target.toFixed(2) : '---') + '</div>' +
@@ -1786,6 +1799,7 @@ document.addEventListener('DOMContentLoaded', function() {
       ml_prob: c.ml_prob || 0,
       sentiment: c.sentiment || 0,
       sentiment_tiingo: c.sentiment_tiingo || 0,
+      sentiment_stocktwits: c.sentiment_stocktwits || 0,
       reasons: c.reasons || [],
       components: c.components || {}
     };
@@ -1853,7 +1867,7 @@ document.addEventListener('DOMContentLoaded', function() {
             # Leaderboard
             '<div class="leaderboard" id="leaderboard" style="display:none">',
             '<div class="leaderboard-header">',
-            '<div></div><div>#</div><div>SYMBOL</div><div>SCORE</div><div>AV</div><div>TIINGO</div><div>ENTRY</div><div>STOP</div><div>T1</div><div>T2</div><div>ML PROB</div><div>R:R</div>',
+            '<div></div><div>#</div><div>SYMBOL</div><div>SCORE</div><div>AV</div><div>TIINGO</div><div>ST</div><div>ENTRY</div><div>STOP</div><div>T1</div><div>T2</div><div>ML PROB</div><div>R:R</div>',
             '</div>',
             '<div class="leaderboard-body" id="leaderboardBody"></div>',
             '</div>',

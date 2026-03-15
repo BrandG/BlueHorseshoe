@@ -56,6 +56,10 @@ from bluehorseshoe.data.tiingo_news import (
     fetch_tiingo_news, score_articles, upsert_tiingo_news_to_mongo,
     get_tiingo_sentiment_score_with_count,
 )
+from bluehorseshoe.data.stocktwits import (
+    fetch_stocktwits_messages, score_stocktwits_messages,
+    upsert_stocktwits_to_mongo, get_stocktwits_sentiment_score_with_count,
+)
 from bluehorseshoe.analysis.ml_utils import build_ml_features
 from bluehorseshoe.analysis.strategy_registry import get_all_strategies
 from bluehorseshoe.data.historical_data import load_historical_data
@@ -825,6 +829,7 @@ class SwingTrader:
                             "connors_sma200": r.get("connors_sma200"),
                             "sentiment": r.get("sentiment", 0.0),
                             "sentiment_tiingo": r.get("sentiment_tiingo", 0.0),
+                            "sentiment_stocktwits": r.get("sentiment_stocktwits", 0.0),
                         }
                     })
         return score_data
@@ -1002,6 +1007,7 @@ class SwingTrader:
                         "ml_prob": r.get(strat.ml_prob_key, 0.0),
                         "sentiment": r.get("sentiment", 0.0),
                         "sentiment_tiingo": r.get("sentiment_tiingo", 0.0),
+                        "sentiment_stocktwits": r.get("sentiment_stocktwits", 0.0),
                         "reasons": [
                             f"{k}={v:.1f}"
                             for k, v in r.get(strat.components_key, {}).items()
@@ -1041,6 +1047,7 @@ class SwingTrader:
                 "ml_prob": best_ml_prob,
                 "sentiment": r.get("sentiment", 0.0),
                 "sentiment_tiingo": r.get("sentiment_tiingo", 0.0),
+                "sentiment_stocktwits": r.get("sentiment_stocktwits", 0.0),
                 "connors_rsi2": r.get("connors_rsi2"),
                 "connors_sma200": r.get("connors_sma200"),
                 "reasons": [f"RSI2={r.get('connors_rsi2', 0):.1f}", f"SMA200={r.get('connors_sma200', 0):.1f}"]
@@ -1138,6 +1145,38 @@ class SwingTrader:
                             "source": "tiingo",
                         })
                 c["sentiment_tiingo"] = tiingo_cache[sym][0]
+
+        # StockTwits sentiment (data collection — no ML/scoring impact yet)
+        stocktwits_cache: Dict[str, tuple] = {}
+        logging.info("Fetching StockTwits sentiment for %d symbols", len(unique_symbols))
+        for sym in unique_symbols:
+            try:
+                messages = fetch_stocktwits_messages(sym)
+                if messages:
+                    st_score_data = score_stocktwits_messages(messages)
+                    upsert_stocktwits_to_mongo(
+                        sym, messages, st_score_data, database=self.database
+                    )
+            except Exception:  # pylint: disable=broad-except
+                logging.warning("StockTwits fetch failed for %s (non-fatal)", sym)
+
+        # Build StockTwits snapshots
+        for c in top_candidates:
+            sym = c["symbol"]
+            if sym not in stocktwits_cache:
+                stocktwits_cache[sym] = get_stocktwits_sentiment_score_with_count(
+                    sym, ctx.target_date, database=self.database
+                )
+                st_score, st_count = stocktwits_cache[sym]
+                if st_score != 0.0:
+                    sentiment_snapshots.append({
+                        "symbol": sym,
+                        "date": target_date_str,
+                        "score": st_score,
+                        "article_count": st_count,
+                        "source": "stocktwits",
+                    })
+            c["sentiment_stocktwits"] = stocktwits_cache[sym][0]
 
         # Persist sentiment snapshots (non-fatal)
         try:
