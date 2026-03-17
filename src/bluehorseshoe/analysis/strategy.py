@@ -1117,6 +1117,16 @@ class SwingTrader:
                 "article_count": 0,
                 "source": "vix",
             })
+        # AAII snapshot (market-wide, not per-symbol)
+        aaii = market_health.get('details', {}).get('AAII')
+        if aaii:
+            sentiment_snapshots.append({
+                "symbol": "$AAII",
+                "date": target_date_str,
+                "score": aaii['spread_normalized'],
+                "article_count": 0,
+                "source": "aaii",
+            })
         for c in top_candidates:
             sym = c["symbol"]
             if sym not in sentiment_cache:

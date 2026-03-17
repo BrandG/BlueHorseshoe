@@ -148,6 +148,19 @@ class MarketRegime:
             elif vix['close'] > 30:
                 total_score -= 1
 
+        # AAII sentiment contribution (contrarian: bearish = bullish signal)
+        from bluehorseshoe.data.aaii import get_aaii_snapshot  # pylint: disable=import-outside-toplevel
+        aaii = get_aaii_snapshot(target_date) if target_date else None
+        if aaii:
+            health_data['AAII'] = aaii
+            spread = aaii['bull_bear_spread']
+            if spread <= -20:
+                total_score += 2  # Extreme bearish → contrarian bullish
+            elif spread <= -10:
+                total_score += 1  # Bearish → contrarian mildly bullish
+            elif spread >= 30:
+                total_score -= 1  # Extreme bullish → contrarian bearish
+
         status, multiplier = MarketRegime._get_final_status(total_score)
 
         return {

@@ -199,6 +199,10 @@ if __name__ == "__main__":
                 if vix_details:
                     regime_for_html['vix_close'] = vix_details.get('close', 'N/A')
                     regime_for_html['vix_fear'] = vix_details.get('fear_level', '')
+                aaii_details = regime_for_html.get('details', {}).get('AAII', {})
+                if aaii_details:
+                    regime_for_html['aaii_spread'] = aaii_details.get('bull_bear_spread', 'N/A')
+                    regime_for_html['aaii_signal'] = aaii_details.get('signal', '')
 
                 reporter = HTMLReporter(database=ctx.db)
 
@@ -295,6 +299,10 @@ if __name__ == "__main__":
             if vix_details:
                 market_health['vix_close'] = vix_details.get('close', 'N/A')
                 market_health['vix_fear'] = vix_details.get('fear_level', '')
+            aaii_details = market_health.get('details', {}).get('AAII', {})
+            if aaii_details:
+                market_health['aaii_spread'] = aaii_details.get('bull_bear_spread', 'N/A')
+                market_health['aaii_signal'] = aaii_details.get('signal', '')
 
             # 2. Fetch Scores
             from bluehorseshoe.core.scores import ScoreManager

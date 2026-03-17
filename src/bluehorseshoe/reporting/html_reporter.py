@@ -393,12 +393,13 @@ class HTMLReporter:
             f"<summary style='cursor:pointer; font-size: 1.5em; font-weight: bold; color: var(--heading-color); padding-bottom: 10px;'>Market Regime: {self._get_regime_badge(regime.get('status', 'Unknown'))}</summary>",
             "<hr style='border: 0; border-bottom: 2px solid var(--border-color); margin: 0 0 20px 0;'>",
             "<table>",
-            "<tr><th>Status</th><th>SPY Price</th><th>SPY MA50</th><th>SPY MA200</th><th>VIX</th></tr>",
+            "<tr><th>Status</th><th>SPY Price</th><th>SPY MA50</th><th>SPY MA200</th><th>VIX</th><th>AAII</th></tr>",
             f"<tr><td>{self._get_regime_badge(regime.get('status', 'Unknown'))}</td>",
             f"<td>{regime.get('spy_price', 'N/A')}</td>",
             f"<td>{regime.get('spy_ma50', 'N/A')}</td>",
             f"<td>{regime.get('spy_ma200', 'N/A')}</td>",
-            f"<td>{regime.get('vix_close', 'N/A')}{(' (' + regime.get('vix_fear', '') + ')') if regime.get('vix_fear') else ''}</td></tr>",
+            f"<td>{regime.get('vix_close', 'N/A')}{(' (' + regime.get('vix_fear', '') + ')') if regime.get('vix_fear') else ''}</td>",
+            f"<td>{regime.get('aaii_spread', 'N/A')}{(' (' + regime.get('aaii_signal', '') + ')') if regime.get('aaii_signal') else ''}</td></tr>",
             "</table>",
             f"<p><strong>Commentary:</strong> {regime.get('commentary', 'No commentary available.')}</p>",
             "</details>",
@@ -650,7 +651,7 @@ class HTMLReporter:
         # Market Regime Section (simplified, no collapsible)
         html.append("<h2>Market Regime</h2>")
         html.append("<table>")
-        html.append("<tr><th>Status</th><th>SPY Price</th><th>SPY MA50</th><th>SPY MA200</th><th>VIX</th></tr>")
+        html.append("<tr><th>Status</th><th>SPY Price</th><th>SPY MA50</th><th>SPY MA200</th><th>VIX</th><th>AAII</th></tr>")
 
         # Simple badge without the helper method
         status = regime.get('status', 'Unknown')
@@ -669,7 +670,11 @@ class HTMLReporter:
         vix_cell = regime.get('vix_close', 'N/A')
         if regime.get('vix_fear'):
             vix_cell = f"{vix_cell} ({regime['vix_fear']})"
-        html.append(f"<td>{vix_cell}</td></tr>")
+        html.append(f"<td>{vix_cell}</td>")
+        aaii_cell = regime.get('aaii_spread', 'N/A')
+        if regime.get('aaii_signal'):
+            aaii_cell = f"{aaii_cell} ({regime['aaii_signal']})"
+        html.append(f"<td>{aaii_cell}</td></tr>")
         html.append("</table>")
 
         # Top Baseline Candidates
@@ -1056,6 +1061,8 @@ class HTMLReporter:
                     }
             if 'VIX' in regime['details']:
                 report_regime['details']['VIX'] = regime['details']['VIX']
+            if 'AAII' in regime['details']:
+                report_regime['details']['AAII'] = regime['details']['AAII']
 
         report_data = {
             'date': date,
@@ -1210,7 +1217,7 @@ body::after {
 .arcade-btn.btn-blue:hover { background: rgba(0,212,255,0.1); box-shadow: var(--glow-blue); }
 .arcade-btn.btn-amber { border-color: var(--neon-amber); color: var(--neon-amber); text-shadow: 0 0 6px var(--neon-amber); box-shadow: 0 0 6px var(--neon-amber-dim); }
 .arcade-btn.btn-amber:hover { background: rgba(255,170,0,0.1); box-shadow: var(--glow-amber); }
-.status-bar { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 8px; margin-bottom: 12px; }
+.status-bar { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin-bottom: 12px; }
 .status-panel {
   background: var(--pixel-dark); border: 2px solid var(--pixel-gray);
   padding: 12px; text-align: center;
@@ -1477,12 +1484,20 @@ function renderStatusBar() {
       vixEl.textContent = vix.close.toFixed(1);
       vixEl.className = 'value ' + (vix.close <= 20 ? 'bullish' : vix.close > 30 ? 'bearish' : 'neutral');
     }
+    if (regime.details && regime.details.AAII) {
+      const aaii = regime.details.AAII;
+      const aaiiEl = document.getElementById('aaiiValue');
+      const spread = aaii.bull_bear_spread;
+      aaiiEl.textContent = spread.toFixed(1) + ' (' + aaii.signal + ')';
+      aaiiEl.className = 'value ' + (spread <= -10 ? 'bullish' : spread >= 20 ? 'bearish' : 'neutral');
+    }
   } else {
     regimeEl.textContent = 'N/A';
     regimeEl.className = 'value neutral';
     document.getElementById('spyValue').textContent = '---';
     document.getElementById('qqqValue').textContent = '---';
     document.getElementById('vixValue').textContent = '---';
+    document.getElementById('aaiiValue').textContent = '---';
   }
 }
 
@@ -1906,6 +1921,7 @@ document.addEventListener('DOMContentLoaded', function() {
             '<div class="status-panel"><div class="label">SPY</div><div class="value" id="spyValue" style="color:var(--pixel-white)">---</div></div>',
             '<div class="status-panel"><div class="label">QQQ</div><div class="value" id="qqqValue" style="color:var(--pixel-white)">---</div></div>',
             '<div class="status-panel"><div class="label">VIX</div><div class="value" id="vixValue" style="color:var(--pixel-white)">---</div></div>',
+            '<div class="status-panel"><div class="label">AAII SENTIMENT</div><div class="value" id="aaiiValue" style="color:var(--pixel-white)">---</div></div>',
             '</div>',
 
             # Strategy tabs

@@ -139,6 +139,9 @@ class Settings(BaseSettings):
     tiingo_api_key: str = ""
     tiingo_cps: int = 5
 
+    # Nasdaq Data Link (AAII sentiment)
+    nasdaq_data_link_api_key: str = ""
+
     # IBKR Gateway
     ibkr_host: str = "ib-gateway"
     ibkr_port: int = 4004
