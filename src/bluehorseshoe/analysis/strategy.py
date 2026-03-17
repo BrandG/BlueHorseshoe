@@ -41,6 +41,7 @@ from bluehorseshoe.analysis.constants import (
     ENABLE_DYNAMIC_ENTRY
 )
 from bluehorseshoe.analysis.market_regime import MarketRegime
+from bluehorseshoe.analysis.sentiment_normalizer import SentimentNormalizer
 from bluehorseshoe.analysis.ml_overlay import MLInference
 from bluehorseshoe.analysis.ml_profit_target import ProfitTargetInference
 from bluehorseshoe.analysis.ml_stop_loss import StopLossInference
@@ -1233,6 +1234,17 @@ class SwingTrader:
                 logging.info("Saved %d sentiment snapshots for %s", saved, target_date_str)
         except Exception:  # pylint: disable=broad-except
             logging.warning("Failed to save sentiment snapshots (non-fatal)")
+
+        # Compute z-score normalized composite sentiment
+        try:
+            normalizer = SentimentNormalizer(database=self.database)
+            normalizer.load_source_stats()
+            for c in top_candidates:
+                c["sentiment_composite"] = normalizer.composite(c)
+        except Exception:  # pylint: disable=broad-except
+            logging.warning("Composite sentiment computation failed (non-fatal)")
+            for c in top_candidates:
+                c.setdefault("sentiment_composite", 0.0)
 
         return {
             "regime": market_health,

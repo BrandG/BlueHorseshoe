@@ -311,8 +311,13 @@ if __name__ == "__main__":
             from bluehorseshoe.data.tiingo_news import get_tiingo_sentiment_score_with_count
             from bluehorseshoe.data.stocktwits import get_stocktwits_sentiment_score_with_count
             from bluehorseshoe.data.finviz_news import get_finviz_sentiment_score_with_count
+            from bluehorseshoe.analysis.sentiment_normalizer import SentimentNormalizer
             all_symbols = get_symbols_from_mongo(database=ctx.db)
             symbol_map = {s['symbol']: s.get('exchange', 'Unknown') for s in all_symbols}
+
+            # Set up sentiment normalizer for composite computation
+            normalizer = SentimentNormalizer(database=ctx.db)
+            normalizer.load_source_stats()
 
             # 4. Construct Candidates
             candidates = []
@@ -461,6 +466,10 @@ if __name__ == "__main__":
                 })
             connors_candidates.sort(key=lambda x: x['score'], reverse=True)
             connors_candidates = connors_candidates[:10]
+
+            # Compute sentiment composite for all candidates
+            for c in candidates + connors_candidates:
+                c["sentiment_composite"] = normalizer.composite(c)
 
             # Sort and Limit
             candidates.sort(key=lambda x: x['score'], reverse=True)

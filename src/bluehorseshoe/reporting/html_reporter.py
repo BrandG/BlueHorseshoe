@@ -530,7 +530,7 @@ class HTMLReporter:
                                reverse=True)[:self.TOP_CANDIDATES_TABLE_LIMIT]
         html.append(f"<h2>Top Candidates ({len(top_candidates)})</h2>")
         html.append("<table>")
-        html.append("<tr><th>Symbol</th><th>Exchange</th><th>Strategy</th><th>Score</th><th>Sentiment (AV)</th><th>Sentiment (Tiingo)</th><th>Sentiment (ST)</th><th>Sentiment (FV)</th><th>Close Price</th><th>Indicators</th></tr>")
+        html.append("<tr><th>Symbol</th><th>Exchange</th><th>Strategy</th><th>Score</th><th title='AlphaVantage NEWS_SENTIMENT API'>Sentiment (AV)</th><th title='Tiingo News API &mdash; headlines scored with VADER'>Sentiment (Tiingo)</th><th title='StockTwits &mdash; bull/bear tag ratio from public messages'>Sentiment (ST)</th><th title='Finviz &mdash; news headlines scored with VADER'>Sentiment (FV)</th><th title='Z-score normalized composite'>Sent (C)</th><th>Close Price</th><th>Indicators</th></tr>")
 
 
         for cand in top_candidates:
@@ -550,6 +550,7 @@ class HTMLReporter:
             html.append(f"<td>{self._get_sentiment_display(cand.get('sentiment_tiingo', 0.0))}</td>")
             html.append(f"<td>{self._get_sentiment_display(cand.get('sentiment_stocktwits', 0.0))}</td>")
             html.append(f"<td>{self._get_sentiment_display(cand.get('sentiment_finviz', 0.0))}</td>")
+            html.append(f"<td><strong>{self._get_sentiment_display(cand.get('sentiment_composite', 0.0))}</strong></td>")
             html.append(f"<td>{cand.get('close', 'N/A')}</td>")
             html.append(f"<td><small>{indicators}</small></td>")
             html.append("</tr>")
@@ -677,7 +678,7 @@ class HTMLReporter:
 
         if baseline_top:
             html.append("<table>")
-            html.append("<tr><th>Symbol</th><th>Score</th><th>Sent (AV)</th><th>Sent (TI)</th><th>Sent (ST)</th><th>Sent (FV)</th><th>ML Confidence</th><th>Entry</th><th>Stop</th><th>T1 (+2%)</th><th>T2 Target</th></tr>")
+            html.append("<tr><th>Symbol</th><th>Score</th><th title='AlphaVantage NEWS_SENTIMENT API'>Sent (AV)</th><th title='Tiingo News API &mdash; headlines scored with VADER'>Sent (TI)</th><th title='StockTwits &mdash; bull/bear tag ratio from public messages'>Sent (ST)</th><th title='Finviz &mdash; news headlines scored with VADER'>Sent (FV)</th><th title='Z-score normalized composite'>Sent (C)</th><th>ML Confidence</th><th>Entry</th><th>Stop</th><th>T1 (+2%)</th><th>T2 Target</th></tr>")
             for c in baseline_top:
                 symbol = c['symbol']
                 url = f"https://finance.yahoo.com/quote/{symbol}"
@@ -706,6 +707,7 @@ class HTMLReporter:
                 html.append(f"<td>{self._get_sentiment_display(c.get('sentiment_tiingo', 0.0))}</td>")
                 html.append(f"<td>{self._get_sentiment_display(c.get('sentiment_stocktwits', 0.0))}</td>")
                 html.append(f"<td>{self._get_sentiment_display(c.get('sentiment_finviz', 0.0))}</td>")
+                html.append(f"<td><strong>{self._get_sentiment_display(c.get('sentiment_composite', 0.0))}</strong></td>")
                 html.append(f"<td>{ml_prob*100:.0f}%</td>")
                 html.append(f"<td>${entry:.2f}</td>")
                 html.append(f"<td style='color:#c0392b;font-weight:bold'>${stop:.2f} <span style='font-size:0.85em'>({stop_pct:.1f}%)</span></td>")
@@ -724,7 +726,7 @@ class HTMLReporter:
 
         if meanrev_top:
             html.append("<table>")
-            html.append("<tr><th>Symbol</th><th>Score</th><th>Sent (AV)</th><th>Sent (TI)</th><th>Sent (ST)</th><th>Sent (FV)</th><th>ML Confidence</th><th>Entry</th><th>Stop</th><th>T1 (+2%)</th><th>T2 Target</th></tr>")
+            html.append("<tr><th>Symbol</th><th>Score</th><th title='AlphaVantage NEWS_SENTIMENT API'>Sent (AV)</th><th title='Tiingo News API &mdash; headlines scored with VADER'>Sent (TI)</th><th title='StockTwits &mdash; bull/bear tag ratio from public messages'>Sent (ST)</th><th title='Finviz &mdash; news headlines scored with VADER'>Sent (FV)</th><th title='Z-score normalized composite'>Sent (C)</th><th>ML Confidence</th><th>Entry</th><th>Stop</th><th>T1 (+2%)</th><th>T2 Target</th></tr>")
             for c in meanrev_top:
                 symbol = c['symbol']
                 url = f"https://finance.yahoo.com/quote/{symbol}"
@@ -753,6 +755,7 @@ class HTMLReporter:
                 html.append(f"<td>{self._get_sentiment_display(c.get('sentiment_tiingo', 0.0))}</td>")
                 html.append(f"<td>{self._get_sentiment_display(c.get('sentiment_stocktwits', 0.0))}</td>")
                 html.append(f"<td>{self._get_sentiment_display(c.get('sentiment_finviz', 0.0))}</td>")
+                html.append(f"<td><strong>{self._get_sentiment_display(c.get('sentiment_composite', 0.0))}</strong></td>")
                 html.append(f"<td>{ml_prob*100:.0f}%</td>")
                 html.append(f"<td>${entry:.2f}</td>")
                 html.append(f"<td style='color:#c0392b;font-weight:bold'>${stop:.2f} <span style='font-size:0.85em'>({stop_pct:.1f}%)</span></td>")
@@ -854,7 +857,7 @@ class HTMLReporter:
 
         html.append(f"<h2>All Top Candidates ({len(top_candidates)})</h2>")
         html.append("<table>")
-        html.append("<tr><th>Symbol</th><th>Strategy</th><th>Score</th><th>Sent (AV)</th><th>Sent (TI)</th><th>Sent (ST)</th><th>Sent (FV)</th><th>ML</th><th>Price</th><th>Top Indicators</th></tr>")
+        html.append("<tr><th>Symbol</th><th>Strategy</th><th>Score</th><th title='AlphaVantage NEWS_SENTIMENT API'>Sent (AV)</th><th title='Tiingo News API &mdash; headlines scored with VADER'>Sent (TI)</th><th title='StockTwits &mdash; bull/bear tag ratio from public messages'>Sent (ST)</th><th title='Finviz &mdash; news headlines scored with VADER'>Sent (FV)</th><th title='Z-score normalized composite'>Sent (C)</th><th>ML</th><th>Price</th><th>Top Indicators</th></tr>")
 
         for cand in top_candidates:
             score = cand.get('score', 0)
@@ -885,6 +888,7 @@ class HTMLReporter:
             html.append(f"<td>{self._get_sentiment_display(cand.get('sentiment_tiingo', 0.0))}</td>")
             html.append(f"<td>{self._get_sentiment_display(cand.get('sentiment_stocktwits', 0.0))}</td>")
             html.append(f"<td>{self._get_sentiment_display(cand.get('sentiment_finviz', 0.0))}</td>")
+            html.append(f"<td><strong>{self._get_sentiment_display(cand.get('sentiment_composite', 0.0))}</strong></td>")
             html.append(f"<td>{ml_prob*100:.0f}%</td>")
             html.append(f"<td>${cand.get('close', 0):.2f}</td>")
             html.append(f"<td class='small-text'>{top_indicators}</td>")
@@ -1025,6 +1029,7 @@ class HTMLReporter:
                 'sentiment_tiingo': float(c.get('sentiment_tiingo', 0)),
                 'sentiment_stocktwits': float(c.get('sentiment_stocktwits', 0)),
                 'sentiment_finviz': float(c.get('sentiment_finviz', 0)),
+                'sentiment_composite': float(c.get('sentiment_composite', 0)),
                 'reasons': c.get('reasons', []),
                 'components': {},
             }
@@ -1232,7 +1237,7 @@ body::after {
   box-shadow: 0 0 15px rgba(255,170,0,0.1); margin-bottom: 16px;
 }
 .leaderboard-header {
-  display: grid; grid-template-columns: 28px 40px 90px 1fr 60px 60px 60px 60px 100px 100px 80px 80px 110px 80px;
+  display: grid; grid-template-columns: 28px 40px 90px 1fr 60px 100px 100px 80px 80px 110px 80px;
   padding: 10px 12px; border-bottom: 2px solid var(--neon-amber);
   font-size: 0.8rem; color: var(--neon-amber); text-shadow: 0 0 4px var(--neon-amber);
   letter-spacing: 1px; background: rgba(255,170,0,0.05);
@@ -1246,7 +1251,7 @@ body::after {
 .leaderboard-body::-webkit-scrollbar-thumb { background: var(--neon-amber-dim); border: 1px solid var(--neon-amber); }
 @keyframes row-enter { from { opacity: 0; transform: translateX(-20px); } to { opacity: 1; transform: translateX(0); } }
 .leaderboard-row {
-  display: grid; grid-template-columns: 28px 40px 90px 1fr 60px 60px 60px 60px 100px 100px 80px 80px 110px 80px;
+  display: grid; grid-template-columns: 28px 40px 90px 1fr 60px 100px 100px 80px 80px 110px 80px;
   padding: 10px 12px; border-bottom: 1px solid rgba(85,85,112,0.3);
   font-size: 0.9rem; cursor: pointer; transition: background 0.1s;
   animation: row-enter 0.3s ease-out both;
@@ -1275,22 +1280,10 @@ body::after {
 .score-high { color: var(--neon-green); text-shadow: 0 0 4px var(--neon-green); }
 .score-mid { color: var(--neon-amber); text-shadow: 0 0 4px var(--neon-amber); }
 .score-low { color: var(--neon-red); text-shadow: 0 0 4px var(--neon-red); }
-.col-sent { display: flex; align-items: center; font-size: 0.8rem; }
+.col-sent { display: flex; align-items: center; font-size: 0.8rem; font-weight: bold; }
 .col-sent.sent-bull { color: var(--neon-green); text-shadow: 0 0 4px rgba(57,255,20,0.5); }
 .col-sent.sent-bear { color: var(--neon-red); text-shadow: 0 0 4px rgba(255,51,51,0.5); }
 .col-sent.sent-neutral { color: var(--pixel-gray); }
-.col-sent-tiingo { display: flex; align-items: center; font-size: 0.8rem; }
-.col-sent-tiingo.sent-bull { color: var(--neon-green); text-shadow: 0 0 4px rgba(57,255,20,0.5); }
-.col-sent-tiingo.sent-bear { color: var(--neon-red); text-shadow: 0 0 4px rgba(255,51,51,0.5); }
-.col-sent-tiingo.sent-neutral { color: var(--pixel-gray); }
-.col-sent-st { display: flex; align-items: center; font-size: 0.8rem; }
-.col-sent-st.sent-bull { color: var(--neon-green); text-shadow: 0 0 4px rgba(57,255,20,0.5); }
-.col-sent-st.sent-bear { color: var(--neon-red); text-shadow: 0 0 4px rgba(255,51,51,0.5); }
-.col-sent-st.sent-neutral { color: var(--pixel-gray); }
-.col-sent-fv { display: flex; align-items: center; font-size: 0.8rem; }
-.col-sent-fv.sent-bull { color: var(--neon-green); text-shadow: 0 0 4px rgba(57,255,20,0.5); }
-.col-sent-fv.sent-bear { color: var(--neon-red); text-shadow: 0 0 4px rgba(255,51,51,0.5); }
-.col-sent-fv.sent-neutral { color: var(--pixel-gray); }
 .col-price { display: flex; align-items: center; color: var(--pixel-white); }
 .col-stop { display: flex; align-items: center; color: var(--neon-red); text-shadow: 0 0 4px rgba(255,51,51,0.5); }
 .col-target { display: flex; align-items: center; color: var(--neon-green); text-shadow: 0 0 4px rgba(57,255,20,0.5); }
@@ -1309,7 +1302,7 @@ body::after {
 .portfolio-badge { background: var(--neon-pink); color: var(--crt-bg); font-size: 0.45rem; padding: 1px 5px; margin-left: 6px; min-width: 14px; text-align: center; display: none; }
 .detail-panel { display: none; grid-column: 1 / -1; padding: 16px 12px; border-bottom: 2px solid var(--neon-amber-dim); background: rgba(26,26,46,0.6); }
 .detail-panel.open { display: block; animation: row-enter 0.2s ease-out; }
-.detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.detail-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
 .detail-section { border: 1px solid var(--pixel-gray); padding: 12px; }
 .detail-section-title { font-size: 0.8rem; color: var(--neon-amber); margin-bottom: 10px; letter-spacing: 1px; text-shadow: 0 0 4px var(--neon-amber); }
 .rr-diagram { position: relative; height: 40px; margin: 8px 0; background: var(--pixel-dark); border: 1px solid var(--pixel-gray); overflow: hidden; }
@@ -1331,6 +1324,18 @@ body::after {
 .indicator-val { width: 36px; text-align: left; font-size: 0.6rem; }
 .indicator-val.pos { color: var(--neon-green); }
 .indicator-val.neg { color: var(--neon-red); }
+.sent-bar-row { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; font-size: 0.7rem; }
+.sent-bar-label { width: 50px; color: var(--pixel-gray); text-align: right; text-transform: uppercase; font-size: 0.6rem; }
+.sent-bar-label.comp-label { color: var(--neon-amber); text-shadow: 0 0 4px var(--neon-amber); font-weight: bold; }
+.sent-bar { flex: 1; height: 8px; background: var(--pixel-dark); border: 1px solid rgba(85,85,112,0.3); position: relative; overflow: hidden; }
+.sent-bar-center { position: absolute; left: 50%; top: 0; bottom: 0; width: 1px; background: var(--pixel-gray); opacity: 0.5; z-index: 1; }
+.sent-bar-fill { position: absolute; top: 0; bottom: 0; transition: width 0.4s ease-out; }
+.sent-bar-fill.positive { background: var(--neon-green); box-shadow: 0 0 4px rgba(57,255,20,0.3); left: 50%; }
+.sent-bar-fill.negative { background: var(--neon-red); box-shadow: 0 0 4px rgba(255,51,51,0.3); right: 50%; }
+.sent-bar-val { width: 50px; text-align: left; font-size: 0.65rem; }
+.sent-bar-val.pos { color: var(--neon-green); }
+.sent-bar-val.neg { color: var(--neon-red); }
+.sent-bar-val.na { color: var(--pixel-gray); }
 .empty-state { text-align: center; padding: 60px 20px; color: var(--pixel-gray); font-size: 0.5rem; line-height: 2.5; }
 .arcade-footer { text-align: center; padding: 20px; font-size: 0.35rem; color: var(--pixel-gray); letter-spacing: 1px; line-height: 2.2; }
 .footer-pixel-art { margin-bottom: 12px; font-size: 0.4rem; color: var(--neon-blue-dim); line-height: 1; letter-spacing: 0; white-space: pre; }
@@ -1397,7 +1402,7 @@ body::after {
 /* Calc button in toolbar */
 .toolbar { display: flex; gap: 8px; margin-bottom: 12px; justify-content: flex-end; }
 @media (max-width: 900px) {
-  .leaderboard-header, .leaderboard-row { grid-template-columns: 24px 30px 70px 1fr 50px 50px 50px 50px 80px 80px 60px 60px 90px 60px; font-size: 0.7rem; padding: 8px 6px; }
+  .leaderboard-header, .leaderboard-row { grid-template-columns: 24px 30px 70px 1fr 50px 80px 80px 60px 60px 90px 60px; font-size: 0.7rem; padding: 8px 6px; }
   .marquee-title { font-size: 1rem; }
   .detail-grid { grid-template-columns: 1fr; }
   .status-bar { grid-template-columns: 1fr; }
@@ -1409,7 +1414,7 @@ body::after {
 }
 @media (max-width: 600px) {
   .leaderboard-header, .leaderboard-row { grid-template-columns: 24px 30px 1fr 70px 70px; }
-  .col-stop, .col-t1, .col-target, .col-rr, .col-ml, .col-sent, .col-sent-tiingo, .col-sent-st, .col-sent-fv { display: none; }
+  .col-stop, .col-t1, .col-target, .col-rr, .col-ml, .col-sent { display: none; }
   .marquee-title { font-size: 0.7rem; letter-spacing: 2px; }
   .prev-perf-header, .prev-perf-row { grid-template-columns: 60px 1fr 70px 60px; }
   .prev-perf-header span:nth-child(2), .prev-perf-row span:nth-child(2) { display: none; }
@@ -1502,18 +1507,9 @@ function renderLeaderboard() {
     const rankClass = rank <= 3 ? 'rank-' + rank : '';
     const stratClass = c.strategy === 'Connors' ? 'connors' : c.strategy === 'MeanRev' ? 'meanrev' : 'baseline';
     const stratLabel = c.strategy === 'Connors' ? 'CR' : c.strategy === 'MeanRev' ? 'MR' : 'BL';
-    const sent = c.sentiment || 0;
+    const sent = c.sentiment_composite || 0;
     const sentClass = sent === 0 ? 'sent-neutral' : sent > 0.15 ? 'sent-bull' : sent < -0.15 ? 'sent-bear' : 'sent-neutral';
     const sentLabel = sent === 0 ? 'N/A' : (sent > 0 ? '\u25B2' : '\u25BC') + sent.toFixed(2);
-    const sentT = c.sentiment_tiingo || 0;
-    const sentTClass = sentT === 0 ? 'sent-neutral' : sentT > 0.15 ? 'sent-bull' : sentT < -0.15 ? 'sent-bear' : 'sent-neutral';
-    const sentTLabel = sentT === 0 ? 'N/A' : (sentT > 0 ? '\u25B2' : '\u25BC') + sentT.toFixed(2);
-    const sentST = c.sentiment_stocktwits || 0;
-    const sentSTClass = sentST === 0 ? 'sent-neutral' : sentST > 0.15 ? 'sent-bull' : sentST < -0.15 ? 'sent-bear' : 'sent-neutral';
-    const sentSTLabel = sentST === 0 ? 'N/A' : (sentST > 0 ? '\u25B2' : '\u25BC') + sentST.toFixed(2);
-    const sentFV = c.sentiment_finviz || 0;
-    const sentFVClass = sentFV === 0 ? 'sent-neutral' : sentFV > 0.15 ? 'sent-bull' : sentFV < -0.15 ? 'sent-bear' : 'sent-neutral';
-    const sentFVLabel = sentFV === 0 ? 'N/A' : (sentFV > 0 ? '\u25B2' : '\u25BC') + sentFV.toFixed(2);
     const scoreWidth = Math.min(100, (score / 80) * 100);
     const mlPips = Math.round(mlPct / 10);
     const detailId = 'detail-' + i;
@@ -1532,9 +1528,6 @@ function renderLeaderboard() {
       '<div class="col-symbol"><span class="symbol-name">' + c.symbol + '</span><span class="strategy-badge ' + stratClass + '">' + stratLabel + '</span></div>' +
       '<div class="col-score"><div class="health-bar"><div class="health-bar-fill ' + scoreClass + '" style="width:' + scoreWidth + '%"></div></div><span class="score-value ' + scoreTextClass + '">' + score.toFixed(1) + '</span></div>' +
       '<div class="col-sent ' + sentClass + '">' + sentLabel + '</div>' +
-      '<div class="col-sent-tiingo ' + sentTClass + '">' + sentTLabel + '</div>' +
-      '<div class="col-sent-st ' + sentSTClass + '">' + sentSTLabel + '</div>' +
-      '<div class="col-sent-fv ' + sentFVClass + '">' + sentFVLabel + '</div>' +
       '<div class="col-price">$' + c.close.toFixed(2) + '</div>' +
       '<div class="col-stop">$' + c.stop_loss.toFixed(2) + '</div>' +
       '<div class="col-t1" style="color:var(--neon-amber);text-shadow:0 0 4px var(--neon-amber)">$' + (c.t1_target ? c.t1_target.toFixed(2) : '---') + '</div>' +
@@ -1548,6 +1541,34 @@ function renderLeaderboard() {
     detail.innerHTML = buildDetailHTML(c);
     body.appendChild(detail);
   });
+}
+
+function buildSentimentBar(label, value, isComposite) {
+  var labelCls = isComposite ? 'sent-bar-label comp-label' : 'sent-bar-label';
+  if (value === 0) {
+    return '<div class="sent-bar-row"><span class="' + labelCls + '">' + label + '</span>' +
+      '<div class="sent-bar"><div class="sent-bar-center"></div></div>' +
+      '<span class="sent-bar-val na">N/A</span></div>';
+  }
+  var pct = Math.abs(value) * 50;
+  var cls = value >= 0 ? 'positive' : 'negative';
+  var valCls = value >= 0 ? 'pos' : 'neg';
+  var arrow = value >= 0 ? '\u25B2' : '\u25BC';
+  return '<div class="sent-bar-row"><span class="' + labelCls + '">' + label + '</span>' +
+    '<div class="sent-bar"><div class="sent-bar-center"></div>' +
+    '<div class="sent-bar-fill ' + cls + '" style="width:' + pct + '%"></div></div>' +
+    '<span class="sent-bar-val ' + valCls + '">' + arrow + value.toFixed(2) + '</span></div>';
+}
+
+function buildSentimentHTML(c) {
+  return '<div class="detail-section"><div class="detail-section-title">SENTIMENT ANALYSIS</div>' +
+    buildSentimentBar('AV', c.sentiment || 0, false) +
+    buildSentimentBar('TI', c.sentiment_tiingo || 0, false) +
+    buildSentimentBar('ST', c.sentiment_stocktwits || 0, false) +
+    buildSentimentBar('FV', c.sentiment_finviz || 0, false) +
+    '<div style="height:1px;background:var(--pixel-gray);opacity:0.3;margin:6px 0"></div>' +
+    buildSentimentBar('COMP', c.sentiment_composite || 0, true) +
+    '</div>';
 }
 
 function buildDetailHTML(c) {
@@ -1595,6 +1616,7 @@ function buildDetailHTML(c) {
     '<div style="margin-top:14px">' +
     '<button class="arcade-btn btn-pink" style="font-size:0.7rem;padding:5px 10px" onclick="event.stopPropagation();openCalcForSymbol(\'' + c.symbol + '\',' + c.close + ',' + c.stop_loss + ',' + c.target + ')">CALC SHARES</button>' +
     '<a href="https://finance.yahoo.com/quote/' + c.symbol + '" target="_blank" rel="noopener" class="arcade-btn btn-blue" style="font-size:0.7rem;padding:5px 10px;text-decoration:none;display:inline-block;margin-left:4px">YAHOO</a></div></div>' +
+    buildSentimentHTML(c) +
     '<div class="detail-section"><div class="detail-section-title">POWER LEVELS</div>' +
     (c.strategy === 'Connors' && c.connors_rsi2 !== undefined ?
       '<div style="display:flex;gap:20px;margin-bottom:10px;font-size:0.7rem;">' +
@@ -1828,6 +1850,7 @@ document.addEventListener('DOMContentLoaded', function() {
       sentiment_tiingo: c.sentiment_tiingo || 0,
       sentiment_stocktwits: c.sentiment_stocktwits || 0,
       sentiment_finviz: c.sentiment_finviz || 0,
+      sentiment_composite: c.sentiment_composite || 0,
       reasons: c.reasons || [],
       components: c.components || {}
     };
@@ -1896,7 +1919,7 @@ document.addEventListener('DOMContentLoaded', function() {
             # Leaderboard
             '<div class="leaderboard" id="leaderboard" style="display:none">',
             '<div class="leaderboard-header">',
-            '<div></div><div>#</div><div>SYMBOL</div><div>SCORE</div><div>AV</div><div>TIINGO</div><div>ST</div><div>FV</div><div>ENTRY</div><div>STOP</div><div>T1</div><div>T2</div><div>ML PROB</div><div>R:R</div>',
+            '<div></div><div>#</div><div>SYMBOL</div><div>SCORE</div><div title="Z-score normalized composite sentiment">SENT</div><div>ENTRY</div><div>STOP</div><div>T1</div><div>T2</div><div>ML PROB</div><div>R:R</div>',
             '</div>',
             '<div class="leaderboard-body" id="leaderboardBody"></div>',
             '</div>',

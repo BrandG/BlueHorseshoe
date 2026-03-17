@@ -1,79 +1,70 @@
 # Session Handoff
 
-**Date:** March 10, 2026
-**Status:** Automated backup system deployed. DuckDB + MongoDB + ML models backed up daily to Google Drive via rclone.
+**Date:** March 15, 2026
+**Status:** StockTwits sentiment integration complete and deployed. Three sentiment sources now active: AlphaVantage, Tiingo, StockTwits.
 
 ---
 
-## What Was Done This Session (March 10)
+## What Was Done This Session (March 15)
 
-### Automated Backup to Google Drive
-Implemented daily backup of all critical untracked data to Google Drive via rclone.
+### StockTwits Sentiment Integration
+Added StockTwits as a third sentiment source. Fetches 30 most recent messages per symbol from free public API, scores using user-provided Bullish/Bearish tags (ratio-based, no NLP), stores in MongoDB, displays in all report types.
 
 **New files:**
-- `backup.sh` — Main backup script (runs on host, not Docker). Pipeline safety check → DuckDB WAL flush + compress → selective mongodump (7 collections) + compress → ML models compress → bundle → rclone upload → rotate old backups. Email alerts on failure.
-- `backup.conf` — Configuration (paths, retention counts, collection list). Sources `docker/.env` for SMTP creds and `MONGO_BIND_IP` at runtime — no secrets in file.
+- `src/bluehorseshoe/data/stocktwits.py` — 4 functions: `fetch_stocktwits_messages()`, `score_stocktwits_messages()`, `upsert_stocktwits_to_mongo()`, `get_stocktwits_sentiment_score_with_count()`
+- `src/tests/test_stocktwits.py` — 12 tests (scoring edge cases, MongoDB ops, API fetch with mocks)
 
-**Backup details:**
-- **Schedule:** Cron at 05:00 UTC daily (after 02:00 pipeline completes)
-- **Rotation:** Weekdays → `daily/` (keep 7), Sundays → `weekly/` (keep 4)
-- **Archive size:** ~215 MB per backup (~2.2 GB total on Drive)
-- **Components:** DuckDB (~140 MB compressed), MongoDB 7 collections (~50 MB), ML models (~25 MB)
-- **Safety:** Checks `pipeline_status.json` + `docker top` before running; `set -euo pipefail`; `trap cleanup EXIT`
-- **MongoDB collections:** `trade_scores`, `journal_batches`, `journal_signals`, `symbols`, `symbol_overviews`, `symbol_news`, `loader_checkpoints` (skips dead `historical_prices*`)
+**Modified files:**
+- `src/bluehorseshoe/analysis/strategy.py` — Pipeline wiring: after Tiingo block, fetches StockTwits for candidate symbols, scores, stores in `symbol_news_stocktwits`, saves snapshots with `source: "stocktwits"`. `sentiment_stocktwits` added to candidate dicts and `_prepare_scores_for_save()`.
+- `src/bluehorseshoe/reporting/html_reporter.py` — All 3 report types show ST column. Arcade: grid columns, CSS, JS, JSON serialization all updated.
+- `src/main.py` — `-r` regeneration path loads `sentiment_stocktwits` from saved metadata with fallback to `get_stocktwits_sentiment_score_with_count()`.
+- `backup.conf` — Added `symbol_news_stocktwits` to `MONGO_COLLECTIONS` array.
 
-**Infrastructure setup (one-time, completed):**
-- rclone installed on host, Google Drive remote configured via headless auth flow
-- Remote folders created: `gdrive:BlueHorseshoe/backups/{daily,weekly}/`
-- Cron entry installed
+### Cloudflare 403 Fix
+StockTwits API returned 403 Forbidden from inside Docker (Cloudflare bot protection). Fixed by adding browser-like `User-Agent` header to requests. Works from both host and container after fix.
 
-### Verified
-- Manual backup run completed successfully
-- Archive uploaded and visible on Google Drive
-
-## What Was Done Last Session (March 9)
-
-### Pluggable Strategy Interface (8-Phase Refactor)
-Replaced 40+ `if strategy == "baseline"` branches across 7 files with a generic strategy loop pattern. See previous handoff for full details. 408 tests passing, lint clean.
+### Live Verification
+- Ran full predict pipeline (5,417 symbols, ~73 min)
+- Fetched StockTwits data for 62 symbols — real scores ranging from -1.0 to +1.0
+- Reports regenerated with real data (e.g., ADM: ▲+1.00, AAPL: ▼-0.17, CTVA: ▼-1.00)
+- All 445 tests pass, lint clean
 
 ---
 
 ## Previous Sessions Summary
 
+- **March 15 (earlier):** Tiingo News sentiment integration with VADER scoring (`0e0fe88`)
+- **March 10:** Automated daily backup to Google Drive via rclone (`backup.sh`, `backup.conf`)
 - **March 9:** Pluggable strategy interface — `TradingStrategy` ABC, `BaselineStrategy`, `MeanReversionStrategy`, central registry
 - **March 8:** MongoDB OHLCV dual-write removed, DuckDB thread-safety fix (RLock), new indicators (RVOL, Engulfing, Hammer)
-- **March 7 (Session 2):** DuckDB migration complete — all 4 phases, schema optimization (4.0 GB → 484 MB)
-- **March 7 (Session 1):** Market-cap universe (~3,591 symbols), multi-provider pool (Tiingo/AV/Yahoo), volume gates removed
+- **March 7:** DuckDB migration complete — all 4 phases, schema optimization (4.0 GB → 484 MB)
 - **March 6:** Vectorized backtesting — 13x speedup single-date, 7.4x range
 - **March 5:** Score-once backtest refactor — 22 min → 2-3 sec; connors_flag BSON fix
-- **March 4:** Regime-adaptive weight selection tested and rejected; research droplet destroyed
-- **March 3:** V3 weights deployed to production
 
 ---
 
 ## Next Steps
 
-- **Add a third strategy (e.g. Shorts)** — Now trivial: subclass `TradingStrategy`, register in `strategy_registry.py`, done
-- **Event-driven backtest** — Model trades as orders fed through daily bars (handles split exits, trailing stops, shorts as order types)
-- **Backfill overviews** — ~2,000 symbols still missing overviews. Run `-u --refresh-overviews --ov-limit 500` in batches.
-- **Full historical backfill** — Many of the 3,500 newly-tracked symbols only have ~6 months of data
+- **Accumulate sentiment data** — Need ~1 month of daily snapshots from all 3 sources before analyzing sentiment-price divergence signals
+- **Add sentiment to ML features** — Once history exists, add `SentimentScore_Tiingo` and `SentimentScore_StockTwits` as features to `build_ml_features()`
+- **Mark StockTwits done in TO-DO.md** — The StockTwits line item is still unchecked
+- **Add a third strategy (e.g. Shorts)** — Trivial: subclass `TradingStrategy`, register in `strategy_registry.py`
+- **Event-driven backtest** — Model trades as orders fed through daily bars
+- **Additional sentiment sources** — Finviz, VIX, AAII, CNN Fear & Greed (see TO-DO.md)
 - See `TO-DO.md` for full backlog
 
 ---
 
 ## Key Decisions
 
-- **Strategy objects are stateless and picklable** — They receive `trader` as a parameter to `process()`, not stored state. Critical for `ProcessPoolExecutor` workers.
-- **Result dict shape preserved** — `process_symbol()` still returns `{baseline_score, mr_score, ...}` — all downstream code sees no change.
-- **MongoDB schema unchanged** — `strategy` field stores `"baseline"` or `"mean_reversion"` — the strategy's `.name` property returns these exact strings.
-- **Connors stays as a flag, not a strategy** — Piggybacks on setup data from other strategies. Can become a third strategy later.
-- **`calculate_technical_score()` kept as backward-compat wrapper** — Widely used (tests, scripts, `historical_data.py`). Internally delegates via registry.
-- **No primary key index** — DuckDB's ART index for PK on 28M rows cost 1.66 GB (77% of file). Dropped it. Zone maps handle our `WHERE symbol = ?` queries efficiently; uniqueness enforced by DELETE-before-INSERT in `save_symbol()`.
-- **OHLCV-only storage** — 25 indicator columns dropped from DuckDB. Always recomputed from raw OHLCV.
-- **MongoDB OHLCV dual-write removed** — DuckDB is the sole OHLCV store. MongoDB retains scores, journal, overviews, checkpoints, symbols.
-- **RLock for DuckDB thread safety** — All connection access serialized. Reentrant lock avoids deadlocks from nested method calls.
-- **$300M market cap floor** — ~3,591 symbols. Configurable via `MIN_MARKET_CAP` constant.
-- **V3 weights remain production** — No changes to scoring weights
+- **User-Agent header required for StockTwits** — Cloudflare blocks default `python-requests` UA from Docker. Browser-like UA string added to `_HEADERS` constant.
+- **Ratio scoring for StockTwits** — `(bull - bear) / (bull + bear)`, range [-1, +1]. No NLP needed since sentiment comes from user tags.
+- **Data collection phase first** — All 3 sentiment sources displayed in reports but NOT used as ML features or in scoring. Need history first.
+- **VADER for Tiingo scoring** — Lightweight, stateless, thread-safe NLP for news headlines.
+- **Source field on sentiment_snapshots** — Unique index `(symbol, date, source)` supports multiple providers.
+- **Strategy objects are stateless and picklable** — Critical for `ProcessPoolExecutor` workers.
+- **DuckDB is sole OHLCV store** — MongoDB retains scores, journal, overviews, checkpoints, symbols, news.
+- **V3 weights remain production** — No changes to scoring weights.
 
 ---
 
@@ -81,28 +72,36 @@ Replaced 40+ `if strategy == "baseline"` branches across 7 files with a generic 
 
 | File | Role |
 |------|------|
+| `src/bluehorseshoe/data/stocktwits.py` | StockTwits fetch, bull/bear ratio scoring, MongoDB storage |
+| `src/bluehorseshoe/data/tiingo_news.py` | Tiingo news fetch, VADER scoring, MongoDB storage |
+| `src/bluehorseshoe/reporting/html_reporter.py` | All 3 report types with 3 sentiment columns (AV, Tiingo, ST) |
+| `src/bluehorseshoe/analysis/strategy.py` | Pipeline wiring for all 3 sentiment sources |
+| `src/main.py` | CLI entry, `-r` regeneration with all sentiment caches |
 | `src/bluehorseshoe/data/duckdb_store.py` | DuckDB storage backend (thread-safe via RLock) |
-| `src/bluehorseshoe/data/historical_data.py` | Write path (DuckDB-only), read path (DuckDB → file → net) |
-| `src/bluehorseshoe/core/container.py` | `get_historical_store()` |
-| `src/bluehorseshoe/core/config.py` | `duckdb_path` setting |
-| `src/bluehorseshoe/analysis/strategy_interface.py` | `TradingStrategy` ABC, `BaselineStrategy`, `MeanReversionStrategy` |
-| `src/bluehorseshoe/analysis/strategy_registry.py` | `get_strategy()`, `get_all_strategies()`, `get_strategy_keys()` |
-| `src/bluehorseshoe/analysis/strategy.py` | `SwingTrader` — uses strategy loop via `self.strategies` |
-| `src/bluehorseshoe/analysis/backtest.py` | Uses `get_strategy_keys()` for all key resolution |
-| `src/bluehorseshoe/core/service.py` | `load_universe_data()`, `get_latest_market_date()` |
-| `src/main.py` | Passes `ctx.store` to all consumers |
-| `data/ohlcv.duckdb` | The database file (484 MB, 28.5M rows, 11,291 symbols) |
-| `backup.sh` | Daily backup script (host-side, cron at 05:00 UTC) |
-| `backup.conf` | Backup configuration (paths, retention, collection list) |
+| `src/bluehorseshoe/analysis/strategy_interface.py` | `TradingStrategy` ABC |
+| `src/bluehorseshoe/analysis/strategy_registry.py` | Strategy registry |
+| `backup.sh` / `backup.conf` | Daily backup to Google Drive |
 
 ---
 
-## Pipeline Timing (March 8)
+## MongoDB Collections (Sentiment)
+
+| Collection | Content |
+|------------|---------|
+| `symbol_news` | AlphaVantage news sentiment per symbol |
+| `symbol_news_tiingo` | Raw Tiingo articles with VADER scores per symbol |
+| `symbol_news_stocktwits` | StockTwits messages with bull/bear ratio per symbol |
+| `sentiment_snapshots` | Daily snapshots, keyed by `(symbol, date, source)` where source is `"alphavantage"`, `"tiingo"`, or `"stocktwits"` |
+
+---
+
+## Pipeline Timing
 
 | Pipeline | Symbols | Time |
 |----------|---------|------|
-| `-u` (data update) | 3,590 | 3 min 23 sec |
-| `-p` (prediction) | 5,414 | 79 min |
+| `-u` (data update) | 3,590 | ~3.5 min |
+| `-p` (prediction) | 5,417 | ~73 min |
+| `-r` (report regen) | — | ~30 sec |
 
 ---
 
@@ -110,7 +109,7 @@ Replaced 40+ `if strategy == "baseline"` branches across 7 files with a generic 
 
 ### Research Droplet
 - **Status:** DESTROYED (March 4, 2026)
-- **Note:** When re-creating, must SCP `data/ohlcv.duckdb` to the droplet — DuckDB is now the sole OHLCV store (no MongoDB fallback)
+- **Note:** When re-creating, must SCP `data/ohlcv.duckdb` to the droplet
 *************** DO NOT EDIT THE FOLLOWING SECTION WHEN UPDATING SESSION_HANDOFF.md
 **IMPORTANT:** All SSH commands to the research droplet MUST `cd /root/BlueHorseshoe` first.
 The default login directory is `/root`, NOT the repo directory.
@@ -131,11 +130,10 @@ doctl compute droplet delete bh-research --force
 
 ### Production
 ```bash
-docker exec bluehorseshoe python src/main.py -p                          # Prediction (~79 min)
+docker exec bluehorseshoe python src/main.py -p                          # Prediction (~73 min)
 docker exec bluehorseshoe python src/main.py -u                          # Data update (~3.5 min)
-docker exec bluehorseshoe python src/main.py -u --all                    # Data update (all 11k symbols)
-docker exec bluehorseshoe python src/main.py -u --refresh-overviews      # Update + backfill missing overviews
-docker exec bluehorseshoe pytest -v                                      # Tests (408 passing)
+docker exec bluehorseshoe python src/main.py -r YYYY-MM-DD               # Regenerate report (~30 sec)
+docker exec bluehorseshoe pytest -v                                      # Tests (445 passing)
 docker exec bluehorseshoe ./lint.sh                                      # Lint
 ```
 
@@ -144,20 +142,12 @@ docker exec bluehorseshoe ./lint.sh                                      # Lint
 
 ---
 
-## Weight Optimization — COMPLETE
-
-**V2 (original hand-tuned):** `src/weights_v2.json` — reference only
-**V2-full (V2 baseline + prod MR):** `src/weights_v2_full.json` — research only
-**V3 (data-driven, DEPLOYED):** `src/weights_v3.json` — also in `src/weights.json`
-
----
-
 ## Git Status
 
 **Branch:** master
-**Latest commit:** `a7e881d` — refactor: Pluggable strategy interface
-**Uncommitted:** `backup.sh`, `backup.conf` (backup system)
+**Latest commit:** `6586ba2` — feat: StockTwits sentiment integration with bull/bear ratio scoring
+**Pushed:** Yes, up to date with origin
 
 ---
 
-**Last Updated:** March 10, 2026
+**Last Updated:** March 15, 2026
