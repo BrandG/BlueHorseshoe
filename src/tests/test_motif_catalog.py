@@ -128,12 +128,12 @@ class TestComputeCatalogStats:
             'U2M:D1S:U3L_40': {
                 'wins': 60,
                 'total': 100,
-                'returns': [0.01] * 60 + [-0.01] * 40,
+                'sum_returns': 0.01 * 60 + (-0.01) * 40,
             },
             'D3M:U1S:D2L_40': {
                 'wins': 30,
                 'total': 100,
-                'returns': [0.01] * 30 + [-0.01] * 70,
+                'sum_returns': 0.01 * 30 + (-0.01) * 70,
             },
         }
         catalog = _compute_catalog_stats(accumulator)
@@ -149,8 +149,8 @@ class TestComputeCatalogStats:
     def test_minimum_sample_filter(self):
         """Motifs with <5 samples should be filtered out."""
         accumulator = {
-            'key1': {'wins': 3, 'total': 4, 'returns': [0.01] * 3 + [-0.01]},
-            'key2': {'wins': 30, 'total': 50, 'returns': [0.01] * 30 + [-0.01] * 20},
+            'key1': {'wins': 3, 'total': 4, 'sum_returns': 0.01 * 3 + (-0.01)},
+            'key2': {'wins': 30, 'total': 50, 'sum_returns': 0.01 * 30 + (-0.01) * 20},
         }
         catalog = _compute_catalog_stats(accumulator)
         assert 'key1' not in catalog

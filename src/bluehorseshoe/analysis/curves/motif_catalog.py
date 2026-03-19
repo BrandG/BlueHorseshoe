@@ -130,7 +130,7 @@ def _process_symbol(args: Tuple) -> Dict[str, Dict]:
     _symbol, df_dict, windows, epsilon, forward_days, win_pct, loss_pct = args
 
     df = pd.DataFrame(df_dict)
-    accumulator = defaultdict(lambda: {'wins': 0, 'total': 0, 'returns': []})
+    accumulator = defaultdict(lambda: {'wins': 0, 'total': 0, 'sum_returns': 0.0})
 
     for window_size in windows:
         outcomes = measure_forward_outcomes(
@@ -141,7 +141,7 @@ def _process_symbol(args: Tuple) -> Dict[str, Dict]:
             key = r['motif_key']
             accumulator[key]['total'] += 1
             accumulator[key]['wins'] += r['outcome']
-            accumulator[key]['returns'].append(r['forward_return'])
+            accumulator[key]['sum_returns'] += r['forward_return']
 
     # Convert to serializable dict
     return {k: dict(v) for k, v in accumulator.items()}
@@ -177,46 +177,57 @@ def build_motif_catalog(
     """
     logging.info("Building motif catalog for %d symbols with windows %s...", len(symbols), windows)
 
-    # Prepare tasks: load data and convert to dict-of-lists for pickling
-    tasks = []
-    skipped = 0
-    for sym in symbols:
-        try:
-            df = store.load_symbol(sym)
-            if df is None or len(df) < max(windows) + forward_days + 10:
-                skipped += 1
-                continue
-            # Ensure required columns
-            if not all(c in df.columns for c in ['date', 'close', 'high', 'low']):
-                skipped += 1
-                continue
-            tasks.append((sym, df.to_dict('list'), windows, epsilon, forward_days, win_pct, loss_pct))
-        except Exception as e:  # pylint: disable=broad-except
-            logging.debug("Skipping %s: %s", sym, e)
-            skipped += 1
-
-    logging.info("Prepared %d symbols for processing (%d skipped)", len(tasks), skipped)
-
-    # Process in parallel
-    global_accumulator = defaultdict(lambda: {'wins': 0, 'total': 0, 'returns': []})
+    # Process in chunks to avoid OOM — load batch, process, discard
+    load_chunk_size = 200  # symbols per loading batch
+    global_accumulator = defaultdict(lambda: {'wins': 0, 'total': 0, 'sum_returns': 0.0})
     completed = 0
+    skipped = 0
+    total_prepared = 0
+    min_bars = max(windows) + forward_days + 10
 
-    if n_workers <= 1:
-        # Single-process mode for debugging
-        for task in tasks:
-            result = _process_symbol(task)
-            _merge_results(global_accumulator, result)
-            completed += 1
-            if completed % 100 == 0:
-                logging.info("Processed %d/%d symbols...", completed, len(tasks))
-    else:
-        chunk_size = max(1, len(tasks) // (n_workers * 4))
-        with ProcessPoolExecutor(max_workers=n_workers) as executor:
-            for result in executor.map(_process_symbol, tasks, chunksize=chunk_size):
+    for chunk_start in range(0, len(symbols), load_chunk_size):
+        chunk_symbols = symbols[chunk_start:chunk_start + load_chunk_size]
+
+        # Load this chunk's data
+        tasks = []
+        for sym in chunk_symbols:
+            try:
+                df = store.load_symbol(sym)
+                if df is None or len(df) < min_bars:
+                    skipped += 1
+                    continue
+                if not all(c in df.columns for c in ['date', 'close', 'high', 'low']):
+                    skipped += 1
+                    continue
+                tasks.append((sym, df.to_dict('list'), windows, epsilon,
+                              forward_days, win_pct, loss_pct))
+            except Exception as e:  # pylint: disable=broad-except
+                logging.debug("Skipping %s: %s", sym, e)
+                skipped += 1
+
+        total_prepared += len(tasks)
+
+        # Process this chunk
+        if n_workers <= 1:
+            for task in tasks:
+                result = _process_symbol(task)
                 _merge_results(global_accumulator, result)
                 completed += 1
                 if completed % 100 == 0:
-                    logging.info("Processed %d/%d symbols...", completed, len(tasks))
+                    logging.info("Processed %d symbols (%d skipped)...", completed, skipped)
+        else:
+            map_chunk = max(1, len(tasks) // (n_workers * 4))
+            with ProcessPoolExecutor(max_workers=n_workers) as executor:
+                for result in executor.map(_process_symbol, tasks, chunksize=map_chunk):
+                    _merge_results(global_accumulator, result)
+                    completed += 1
+                    if completed % 100 == 0:
+                        logging.info("Processed %d symbols (%d skipped)...", completed, skipped)
+
+        # Explicitly free chunk data
+        del tasks
+
+    logging.info("Prepared %d symbols total (%d skipped)", total_prepared, skipped)
 
     # Compute statistics
     catalog = _compute_catalog_stats(global_accumulator)
@@ -234,7 +245,7 @@ def _merge_results(accumulator: dict, results: dict) -> None:
     for key, stats in results.items():
         accumulator[key]['wins'] += stats['wins']
         accumulator[key]['total'] += stats['total']
-        accumulator[key]['returns'].extend(stats['returns'])
+        accumulator[key]['sum_returns'] += stats['sum_returns']
 
 
 def _compute_catalog_stats(accumulator: dict) -> Dict[str, Dict]:
@@ -252,15 +263,17 @@ def _compute_catalog_stats(accumulator: dict) -> Dict[str, Dict]:
 
         win_rate = stats['wins'] / n
         edge = win_rate - baseline_win_rate
-        returns = np.array(stats['returns'])
-        avg_return = float(np.mean(returns)) if len(returns) > 0 else 0.0
+        avg_return = stats['sum_returns'] / n if n > 0 else 0.0
 
         # Edge z-score (binomial test)
         se = np.sqrt(baseline_win_rate * (1 - baseline_win_rate) / n)
         edge_zscore = edge / se if se > 0 else 0.0
 
-        # Stability: fraction of 6-month windows where edge > 0
-        stability = _compute_stability(stats['returns'], baseline_win_rate)
+        # Stability proxy: penalize low-sample motifs, reward consistency
+        # With cross-symbol data, true rolling stability isn't meaningful
+        # (returns are interleaved across symbols, not chronological).
+        # Use a confidence-based proxy: how tight is the z-score?
+        stability = min(1.0, abs(edge_zscore) / 3.0) if edge > 0 else 0.0
 
         # Support: saturates at 100 samples
         support = min(1.0, n / 100)
@@ -277,35 +290,10 @@ def _compute_catalog_stats(accumulator: dict) -> Dict[str, Dict]:
             'stability': float(stability),
             'support': float(support),
             'composite_score': float(composite),
-            'avg_forward_return_5d': avg_return,
+            'avg_forward_return_5d': float(avg_return),
         }
 
     return catalog
-
-
-def _compute_stability(returns: list, baseline_win_rate: float, window_size: int = 126) -> float:
-    """
-    Fraction of rolling windows where edge > 0.
-    Uses ~6-month windows (126 trading days).
-    """
-    if len(returns) < window_size:
-        return 0.5  # not enough data, neutral
-
-    returns_arr = np.array(returns)
-    # Binary outcomes: return > 0 = win
-    wins = (returns_arr > 0).astype(float)
-
-    n_windows = len(wins) - window_size + 1
-    if n_windows <= 0:
-        return 0.5
-
-    positive_edge_count = 0
-    for i in range(n_windows):
-        window_wr = np.mean(wins[i:i + window_size])
-        if window_wr > baseline_win_rate:
-            positive_edge_count += 1
-
-    return positive_edge_count / n_windows
 
 
 def score_motif(stats: Dict) -> float:
