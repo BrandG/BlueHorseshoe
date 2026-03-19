@@ -942,11 +942,14 @@ if __name__ == "__main__":
                 except (ValueError, IndexError):
                     pass
 
+            resume = "--resume" in sys.argv
+
             catalog = build_motif_catalog(
                 store=ctx.store,
                 symbols=symbols,
                 database=ctx.db,
                 n_workers=n_workers,
+                resume=resume,
             )
 
             # Print top motifs

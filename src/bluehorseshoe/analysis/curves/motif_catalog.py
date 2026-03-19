@@ -3,6 +3,9 @@ Motif catalog builder.
 
 Scans historical data, extracts signatures at every date, measures forward
 outcomes, and builds a scored catalog keyed by motif_key + window_size.
+
+Supports resumable builds via MongoDB checkpointing — safe to interrupt
+and restart with --resume.
 """
 
 import logging
@@ -49,7 +52,6 @@ def measure_forward_outcomes(
     low = df['low'].values
 
     # Pre-compute rolling max-high and min-low for forward outcome
-    # For each bar i, we want max(high[i+1:i+1+forward_days]) and min(low[i+1:i+1+forward_days])
     n = len(df)
     fwd_max_high = np.full(n, np.nan)
     fwd_min_low = np.full(n, np.nan)
@@ -64,7 +66,6 @@ def measure_forward_outcomes(
         fwd_return[i] = (close[i + forward_days] - close[i]) / close[i]
 
     results = []
-    # Start from window_size (need enough history) up to n - forward_days (need forward data)
     for end_idx in range(window_size, n - forward_days):
         window_df = df.iloc[end_idx - window_size:end_idx + 1]
 
@@ -81,27 +82,24 @@ def measure_forward_outcomes(
         if np.isnan(max_high) or np.isnan(min_low):
             continue
 
-        # Win: price hit +win_pct before -loss_pct
         target = entry_price * (1 + win_pct)
         stop = entry_price * (1 - loss_pct)
 
-        # Simplified: check if target was hit at all and stop was not
         hit_target = max_high >= target
         hit_stop = min_low <= stop
 
         if hit_target and not hit_stop:
-            outcome = 1  # win
+            outcome = 1
         elif hit_stop and not hit_target:
-            outcome = 0  # loss
+            outcome = 0
         elif hit_target and hit_stop:
-            # Both hit — need to determine which came first via day-by-day scan
             outcome = _determine_first_hit(
                 high[end_idx + 1:end_idx + 1 + forward_days],
                 low[end_idx + 1:end_idx + 1 + forward_days],
                 target, stop
             )
         else:
-            outcome = 0  # neither hit = loss (timeout)
+            outcome = 0
 
         key = f"{sig.motif_key}_{window_size}"
         results.append({
@@ -119,10 +117,10 @@ def _determine_first_hit(
     """Day-by-day scan to determine if target or stop was hit first."""
     for h, l in zip(highs, lows):
         if l <= stop:
-            return 0  # stop hit first
+            return 0
         if h >= target:
-            return 1  # target hit first
-    return 0  # timeout
+            return 1
+    return 0
 
 
 def _process_symbol(args: Tuple) -> Dict[str, Dict]:
@@ -143,11 +141,65 @@ def _process_symbol(args: Tuple) -> Dict[str, Dict]:
             accumulator[key]['wins'] += r['outcome']
             accumulator[key]['sum_returns'] += r['forward_return']
 
-    # Convert to serializable dict
     return {k: dict(v) for k, v in accumulator.items()}
 
 
-def build_motif_catalog(
+# ── Checkpoint helpers ──────────────────────────────────────────────────────
+
+_PROGRESS_COLLECTION = 'motif_build_progress'
+
+
+def _load_checkpoint(database) -> Tuple[set, Dict[str, Dict]]:
+    """
+    Load checkpoint from MongoDB.
+
+    Returns:
+        (processed_symbols, accumulator_dict)
+    """
+    if database is None:
+        return set(), {}
+
+    coll = database[_PROGRESS_COLLECTION]
+    doc = coll.find_one({'_id': 'checkpoint'})
+    if doc is None:
+        return set(), {}
+
+    processed = set(doc.get('processed_symbols', []))
+    accumulator = doc.get('accumulator', {})
+    logging.info("Resuming from checkpoint: %d symbols already processed, %d motif keys",
+                 len(processed), len(accumulator))
+    return processed, accumulator
+
+
+def _save_checkpoint(database, processed_symbols: set, accumulator: dict) -> None:
+    """Save checkpoint to MongoDB (upsert)."""
+    if database is None:
+        return
+
+    coll = database[_PROGRESS_COLLECTION]
+    coll.replace_one(
+        {'_id': 'checkpoint'},
+        {
+            '_id': 'checkpoint',
+            'processed_symbols': list(processed_symbols),
+            'accumulator': accumulator,
+            'updated_at': datetime.utcnow(),
+            'symbol_count': len(processed_symbols),
+        },
+        upsert=True,
+    )
+
+
+def _clear_checkpoint(database) -> None:
+    """Remove checkpoint after successful completion."""
+    if database is None:
+        return
+    database[_PROGRESS_COLLECTION].delete_many({})
+
+
+# ── Main builder ────────────────────────────────────────────────────────────
+
+def build_motif_catalog(  # pylint: disable=too-many-arguments,too-many-positional-arguments,too-many-locals
     store,
     symbols: List[str],
     database=None,
@@ -157,9 +209,13 @@ def build_motif_catalog(
     win_pct: float = 0.02,
     loss_pct: float = 0.02,
     n_workers: int = 4,
+    resume: bool = False,
 ) -> Dict[str, Dict]:
     """
     Build a motif catalog by scanning historical data for all symbols.
+
+    Supports resumable builds: pass resume=True to continue from the last
+    checkpoint. Progress is saved to MongoDB after each 200-symbol chunk.
 
     Args:
         store: DuckDBStore for loading OHLCV data.
@@ -171,41 +227,58 @@ def build_motif_catalog(
         win_pct: Win target percentage.
         loss_pct: Loss stop percentage.
         n_workers: Number of parallel workers.
+        resume: If True, resume from last checkpoint.
 
     Returns:
         Dict mapping motif_key to statistics.
     """
     logging.info("Building motif catalog for %d symbols with windows %s...", len(symbols), windows)
 
-    # Process in chunks to avoid OOM — load batch, process, discard
-    load_chunk_size = 200  # symbols per loading batch
-    global_accumulator = defaultdict(lambda: {'wins': 0, 'total': 0, 'sum_returns': 0.0})
+    # Load checkpoint if resuming
+    if resume and database is not None:
+        processed_symbols, saved_acc = _load_checkpoint(database)
+        global_accumulator = defaultdict(lambda: {'wins': 0, 'total': 0, 'sum_returns': 0.0})
+        for k, v in saved_acc.items():
+            global_accumulator[k] = v
+    else:
+        processed_symbols = set()
+        global_accumulator = defaultdict(lambda: {'wins': 0, 'total': 0, 'sum_returns': 0.0})
+
+    # Filter out already-processed symbols
+    remaining = [s for s in symbols if s not in processed_symbols]
+    if len(remaining) < len(symbols):
+        logging.info("Skipping %d already-processed symbols, %d remaining",
+                     len(symbols) - len(remaining), len(remaining))
+
+    load_chunk_size = 200
     completed = 0
     skipped = 0
-    total_prepared = 0
     min_bars = max(windows) + forward_days + 10
 
-    for chunk_start in range(0, len(symbols), load_chunk_size):
-        chunk_symbols = symbols[chunk_start:chunk_start + load_chunk_size]
+    for chunk_start in range(0, len(remaining), load_chunk_size):
+        chunk_symbols = remaining[chunk_start:chunk_start + load_chunk_size]
 
         # Load this chunk's data
         tasks = []
+        chunk_syms_loaded = []
         for sym in chunk_symbols:
             try:
                 df = store.load_symbol(sym)
                 if df is None or len(df) < min_bars:
                     skipped += 1
+                    processed_symbols.add(sym)
                     continue
                 if not all(c in df.columns for c in ['date', 'close', 'high', 'low']):
                     skipped += 1
+                    processed_symbols.add(sym)
                     continue
                 tasks.append((sym, df.to_dict('list'), windows, epsilon,
                               forward_days, win_pct, loss_pct))
+                chunk_syms_loaded.append(sym)
             except Exception as e:  # pylint: disable=broad-except
                 logging.debug("Skipping %s: %s", sym, e)
                 skipped += 1
-
-        total_prepared += len(tasks)
+                processed_symbols.add(sym)
 
         # Process this chunk
         if n_workers <= 1:
@@ -214,7 +287,8 @@ def build_motif_catalog(
                 _merge_results(global_accumulator, result)
                 completed += 1
                 if completed % 100 == 0:
-                    logging.info("Processed %d symbols (%d skipped)...", completed, skipped)
+                    logging.info("Processed %d/%d symbols (%d skipped)...",
+                                 completed, len(remaining), skipped)
         else:
             map_chunk = max(1, len(tasks) // (n_workers * 4))
             with ProcessPoolExecutor(max_workers=n_workers) as executor:
@@ -222,20 +296,32 @@ def build_motif_catalog(
                     _merge_results(global_accumulator, result)
                     completed += 1
                     if completed % 100 == 0:
-                        logging.info("Processed %d symbols (%d skipped)...", completed, skipped)
+                        logging.info("Processed %d/%d symbols (%d skipped)...",
+                                     completed, len(remaining), skipped)
 
-        # Explicitly free chunk data
+        # Mark chunk symbols as processed
+        processed_symbols.update(chunk_syms_loaded)
+
+        # Checkpoint after each chunk
+        _save_checkpoint(database, processed_symbols, dict(global_accumulator))
+        total_done = len(processed_symbols)
+        total_target = len(symbols)
+        pct = total_done / total_target * 100 if total_target > 0 else 0
+        logging.info("Checkpoint saved: %d/%d symbols (%.1f%%), %d motif keys",
+                     total_done, total_target, pct, len(global_accumulator))
+
         del tasks
 
-    logging.info("Prepared %d symbols total (%d skipped)", total_prepared, skipped)
+    logging.info("All %d symbols processed (%d skipped)", len(symbols), skipped)
 
-    # Compute statistics
+    # Compute final statistics
     catalog = _compute_catalog_stats(global_accumulator)
     logging.info("Catalog built: %d unique motif keys", len(catalog))
 
-    # Save to MongoDB if database provided
+    # Save final catalog to MongoDB
     if database is not None:
         _save_catalog_to_mongo(catalog, database)
+        _clear_checkpoint(database)
 
     return catalog
 
@@ -250,7 +336,6 @@ def _merge_results(accumulator: dict, results: dict) -> None:
 
 def _compute_catalog_stats(accumulator: dict) -> Dict[str, Dict]:
     """Compute final statistics for each motif."""
-    # Compute baseline win rate across all motifs
     total_wins = sum(v['wins'] for v in accumulator.values())
     total_samples = sum(v['total'] for v in accumulator.values())
     baseline_win_rate = total_wins / total_samples if total_samples > 0 else 0.5
@@ -258,26 +343,20 @@ def _compute_catalog_stats(accumulator: dict) -> Dict[str, Dict]:
     catalog = {}
     for key, stats in accumulator.items():
         n = stats['total']
-        if n < 5:  # minimum sample count
+        if n < 5:
             continue
 
         win_rate = stats['wins'] / n
         edge = win_rate - baseline_win_rate
         avg_return = stats['sum_returns'] / n if n > 0 else 0.0
 
-        # Edge z-score (binomial test)
         se = np.sqrt(baseline_win_rate * (1 - baseline_win_rate) / n)
         edge_zscore = edge / se if se > 0 else 0.0
 
-        # Stability proxy: penalize low-sample motifs, reward consistency
-        # With cross-symbol data, true rolling stability isn't meaningful
-        # (returns are interleaved across symbols, not chronological).
-        # Use a confidence-based proxy: how tight is the z-score?
+        # Stability proxy: confidence-based (cross-symbol returns aren't chronological)
         stability = min(1.0, abs(edge_zscore) / 3.0) if edge > 0 else 0.0
 
-        # Support: saturates at 100 samples
         support = min(1.0, n / 100)
-
         composite = score_motif({'edge': edge, 'stability': stability, 'support': support})
 
         catalog[key] = {
@@ -304,7 +383,7 @@ def score_motif(stats: Dict) -> float:
 def _save_catalog_to_mongo(catalog: Dict[str, Dict], database) -> None:
     """Save catalog to MongoDB motif_catalog collection."""
     collection = database['motif_catalog']
-    collection.drop()  # Replace entire catalog
+    collection.drop()
 
     if not catalog:
         return
@@ -314,7 +393,6 @@ def _save_catalog_to_mongo(catalog: Dict[str, Dict], database) -> None:
     for key, stats in catalog.items():
         doc = stats.copy()
         doc['updated_at'] = now
-        # Split composite key to extract window_size
         parts = key.rsplit('_', 1)
         if len(parts) == 2:
             doc['window_size'] = int(parts[1])
