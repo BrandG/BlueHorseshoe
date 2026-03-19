@@ -7,6 +7,15 @@
 - ~~**Relative Volume (RVOL)**~~ **Done** — Added `calculate_rvol()` to `VolumeIndicator` with tiered scoring: RVOL < 0.5 → -2.0, 0.5-0.8 → -1.0, 0.8-1.2 → 0.0, 1.2-1.5 → +0.5, 1.5-2.0 → +1.0, >2.0 → +2.0. Registered in `get_score()`, `detailed_scoring.py`, and `weights.json` (baseline: 1.5, MR: 0.0 — volume confirmation matters for breakouts but not for mean reversion dips).
 - ~~**Engulfing & Hammer candlestick patterns**~~ **Done** — Added `find_engulfing()` (CDLENGULFING) and `find_hammer()` (CDLHAMMER) to `CandlestickIndicator` with weight multipliers in `weights.json` (baseline: engulfing 1.0, hammer 0.5; MR: engulfing 1.5, hammer 2.0).
 
+### Curve/Motif Analysis
+
+- [x] **Phase 1: Curve Segmentation** — **Done** (`88a3a62`). RDP algorithm on ATR-normalized prices detects turning points, produces typed `Segment` objects with direction, magnitude, duration, slope, curvature. `segment_price_series()` and `segment_multi_window()` in `src/bluehorseshoe/analysis/curves/segmenter.py`. 12 tests.
+- [x] **Phase 2: Signature Extraction** — **Done** (`88a3a62`). Converts `Segmentation` → 17-dim numeric vector + compact motif key string (e.g. `"U3M:D1S:U2L"`). 5 bucketed descriptors per segment × 3 segments + 2 global features. `extract_signature()` in `src/bluehorseshoe/analysis/curves/signature.py`. 9 tests.
+- [x] **Phase 3: Motif Catalog** — **Done** (`88a3a62`). Scans historical data, extracts signatures at every date, measures forward outcomes (+2%/-2% win/loss), computes edge/stability/support/composite scores. Parallel via `ProcessPoolExecutor`. Stores in MongoDB `motif_catalog` collection. CLI: `--motifs` (with `--full`, `--symbols`, `--workers`). `src/bluehorseshoe/analysis/curves/motif_catalog.py`. 10 tests.
+- [x] **Phase 4: Pipeline Integration** — **Done** (`88a3a62`). `CurveIndicator` registered in `technical_analyzer.py`, `detailed_scoring.py`, `weights.json`. Motif scores loaded via `shared_ctx` → workers. ML features: `curve_motif_score_20/40`, `curve_net_direction_20/40`, `curve_total_range_20/40`. **Weights at 0.0** — features computed but no score contribution until catalog built and validated. 7 tests.
+- [ ] **Validation** — Build catalog on 200 liquid symbols (`--motifs`), inspect top motifs for intuitive sense. Run prediction with catalog loaded, verify curve scores appear in MongoDB score documents and runtime impact is <10%.
+- [ ] **Enable weights** — After validation, set `MOTIF_SCORE_MULTIPLIER` > 0 in `weights.json` and backtest to measure impact.
+
 ### Architecture & Refactoring
 
 - ~~**Strategy as a pluggable interface**~~ **Done** — Implemented `TradingStrategy` ABC in `strategy_interface.py` with `BaselineStrategy` and `MeanReversionStrategy`. Central registry in `strategy_registry.py` (`get_strategy()`, `get_all_strategies()`, `get_strategy_keys()`). All consumers (backtest, reporter, journal, SwingTrader, worker functions) now loop over strategy objects instead of hardcoded if/else branches. Adding a third strategy (e.g. shorts) requires only: subclass `TradingStrategy`, register in `strategy_registry.py` — zero changes to downstream code.
