@@ -13,8 +13,8 @@
 - [x] **Phase 2: Signature Extraction** — **Done** (`88a3a62`). Converts `Segmentation` → 17-dim numeric vector + compact motif key string (e.g. `"U3M:D1S:U2L"`). 5 bucketed descriptors per segment × 3 segments + 2 global features. `extract_signature()` in `src/bluehorseshoe/analysis/curves/signature.py`. 9 tests.
 - [x] **Phase 3: Motif Catalog** — **Done** (`88a3a62`). Scans historical data, extracts signatures at every date, measures forward outcomes (+2%/-2% win/loss), computes edge/stability/support/composite scores. Parallel via `ProcessPoolExecutor`. Stores in MongoDB `motif_catalog` collection. CLI: `--motifs` (with `--full`, `--symbols`, `--workers`). `src/bluehorseshoe/analysis/curves/motif_catalog.py`. 10 tests.
 - [x] **Phase 4: Pipeline Integration** — **Done** (`88a3a62`). `CurveIndicator` registered in `technical_analyzer.py`, `detailed_scoring.py`, `weights.json`. Motif scores loaded via `shared_ctx` → workers. ML features: `curve_motif_score_20/40`, `curve_net_direction_20/40`, `curve_total_range_20/40`. **Weights at 0.0** — features computed but no score contribution until catalog built and validated. 7 tests.
-- [ ] **Validation** — Build catalog on 200 liquid symbols (`--motifs`), inspect top motifs for intuitive sense. Run prediction with catalog loaded, verify curve scores appear in MongoDB score documents and runtime impact is <10%.
-- [ ] **Enable weights** — After validation, set `MOTIF_SCORE_MULTIPLIER` > 0 in `weights.json` and backtest to measure impact.
+- [x] **Validation** — **Done**. Catalog built from 187 symbols (20 min). 15,386 unique motif keys, 929 with significant positive edge (z>1.96), 867 with significant negative edge. Top motifs show 50-57% win rate (vs ~39% baseline). Drop-then-bounce patterns (D*:U*) dominate positive edge. Overextended rallies (U0M:U0M:U3L) show 3.9% win rate — strongly bearish. 719 motifs pass inclusion threshold for pipeline use.
+- [ ] **Enable weights** — Set `MOTIF_SCORE_MULTIPLIER` > 0 in `weights.json` and backtest to measure impact. Run `--motifs --full` for deeper catalog coverage.
 
 ### Architecture & Refactoring
 
