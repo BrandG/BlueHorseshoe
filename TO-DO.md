@@ -35,7 +35,7 @@
     - [x] **Finviz** — **Done**. Fetch per-symbol news headlines via `finvizfinance` library, score with VADER, store in `symbol_news_finviz` collection. Snapshots saved with `source: "finviz"`. All 4 sentiment sources (AV, Tiingo, ST, FV) displayed side-by-side in reports.
   - **Sources to add (market-wide, one score per day):**
     - [x] **VIX** — **Done** (`vix.py`). Fetch daily OHLC from CBOE free API, compute close/change/SMA-20/percentile/fear-level. Integrated into `MarketRegime.get_market_health()` (±2 score points), arcade status bar (4th panel), standard/email regime tables, and `sentiment_snapshots` collection.
-    - [ ] **AAII Bull/Bear Survey** — weekly institutional sentiment survey
+    - [x] **AAII Bull/Bear Survey** — **Done** (`aaii.py`, `ebecd6d`). Fetch weekly survey from Nasdaq Data Link API (fallback: Excel from aaii.com). Bull-Bear Spread normalized to [-1,1], 8-week avg, 52-week percentile, 5-level signal classification. Contrarian scoring in `MarketRegime` (extreme bearishness → bullish points). AAII panel in arcade status bar (5th panel), standard/email regime tables, and `sentiment_snapshots` collection.
     - [ ] **CNN Fear & Greed Index** — composite market sentiment (7 indicators)
   - **Future / higher effort:**
     - **Options flow / put-call ratio** — institutional sentiment proxy, available via CBOE or broker APIs

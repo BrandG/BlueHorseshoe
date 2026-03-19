@@ -1,38 +1,43 @@
 # Session Handoff
 
-**Date:** March 15, 2026
-**Status:** StockTwits sentiment integration complete and deployed. Three sentiment sources now active: AlphaVantage, Tiingo, StockTwits.
+**Date:** March 19, 2026
+**Status:** AAII sentiment integration complete. Composite sentiment fix deployed. Five sentiment sources now active: AlphaVantage, Tiingo, StockTwits, Finviz (per-symbol) + VIX, AAII (market-wide).
 
 ---
 
-## What Was Done This Session (March 15)
+## What Was Done This Session (March 17-19)
 
-### StockTwits Sentiment Integration
-Added StockTwits as a third sentiment source. Fetches 30 most recent messages per symbol from free public API, scores using user-provided Bullish/Bearish tags (ratio-based, no NLP), stores in MongoDB, displays in all report types.
+### AAII Bull/Bear Sentiment Survey Integration (`ebecd6d`)
+Added AAII weekly sentiment survey as the 2nd market-wide indicator alongside VIX. Uses contrarian logic — extreme bearishness is a bullish signal and vice versa.
 
 **New files:**
-- `src/bluehorseshoe/data/stocktwits.py` — 4 functions: `fetch_stocktwits_messages()`, `score_stocktwits_messages()`, `upsert_stocktwits_to_mongo()`, `get_stocktwits_sentiment_score_with_count()`
-- `src/tests/test_stocktwits.py` — 12 tests (scoring edge cases, MongoDB ops, API fetch with mocks)
+- `src/bluehorseshoe/data/aaii.py` — `fetch_aaii_history()` (Nasdaq Data Link API primary, Excel fallback from aaii.com), `get_aaii_snapshot()` (spread normalization, 8-week avg, 52-week percentile, 5-level signal classification)
+- `src/tests/test_aaii.py` — 16 tests (API fetch, Excel fallback, both-fail, percentage auto-detection, snapshot exact/fallback date, all 5 signal classifications, spread normalization + clamping, 8-week average, percentile calculation)
 
 **Modified files:**
-- `src/bluehorseshoe/analysis/strategy.py` — Pipeline wiring: after Tiingo block, fetches StockTwits for candidate symbols, scores, stores in `symbol_news_stocktwits`, saves snapshots with `source: "stocktwits"`. `sentiment_stocktwits` added to candidate dicts and `_prepare_scores_for_save()`.
-- `src/bluehorseshoe/reporting/html_reporter.py` — All 3 report types show ST column. Arcade: grid columns, CSS, JS, JSON serialization all updated.
-- `src/main.py` — `-r` regeneration path loads `sentiment_stocktwits` from saved metadata with fallback to `get_stocktwits_sentiment_score_with_count()`.
-- `backup.conf` — Added `symbol_news_stocktwits` to `MONGO_COLLECTIONS` array.
+- `docker/requirements.txt` — Added `nasdaq-data-link>=1.0.4`, `openpyxl>=3.1.0`
+- `src/bluehorseshoe/core/config.py` — Added `nasdaq_data_link_api_key` setting
+- `docker/.env` — Added `NASDAQ_DATA_LINK_API_KEY=`
+- `src/bluehorseshoe/analysis/market_regime.py` — Contrarian scoring: spread ≤ -20 → +2, ≤ -10 → +1, ≥ 30 → -1
+- `src/bluehorseshoe/analysis/strategy.py` — AAII snapshot added to `sentiment_snapshots` as `$AAII` source
+- `src/main.py` — AAII flattening in both `-p` and `-r` paths (`aaii_spread`, `aaii_signal`)
+- `src/bluehorseshoe/reporting/html_reporter.py` — AAII column in standard + email regime tables; arcade: 5-column grid, AAII SENTIMENT panel, JS rendering with contrarian coloring, data serialization
+- `CLAUDE.md` — Added `NASDAQ_DATA_LINK_API_KEY` to Environment Variables
 
-### Cloudflare 403 Fix
-StockTwits API returned 403 Forbidden from inside Docker (Cloudflare bot protection). Fixed by adding browser-like `User-Agent` header to requests. Works from both host and container after fix.
+### Composite Sentiment Fix (`a38721c`)
+Changed composite sentiment from z-score normalization to simple raw score averaging. The z-score approach compared each symbol's sentiment against the global market mean, causing positive raw sentiments to produce negative composites. Simple averaging preserves the intuitive direction of the signal.
 
-### Live Verification
-- Ran full predict pipeline (5,417 symbols, ~73 min)
-- Fetched StockTwits data for 62 symbols — real scores ranging from -1.0 to +1.0
-- Reports regenerated with real data (e.g., ADM: ▲+1.00, AAPL: ▼-0.17, CTVA: ▼-1.00)
-- All 445 tests pass, lint clean
+**Modified files:**
+- `src/bluehorseshoe/analysis/sentiment_normalizer.py` — `composite()` now averages raw scores directly instead of calling `normalize()` (z-score + tanh)
+- `src/tests/test_sentiment_normalizer.py` — Updated composite tests to verify raw averaging
 
 ---
 
 ## Previous Sessions Summary
 
+- **March 15:** Finviz sentiment, z-score normalizer, and arcade report refactor (`1754fa7`)
+- **March 15:** VIX integration into market regime scoring and reports (`ad9d0e7`)
+- **March 15:** StockTwits sentiment integration with bull/bear ratio scoring (`6586ba2`)
 - **March 15 (earlier):** Tiingo News sentiment integration with VADER scoring (`0e0fe88`)
 - **March 10:** Automated daily backup to Google Drive via rclone (`backup.sh`, `backup.conf`)
 - **March 9:** Pluggable strategy interface — `TradingStrategy` ABC, `BaselineStrategy`, `MeanReversionStrategy`, central registry
@@ -45,26 +50,27 @@ StockTwits API returned 403 Forbidden from inside Docker (Cloudflare bot protect
 
 ## Next Steps
 
-- **Accumulate sentiment data** — Need ~1 month of daily snapshots from all 3 sources before analyzing sentiment-price divergence signals
-- **Add sentiment to ML features** — Once history exists, add `SentimentScore_Tiingo` and `SentimentScore_StockTwits` as features to `build_ml_features()`
-- **Mark StockTwits done in TO-DO.md** — The StockTwits line item is still unchecked
+- **Accumulate sentiment data** — Need ~1 month of daily snapshots from all sources before analyzing sentiment-price divergence signals
+- **Add sentiment to ML features** — Once history exists, add sentiment features to `build_ml_features()`
+- **CNN Fear & Greed Index** — Next market-wide sentiment source to add (see TO-DO.md)
 - **Add a third strategy (e.g. Shorts)** — Trivial: subclass `TradingStrategy`, register in `strategy_registry.py`
 - **Event-driven backtest** — Model trades as orders fed through daily bars
-- **Additional sentiment sources** — Finviz, VIX, AAII, CNN Fear & Greed (see TO-DO.md)
 - See `TO-DO.md` for full backlog
 
 ---
 
 ## Key Decisions
 
-- **User-Agent header required for StockTwits** — Cloudflare blocks default `python-requests` UA from Docker. Browser-like UA string added to `_HEADERS` constant.
-- **Ratio scoring for StockTwits** — `(bull - bear) / (bull + bear)`, range [-1, +1]. No NLP needed since sentiment comes from user tags.
-- **Data collection phase first** — All 3 sentiment sources displayed in reports but NOT used as ML features or in scoring. Need history first.
-- **VADER for Tiingo scoring** — Lightweight, stateless, thread-safe NLP for news headlines.
+- **Raw averaging for composite sentiment** — Z-score normalization against global means was unintuitive (positive raw values → negative composite). Switched to simple average of raw scores. The `normalize()` method still exists if needed for other purposes.
+- **AAII as contrarian indicator** — Extreme bearishness in the survey historically precedes rallies; extreme bullishness precedes pullbacks. Scoring reflects this inversion.
+- **Nasdaq Data Link API with Excel fallback** — AAII data fetched via API when `NASDAQ_DATA_LINK_API_KEY` is set; otherwise falls back to direct Excel download from aaii.com. Both paths handle decimal vs percentage format auto-detection.
+- **User-Agent header required for StockTwits** — Cloudflare blocks default `python-requests` UA from Docker.
+- **Ratio scoring for StockTwits** — `(bull - bear) / (bull + bear)`, range [-1, +1]. No NLP needed.
+- **Data collection phase first** — All sentiment sources displayed in reports but NOT used as ML features or in scoring. Need history first.
+- **VADER for Tiingo/Finviz scoring** — Lightweight, stateless, thread-safe NLP for news headlines.
 - **Source field on sentiment_snapshots** — Unique index `(symbol, date, source)` supports multiple providers.
 - **Strategy objects are stateless and picklable** — Critical for `ProcessPoolExecutor` workers.
 - **DuckDB is sole OHLCV store** — MongoDB retains scores, journal, overviews, checkpoints, symbols, news.
-- **V3 weights remain production** — No changes to scoring weights.
 
 ---
 
@@ -72,10 +78,15 @@ StockTwits API returned 403 Forbidden from inside Docker (Cloudflare bot protect
 
 | File | Role |
 |------|------|
+| `src/bluehorseshoe/data/aaii.py` | AAII survey fetch (Nasdaq Data Link + Excel fallback), snapshot metrics |
+| `src/bluehorseshoe/data/vix.py` | VIX fetch from CBOE, snapshot metrics |
+| `src/bluehorseshoe/data/finviz_news.py` | Finviz news fetch, VADER scoring, MongoDB storage |
 | `src/bluehorseshoe/data/stocktwits.py` | StockTwits fetch, bull/bear ratio scoring, MongoDB storage |
 | `src/bluehorseshoe/data/tiingo_news.py` | Tiingo news fetch, VADER scoring, MongoDB storage |
-| `src/bluehorseshoe/reporting/html_reporter.py` | All 3 report types with 3 sentiment columns (AV, Tiingo, ST) |
-| `src/bluehorseshoe/analysis/strategy.py` | Pipeline wiring for all 3 sentiment sources |
+| `src/bluehorseshoe/analysis/sentiment_normalizer.py` | Composite sentiment (raw score averaging) |
+| `src/bluehorseshoe/reporting/html_reporter.py` | All 3 report types with 4 sentiment columns + VIX/AAII regime panels |
+| `src/bluehorseshoe/analysis/strategy.py` | Pipeline wiring for all sentiment sources |
+| `src/bluehorseshoe/analysis/market_regime.py` | Market health scoring (SPY, QQQ, breadth, VIX, AAII) |
 | `src/main.py` | CLI entry, `-r` regeneration with all sentiment caches |
 | `src/bluehorseshoe/data/duckdb_store.py` | DuckDB storage backend (thread-safe via RLock) |
 | `src/bluehorseshoe/analysis/strategy_interface.py` | `TradingStrategy` ABC |
@@ -91,7 +102,8 @@ StockTwits API returned 403 Forbidden from inside Docker (Cloudflare bot protect
 | `symbol_news` | AlphaVantage news sentiment per symbol |
 | `symbol_news_tiingo` | Raw Tiingo articles with VADER scores per symbol |
 | `symbol_news_stocktwits` | StockTwits messages with bull/bear ratio per symbol |
-| `sentiment_snapshots` | Daily snapshots, keyed by `(symbol, date, source)` where source is `"alphavantage"`, `"tiingo"`, or `"stocktwits"` |
+| `symbol_news_finviz` | Finviz news headlines with VADER scores per symbol |
+| `sentiment_snapshots` | Daily snapshots, keyed by `(symbol, date, source)` where source is `"alphavantage"`, `"tiingo"`, `"stocktwits"`, `"finviz"`, `"vix"`, or `"aaii"` |
 
 ---
 
@@ -99,8 +111,8 @@ StockTwits API returned 403 Forbidden from inside Docker (Cloudflare bot protect
 
 | Pipeline | Symbols | Time |
 |----------|---------|------|
-| `-u` (data update) | 3,590 | ~3.5 min |
-| `-p` (prediction) | 5,417 | ~73 min |
+| `-u` (data update) | 3,590 | ~30 min |
+| `-p` (prediction) | 5,417 | ~72 min |
 | `-r` (report regen) | — | ~30 sec |
 
 ---
@@ -130,10 +142,10 @@ doctl compute droplet delete bh-research --force
 
 ### Production
 ```bash
-docker exec bluehorseshoe python src/main.py -p                          # Prediction (~73 min)
-docker exec bluehorseshoe python src/main.py -u                          # Data update (~3.5 min)
+docker exec bluehorseshoe python src/main.py -p                          # Prediction (~72 min)
+docker exec bluehorseshoe python src/main.py -u                          # Data update (~30 min)
 docker exec bluehorseshoe python src/main.py -r YYYY-MM-DD               # Regenerate report (~30 sec)
-docker exec bluehorseshoe pytest -v                                      # Tests (445 passing)
+docker exec bluehorseshoe pytest -v                                      # Tests (501 passing)
 docker exec bluehorseshoe ./lint.sh                                      # Lint
 ```
 
@@ -145,9 +157,9 @@ docker exec bluehorseshoe ./lint.sh                                      # Lint
 ## Git Status
 
 **Branch:** master
-**Latest commit:** `6586ba2` — feat: StockTwits sentiment integration with bull/bear ratio scoring
+**Latest commit:** `a38721c` — fix: Use raw score average for composite sentiment instead of z-score
 **Pushed:** Yes, up to date with origin
 
 ---
 
-**Last Updated:** March 15, 2026
+**Last Updated:** March 19, 2026
