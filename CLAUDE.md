@@ -209,3 +209,10 @@ Test fixtures in `test_*.py` files include:
 - **Logs:** `src/logs/` directory
 - **Reports:** `src/graphs/` directory
 - **Docker Config:** `docker/docker-compose.yml`, `docker/Dockerfile.bluehorseshoe`
+
+## gstack
+Use /browse from gstack for all web browsing.
+Available skills: /office-hours, /plan-ceo-review, /plan-eng-review, /plan-design-review,
+/design-consultation, /review, /ship, /browse, /qa, /qa-only, /design-review,
+/setup-browser-cookies, /retro, /investigate, /document-release, /codex, /careful,
+/freeze, /guard, /unfreeze, /gstack-upgrade.
