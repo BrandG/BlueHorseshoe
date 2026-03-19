@@ -668,6 +668,10 @@ class SwingTrader:
             score_history = self._fetch_recent_scores(ctx.target_date, lookback_days=5)
         ctx.score_history = score_history
 
+        # Load motif catalog scores for CurveIndicator
+        from bluehorseshoe.analysis.curves.motif_lookup import load_motif_scores_for_workers  # pylint: disable=import-outside-toplevel
+        motif_scores = load_motif_scores_for_workers(self.database)
+
         # Shared context passed via initializer (same for all chunks)
         shared_ctx = {
             'benchmark_data': ctx.benchmark_df.to_dict('list') if ctx.benchmark_df is not None else None,
@@ -675,6 +679,7 @@ class SwingTrader:
             'enabled_indicators': ctx.enabled_indicators,
             'aggregation': ctx.aggregation,
             'score_history': score_history,
+            'motif_scores': motif_scores,
         }
 
         # ML model paths
@@ -1311,6 +1316,7 @@ def _init_worker(overlay_paths, stop_loss_path, profit_target_paths, shared_ctx)
         'enabled_indicators': shared_ctx.get('enabled_indicators'),
         'aggregation': shared_ctx.get('aggregation', 'sum'),
         'score_history': shared_ctx.get('score_history', {}),
+        'motif_scores': shared_ctx.get('motif_scores', {}),
         'ml_overlay': {'models': {}, 'encoders': {}, 'features': {}},
         'ml_stop_loss': {'model': None, 'encoders': {}, 'features': []},
         'ml_profit_target': {'models': {}, 'encoders': {}, 'features': {}},

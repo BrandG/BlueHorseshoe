@@ -289,6 +289,7 @@ class BaselineStrategy(TradingStrategy):
         # Step 1: Calculate technical score
         score_components = trader.technical_analyzer.calculate_baseline_score(
             df, enabled_indicators=enabled_indicators, aggregation=aggregation,
+            motif_scores=worker_state.get('motif_scores'),
         )
         technical_score = score_components.get("total", 0.0)
 
@@ -460,6 +461,7 @@ class MeanReversionStrategy(TradingStrategy):
         score_components = trader.technical_analyzer.calculate_technical_score(
             df, strategy=self.name,
             enabled_indicators=enabled_indicators, aggregation=aggregation,
+            motif_scores=worker_state.get('motif_scores'),
         )
 
         from bluehorseshoe.analysis.strategy import (

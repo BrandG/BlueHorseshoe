@@ -27,6 +27,7 @@ from bluehorseshoe.analysis.indicators.moving_average_indicators import MovingAv
 from bluehorseshoe.analysis.indicators.mean_reversion_indicators import MeanReversionIndicator
 from bluehorseshoe.analysis.indicators.price_action_indicators import PriceActionIndicator
 from bluehorseshoe.analysis.indicators.trend_indicators import TrendIndicator
+from bluehorseshoe.analysis.indicators.curve_indicators import CurveIndicator
 from bluehorseshoe.analysis.indicators.volume_indicators import VolumeIndicator
 
 class TechnicalAnalyzer:
@@ -106,7 +107,8 @@ class TechnicalAnalyzer:
         days: pd.DataFrame,
         strategy: str = "baseline",
         enabled_indicators: Optional[list[str]] = None,
-        aggregation: str = "sum"
+        aggregation: str = "sum",
+        motif_scores: Optional[Dict[str, float]] = None,
     ) -> Dict[str, float]:
         """
         Calculate a technical score based on the specified strategy.
@@ -120,6 +122,7 @@ class TechnicalAnalyzer:
             days, strat_obj,
             enabled_indicators=enabled_indicators,
             aggregation=aggregation,
+            motif_scores=motif_scores,
         )
 
     @staticmethod
@@ -127,7 +130,8 @@ class TechnicalAnalyzer:
         days: pd.DataFrame,
         strategy,
         enabled_indicators: Optional[list[str]] = None,
-        aggregation: str = "sum"
+        aggregation: str = "sum",
+        motif_scores: Optional[Dict[str, float]] = None,
     ) -> Dict[str, float]:
         """
         Calculate a technical score using a ``TradingStrategy`` object.
@@ -155,6 +159,7 @@ class TechnicalAnalyzer:
         total_score, components, active_count = TechnicalAnalyzer._score_indicators(
             days, indicator_filters, aggregation,
             weight_prefix=strategy.weight_prefix,
+            motif_scores=motif_scores,
         )
 
         if active_count == 0:
@@ -244,13 +249,15 @@ class TechnicalAnalyzer:
         days: pd.DataFrame,
         indicator_filters: Dict[str, Optional[list[str]]],
         aggregation: str,
-        weight_prefix: str = ""
+        weight_prefix: str = "",
+        motif_scores: Optional[Dict[str, float]] = None,
     ) -> tuple[float, Dict[str, float], int]:
         """Calculates combined score from all active indicator classes.
 
         Args:
             weight_prefix: When set (e.g. "mr_"), indicator classes load weights
                 from prefixed categories (mr_trend, mr_momentum, etc.).
+            motif_scores: Pre-loaded motif catalog scores for CurveIndicator.
         """
         all_indicators_classes = {
             "trend": TrendIndicator,
@@ -260,7 +267,8 @@ class TechnicalAnalyzer:
             "moving_average": MovingAverageIndicator,
             "momentum": MomentumIndicator,
             "price_action": PriceActionIndicator,
-            "mean_reversion_specific": MeanReversionIndicator
+            "mean_reversion_specific": MeanReversionIndicator,
+            "curve": CurveIndicator,
         }
 
         components = {}
@@ -272,7 +280,11 @@ class TechnicalAnalyzer:
                 continue
 
             weight_category = f"{weight_prefix}{name}" if weight_prefix else None
-            indicator_inst = cls(days, weight_category=weight_category)
+            if cls is CurveIndicator:
+                indicator_inst = cls(days, weight_category=weight_category,
+                                     motif_scores=motif_scores)
+            else:
+                indicator_inst = cls(days, weight_category=weight_category)
             sub_filters = indicator_filters.get(name)
 
             try:
@@ -284,6 +296,11 @@ class TechnicalAnalyzer:
                 score = indicator_inst.get_score().buy
 
             components[name] = float(score)
+
+            # Capture curve details for ML features
+            if cls is CurveIndicator:
+                components.update(indicator_inst.get_curve_details())
+
             if aggregation == "product":
                 total_score *= score
             else:
@@ -296,7 +313,8 @@ class TechnicalAnalyzer:
     def calculate_baseline_score(
         days: pd.DataFrame,
         enabled_indicators: Optional[list[str]] = None,
-        aggregation: str = "sum"
+        aggregation: str = "sum",
+        motif_scores: Optional[Dict[str, float]] = None,
     ) -> Dict[str, float]:
         """
         Trend-following scoring: Rewards strength, momentum, and breakouts.
@@ -321,7 +339,8 @@ class TechnicalAnalyzer:
                     indicator_filters[item] = None
 
         total_score, components, active_count = TechnicalAnalyzer._score_indicators(
-            days, indicator_filters, aggregation
+            days, indicator_filters, aggregation,
+            motif_scores=motif_scores,
         )
 
         if active_count == 0:
@@ -340,7 +359,8 @@ class TechnicalAnalyzer:
     def calculate_mean_reversion_score(
         days: pd.DataFrame,
         enabled_indicators: Optional[list[str]] = None,
-        aggregation: str = "sum"
+        aggregation: str = "sum",
+        motif_scores: Optional[Dict[str, float]] = None,
     ) -> Dict[str, float]:
         """
         Mean-reversion scoring using the standard indicator pipeline with MR weights.
@@ -367,7 +387,8 @@ class TechnicalAnalyzer:
 
         # Use standard indicator pipeline with MR weight categories
         total_score, components, active_count = TechnicalAnalyzer._score_indicators(
-            days, indicator_filters, aggregation, weight_prefix="mr_"
+            days, indicator_filters, aggregation, weight_prefix="mr_",
+            motif_scores=motif_scores,
         )
 
         if active_count == 0:

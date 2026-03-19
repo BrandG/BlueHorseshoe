@@ -911,6 +911,55 @@ if __name__ == "__main__":
         except ValueError as e:
             print(f"Error parsing arguments: {e}")
             sys.exit(1)
+    elif "--motifs" in sys.argv:
+        logging.info("Building motif catalog...")
+        with create_cli_context() as ctx:
+            from bluehorseshoe.analysis.curves.motif_catalog import build_motif_catalog  # pylint: disable=import-outside-toplevel
+            from bluehorseshoe.core.symbols import get_symbols_from_mongo  # pylint: disable=import-outside-toplevel
+
+            symbols_filter = None
+            if "--symbols" in sys.argv:
+                try:
+                    symbols_str = sys.argv[sys.argv.index("--symbols") + 1]
+                    symbols_filter = [s.strip() for s in symbols_str.split(',')]
+                except (ValueError, IndexError):
+                    pass
+
+            if symbols_filter:
+                symbols = symbols_filter
+            elif "--full" in sys.argv:
+                all_syms = get_symbols_from_mongo(database=ctx.db)
+                symbols = [s['symbol'] for s in all_syms]
+            else:
+                # Default: 200 most liquid symbols
+                all_syms = get_symbols_from_mongo(database=ctx.db)
+                symbols = [s['symbol'] for s in all_syms[:200]]
+
+            n_workers = 4
+            if "--workers" in sys.argv:
+                try:
+                    n_workers = int(sys.argv[sys.argv.index("--workers") + 1])
+                except (ValueError, IndexError):
+                    pass
+
+            catalog = build_motif_catalog(
+                store=ctx.store,
+                symbols=symbols,
+                database=ctx.db,
+                n_workers=n_workers,
+            )
+
+            # Print top motifs
+            if catalog:
+                sorted_motifs = sorted(catalog.values(), key=lambda x: x['composite_score'], reverse=True)
+                print(f"\nMotif catalog built: {len(catalog)} unique patterns")
+                print(f"{'Motif Key':<30} {'Samples':>8} {'WinRate':>8} {'Edge':>8} {'Z-Score':>8} {'Composite':>10}")
+                print("-" * 82)
+                for m in sorted_motifs[:20]:
+                    print(f"{m['motif_key']:<30} {m['sample_count']:>8} {m['win_rate']:>8.3f} "
+                          f"{m['edge']:>8.3f} {m['edge_zscore']:>8.2f} {m['composite_score']:>10.4f}")
+            else:
+                print("No motifs met the minimum sample threshold.")
     elif "-d" in sys.argv:
         logging.info("Debugging...")
         debug_test()

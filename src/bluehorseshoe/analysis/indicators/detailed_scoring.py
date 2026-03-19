@@ -25,6 +25,7 @@ from bluehorseshoe.analysis.indicators.momentum_indicators import MomentumIndica
 from bluehorseshoe.analysis.indicators.moving_average_indicators import MovingAverageIndicator
 from bluehorseshoe.analysis.indicators.price_action_indicators import PriceActionIndicator
 from bluehorseshoe.analysis.indicators.trend_indicators import TrendIndicator
+from bluehorseshoe.analysis.indicators.curve_indicators import CurveIndicator
 from bluehorseshoe.analysis.indicators.volume_indicators import VolumeIndicator
 from bluehorseshoe.analysis.technical_analyzer import TechnicalAnalyzer
 from bluehorseshoe.core.config import weights_config
@@ -48,6 +49,7 @@ class DetailedScorer:
         'limit': ('constant', LimitIndicator, None),
         'price_action': ('weighted', PriceActionIndicator, 'price_action'),
         'mean_reversion_specific': ('weighted', MeanReversionIndicator, 'mean_reversion_specific'),
+        'curve': ('weighted', CurveIndicator, 'curve'),
     }
 
     @staticmethod
@@ -132,6 +134,11 @@ class DetailedScorer:
                 'connors_rsi': (inst.calculate_connors_rsi, 'CONNORS_RSI_MULTIPLIER'),
                 'dv2': (inst.calculate_dv2, 'DV2_MULTIPLIER'),
                 'short_roc': (inst.calculate_short_roc, 'SHORT_ROC_MULTIPLIER'),
+            }
+        elif cls_name == 'CurveIndicator':
+            inst = indicator_instance
+            return {
+                'motif_score': (lambda: inst.calculate_motif_score(40), 'MOTIF_SCORE_MULTIPLIER'),
             }
         return {}
 
