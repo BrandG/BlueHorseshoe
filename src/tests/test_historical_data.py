@@ -10,8 +10,12 @@ from bluehorseshoe.data.historical_data import (
     build_all_symbols_history,
     get_technical_indicators,
     get_active_symbol_list,
+    get_symbols_by_market_cap,
+    mark_deep_backfill_done,
+    get_deep_backfill_done,
     load_historical_data,
-    BackfillConfig
+    process_symbol,
+    BackfillConfig,
 )
 
 @patch('bluehorseshoe.data.historical_data.requests.get')
@@ -204,3 +208,117 @@ def test_load_historical_data(mock_net, mock_file):
     assert result is not None
     assert result['symbol'] == 'AAPL'
     assert 'days' in result
+
+
+# ------------------------------------------------------------------
+# Deep backfill tests
+# ------------------------------------------------------------------
+
+
+def test_get_symbols_by_market_cap():
+    """Verify sort order and structure of get_symbols_by_market_cap."""
+    mock_db = MagicMock()
+    mock_overviews = MagicMock()
+    mock_symbols = MagicMock()
+
+    def getitem(name):
+        if name == "symbol_overviews":
+            return mock_overviews
+        if name == "symbols":
+            return mock_symbols
+        return MagicMock()
+
+    mock_db.__getitem__ = MagicMock(side_effect=getitem)
+
+    # Aggregation returns symbols already sorted by mcap descending
+    mock_overviews.aggregate.return_value = [
+        {"symbol": "AAPL", "mcap_num": 3_000_000_000_000},
+        {"symbol": "MSFT", "mcap_num": 2_500_000_000_000},
+        {"symbol": "GOOG", "mcap_num": 1_800_000_000_000},
+    ]
+    mock_symbols.find.return_value = [
+        {"symbol": "AAPL", "name": "Apple Inc."},
+        {"symbol": "MSFT", "name": "Microsoft Corp."},
+        {"symbol": "GOOG", "name": "Alphabet Inc."},
+    ]
+
+    result = get_symbols_by_market_cap(mock_db)
+
+    assert len(result) == 3
+    assert result[0]["symbol"] == "AAPL"
+    assert result[0]["mcap"] == 3_000_000_000_000
+    assert result[0]["name"] == "Apple Inc."
+    assert result[1]["symbol"] == "MSFT"
+    assert result[2]["symbol"] == "GOOG"
+
+    # Verify the pipeline uses $sort descending
+    pipeline = mock_overviews.aggregate.call_args[0][0]
+    sort_stage = [s for s in pipeline if "$sort" in s]
+    assert len(sort_stage) == 1
+    assert sort_stage[0]["$sort"]["mcap_num"] == -1
+
+
+def test_deep_backfill_completion_tracking():
+    """Test mark/get roundtrip for deep backfill completion."""
+    mock_db = MagicMock()
+    mock_collection = MagicMock()
+    mock_db.__getitem__ = MagicMock(return_value=mock_collection)
+
+    # Mark two symbols as done
+    mark_deep_backfill_done("AAPL", "2006-01-03", 5000, mock_db)
+    mark_deep_backfill_done("MSFT", "2006-02-15", 4800, mock_db)
+
+    # Verify update_one was called with correct _id
+    assert mock_collection.update_one.call_count == 2
+    first_call = mock_collection.update_one.call_args_list[0]
+    assert first_call[0][0] == {"_id": "AAPL"}
+    assert first_call[1]["upsert"] is True
+
+    # Now test get_deep_backfill_done
+    mock_collection.find.return_value = [{"_id": "AAPL"}, {"_id": "MSFT"}]
+    done = get_deep_backfill_done(mock_db)
+    assert done == {"AAPL", "MSFT"}
+
+
+@patch('bluehorseshoe.data.historical_data.save_historical_data')
+@patch('bluehorseshoe.data.historical_data.get_technical_indicators')
+def test_process_symbol_skip_only_for_recent(mock_indicators, mock_save):
+    """Full backfill (recent=False) should NOT skip symbols that have today's data."""
+    mock_store = MagicMock()
+    # Simulate a symbol that already has up-to-date data
+    today_str = str(pd.Timestamp.now(tz='US/Eastern').date())
+    mock_store.load_symbol_dict.return_value = {
+        'days': [{'date': today_str, 'open': 100, 'high': 110, 'low': 90,
+                  'close': 105, 'volume': 1000}],
+        'full_name': 'Test Co.',
+        'symbol': 'TEST',
+    }
+
+    mock_provider = MagicMock()
+    mock_provider.fetch.return_value = {
+        'symbol': 'TEST', 'full_name': 'Test Co.', 'name': 'TEST',
+        'days': [
+            {'date': '2020-01-02', 'open': 50, 'high': 55, 'low': 45, 'close': 52, 'volume': 500},
+            {'date': today_str, 'open': 100, 'high': 110, 'low': 90, 'close': 105, 'volume': 1000},
+        ],
+    }
+
+    mock_indicators.return_value = [
+        {'date': '2020-01-02', 'open': 50, 'close': 52},
+        {'date': today_str, 'open': 100, 'close': 105},
+    ]
+
+    mock_db = MagicMock()
+    mock_score_col = MagicMock()
+    mock_db.__getitem__ = MagicMock(return_value=mock_score_col)
+
+    # recent=False should NOT skip
+    process_symbol(
+        {'symbol': 'TEST', 'name': 'Test Co.'}, 1, 1,
+        save_to_file=False, recent=False, database=mock_db,
+        provider=mock_provider, store=mock_store,
+    )
+
+    # Provider should have been called (symbol was NOT skipped)
+    mock_provider.fetch.assert_called_once()
+    mock_save.assert_called_once()

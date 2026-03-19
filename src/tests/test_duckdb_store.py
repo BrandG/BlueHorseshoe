@@ -212,6 +212,36 @@ class TestMetadata:
 
 
 # ------------------------------------------------------------------
+# Symbol coverage
+# ------------------------------------------------------------------
+class TestSymbolCoverage:
+    def test_coverage_empty_store(self, store):
+        assert store.get_symbol_coverage() == {}
+
+    def test_coverage_multiple_symbols(self, store):
+        store.save_symbol("AAPL", _make_df(["2020-01-02", "2020-01-03", "2020-01-06"]))
+        store.save_symbol("MSFT", _make_df(["2021-06-01", "2021-06-02"], close_start=200.0))
+
+        cov = store.get_symbol_coverage()
+        assert len(cov) == 2
+
+        assert cov["AAPL"]["min_date"] == "2020-01-02"
+        assert cov["AAPL"]["max_date"] == "2020-01-06"
+        assert cov["AAPL"]["row_count"] == 3
+
+        assert cov["MSFT"]["min_date"] == "2021-06-01"
+        assert cov["MSFT"]["max_date"] == "2021-06-02"
+        assert cov["MSFT"]["row_count"] == 2
+
+    def test_coverage_single_row(self, store):
+        store.save_symbol("TSLA", _make_df(["2025-03-01"]))
+        cov = store.get_symbol_coverage()
+        assert cov["TSLA"]["min_date"] == "2025-03-01"
+        assert cov["TSLA"]["max_date"] == "2025-03-01"
+        assert cov["TSLA"]["row_count"] == 1
+
+
+# ------------------------------------------------------------------
 # Column filtering (only OHLCV persisted)
 # ------------------------------------------------------------------
 class TestColumnFiltering:

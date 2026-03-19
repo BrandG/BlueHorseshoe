@@ -246,6 +246,25 @@ class DuckDBStore:
             ).fetchall()
         return [r[0] for r in rows]
 
+    def get_symbol_coverage(self) -> Dict[str, Dict]:
+        """Return {symbol: {"min_date": str, "max_date": str, "row_count": int}} for all symbols."""
+        with self._lock:
+            df = self._con.execute("""
+                SELECT symbol, MIN(date) AS min_date, MAX(date) AS max_date, COUNT(*) AS row_count
+                FROM ohlcv
+                GROUP BY symbol
+            """).fetchdf()
+        if df.empty:
+            return {}
+        result: Dict[str, Dict] = {}
+        for _, row in df.iterrows():
+            result[row["symbol"]] = {
+                "min_date": row["min_date"],
+                "max_date": row["max_date"],
+                "row_count": int(row["row_count"]),
+            }
+        return result
+
     def get_metadata(self, symbol: str) -> Optional[Dict]:
         """Return metadata dict for a symbol, or None."""
         with self._lock:

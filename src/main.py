@@ -111,6 +111,7 @@ if __name__ == "__main__":
             build_all_symbols_history(BackfillConfig(recent=True, symbols=symbols_filter, active_only=active_only), database=ctx.db, store=ctx.store)
             logging.info("Recent historical data updated.")
     elif "-b" in sys.argv:
+        deep = "--deep" in sys.argv
         resume = "--resume" in sys.argv
         limit = None
         if "--limit" in sys.argv:
@@ -127,7 +128,14 @@ if __name__ == "__main__":
                 pass
 
         with create_cli_context() as ctx:
-            build_all_symbols_history(BackfillConfig(recent=False, resume=resume, limit=limit, symbols=symbols_filter), database=ctx.db, store=ctx.store)
+            backfill_config = BackfillConfig(
+                recent=False,
+                resume=resume if not deep else False,
+                limit=limit,
+                symbols=symbols_filter,
+                deep=deep,
+            )
+            build_all_symbols_history(backfill_config, database=ctx.db, store=ctx.store)
             logging.info("Full historical data updated.")
     elif "-p" in sys.argv:
         logging.info('Predicting next midpoints...')

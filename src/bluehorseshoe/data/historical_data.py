@@ -125,6 +125,77 @@ def set_backfill_checkpoint(symbol, database):
     except PyMongoError as e:
         logging.error("Failed to set checkpoint: %s", e)
 
+# ---------------------------------------------------------------------------
+# Deep backfill helpers
+# ---------------------------------------------------------------------------
+DEEP_BACKFILL_COLLECTION = "deep_backfill_completed"
+DEEP_HISTORY_CUTOFF = "2006-06-01"
+
+
+def mark_deep_backfill_done(symbol, earliest_date, row_count, database):
+    """Record that a symbol's deep backfill is complete."""
+    try:
+        database[DEEP_BACKFILL_COLLECTION].update_one(
+            {"_id": symbol},
+            {"$set": {
+                "earliest_date": earliest_date,
+                "row_count": row_count,
+                "completed_at": pd.Timestamp.now().isoformat(),
+            }},
+            upsert=True,
+        )
+    except PyMongoError as e:
+        logging.error("Failed to mark deep backfill done for %s: %s", symbol, e)
+
+
+def get_deep_backfill_done(database):
+    """Return set of symbols whose deep backfill is already complete."""
+    try:
+        return {doc["_id"] for doc in database[DEEP_BACKFILL_COLLECTION].find({}, {"_id": 1})}
+    except PyMongoError as e:
+        logging.error("Failed to read deep backfill completions: %s", e)
+        return set()
+
+
+def get_symbols_by_market_cap(database):
+    """
+    Return symbols ordered by descending market cap.
+
+    Queries symbol_overviews, filters by MIN_MARKET_CAP, enriches with names
+    from the symbols collection.  Returns list of {"symbol", "name", "mcap"} dicts.
+    """
+    pipeline = [
+        {"$match": {
+            "MarketCapitalization": {"$exists": True, "$nin": ["", "None", None, "0"]},
+        }},
+        {"$addFields": {"mcap_num": {"$toLong": "$MarketCapitalization"}}},
+        {"$match": {"mcap_num": {"$gte": MIN_MARKET_CAP}}},
+        {"$sort": {"mcap_num": -1}},
+        {"$project": {"symbol": 1, "mcap_num": 1, "_id": 0}},
+    ]
+    results = list(database["symbol_overviews"].aggregate(pipeline))
+
+    # Build a name lookup from the symbols collection
+    name_map = {}
+    try:
+        for doc in database["symbols"].find({}, {"symbol": 1, "name": 1, "_id": 0}):
+            name_map[doc["symbol"]] = doc.get("name", "")
+    except PyMongoError:
+        pass
+
+    out = []
+    for doc in results:
+        sym = doc["symbol"]
+        out.append({
+            "symbol": sym,
+            "name": name_map.get(sym, ""),
+            "mcap": doc["mcap_num"],
+        })
+
+    logging.info("Deep backfill universe: %d symbols sorted by market cap", len(out))
+    return out
+
+
 def get_active_symbol_list(database):
     """
     Build the tradeable symbol universe using market cap from symbol_overviews.
@@ -155,6 +226,7 @@ class BackfillConfig:
     resume: bool = False
     limit: Optional[int] = None
     active_only: bool = False
+    deep: bool = False
 
 def build_all_symbols_history(config: Optional[BackfillConfig] = None, database=None, store=None):
     """
@@ -170,6 +242,10 @@ def build_all_symbols_history(config: Optional[BackfillConfig] = None, database=
 
     if database is None:
         raise ValueError("database parameter is required for build_all_symbols_history")
+
+    if config.deep:
+        _build_deep_backfill(config, database, store)
+        return
 
     starting_at = config.starting_at
     if config.resume and not starting_at:
@@ -207,6 +283,85 @@ def build_all_symbols_history(config: Optional[BackfillConfig] = None, database=
         logging.info("No symbols to process.")
         return
 
+    _dispatch_backfill(work_items, total_symbols, config, database, store)
+
+    # Checkpoint the last symbol in the work list
+    if work_items:
+        set_backfill_checkpoint(work_items[-1][0]['symbol'], database)
+
+
+def _build_deep_backfill(config, database, store):
+    """Deep backfill: process symbols in descending market-cap order with per-symbol tracking."""
+    # 1. Load symbols ordered by market cap
+    symbol_list = get_symbols_by_market_cap(database)
+    if not symbol_list:
+        logging.error("No symbols found for deep backfill.")
+        return
+
+    # 2. Load completion set from MongoDB
+    done_set = get_deep_backfill_done(database)
+    logging.info("Deep backfill: %d symbols already completed", len(done_set))
+
+    # 3. Self-heal: check DuckDB coverage for symbols not yet marked done
+    coverage = {}
+    if store is not None:
+        try:
+            coverage = store.get_symbol_coverage()
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            logging.warning("Could not load DuckDB coverage for self-heal: %s", e)
+
+    # 4. Filter to symbols that still need deep backfill
+    work_items = []
+    skipped_done = 0
+    skipped_coverage = 0
+    for idx, entry in enumerate(symbol_list, start=1):
+        sym = entry["symbol"]
+        if sym in done_set:
+            skipped_done += 1
+            continue
+        # Self-heal: if DuckDB already has deep history, mark done and skip
+        cov = coverage.get(sym)
+        if cov and cov["min_date"] <= DEEP_HISTORY_CUTOFF and cov["row_count"] >= 3000:
+            mark_deep_backfill_done(sym, cov["min_date"], cov["row_count"], database)
+            skipped_coverage += 1
+            continue
+        work_items.append((entry, idx))
+        if config.limit and len(work_items) >= config.limit:
+            break
+
+    logging.info("Deep backfill: %d to process, %d already done, %d self-healed from DuckDB",
+                 len(work_items), skipped_done, skipped_coverage)
+
+    if not work_items:
+        logging.info("Deep backfill: all symbols already complete.")
+        return
+
+    total_symbols = len(symbol_list)
+
+    # Dispatch using shared helper
+    _dispatch_backfill(
+        work_items, total_symbols, config, database, store,
+        on_complete=lambda sym: _deep_backfill_on_complete(sym, store, database),
+    )
+
+
+def _deep_backfill_on_complete(symbol, store, database):
+    """Called after each successful deep-backfill fetch to mark completion."""
+    earliest = ""
+    count = 0
+    if store is not None:
+        try:
+            dates = store.get_symbol_dates(symbol)
+            if dates:
+                earliest = dates[0]
+                count = len(dates)
+        except Exception:  # pylint: disable=broad-exception-caught
+            pass
+    mark_deep_backfill_done(symbol, earliest, count, database)
+
+
+def _dispatch_backfill(work_items, total_symbols, config, database, store, on_complete=None):
+    """Shared dispatch logic for both standard and deep backfill."""
     # Build provider pool and partition symbols across providers
     pool = _get_provider_pool()
     symbols = [row['symbol'] for row, _ in work_items]
@@ -249,16 +404,17 @@ def build_all_symbols_history(config: Optional[BackfillConfig] = None, database=
         try:
             future.result()
             completed += 1
+            if on_complete is not None:
+                try:
+                    on_complete(sym)
+                except Exception as e:  # pylint: disable=broad-exception-caught
+                    logging.warning("on_complete callback failed for %s: %s", sym, e)
         except Exception as e:  # pylint: disable=broad-exception-caught
             failed += 1
             logging.error("Failed to process %s: %s", sym, e)
 
     for executor in executors:
         executor.shutdown(wait=False)
-
-    # Checkpoint the last symbol in the work list
-    if work_items:
-        set_backfill_checkpoint(work_items[-1][0]['symbol'], database)
 
     logging.info("Done: %d completed, %d failed out of %d", completed, failed, len(work_items))
 
@@ -290,10 +446,10 @@ def process_symbol(row, index, total_symbols, save_to_file, recent, database,
     try:
         if store is not None:
             existing_data = store.load_symbol_dict(symbol)
-        if existing_data and 'days' in existing_data and existing_data['days']:
+        if recent and existing_data and 'days' in existing_data and existing_data['days']:
             last_stored_date = existing_data['days'][-1]['date']
 
-            # OPTIMIZATION: Check if data is already up-to-date
+            # OPTIMIZATION: Check if data is already up-to-date (recent mode only)
             now_ny = pd.Timestamp.now(tz='US/Eastern')
             today = now_ny.date()
             if now_ny.hour < 18: # Before 6PM ET, expect previous day
