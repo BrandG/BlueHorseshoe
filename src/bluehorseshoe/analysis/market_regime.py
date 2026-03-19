@@ -161,6 +161,18 @@ class MarketRegime:
             elif spread >= 30:
                 total_score -= 1  # Extreme bullish → contrarian bearish
 
+        # CNN Fear & Greed contribution (high fear = contrarian bullish)
+        from bluehorseshoe.data.cnn_fear_greed import get_cnn_snapshot  # pylint: disable=import-outside-toplevel
+        cnn = get_cnn_snapshot(target_date) if target_date else None
+        if cnn:
+            health_data['CNN'] = cnn
+            if cnn['score'] <= 25:
+                total_score += 2   # Extreme Fear → contrarian bullish
+            elif cnn['score'] <= 40:
+                total_score += 1   # Fear → mildly bullish
+            elif cnn['score'] >= 80:
+                total_score -= 1   # Extreme Greed → contrarian bearish
+
         status, multiplier = MarketRegime._get_final_status(total_score)
 
         return {

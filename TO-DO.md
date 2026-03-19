@@ -36,7 +36,7 @@
   - **Sources to add (market-wide, one score per day):**
     - [x] **VIX** — **Done** (`vix.py`). Fetch daily OHLC from CBOE free API, compute close/change/SMA-20/percentile/fear-level. Integrated into `MarketRegime.get_market_health()` (±2 score points), arcade status bar (4th panel), standard/email regime tables, and `sentiment_snapshots` collection.
     - [x] **AAII Bull/Bear Survey** — **Done** (`aaii.py`, `ebecd6d`). Fetch weekly survey from Nasdaq Data Link API (fallback: Excel from aaii.com). Bull-Bear Spread normalized to [-1,1], 8-week avg, 52-week percentile, 5-level signal classification. Contrarian scoring in `MarketRegime` (extreme bearishness → bullish points). AAII panel in arcade status bar (5th panel), standard/email regime tables, and `sentiment_snapshots` collection.
-    - [ ] **CNN Fear & Greed Index** — composite market sentiment (7 indicators)
+    - [x] **CNN Fear & Greed Index** — **Done** (`cnn_fear_greed.py`). Fetch composite score (0-100) from CNN's undocumented API, classify into 5 sentiment buckets (Extreme Fear/Fear/Neutral/Greed/Extreme Greed). Contrarian scoring in `MarketRegime` (extreme fear → bullish points). CNN F&G panel in arcade status bar (6th panel), standard/email regime tables, and `sentiment_snapshots` collection.
   - **Future / higher effort:**
     - **Options flow / put-call ratio** — institutional sentiment proxy, available via CBOE or broker APIs
     - **Earnings sentiment** — NLP on earnings call transcripts (e.g. via SEC EDGAR XBRL filings)

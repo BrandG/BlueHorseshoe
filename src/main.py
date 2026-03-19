@@ -203,6 +203,10 @@ if __name__ == "__main__":
                 if aaii_details:
                     regime_for_html['aaii_spread'] = aaii_details.get('bull_bear_spread', 'N/A')
                     regime_for_html['aaii_signal'] = aaii_details.get('signal', '')
+                cnn_details = regime_for_html.get('details', {}).get('CNN', {})
+                if cnn_details:
+                    regime_for_html['cnn_score'] = cnn_details.get('score', 'N/A')
+                    regime_for_html['cnn_rating'] = cnn_details.get('rating', '')
 
                 reporter = HTMLReporter(database=ctx.db)
 
@@ -303,6 +307,10 @@ if __name__ == "__main__":
             if aaii_details:
                 market_health['aaii_spread'] = aaii_details.get('bull_bear_spread', 'N/A')
                 market_health['aaii_signal'] = aaii_details.get('signal', '')
+            cnn_details = market_health.get('details', {}).get('CNN', {})
+            if cnn_details:
+                market_health['cnn_score'] = cnn_details.get('score', 'N/A')
+                market_health['cnn_rating'] = cnn_details.get('rating', '')
 
             # 2. Fetch Scores
             from bluehorseshoe.core.scores import ScoreManager

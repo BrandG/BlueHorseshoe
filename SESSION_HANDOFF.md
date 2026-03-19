@@ -1,11 +1,29 @@
 # Session Handoff
 
 **Date:** March 19, 2026
-**Status:** AAII sentiment integration complete. Composite sentiment fix deployed. Five sentiment sources now active: AlphaVantage, Tiingo, StockTwits, Finviz (per-symbol) + VIX, AAII (market-wide).
+**Status:** CNN Fear & Greed Index integration complete. Six sentiment sources now active: AlphaVantage, Tiingo, StockTwits, Finviz (per-symbol) + VIX, AAII, CNN F&G (market-wide).
 
 ---
 
-## What Was Done This Session (March 17-19)
+## What Was Done This Session (March 19)
+
+### CNN Fear & Greed Index Integration
+Added CNN Fear & Greed as the 3rd market-wide indicator alongside VIX and AAII. Uses contrarian logic — extreme fear is a bullish signal and vice versa.
+
+**New files:**
+- `src/bluehorseshoe/data/cnn_fear_greed.py` — `fetch_cnn_history()` (CNN undocumented API, requires browser User-Agent), `get_cnn_snapshot()` (score, 1-day change, SMA-20, 90-day percentile, 5-level rating classification)
+- `src/tests/test_cnn_fear_greed.py` — 22 tests (API fetch success/empty/missing key/network error/days limit, snapshot exact/fallback date, no data, date before history, all 5 rating classifications, change_1d, percentile, SMA-20, boundary tests for `_classify_rating`)
+
+**Modified files:**
+- `src/bluehorseshoe/analysis/market_regime.py` — Contrarian scoring: score ≤ 25 → +2, ≤ 40 → +1, ≥ 80 → -1
+- `src/bluehorseshoe/analysis/strategy.py` — CNN snapshot added to `sentiment_snapshots` as `$CNN_FG` source
+- `src/main.py` — CNN flattening in both `-p` and `-r` paths (`cnn_score`, `cnn_rating`)
+- `src/bluehorseshoe/reporting/html_reporter.py` — CNN F&G column in standard + email regime tables; arcade: 6-column grid, CNN FEAR/GREED panel, JS rendering with contrarian coloring
+- `TO-DO.md` — Marked CNN Fear & Greed checkbox as done
+
+---
+
+## Previous Session (March 17-19)
 
 ### AAII Bull/Bear Sentiment Survey Integration (`ebecd6d`)
 Added AAII weekly sentiment survey as the 2nd market-wide indicator alongside VIX. Uses contrarian logic — extreme bearishness is a bullish signal and vice versa.
@@ -52,7 +70,6 @@ Changed composite sentiment from z-score normalization to simple raw score avera
 
 - **Accumulate sentiment data** — Need ~1 month of daily snapshots from all sources before analyzing sentiment-price divergence signals
 - **Add sentiment to ML features** — Once history exists, add sentiment features to `build_ml_features()`
-- **CNN Fear & Greed Index** — Next market-wide sentiment source to add (see TO-DO.md)
 - **Add a third strategy (e.g. Shorts)** — Trivial: subclass `TradingStrategy`, register in `strategy_registry.py`
 - **Event-driven backtest** — Model trades as orders fed through daily bars
 - See `TO-DO.md` for full backlog
@@ -63,6 +80,7 @@ Changed composite sentiment from z-score normalization to simple raw score avera
 
 - **Raw averaging for composite sentiment** — Z-score normalization against global means was unintuitive (positive raw values → negative composite). Switched to simple average of raw scores. The `normalize()` method still exists if needed for other purposes.
 - **AAII as contrarian indicator** — Extreme bearishness in the survey historically precedes rallies; extreme bullishness precedes pullbacks. Scoring reflects this inversion.
+- **CNN F&G as contrarian indicator** — Same inversion: extreme fear (≤25) → +2 bullish points, fear (≤40) → +1, extreme greed (≥80) → -1 bearish. CNN's API requires a full browser User-Agent header (rejects short UAs with 418).
 - **Nasdaq Data Link API with Excel fallback** — AAII data fetched via API when `NASDAQ_DATA_LINK_API_KEY` is set; otherwise falls back to direct Excel download from aaii.com. Both paths handle decimal vs percentage format auto-detection.
 - **User-Agent header required for StockTwits** — Cloudflare blocks default `python-requests` UA from Docker.
 - **Ratio scoring for StockTwits** — `(bull - bear) / (bull + bear)`, range [-1, +1]. No NLP needed.
@@ -78,6 +96,7 @@ Changed composite sentiment from z-score normalization to simple raw score avera
 
 | File | Role |
 |------|------|
+| `src/bluehorseshoe/data/cnn_fear_greed.py` | CNN Fear & Greed fetch, snapshot metrics |
 | `src/bluehorseshoe/data/aaii.py` | AAII survey fetch (Nasdaq Data Link + Excel fallback), snapshot metrics |
 | `src/bluehorseshoe/data/vix.py` | VIX fetch from CBOE, snapshot metrics |
 | `src/bluehorseshoe/data/finviz_news.py` | Finviz news fetch, VADER scoring, MongoDB storage |
@@ -86,7 +105,7 @@ Changed composite sentiment from z-score normalization to simple raw score avera
 | `src/bluehorseshoe/analysis/sentiment_normalizer.py` | Composite sentiment (raw score averaging) |
 | `src/bluehorseshoe/reporting/html_reporter.py` | All 3 report types with 4 sentiment columns + VIX/AAII regime panels |
 | `src/bluehorseshoe/analysis/strategy.py` | Pipeline wiring for all sentiment sources |
-| `src/bluehorseshoe/analysis/market_regime.py` | Market health scoring (SPY, QQQ, breadth, VIX, AAII) |
+| `src/bluehorseshoe/analysis/market_regime.py` | Market health scoring (SPY, QQQ, breadth, VIX, AAII, CNN F&G) |
 | `src/main.py` | CLI entry, `-r` regeneration with all sentiment caches |
 | `src/bluehorseshoe/data/duckdb_store.py` | DuckDB storage backend (thread-safe via RLock) |
 | `src/bluehorseshoe/analysis/strategy_interface.py` | `TradingStrategy` ABC |
@@ -103,7 +122,7 @@ Changed composite sentiment from z-score normalization to simple raw score avera
 | `symbol_news_tiingo` | Raw Tiingo articles with VADER scores per symbol |
 | `symbol_news_stocktwits` | StockTwits messages with bull/bear ratio per symbol |
 | `symbol_news_finviz` | Finviz news headlines with VADER scores per symbol |
-| `sentiment_snapshots` | Daily snapshots, keyed by `(symbol, date, source)` where source is `"alphavantage"`, `"tiingo"`, `"stocktwits"`, `"finviz"`, `"vix"`, or `"aaii"` |
+| `sentiment_snapshots` | Daily snapshots, keyed by `(symbol, date, source)` where source is `"alphavantage"`, `"tiingo"`, `"stocktwits"`, `"finviz"`, `"vix"`, `"aaii"`, or `"cnn_fear_greed"` |
 
 ---
 
@@ -145,7 +164,7 @@ doctl compute droplet delete bh-research --force
 docker exec bluehorseshoe python src/main.py -p                          # Prediction (~72 min)
 docker exec bluehorseshoe python src/main.py -u                          # Data update (~30 min)
 docker exec bluehorseshoe python src/main.py -r YYYY-MM-DD               # Regenerate report (~30 sec)
-docker exec bluehorseshoe pytest -v                                      # Tests (501 passing)
+docker exec bluehorseshoe pytest -v                                      # Tests (523 passing)
 docker exec bluehorseshoe ./lint.sh                                      # Lint
 ```
 
@@ -157,8 +176,9 @@ docker exec bluehorseshoe ./lint.sh                                      # Lint
 ## Git Status
 
 **Branch:** master
-**Latest commit:** `a38721c` — fix: Use raw score average for composite sentiment instead of z-score
+**Latest commit:** `8677121` — docs: Update TO-DO and session handoff for AAII integration
 **Pushed:** Yes, up to date with origin
+**Pending:** CNN Fear & Greed integration (uncommitted)
 
 ---
 

@@ -1127,6 +1127,16 @@ class SwingTrader:
                 "article_count": 0,
                 "source": "aaii",
             })
+        # CNN Fear & Greed snapshot (market-wide)
+        cnn = market_health.get('details', {}).get('CNN')
+        if cnn:
+            sentiment_snapshots.append({
+                "symbol": "$CNN_FG",
+                "date": target_date_str,
+                "score": cnn['score'],
+                "article_count": 0,
+                "source": "cnn_fear_greed",
+            })
         for c in top_candidates:
             sym = c["symbol"]
             if sym not in sentiment_cache:
