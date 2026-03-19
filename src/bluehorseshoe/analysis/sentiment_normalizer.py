@@ -90,13 +90,13 @@ class SentimentNormalizer:
     # Composite across all sources
     # ------------------------------------------------------------------
     def composite(self, candidate: dict) -> float:
-        """Average of normalized values for non-zero sources."""
+        """Simple average of raw sentiment scores for non-zero sources."""
         values = []
-        for source, key in SOURCE_KEY_MAP.items():
+        for _source, key in SOURCE_KEY_MAP.items():
             raw = candidate.get(key, 0.0)
             if raw == 0.0:
                 continue
-            values.append(self.normalize(raw, source))
+            values.append(raw)
 
         if not values:
             return 0.0

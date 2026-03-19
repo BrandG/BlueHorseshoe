@@ -79,7 +79,7 @@ class TestNormalize:
 # ------------------------------------------------------------------
 class TestComposite:
     def test_composite_all_sources(self, normalizer):
-        """Averages normalized values across all 4 sources."""
+        """Averages raw values across all 4 sources."""
         candidate = {
             "sentiment": 0.30,
             "sentiment_tiingo": 0.20,
@@ -87,15 +87,7 @@ class TestComposite:
             "sentiment_finviz": -0.10,
         }
         result = normalizer.composite(candidate)
-
-        # Manually compute expected
-        vals = [
-            normalizer.normalize(0.30, "alphavantage"),
-            normalizer.normalize(0.20, "tiingo"),
-            normalizer.normalize(0.10, "stocktwits"),
-            normalizer.normalize(-0.10, "finviz"),
-        ]
-        expected = sum(vals) / len(vals)
+        expected = (0.30 + 0.20 + 0.10 + -0.10) / 4
         assert result == pytest.approx(expected, abs=1e-6)
 
     def test_composite_partial_sources(self, normalizer):
@@ -107,12 +99,7 @@ class TestComposite:
             "sentiment_finviz": 0.0,  # skip
         }
         result = normalizer.composite(candidate)
-
-        vals = [
-            normalizer.normalize(0.30, "alphavantage"),
-            normalizer.normalize(0.10, "stocktwits"),
-        ]
-        expected = sum(vals) / len(vals)
+        expected = (0.30 + 0.10) / 2
         assert result == pytest.approx(expected, abs=1e-6)
 
     def test_composite_no_sources(self, normalizer):
