@@ -110,9 +110,9 @@
     "SHORT_ROC_MULTIPLIER": 1.5
   },
   "curve": {
-    "MOTIF_SCORE_MULTIPLIER": 15.0
+    "MOTIF_SCORE_MULTIPLIER": 10.0
   },
   "mr_curve": {
-    "MOTIF_SCORE_MULTIPLIER": 15.0
+    "MOTIF_SCORE_MULTIPLIER": 25.0
   }
 }
