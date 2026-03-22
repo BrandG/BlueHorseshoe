@@ -44,35 +44,9 @@ Added CNN Fear & Greed as the 3rd market-wide indicator alongside VIX and AAII. 
 
 ---
 
-## Previous Session (March 17-19)
-
-### AAII Bull/Bear Sentiment Survey Integration (`ebecd6d`)
-Added AAII weekly sentiment survey as the 2nd market-wide indicator alongside VIX. Uses contrarian logic — extreme bearishness is a bullish signal and vice versa.
-
-**New files:**
-- `src/bluehorseshoe/data/aaii.py` — `fetch_aaii_history()` (Nasdaq Data Link API primary, Excel fallback from aaii.com), `get_aaii_snapshot()` (spread normalization, 8-week avg, 52-week percentile, 5-level signal classification)
-- `src/tests/test_aaii.py` — 16 tests (API fetch, Excel fallback, both-fail, percentage auto-detection, snapshot exact/fallback date, all 5 signal classifications, spread normalization + clamping, 8-week average, percentile calculation)
-
-**Modified files:**
-- `docker/requirements.txt` — Added `nasdaq-data-link>=1.0.4`, `openpyxl>=3.1.0`
-- `src/bluehorseshoe/core/config.py` — Added `nasdaq_data_link_api_key` setting
-- `docker/.env` — Added `NASDAQ_DATA_LINK_API_KEY=`
-- `src/bluehorseshoe/analysis/market_regime.py` — Contrarian scoring: spread ≤ -20 → +2, ≤ -10 → +1, ≥ 30 → -1
-- `src/bluehorseshoe/analysis/strategy.py` — AAII snapshot added to `sentiment_snapshots` as `$AAII` source
-- `src/main.py` — AAII flattening in both `-p` and `-r` paths (`aaii_spread`, `aaii_signal`)
-- `src/bluehorseshoe/reporting/html_reporter.py` — AAII column in standard + email regime tables; arcade: 5-column grid, AAII SENTIMENT panel, JS rendering with contrarian coloring, data serialization
-- `CLAUDE.md` — Added `NASDAQ_DATA_LINK_API_KEY` to Environment Variables
-
-### Composite Sentiment Fix (`a38721c`)
-Changed composite sentiment from z-score normalization to simple raw score averaging. The z-score approach compared each symbol's sentiment against the global market mean, causing positive raw sentiments to produce negative composites. Simple averaging preserves the intuitive direction of the signal.
-
-**Modified files:**
-- `src/bluehorseshoe/analysis/sentiment_normalizer.py` — `composite()` now averages raw scores directly instead of calling `normalize()` (z-score + tanh)
-- `src/tests/test_sentiment_normalizer.py` — Updated composite tests to verify raw averaging
-
----
-
 ## Previous Sessions Summary
+
+- **March 19:** CNN Fear & Greed Index integration, AAII Bull/Bear sentiment, composite sentiment fix (raw averaging)
 
 - **March 15:** Finviz sentiment, z-score normalizer, and arcade report refactor (`1754fa7`)
 - **March 15:** VIX integration into market regime scoring and reports (`ad9d0e7`)
@@ -87,15 +61,24 @@ Changed composite sentiment from z-score normalization to simple raw score avera
 
 ---
 
+## In Progress
+
+- **Nothing mid-task** — all work completed and committed
+
 ## Next Steps
 
-- **Monitor curve impact** — Watch daily predictions for curve score contributions. In bearish markets, MR candidates should show meaningful curve boosts. Track whether curve-boosted picks outperform over coming weeks.
-- **Rebuild catalog periodically** — As more data accumulates, rebuild on research droplet quarterly to capture new patterns. Use `--motifs --full --resume` for safety.
+- **Monitor curve impact** — Watch daily predictions for curve score contributions over coming weeks. In this bearish market, MR candidates should show meaningful curve boosts. Track whether curve-boosted picks outperform.
+- **Rebuild catalog periodically** — Rebuild on research droplet quarterly to capture new patterns. Use `--motifs --full --resume` for safety (~35 hrs on s-2vcpu-4gb).
 - **Accumulate sentiment data** — Need ~1 month of daily snapshots from all sources before analyzing sentiment-price divergence signals
 - **Add sentiment to ML features** — Once history exists, add sentiment features to `build_ml_features()`
 - **Add a third strategy (e.g. Shorts)** — Trivial: subclass `TradingStrategy`, register in `strategy_registry.py`
 - **Event-driven backtest** — Model trades as orders fed through daily bars
 - See `TO-DO.md` for full backlog
+
+## Blockers / Open Questions
+
+- **DuckDB orphaned processes** — After killing a prediction or motif build, spawn worker processes can persist and hold the DuckDB lock. `docker compose restart bluehorseshoe` is the reliable fix. Consider adding cleanup logic to the pipeline script.
+- **Motif catalog rebuild timing** — Full rebuild takes ~35 hrs and blocks DuckDB. Must use research droplet. Could explore read-only DuckDB mode for the catalog builder since it only reads OHLCV data.
 
 ---
 
@@ -208,7 +191,7 @@ docker exec bluehorseshoe ./lint.sh                                      # Lint
 ## Git Status
 
 **Branch:** master
-**Latest commit:** `05c7813` — chore: Differentiate curve weights by strategy (baseline 10x, MR 25x)
+**Latest commit:** `a014c62` — docs: Update TO-DO and session handoff for motif catalog completion
 **Pushed:** Yes, up to date with origin
 **Tests:** 519 passing
 
