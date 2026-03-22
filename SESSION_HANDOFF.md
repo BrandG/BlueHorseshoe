@@ -1,74 +1,46 @@
 # Session Handoff
 
-**Date:** March 19, 2026
-**Status:** Curve/motif analysis feature complete (all 4 phases). Weights at 0.0 — features computed but no score contribution until catalog built and validated.
+**Date:** March 22, 2026
+**Status:** Curve/motif analysis fully operational. Full catalog (11,501 symbols, 34,890 motifs, 6,114 passing threshold) live in production. Weights: baseline 10x, MR 25x.
 
 ---
 
-## What Was Done This Session (March 19)
+## What Was Done This Session (March 19-22)
 
-### Curve/Motif Analysis (`88a3a62`)
-Full 4-phase implementation of pattern-based trading signals using price-curve segmentation and motif forward-outcome scoring.
+### Curve/Motif Analysis — Implementation (`88a3a62`)
+Full 4-phase implementation of pattern-based trading signals using price-curve segmentation and motif forward-outcome scoring. See TO-DO.md for phase details.
 
-**Phase 1 — Curve Segmentation** (`segmenter.py`):
-- Ramer-Douglas-Peucker algorithm on ATR-normalized prices
-- Detects turning points → typed `Segment` objects (direction, magnitude, duration, slope, curvature)
-- `segment_price_series()`, `segment_multi_window()` for 20/40-bar windows
-- ATR normalization makes shapes comparable across $5 and $500 stocks
+### Catalog Build & OOM Fixes (`99549bc`)
+- Initial 200-symbol validation run: 15,386 keys, 929 significant positive, 867 significant negative
+- Full universe (11,501 symbols) OOM'd on first attempt — fixed with chunked loading (200 symbols/batch) and streaming stats (replaced per-observation returns lists with running `sum_returns`)
+- Stability metric changed from rolling-window approach to z-score confidence proxy (cross-symbol returns aren't chronological)
 
-**Phase 2 — Signature Extraction** (`signature.py`):
-- Last 3 segments → 17-dim numeric vector + compact motif key string (e.g. `"U3M:D1S:U2L"`)
-- 5 bucketed descriptors per segment (direction, magnitude, duration, slope, curvature) + 2 global features (total_range, net_direction)
-- ~27,000 possible keys — tractable lookup table
-- `signatures_similar()` via Hamming distance for fuzzy matching
+### Resumable Builds (`e9bda6b`)
+- Checkpoints to MongoDB `motif_build_progress` collection every 200 symbols
+- `--resume` flag continues from last checkpoint — safe to interrupt and restart
+- Checkpoint cleared on successful completion
 
-**Phase 3 — Motif Catalog** (`motif_catalog.py`):
-- Scans full history per symbol, extracts signature at each date, checks +2%/-2% forward outcome
-- Scoring: `edge × stability × support` with z-score significance test (p < 0.05)
-- Parallel processing via `ProcessPoolExecutor`
-- MongoDB `motif_catalog` collection for persistence
-- CLI: `--motifs` (200 liquid), `--motifs --full` (all), `--motifs --symbols AAPL,MSFT`
+### Research Droplet for Full Build
+- Full 11,501-symbol catalog build took ~35 hours — too long to run on production (blocks DuckDB for `-u`/`-p`)
+- Spun up `bh-research` droplet (s-2vcpu-4gb, nyc3, same VPC), SCP'd `ohlcv.duckdb`, connected to production MongoDB over private network
+- Orphaned spawn processes from motif build blocked DuckDB for tonight's cron pipeline — had to manually kill and re-trigger. Container restart clears orphans.
+- Research droplet destroyed after build completed
 
-**Phase 4 — Pipeline Integration**:
-- `CurveIndicator` class following existing `Indicator` pattern
-- Registered in `technical_analyzer._score_indicators()`, `detailed_scoring.py`, `weights.json`
-- Motif scores loaded once in main process, passed to workers via `shared_ctx['motif_scores']`
-- ML features: `curve_motif_score_20/40`, `curve_net_direction_20/40`, `curve_total_range_20/40`
-- Weights start at 0.0 — features computed, no score contribution until validated
-- Graceful degradation: empty catalog → all curve scores default to 0.0
+### Full Catalog Results
+- **34,890** unique motif keys from **56.2M** observations
+- **6,114** passing inclusion threshold (composite > 0.02 AND z > 1.96)
+- **16,824** positive edge / **18,066** negative edge (balanced — real signal)
+- Top motif `D2S:D1S:D4M_40` (staircase decline): **80% win rate** vs 37% baseline, avg +4.5% 5-day return
+- Top patterns dominated by capitulation/selloff shapes — "sharp drop → bounce" thesis
 
-**New files:**
-- `src/bluehorseshoe/analysis/curves/__init__.py` — Package init
-- `src/bluehorseshoe/analysis/curves/segmenter.py` — RDP segmentation, turning points, segments
-- `src/bluehorseshoe/analysis/curves/signature.py` — Signature extraction, motif key generation
-- `src/bluehorseshoe/analysis/curves/motif_catalog.py` — Catalog builder, forward outcomes, scoring
-- `src/bluehorseshoe/analysis/curves/motif_lookup.py` — In-memory catalog lookup for workers
-- `src/bluehorseshoe/analysis/indicators/curve_indicators.py` — CurveIndicator class
-- `src/tests/test_curve_segmenter.py` — 12 tests
-- `src/tests/test_curve_signature.py` — 9 tests
-- `src/tests/test_motif_catalog.py` — 10 tests
-- `src/tests/test_curve_indicator.py` — 7 tests
+### Weight Tuning (`05c7813`)
+- Capitulation motifs naturally align with MR (50% of MR candidates get curve scores) but fight against baseline trend indicators
+- Differentiated weights: **baseline 10x**, **MR 25x** — motifs are complementary with MR, contradictory with baseline
+- At 25x, strong MR motifs contribute 2-6 points (meaningful vs total scores of 10-20)
+- 10-bar window tested and rejected — 70% degenerate to 1-2 segments, only 1,018 unique keys, top 10 cover 38%
 
-**Modified files:**
-- `src/weights.json` — Added `curve` and `mr_curve` categories (MOTIF_SCORE_MULTIPLIER: 0.0)
-- `src/bluehorseshoe/analysis/technical_analyzer.py` — Registered CurveIndicator, threaded `motif_scores` through all scoring paths
-- `src/bluehorseshoe/analysis/indicators/detailed_scoring.py` — Registered CurveIndicator for LOO analysis
-- `src/bluehorseshoe/analysis/strategy.py` — Loads motif_scores in `shared_ctx`, passes to `_init_worker()`
-- `src/bluehorseshoe/analysis/strategy_interface.py` — Passes `motif_scores` from `worker_state` to scoring calls
-- `src/main.py` — Added `--motifs` CLI flag with `--full`, `--symbols`, `--workers` options
-
-### CNN Fear & Greed Index Integration (previous session, same day)
-Added CNN Fear & Greed as the 3rd market-wide indicator alongside VIX and AAII. Uses contrarian logic — extreme fear is a bullish signal and vice versa.
-
-**New files:**
-- `src/bluehorseshoe/data/cnn_fear_greed.py` — `fetch_cnn_history()` (CNN undocumented API, requires browser User-Agent), `get_cnn_snapshot()` (score, 1-day change, SMA-20, 90-day percentile, 5-level rating classification)
-- `src/tests/test_cnn_fear_greed.py` — 22 tests
-
-**Modified files:**
-- `src/bluehorseshoe/analysis/market_regime.py` — Contrarian scoring: score ≤ 25 → +2, ≤ 40 → +1, ≥ 80 → -1
-- `src/bluehorseshoe/analysis/strategy.py` — CNN snapshot added to `sentiment_snapshots` as `$CNN_FG` source
-- `src/main.py` — CNN flattening in both `-p` and `-r` paths (`cnn_score`, `cnn_rating`)
-- `src/bluehorseshoe/reporting/html_reporter.py` — CNN F&G column in standard + email regime tables; arcade: 6-column grid, CNN FEAR/GREED panel, JS rendering with contrarian coloring
+### CNN Fear & Greed Index Integration (earlier, same day as implementation)
+Added CNN Fear & Greed as the 3rd market-wide indicator alongside VIX and AAII. Contrarian logic.
 
 ---
 
@@ -117,9 +89,8 @@ Changed composite sentiment from z-score normalization to simple raw score avera
 
 ## Next Steps
 
-- **Build motif catalog** — Run `docker exec bluehorseshoe python src/main.py --motifs` on 200 liquid symbols. Inspect top 20 motifs for intuitive sense (V-bottoms should show positive edge). Verify negative-edge motifs also exist (confirming signal, not noise).
-- **Validate curve integration** — Run prediction with catalog loaded, verify curve features appear in score documents and runtime impact is <10%
-- **Enable curve weights** — After validation, set `MOTIF_SCORE_MULTIPLIER` > 0 in `weights.json`, backtest with/without to measure impact
+- **Monitor curve impact** — Watch daily predictions for curve score contributions. In bearish markets, MR candidates should show meaningful curve boosts. Track whether curve-boosted picks outperform over coming weeks.
+- **Rebuild catalog periodically** — As more data accumulates, rebuild on research droplet quarterly to capture new patterns. Use `--motifs --full --resume` for safety.
 - **Accumulate sentiment data** — Need ~1 month of daily snapshots from all sources before analyzing sentiment-price divergence signals
 - **Add sentiment to ML features** — Once history exists, add sentiment features to `build_ml_features()`
 - **Add a third strategy (e.g. Shorts)** — Trivial: subclass `TradingStrategy`, register in `strategy_registry.py`
@@ -139,7 +110,9 @@ Changed composite sentiment from z-score normalization to simple raw score avera
 - **Data collection phase first** — All sentiment sources displayed in reports but NOT used as ML features or in scoring. Need history first.
 - **VADER for Tiingo/Finviz scoring** — Lightweight, stateless, thread-safe NLP for news headlines.
 - **Source field on sentiment_snapshots** — Unique index `(symbol, date, source)` supports multiple providers.
-- **Curve weights start at 0.0** — CurveIndicator computes features for ML training but contributes nothing to scores until the catalog is built and validated. This ensures zero impact on existing behavior during rollout.
+- **Curve weights differentiated by strategy** — Baseline 10x, MR 25x. Capitulation motifs are complementary with mean reversion (both reward oversold conditions) but contradictory with baseline trend-following. Higher MR weight lets motifs meaningfully influence MR rankings.
+- **DuckDB lock contention** — The motif catalog build holds a DuckDB connection for hours. Must not overlap with `-u`/`-p`. Run on research droplet or schedule outside cron window. Orphaned spawn processes from ProcessPoolExecutor can persist after kill — restart container to clear.
+- **10-bar motif windows not viable** — Only 1,018 unique keys (vs 34,890 for 20/40), 70% degenerate to 1-2 segments. The 20/40-bar combination covers short and medium term effectively.
 - **Strategy objects are stateless and picklable** — Critical for `ProcessPoolExecutor` workers.
 - **DuckDB is sole OHLCV store** — MongoDB retains scores, journal, overviews, checkpoints, symbols, news.
 
@@ -198,8 +171,8 @@ Changed composite sentiment from z-score normalization to simple raw score avera
 ## Infrastructure
 
 ### Research Droplet
-- **Status:** DESTROYED (March 4, 2026)
-- **Note:** When re-creating, must SCP `data/ohlcv.duckdb` to the droplet
+- **Status:** DESTROYED (March 21, 2026) — used for full motif catalog build (~35 hrs)
+- **Note:** When re-creating, must SCP `data/ohlcv.duckdb` to the droplet. Fix CPU limit in `docker-compose.research.yml` if using s-2vcpu size (set cpus to "2").
 *************** DO NOT EDIT THE FOLLOWING SECTION WHEN UPDATING SESSION_HANDOFF.md
 **IMPORTANT:** All SSH commands to the research droplet MUST `cd /root/BlueHorseshoe` first.
 The default login directory is `/root`, NOT the repo directory.
@@ -235,11 +208,10 @@ docker exec bluehorseshoe ./lint.sh                                      # Lint
 ## Git Status
 
 **Branch:** master
-**Latest commit:** `d0f4384` — docs: Add gstack skill references to CLAUDE.md
-**Previous:** `88a3a62` — feat: Curve/motif analysis for pattern-based trading signals
+**Latest commit:** `05c7813` — chore: Differentiate curve weights by strategy (baseline 10x, MR 25x)
 **Pushed:** Yes, up to date with origin
 **Tests:** 519 passing
 
 ---
 
-**Last Updated:** March 19, 2026
+**Last Updated:** March 22, 2026
