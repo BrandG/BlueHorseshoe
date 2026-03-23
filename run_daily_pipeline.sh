@@ -2,8 +2,8 @@
 # Daily Trading Pipeline for BlueHorseshoe
 # Cron: 0 2 * * 1-6 /root/BlueHorseshoe/run_daily_pipeline.sh
 #
-# Mon-Fri: Update active symbols only -> Predict -> Generate Report -> Send Email
-# Saturday: Full symbol update + Predict Friday data -> Report -> Email
+# Mon-Fri: Update -> Predict -> Journal -> Report -> Email
+# Saturday: Full symbol update + Predict Friday data -> Journal -> Report -> Email
 
 LOG="/root/BlueHorseshoe/src/logs/daily_pipeline.log"
 STATUS="python src/pipeline_status.py"
@@ -41,7 +41,27 @@ if [ $? -ne 0 ]; then
 fi
 docker exec bluehorseshoe $STATUS complete predict
 
-# 3. Verify report was generated (created by predict step)
+# 3. Trade journal — import fills, reconcile positions, generate review (non-fatal)
+docker exec bluehorseshoe $STATUS start journal
+JOURNAL_ERRORS=0
+
+# Import any new fills from IBKR (skip if gateway not connected)
+docker exec bluehorseshoe python src/main.py --journal-import-ibkr >> "$LOG" 2>&1 || ((JOURNAL_ERRORS++))
+
+# Reconcile fills into positions
+docker exec bluehorseshoe python src/main.py --journal-reconcile >> "$LOG" 2>&1 || ((JOURNAL_ERRORS++))
+
+# Generate daily review
+docker exec bluehorseshoe python src/main.py --journal-review >> "$LOG" 2>&1 || ((JOURNAL_ERRORS++))
+
+if [ "$JOURNAL_ERRORS" -gt 0 ]; then
+    echo "WARNING: Journal had $JOURNAL_ERRORS error(s) at $(date)" >> "$LOG"
+    docker exec bluehorseshoe $STATUS fail journal "Journal had $JOURNAL_ERRORS error(s)"
+else
+    docker exec bluehorseshoe $STATUS complete journal
+fi
+
+# 4. Verify report was generated (created by predict step)
 docker exec bluehorseshoe $STATUS start report
 # On Saturday, the report is for Friday (2 days ago), not yesterday
 if [ "$DOW" -eq 6 ]; then
@@ -56,7 +76,7 @@ else
     docker exec bluehorseshoe $STATUS fail report "Report file not found for ${REPORT_DATE}"
 fi
 
-# 4. Send report email
+# 5. Send report email
 docker exec bluehorseshoe $STATUS start email
 docker exec bluehorseshoe python src/send_report_email.py >> "$LOG" 2>&1
 if [ $? -ne 0 ]; then
