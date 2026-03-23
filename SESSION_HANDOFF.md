@@ -1,63 +1,61 @@
 # Session Handoff
 
-**Date:** March 22, 2026
-**Status:** Curve/motif analysis fully operational. Full catalog (11,501 symbols, 34,890 motifs, 6,114 passing threshold) live in production. Weights: baseline 10x, MR 25x.
+**Date:** March 23, 2026
+**Status:** Trade journal system implemented — full 5-phase lifecycle tracking from prediction ideas through execution, reconciliation, and review. 687 tests passing.
 
 ---
 
-## What Was Done This Session (March 19-22)
+## What Was Done This Session (March 23)
 
-### Curve/Motif Analysis — Implementation (`88a3a62`)
-Full 4-phase implementation of pattern-based trading signals using price-curve segmentation and motif forward-outcome scoring. See TO-DO.md for phase details.
+### Trade Journal System — Full Implementation (5 phases)
 
-### Catalog Build & OOM Fixes (`99549bc`)
-- Initial 200-symbol validation run: 15,386 keys, 929 significant positive, 867 significant negative
-- Full universe (11,501 symbols) OOM'd on first attempt — fixed with chunked loading (200 symbols/batch) and streaming stats (replaced per-observation returns lists with running `sum_returns`)
-- Stability metric changed from rolling-window approach to z-score confidence proxy (cross-symbol returns aren't chronological)
+Built closed-loop trade lifecycle tracking. BH now records what it planned, what was ordered, what filled, and how it performed vs the plan.
 
-### Resumable Builds (`e9bda6b`)
-- Checkpoints to MongoDB `motif_build_progress` collection every 200 symbols
-- `--resume` flag continues from last checkpoint — safe to interrupt and restart
-- Checkpoint cleared on successful completion
+**Phase 1: Data Models + Trade Idea Logger**
+- `trade_models.py` — 6 dataclasses (`TradeIdea`, `TradeOrder`, `TradeFill`, `PositionLeg`, `TradePosition`, `TradeReview`) + 4 ID helpers + strategy name normalization
+- `trade_idea_logger.py` — Logs top-N actionable candidates to `trade_ideas` collection with position sizing, component parsing, and risk/reward calculation
+- Auto-fires during `-p` pipeline (non-fatal), plus standalone `--journal-log-ideas [DATE]`
 
-### Research Droplet for Full Build
-- Full 11,501-symbol catalog build took ~35 hours — too long to run on production (blocks DuckDB for `-u`/`-p`)
-- Spun up `bh-research` droplet (s-2vcpu-4gb, nyc3, same VPC), SCP'd `ohlcv.duckdb`, connected to production MongoDB over private network
-- Orphaned spawn processes from motif build blocked DuckDB for tonight's cron pipeline — had to manually kill and re-trigger. Container restart clears orphans.
-- Research droplet destroyed after build completed
+**Phase 2: Normalized Trade Orders**
+- Extended `paper_trader.py` with per-leg order tracking (`t1_order_ids`, `t2_order_ids`) and `_log_trade_orders()` method
+- Each T1/T2 bracket leg writes a separate `trade_orders` doc linked to its `trade_idea` via deterministic `idea_id`
+- `execute()` accepts optional `idea_lookup` dict; backward compatible — existing callers unaffected
+- `paper_trades` collection still written for backward compat
 
-### Full Catalog Results
-- **34,890** unique motif keys from **56.2M** observations
-- **6,114** passing inclusion threshold (composite > 0.02 AND z > 1.96)
-- **16,824** positive edge / **18,066** negative edge (balanced — real signal)
-- Top motif `D2S:D1S:D4M_40` (staircase decline): **80% win rate** vs 37% baseline, avg +4.5% 5-day return
-- Top patterns dominated by capitulation/selloff shapes — "sharp drop → bounce" thesis
+**Phase 3: Execution Importer**
+- `execution_importer.py` — Pulls fills from IBKR or CSV into `trade_fills` collection with dedup by `fill_id`
+- Added `get_executions()` and `get_commissions()` to `IBKRClient` using `ib_async.reqExecutions()`
+- `csv_legacy_importer.py` — Imports historical spreadsheet data; creates paired entry/exit fills + synthesized positions
+- CLI: `--journal-import-ibkr`, `--journal-import-csv FILE [--legacy]`
 
-### Weight Tuning (`05c7813`)
-- Capitulation motifs naturally align with MR (50% of MR candidates get curve scores) but fight against baseline trend indicators
-- Differentiated weights: **baseline 10x**, **MR 25x** — motifs are complementary with MR, contradictory with baseline
-- At 25x, strong MR motifs contribute 2-6 points (meaningful vs total scores of 10-20)
-- 10-bar window tested and rejected — 70% degenerate to 1-2 segments, only 1,018 unique keys, top 10 cover 38%
+**Phase 4: Trade Reconciler**
+- `trade_reconciler.py` — Matches ideas → orders → fills, builds `trade_positions` with T1/T2 legs
+- 3-step reconciliation: broker order ID matching → orphan fill fuzzy matching (symbol + date ±2 days) → position building
+- Calculates: volume-weighted avg entry, entry slippage, per-leg PnL, R-multiple, hold days, close reason inference
+- CLI: `--journal-reconcile [DATE]`
 
-### CNN Fear & Greed Index Integration (earlier, same day as implementation)
-Added CNN Fear & Greed as the 3rd market-wide indicator alongside VIX and AAII. Contrarian logic.
+**Phase 5: Metrics + Journal Reporter**
+- `trade_metrics.py` — `PortfolioMetrics`, `StrategyMetrics`, `DisciplineMetrics` dataclasses + calculator
+- Computes: win rate, profit factor, expectancy, avg R-multiple, entry slippage, plan adherence
+- `trade_journal_reporter.py` — Generates `trade_reviews` docs with plan-vs-actual, discipline scoring, outcome classification
+- Daily review + weekly summary with formatted console output
+- CLI: `--journal-review [DATE]`, `--journal-weekly DATE`
+
+**File Inventory: 7 new source files, 3 modified, 8 new test files (67 new tests)**
 
 ---
 
 ## Previous Sessions Summary
 
-- **March 19:** CNN Fear & Greed Index integration, AAII Bull/Bear sentiment, composite sentiment fix (raw averaging)
+- **March 19-22:** Curve/motif analysis (4-phase), full catalog build (34,890 motifs, 6,114 passing), differentiated weights (baseline 10x, MR 25x), CNN Fear & Greed Index, AAII sentiment
 
-- **March 15:** Finviz sentiment, z-score normalizer, and arcade report refactor (`1754fa7`)
-- **March 15:** VIX integration into market regime scoring and reports (`ad9d0e7`)
-- **March 15:** StockTwits sentiment integration with bull/bear ratio scoring (`6586ba2`)
-- **March 15 (earlier):** Tiingo News sentiment integration with VADER scoring (`0e0fe88`)
-- **March 10:** Automated daily backup to Google Drive via rclone (`backup.sh`, `backup.conf`)
-- **March 9:** Pluggable strategy interface — `TradingStrategy` ABC, `BaselineStrategy`, `MeanReversionStrategy`, central registry
-- **March 8:** MongoDB OHLCV dual-write removed, DuckDB thread-safety fix (RLock), new indicators (RVOL, Engulfing, Hammer)
-- **March 7:** DuckDB migration complete — all 4 phases, schema optimization (4.0 GB → 484 MB)
-- **March 6:** Vectorized backtesting — 13x speedup single-date, 7.4x range
-- **March 5:** Score-once backtest refactor — 22 min → 2-3 sec; connors_flag BSON fix
+- **March 15:** Finviz sentiment, z-score normalizer, arcade report, VIX integration, StockTwits, Tiingo News
+- **March 10:** Automated daily backup to Google Drive via rclone
+- **March 9:** Pluggable strategy interface
+- **March 8:** MongoDB OHLCV dual-write removed, DuckDB thread-safety, new indicators (RVOL, Engulfing, Hammer)
+- **March 7:** DuckDB migration complete
+- **March 6:** Vectorized backtesting — 13x speedup
+- **March 5:** Score-once backtest refactor
 
 ---
 
@@ -67,12 +65,13 @@ Added CNN Fear & Greed as the 3rd market-wide indicator alongside VIX and AAII. 
 
 ## Next Steps
 
-- **Monitor curve impact** — Watch daily predictions for curve score contributions over coming weeks. In this bearish market, MR candidates should show meaningful curve boosts. Track whether curve-boosted picks outperform.
-- **Rebuild catalog periodically** — Rebuild on research droplet quarterly to capture new patterns. Use `--motifs --full --resume` for safety (~35 hrs on s-2vcpu-4gb).
-- **Accumulate sentiment data** — Need ~1 month of daily snapshots from all sources before analyzing sentiment-price divergence signals
-- **Add sentiment to ML features** — Once history exists, add sentiment features to `build_ml_features()`
-- **Add a third strategy (e.g. Shorts)** — Trivial: subclass `TradingStrategy`, register in `strategy_registry.py`
-- **Event-driven backtest** — Model trades as orders fed through daily bars
+- **Wire journal into daily cron** — After `-p` finishes: `--journal-import-ibkr` → `--journal-reconcile` → `--journal-review`. Could be a post-prediction script or chained in the cron pipeline.
+- **Import legacy spreadsheet** — Run `--journal-import-csv path/to/sheet.csv --legacy` to backfill historical trade data
+- **Monitor curve impact** — Watch daily predictions for curve score contributions
+- **Rebuild catalog periodically** — Quarterly on research droplet
+- **Accumulate sentiment data** — Need ~1 month before sentiment-price divergence analysis
+- **Add sentiment to ML features** — Once history exists
+- **Hypothetical trade engine** — Layer B from TO-DO: auto-evaluate signal outcomes after hold period
 - See `TO-DO.md` for full backlog
 
 ## Blockers / Open Questions
@@ -84,20 +83,16 @@ Added CNN Fear & Greed as the 3rd market-wide indicator alongside VIX and AAII. 
 
 ## Key Decisions
 
-- **Raw averaging for composite sentiment** — Z-score normalization against global means was unintuitive (positive raw values → negative composite). Switched to simple average of raw scores. The `normalize()` method still exists if needed for other purposes.
-- **AAII as contrarian indicator** — Extreme bearishness in the survey historically precedes rallies; extreme bullishness precedes pullbacks. Scoring reflects this inversion.
-- **CNN F&G as contrarian indicator** — Same inversion: extreme fear (≤25) → +2 bullish points, fear (≤40) → +1, extreme greed (≥80) → -1 bearish. CNN's API requires a full browser User-Agent header (rejects short UAs with 418).
-- **Nasdaq Data Link API with Excel fallback** — AAII data fetched via API when `NASDAQ_DATA_LINK_API_KEY` is set; otherwise falls back to direct Excel download from aaii.com. Both paths handle decimal vs percentage format auto-detection.
-- **User-Agent header required for StockTwits** — Cloudflare blocks default `python-requests` UA from Docker.
-- **Ratio scoring for StockTwits** — `(bull - bear) / (bull + bear)`, range [-1, +1]. No NLP needed.
-- **Data collection phase first** — All sentiment sources displayed in reports but NOT used as ML features or in scoring. Need history first.
-- **VADER for Tiingo/Finviz scoring** — Lightweight, stateless, thread-safe NLP for news headlines.
-- **Source field on sentiment_snapshots** — Unique index `(symbol, date, source)` supports multiple providers.
-- **Curve weights differentiated by strategy** — Baseline 10x, MR 25x. Capitulation motifs are complementary with mean reversion (both reward oversold conditions) but contradictory with baseline trend-following. Higher MR weight lets motifs meaningfully influence MR rankings.
-- **DuckDB lock contention** — The motif catalog build holds a DuckDB connection for hours. Must not overlap with `-u`/`-p`. Run on research droplet or schedule outside cron window. Orphaned spawn processes from ProcessPoolExecutor can persist after kill — restart container to clear.
-- **10-bar motif windows not viable** — Only 1,018 unique keys (vs 34,890 for 20/40), 70% degenerate to 1-2 segments. The 20/40-bar combination covers short and medium term effectively.
-- **Strategy objects are stateless and picklable** — Critical for `ProcessPoolExecutor` workers.
-- **DuckDB is sole OHLCV store** — MongoDB retains scores, journal, overviews, checkpoints, symbols, news.
+- **Deterministic IDs for journal collections** — `idea_{date}_{symbol}_{strategy}` → `order_{idea_id}_{T1|T2}` → `pos_{idea_id}` → `review_{pos_id}`. Enables cross-collection linking without JOINs. Makes reconciliation idempotent (re-running doesn't duplicate).
+- **Trade ideas separate from signal journal** — `journal_signals` captures ALL signals (hundreds per run), `trade_ideas` captures only the top-N you intend to trade. Different purpose, cardinality, and query patterns.
+- **Legs as embedded subdocs** — T1/T2 are always part of one logical position. Querying "show me the position for AAPL" returns one document with both legs, not two rows.
+- **Extend paper_trader, don't rewrite** — `paper_trades` collection still written for backward compat. New `trade_orders` collection adds per-leg detail and idea linkage alongside it.
+- **Strategy name normalization** — Candidates use display names ("Baseline", "MeanRev"), journal normalizes to internal names ("baseline", "mean_reversion") for consistent ID generation.
+- **Non-fatal journal integration** — All journal calls in `-p` pipeline wrapped in try/except. Journal failures never break prediction.
+- **Close reason inference** — Reconciler infers stop/target/manual from exit price vs planned levels (within 0.5% tolerance).
+- **Raw averaging for composite sentiment** — Z-score normalization was unintuitive. Simple average of raw scores.
+- **Curve weights differentiated by strategy** — Baseline 10x, MR 25x.
+- **DuckDB is sole OHLCV store** — MongoDB retains scores, journal, overviews, checkpoints, symbols, news, and now trade lifecycle data.
 
 ---
 
@@ -105,39 +100,42 @@ Added CNN Fear & Greed as the 3rd market-wide indicator alongside VIX and AAII. 
 
 | File | Role |
 |------|------|
-| `src/bluehorseshoe/data/cnn_fear_greed.py` | CNN Fear & Greed fetch, snapshot metrics |
-| `src/bluehorseshoe/data/aaii.py` | AAII survey fetch (Nasdaq Data Link + Excel fallback), snapshot metrics |
-| `src/bluehorseshoe/data/vix.py` | VIX fetch from CBOE, snapshot metrics |
-| `src/bluehorseshoe/data/finviz_news.py` | Finviz news fetch, VADER scoring, MongoDB storage |
-| `src/bluehorseshoe/data/stocktwits.py` | StockTwits fetch, bull/bear ratio scoring, MongoDB storage |
-| `src/bluehorseshoe/data/tiingo_news.py` | Tiingo news fetch, VADER scoring, MongoDB storage |
-| `src/bluehorseshoe/analysis/curves/segmenter.py` | RDP curve segmentation on ATR-normalized prices |
-| `src/bluehorseshoe/analysis/curves/signature.py` | 17-dim signature extraction + motif key generation |
-| `src/bluehorseshoe/analysis/curves/motif_catalog.py` | Catalog builder, forward outcomes, scoring |
-| `src/bluehorseshoe/analysis/curves/motif_lookup.py` | In-memory catalog lookup for workers |
-| `src/bluehorseshoe/analysis/indicators/curve_indicators.py` | CurveIndicator class (pipeline integration) |
-| `src/bluehorseshoe/analysis/sentiment_normalizer.py` | Composite sentiment (raw score averaging) |
-| `src/bluehorseshoe/reporting/html_reporter.py` | All 3 report types with 4 sentiment columns + VIX/AAII regime panels |
-| `src/bluehorseshoe/analysis/strategy.py` | Pipeline wiring for all sentiment sources |
-| `src/bluehorseshoe/analysis/market_regime.py` | Market health scoring (SPY, QQQ, breadth, VIX, AAII, CNN F&G) |
-| `src/main.py` | CLI entry, `-r` regeneration with all sentiment caches |
-| `src/bluehorseshoe/data/duckdb_store.py` | DuckDB storage backend (thread-safe via RLock) |
-| `src/bluehorseshoe/analysis/strategy_interface.py` | `TradingStrategy` ABC |
-| `src/bluehorseshoe/analysis/strategy_registry.py` | Strategy registry |
+| `src/bluehorseshoe/trading/trade_models.py` | Dataclasses + ID helpers for full trade lifecycle |
+| `src/bluehorseshoe/trading/trade_idea_logger.py` | Logs top-N candidates to `trade_ideas` |
+| `src/bluehorseshoe/trading/execution_importer.py` | IBKR + CSV fill import to `trade_fills` |
+| `src/bluehorseshoe/trading/csv_legacy_importer.py` | Historical spreadsheet import with position synthesis |
+| `src/bluehorseshoe/trading/trade_reconciler.py` | Ideas→orders→fills matching, position building |
+| `src/bluehorseshoe/trading/trade_metrics.py` | P/L, R-multiple, win rate, expectancy, discipline |
+| `src/bluehorseshoe/trading/trade_journal_reporter.py` | Daily review + weekly summary generation |
+| `src/bluehorseshoe/trading/paper_trader.py` | Bracket order submission + trade_orders logging |
+| `src/bluehorseshoe/data/ibkr_client.py` | IBKR Gateway client (quotes, orders, executions) |
+| `src/bluehorseshoe/core/journal.py` | Immutable signal journal (Layer A) |
+| `src/bluehorseshoe/analysis/strategy.py` | Pipeline wiring |
+| `src/main.py` | CLI entry with all journal commands |
+| `src/bluehorseshoe/data/duckdb_store.py` | DuckDB storage backend |
 | `backup.sh` / `backup.conf` | Daily backup to Google Drive |
 
 ---
 
-## MongoDB Collections (Sentiment)
+## MongoDB Collections (Trade Journal)
+
+| Collection | Unique Index | Content |
+|------------|-------------|---------|
+| `trade_ideas` | `idea_id` | What BH intended to trade (top N per prediction) |
+| `trade_orders` | `order_ref` | Orders submitted to broker (per T1/T2 leg) |
+| `trade_fills` | `fill_id` | Actual executions from IBKR or CSV (source of truth) |
+| `trade_positions` | `position_id` | Synthesized from fills, with T1/T2 legs |
+| `trade_reviews` | `review_id` | Plan-vs-actual metrics, discipline, outcome |
+
+## MongoDB Collections (Sentiment & Other)
 
 | Collection | Content |
 |------------|---------|
-| `symbol_news` | AlphaVantage news sentiment per symbol |
-| `symbol_news_tiingo` | Raw Tiingo articles with VADER scores per symbol |
-| `symbol_news_stocktwits` | StockTwits messages with bull/bear ratio per symbol |
-| `symbol_news_finviz` | Finviz news headlines with VADER scores per symbol |
-| `sentiment_snapshots` | Daily snapshots, keyed by `(symbol, date, source)` where source is `"alphavantage"`, `"tiingo"`, `"stocktwits"`, `"finviz"`, `"vix"`, `"aaii"`, or `"cnn_fear_greed"` |
-| `motif_catalog` | Curve motif patterns with forward-outcome statistics (edge, stability, composite score) |
+| `journal_batches` / `journal_signals` | Immutable prediction snapshots (all signals) |
+| `trade_scores` | Daily scores per strategy |
+| `paper_trades` | Legacy order execution log (still written for compat) |
+| `sentiment_snapshots` | Daily snapshots by `(symbol, date, source)` |
+| `motif_catalog` | Curve motif patterns with forward-outcome statistics |
 
 ---
 
@@ -179,7 +177,13 @@ doctl compute droplet delete bh-research --force
 docker exec bluehorseshoe python src/main.py -p                          # Prediction (~72 min)
 docker exec bluehorseshoe python src/main.py -u                          # Data update (~30 min)
 docker exec bluehorseshoe python src/main.py -r YYYY-MM-DD               # Regenerate report (~30 sec)
-docker exec bluehorseshoe pytest -v                                      # Tests (519 passing)
+docker exec bluehorseshoe python src/main.py --journal-import-ibkr        # Import IBKR fills
+docker exec bluehorseshoe python src/main.py --journal-import-csv FILE   # Import CSV fills (--legacy for spreadsheet)
+docker exec bluehorseshoe python src/main.py --journal-reconcile         # Build positions from fills
+docker exec bluehorseshoe python src/main.py --journal-review YYYY-MM-DD # Daily review
+docker exec bluehorseshoe python src/main.py --journal-weekly YYYY-MM-DD # Weekly summary
+docker exec bluehorseshoe python src/main.py --journal-log-ideas YYYY-MM-DD # Retroactive idea logging
+docker exec bluehorseshoe pytest -v                                      # Tests (687 passing)
 docker exec bluehorseshoe ./lint.sh                                      # Lint
 ```
 
@@ -191,10 +195,10 @@ docker exec bluehorseshoe ./lint.sh                                      # Lint
 ## Git Status
 
 **Branch:** master
-**Latest commit:** `a014c62` — docs: Update TO-DO and session handoff for motif catalog completion
-**Pushed:** Yes, up to date with origin
-**Tests:** 519 passing
+**Latest commit:** uncommitted — trade journal system (7 new files, 3 modified, 8 test files)
+**Pushed:** No — pending commit
+**Tests:** 687 passing
 
 ---
 
-**Last Updated:** March 22, 2026
+**Last Updated:** March 23, 2026

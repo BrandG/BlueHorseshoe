@@ -277,6 +277,100 @@ class IBKRClient:
             logger.error("Error placing bracket order for %s: %s", symbol, e)
             return {"order_ids": [], "status": "error", "error": str(e)}
 
+    def get_executions(self, since: Optional[datetime] = None) -> List[dict]:
+        """
+        Get execution reports from IB Gateway.
+
+        Args:
+            since: Only return executions after this time.
+                   Defaults to last 24 hours.
+
+        Returns:
+            List of dicts with: exec_id, symbol, side, quantity, price,
+            commission, exec_time, order_id
+        """
+        try:
+            self._ensure_connected()
+        except Exception as e:
+            logger.error("Cannot connect to fetch executions: %s", e)
+            return []
+
+        try:
+            import ib_async  # pylint: disable=import-outside-toplevel
+            from datetime import timedelta  # pylint: disable=import-outside-toplevel
+
+            # Build execution filter
+            exec_filter = ib_async.ExecutionFilter()
+            if since:
+                exec_filter.time = since.strftime("%Y%m%d-%H:%M:%S")
+            else:
+                # Default: last 24 hours
+                yesterday = datetime.now() - timedelta(days=1)
+                exec_filter.time = yesterday.strftime("%Y%m%d-%H:%M:%S")
+
+            fills = self._ib.reqExecutions(exec_filter)
+
+            results = []
+            for fill in fills:
+                execution = fill.execution
+                commission_report = fill.commissionReport
+                commission = 0.0
+                if commission_report and _safe_float(commission_report.commission) is not None:
+                    commission = commission_report.commission
+
+                results.append({
+                    "exec_id": execution.execId,
+                    "symbol": fill.contract.symbol,
+                    "side": execution.side.lower(),  # "BOT" → "bot", "SLD" → "sld"
+                    "quantity": int(execution.shares),
+                    "price": float(execution.price),
+                    "commission": commission,
+                    "exec_time": execution.time,
+                    "order_id": execution.orderId,
+                })
+
+            logger.info("Retrieved %d executions from IBKR", len(results))
+            return results
+
+        except Exception as e:
+            logger.error("Error fetching executions: %s", e)
+            return []
+
+    def get_commissions(self, exec_ids: Optional[List[str]] = None) -> dict:
+        """
+        Get commission reports, optionally filtered by execution IDs.
+
+        Args:
+            exec_ids: If provided, only return commissions for these exec IDs.
+
+        Returns:
+            Dict mapping exec_id -> commission amount.
+        """
+        try:
+            self._ensure_connected()
+        except Exception as e:
+            logger.error("Cannot connect to fetch commissions: %s", e)
+            return {}
+
+        try:
+            import ib_async  # pylint: disable=import-outside-toplevel
+
+            fills = self._ib.fills()
+            result = {}
+            for fill in fills:
+                eid = fill.execution.execId
+                if exec_ids and eid not in exec_ids:
+                    continue
+                cr = fill.commissionReport
+                if cr and _safe_float(cr.commission) is not None:
+                    result[eid] = cr.commission
+
+            return result
+
+        except Exception as e:
+            logger.error("Error fetching commissions: %s", e)
+            return {}
+
     def get_open_orders(self) -> list:
         """
         Get all open orders from IB Gateway.

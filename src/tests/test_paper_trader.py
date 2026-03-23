@@ -332,3 +332,150 @@ class TestGracefulFailure:
 
         assert results[0].status == "error"
         assert "Connection refused" in results[0].error
+
+
+# ── Trade Orders (Phase 2) ──────────────────────────────────────────
+
+class TestTradeOrderLogging:
+    """Tests for normalized trade_orders documents linked to trade_ideas."""
+
+    def _make_db_with_orders_collection(self):
+        """Create mock DB that tracks separate collections."""
+        db = MagicMock()
+        paper_col = MagicMock()
+        orders_col = MagicMock()
+        collections = {
+            "paper_trades": paper_col,
+            "trade_orders": orders_col,
+        }
+        db.__getitem__ = MagicMock(side_effect=lambda name: collections[name])
+        return db, paper_col, orders_col
+
+    def test_trade_orders_written_for_submitted(self, tmp_path):
+        """Submitted orders with idea_id should write T1 and T2 trade_orders docs."""
+        db, paper_col, orders_col = self._make_db_with_orders_collection()
+        # Ensure duplicate check passes (no existing order)
+        paper_col.find_one.return_value = None
+        client = MagicMock()
+        client.place_bracket_order.return_value = {
+            "order_ids": [1, 2, 3], "status": "submitted", "error": None,
+        }
+        config = PaperTradeConfig(
+            total_investment=10000.0, max_positions=10, logs_path=str(tmp_path),
+        )
+        trader = PaperTrader(ibkr_client=client, config=config, database=db)
+
+        idea_lookup = {("AAPL", "Baseline"): "idea_2026-03-22_AAPL_baseline"}
+        results = trader.execute(
+            [_make_candidate(close=50.0)], "2026-03-22", idea_lookup=idea_lookup,
+        )
+
+        assert results[0].idea_id == "idea_2026-03-22_AAPL_baseline"
+        # Should write 2 order docs: T1 + T2
+        assert orders_col.update_one.call_count == 2
+
+        # Check T1 doc
+        t1_call = orders_col.update_one.call_args_list[0]
+        t1_filter = t1_call[0][0]
+        t1_doc = t1_call[0][1]["$set"]
+        assert t1_filter == {"order_ref": "order_idea_2026-03-22_AAPL_baseline_T1"}
+        assert t1_doc["leg"] == "T1"
+        assert t1_doc["idea_id"] == "idea_2026-03-22_AAPL_baseline"
+        assert t1_doc["symbol"] == "AAPL"
+        assert t1_doc["quantity"] == 10  # 20 total / 2
+
+        # Check T2 doc
+        t2_call = orders_col.update_one.call_args_list[1]
+        t2_doc = t2_call[0][1]["$set"]
+        assert t2_doc["leg"] == "T2"
+        assert t2_doc["quantity"] == 10
+
+    def test_no_trade_orders_without_idea_id(self, tmp_path):
+        """Orders without idea_id should not write trade_orders."""
+        db, paper_col, orders_col = self._make_db_with_orders_collection()
+        paper_col.find_one.return_value = None
+        client = MagicMock()
+        client.place_bracket_order.return_value = {
+            "order_ids": [1, 2, 3], "status": "submitted", "error": None,
+        }
+        config = PaperTradeConfig(
+            total_investment=10000.0, max_positions=10, logs_path=str(tmp_path),
+        )
+        trader = PaperTrader(ibkr_client=client, config=config, database=db)
+
+        # No idea_lookup → no idea_id
+        results = trader.execute([_make_candidate(close=50.0)], "2026-03-22")
+        assert results[0].idea_id is None
+        assert orders_col.update_one.call_count == 0
+
+    def test_skipped_orders_no_trade_orders(self, tmp_path):
+        """Skipped orders should not write trade_orders even with idea_id."""
+        db, _, orders_col = self._make_db_with_orders_collection()
+        client = MagicMock()
+        config = PaperTradeConfig(
+            total_investment=10000.0, max_positions=10, logs_path=str(tmp_path),
+        )
+        trader = PaperTrader(ibkr_client=client, config=config, database=db)
+
+        # Invalid prices → skipped
+        idea_lookup = {("AAPL", "Baseline"): "idea_2026-03-22_AAPL_baseline"}
+        results = trader.execute(
+            [_make_candidate(close=50.0, stop_loss=47.5, target=49.0)],  # invalid: target < entry
+            "2026-03-22", idea_lookup=idea_lookup,
+        )
+        assert results[0].status == "skipped"
+        assert orders_col.update_one.call_count == 0
+
+    def test_per_leg_order_ids_tracked(self, tmp_path):
+        """T1 and T2 order_ids should be tracked separately on OrderResult."""
+        client = MagicMock()
+        call_count = [0]
+        def bracket_side_effect(**kwargs):
+            call_count[0] += 1
+            return {
+                "order_ids": [call_count[0] * 10 + 1, call_count[0] * 10 + 2, call_count[0] * 10 + 3],
+                "status": "submitted", "error": None,
+            }
+        client.place_bracket_order.side_effect = bracket_side_effect
+
+        trader = _make_trader(tmp_path, client=client)
+        results = trader.execute([_make_candidate(close=50.0)], "2026-03-22")
+
+        r = results[0]
+        assert r.t1_order_ids == [11, 12, 13]
+        assert r.t2_order_ids == [21, 22, 23]
+        assert r.order_ids == [11, 12, 13, 21, 22, 23]  # Combined for backward compat
+        assert r.t1_qty == 10
+        assert r.t2_qty == 10
+
+    def test_single_share_only_t2(self, tmp_path):
+        """With only 1 share, only T2 order is placed."""
+        client = MagicMock()
+        client.place_bracket_order.return_value = {
+            "order_ids": [1, 2, 3], "status": "submitted", "error": None,
+        }
+        config = PaperTradeConfig(
+            total_investment=600.0, max_positions=10, logs_path=str(tmp_path),
+        )
+        trader = PaperTrader(ibkr_client=client, config=config)
+        # $600 / 10 = $60 per position, floor(60/50) = 1 share
+        results = trader.execute([_make_candidate(close=50.0)], "2026-03-22")
+
+        r = results[0]
+        assert r.quantity == 1
+        assert r.t1_order_ids == []
+        assert r.t2_order_ids == [1, 2, 3]
+        assert r.t2_qty == 1
+
+    def test_backward_compat_no_idea_lookup(self, tmp_path):
+        """Calling execute() without idea_lookup should work identically to before."""
+        client = MagicMock()
+        client.place_bracket_order.return_value = {
+            "order_ids": [1, 2, 3], "status": "submitted", "error": None,
+        }
+        trader = _make_trader(tmp_path, client=client)
+        results = trader.execute([_make_candidate(close=50.0)], "2026-03-22")
+
+        assert len(results) == 1
+        assert results[0].status == "submitted"
+        assert results[0].idea_id is None

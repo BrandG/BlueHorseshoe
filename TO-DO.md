@@ -26,6 +26,7 @@
 
 ### IBKR Integration
 - Paper trading mode — bracket order submission code written (`f3ed895`) but not yet tested with live IBKR connection
+- ~~**Execution retrieval**~~ **Done** (March 23) — `get_executions()` and `get_commissions()` added to `IBKRClient`. Used by `--journal-import-ibkr` to pull fills into trade journal.
 - Move T2 stop to breakeven after T1 fills — requires real-time order monitoring loop
 - Position sizing based on account equity and per-trade risk (`MAX_RISK_PERCENT`)
 - Real-time P&L tracking and stop-loss/take-profit order management
@@ -56,6 +57,16 @@
   - Non-deterministic output makes backtesting difficult; would need caching/snapshotting
 
 ### Track Record / Signal Journal
+- ~~Layer A: Signal journal~~ **Done** (earlier) — `SignalJournal` in `core/journal.py` freezes immutable prediction snapshots into `journal_batches` / `journal_signals`
+- ~~**Layer C: Real execution journal**~~ **Done** (March 23) — Full 5-phase trade journal system:
+  - `trade_ideas` — top-N actionable candidates logged automatically during `-p`
+  - `trade_orders` — per-leg (T1/T2) bracket orders linked to ideas
+  - `trade_fills` — actual executions from IBKR or CSV import
+  - `trade_positions` — reconciled positions with T1/T2 legs, PnL, hold days
+  - `trade_reviews` — plan-vs-actual metrics, discipline scoring, outcome classification
+  - **Metrics:** win rate, profit factor, expectancy, R-multiple, entry slippage, plan adherence
+  - **CLI:** `--journal-import-ibkr`, `--journal-import-csv`, `--journal-reconcile`, `--journal-review`, `--journal-weekly`, `--journal-log-ideas`
+  - 7 new source files in `src/bluehorseshoe/trading/`, 67 new tests
 - Layer B: Hypothetical trade engine — auto-evaluate signal outcomes after hold period
   - Run automatically N days after each batch (e.g. cron or post-prediction check for mature batches)
   - For each signal: was entry hit? Stop hit first? Target hit? Time exit?
@@ -63,12 +74,12 @@
   - Store in `journal_hypothetical_trades` collection
   - Compute: win rate, avg win/loss, expectancy, profit factor, Sharpe, Sortino, max drawdown
   - Include SPY benchmark comparison for the same period
-- Layer C: Real execution journal — immutable record of what you did with real money
-  - **`journal_capital_snapshots`** — daily equity state (one record per trading day)
-  - **`journal_executed_trades`** — one record per real trade, linked to signal
-  - **`journal_skipped_signals`** — signals BH recommended but you chose not to trade
-  - **Behavioral analytics** — signal adherence rate, override impact, slippage profile, discipline metrics
-  - **Monthly capital statement** — auto-generated with returns, benchmark comparison, model adherence score
+- **Journal enhancements (future):**
+  - `journal_capital_snapshots` — daily equity state (one record per trading day)
+  - `journal_skipped_signals` — signals BH recommended but you chose not to trade
+  - Monthly capital statement — auto-generated with returns, benchmark comparison, model adherence score
+  - Wire journal steps (`--journal-import-ibkr` → `--journal-reconcile` → `--journal-review`) into daily cron pipeline
+  - HTML journal report generation (alongside existing prediction reports)
 - Portfolio-level metrics dashboard (auto-computed weekly)
   - CAGR, monthly returns, win rate, expectancy, profit factor
   - Sharpe, Sortino, Ulcer index, max drawdown (absolute + rolling 30-day)

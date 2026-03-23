@@ -253,6 +253,21 @@ if __name__ == "__main__":
                 logging.info("Arcade report saved to %s", arcade_path)
                 print(f"Arcade report: {arcade_path}")
 
+                # ── Trade Idea Logging ─────────────────────────────
+                idea_lookup = {}
+                try:
+                    from bluehorseshoe.trading.trade_idea_logger import TradeIdeaLogger  # pylint: disable=import-outside-toplevel
+                    idea_logger = TradeIdeaLogger(database=ctx.db)
+                    idea_count, idea_lookup = idea_logger.log_ideas(
+                        candidates=report_data.get('candidates', []),
+                        batch_date=target_date,
+                        max_positions=ctx.config.paper_max_positions,
+                        total_investment=ctx.config.paper_total_investment,
+                    )
+                    print(f"Trade ideas logged: {idea_count}")
+                except Exception as e:  # pylint: disable=broad-exception-caught
+                    logging.error("Trade idea logging failed (non-fatal): %s", e)
+
                 # ── Paper Trading ────────────────────────────────────
                 if ctx.config.paper_trading_enabled:
                     try:
@@ -270,6 +285,7 @@ if __name__ == "__main__":
                         paper_results = paper_trader.execute(
                             candidates=report_data.get('candidates', []),
                             target_date=target_date,
+                            idea_lookup=idea_lookup,
                         )
                         submitted = sum(1 for r in paper_results if r.status == "submitted")
                         skipped = sum(1 for r in paper_results if r.status == "skipped")
@@ -963,6 +979,175 @@ if __name__ == "__main__":
                           f"{m['edge']:>8.3f} {m['edge_zscore']:>8.2f} {m['composite_score']:>10.4f}")
             else:
                 print("No motifs met the minimum sample threshold.")
+    elif "--journal-review" in sys.argv:
+        logging.info("Generating daily trade review...")
+        with create_cli_context() as ctx:
+            try:
+                jrv_idx = sys.argv.index("--journal-review")
+                jrv_date = None
+                if len(sys.argv) > jrv_idx + 1 and not sys.argv[jrv_idx + 1].startswith("-"):
+                    jrv_date = sys.argv[jrv_idx + 1]
+                if not jrv_date:
+                    jrv_date = get_latest_market_date(database=ctx.db, store=ctx.store)
+
+                from bluehorseshoe.trading.trade_journal_reporter import TradeJournalReporter  # pylint: disable=import-outside-toplevel
+                reporter = TradeJournalReporter(database=ctx.db)
+                result = reporter.generate_daily_review(jrv_date)
+                reporter.print_daily_review(result)
+            except Exception as e:  # pylint: disable=broad-exception-caught
+                logging.error("Daily review failed: %s", e)
+                print(f"Error: {e}")
+                sys.exit(1)
+    elif "--journal-weekly" in sys.argv:
+        logging.info("Generating weekly trade summary...")
+        with create_cli_context() as ctx:
+            try:
+                jw_idx = sys.argv.index("--journal-weekly")
+                if len(sys.argv) <= jw_idx + 1:
+                    print("Usage: python src/main.py --journal-weekly YYYY-MM-DD (week start)")
+                    sys.exit(1)
+                jw_date = sys.argv[jw_idx + 1]
+
+                from bluehorseshoe.trading.trade_journal_reporter import TradeJournalReporter  # pylint: disable=import-outside-toplevel
+                reporter = TradeJournalReporter(database=ctx.db)
+                summary = reporter.generate_weekly_summary(jw_date)
+                reporter.print_weekly_summary(summary)
+            except Exception as e:  # pylint: disable=broad-exception-caught
+                logging.error("Weekly summary failed: %s", e)
+                print(f"Error: {e}")
+                sys.exit(1)
+    elif "--journal-reconcile" in sys.argv:
+        logging.info("Running trade reconciliation...")
+        with create_cli_context() as ctx:
+            try:
+                jr_idx = sys.argv.index("--journal-reconcile")
+                jr_date = None
+                if len(sys.argv) > jr_idx + 1 and not sys.argv[jr_idx + 1].startswith("-"):
+                    jr_date = sys.argv[jr_idx + 1]
+
+                from bluehorseshoe.trading.trade_reconciler import TradeReconciler  # pylint: disable=import-outside-toplevel
+                reconciler = TradeReconciler(database=ctx.db)
+                result = reconciler.reconcile(batch_date=jr_date)
+                print(f"Reconciliation: {result['orders_matched']} orders matched, "
+                      f"{result['fills_matched']} fills matched, "
+                      f"{result['positions_created']} positions created, "
+                      f"{result['positions_updated']} updated, "
+                      f"{result['unmatched_fills']} unmatched fills")
+            except Exception as e:  # pylint: disable=broad-exception-caught
+                logging.error("Reconciliation failed: %s", e)
+                print(f"Error: {e}")
+                sys.exit(1)
+    elif "--journal-import-ibkr" in sys.argv:
+        logging.info("Importing executions from IBKR...")
+        with create_cli_context() as ctx:
+            try:
+                from bluehorseshoe.trading.execution_importer import ExecutionImporter  # pylint: disable=import-outside-toplevel
+                importer = ExecutionImporter(database=ctx.db, ibkr_client=ctx.ibkr)
+                count = importer.import_from_ibkr()
+                print(f"Imported {count} fills from IBKR")
+            except Exception as e:  # pylint: disable=broad-exception-caught
+                logging.error("IBKR execution import failed: %s", e)
+                print(f"Error: {e}")
+                sys.exit(1)
+    elif "--journal-import-csv" in sys.argv:
+        logging.info("Importing fills from CSV...")
+        with create_cli_context() as ctx:
+            try:
+                jic_idx = sys.argv.index("--journal-import-csv")
+                if len(sys.argv) <= jic_idx + 1:
+                    print("Usage: python src/main.py --journal-import-csv PATH")
+                    sys.exit(1)
+                csv_file = sys.argv[jic_idx + 1]
+
+                if "--legacy" in sys.argv:
+                    from bluehorseshoe.trading.csv_legacy_importer import CSVLegacyImporter  # pylint: disable=import-outside-toplevel
+                    importer = CSVLegacyImporter(database=ctx.db)
+                    result = importer.import_file(csv_file)
+                    print(f"Legacy import: {result['fills_imported']} fills, "
+                          f"{result['positions_created']} positions, {result['errors']} errors")
+                else:
+                    from bluehorseshoe.trading.execution_importer import ExecutionImporter  # pylint: disable=import-outside-toplevel
+                    importer = ExecutionImporter(database=ctx.db)
+                    count = importer.import_from_csv(csv_file)
+                    print(f"Imported {count} fills from CSV")
+            except Exception as e:  # pylint: disable=broad-exception-caught
+                logging.error("CSV import failed: %s", e)
+                print(f"Error: {e}")
+                sys.exit(1)
+    elif "--journal-log-ideas" in sys.argv:
+        # Retroactively log trade ideas from saved scores
+        logging.info("Logging trade ideas from saved scores...")
+        with create_cli_context() as ctx:
+            try:
+                jli_idx = sys.argv.index("--journal-log-ideas")
+                jli_date = None
+                if len(sys.argv) > jli_idx + 1 and not sys.argv[jli_idx + 1].startswith("-"):
+                    jli_date = sys.argv[jli_idx + 1]
+                if not jli_date:
+                    jli_date = get_latest_market_date(database=ctx.db, store=ctx.store)
+                    logging.info("No date provided, defaulting to latest: %s", jli_date)
+
+                from bluehorseshoe.core.scores import ScoreManager  # pylint: disable=import-outside-toplevel
+                score_manager = ScoreManager(database=ctx.db)
+                baseline_scores = score_manager.get_scores(jli_date, strategy="baseline")
+                mr_scores = score_manager.get_scores(jli_date, strategy="mean_reversion")
+
+                if not baseline_scores and not mr_scores:
+                    print(f"No scores found for {jli_date}. Run prediction first (-p).")
+                    sys.exit(0)
+
+                # Build candidate dicts from scores (same structure as -p output)
+                jli_candidates = []
+                for s in baseline_scores:
+                    meta = s.get('metadata', {})
+                    entry_price = meta.get('entry_price', 0)
+                    if not entry_price:
+                        continue
+                    jli_candidates.append({
+                        "symbol": s['symbol'],
+                        "strategy": "Baseline",
+                        "score": s['score'],
+                        "close": entry_price,
+                        "stop_loss": meta.get('stop_loss', 0),
+                        "t1_target": entry_price * 1.02 if entry_price > 0 else 0,
+                        "target": meta.get('take_profit', 0),
+                        "ml_prob": meta.get('ml_win_prob', 0.0),
+                        "sentiment": meta.get('sentiment', 0.0),
+                        "reasons": [f"{k}={v:.1f}" for k, v in meta.get('components', {}).items() if v != 0],
+                    })
+                for s in mr_scores:
+                    meta = s.get('metadata', {})
+                    entry_price = meta.get('entry_price', 0)
+                    if not entry_price:
+                        continue
+                    jli_candidates.append({
+                        "symbol": s['symbol'],
+                        "strategy": "MeanRev",
+                        "score": s['score'],
+                        "close": entry_price,
+                        "stop_loss": meta.get('stop_loss', 0),
+                        "t1_target": entry_price * 1.02 if entry_price > 0 else 0,
+                        "target": meta.get('take_profit', 0),
+                        "ml_prob": meta.get('ml_win_prob', 0.0),
+                        "sentiment": meta.get('sentiment', 0.0),
+                        "reasons": [f"{k}={v:.1f}" for k, v in meta.get('components', {}).items() if v != 0],
+                    })
+
+                jli_candidates.sort(key=lambda x: x['score'], reverse=True)
+
+                from bluehorseshoe.trading.trade_idea_logger import TradeIdeaLogger  # pylint: disable=import-outside-toplevel
+                idea_logger = TradeIdeaLogger(database=ctx.db)
+                count, _ = idea_logger.log_ideas(
+                    candidates=jli_candidates,
+                    batch_date=jli_date,
+                    max_positions=ctx.config.paper_max_positions,
+                    total_investment=ctx.config.paper_total_investment,
+                )
+                print(f"Logged {count} trade ideas for {jli_date}")
+            except Exception as e:  # pylint: disable=broad-exception-caught
+                logging.error("Journal log ideas failed: %s", e)
+                print(f"Error: {e}")
+                sys.exit(1)
     elif "-d" in sys.argv:
         logging.info("Debugging...")
         debug_test()
