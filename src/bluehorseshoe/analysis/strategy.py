@@ -41,29 +41,16 @@ from bluehorseshoe.analysis.constants import (
     ENABLE_DYNAMIC_ENTRY
 )
 from bluehorseshoe.analysis.market_regime import MarketRegime
-from bluehorseshoe.analysis.sentiment_normalizer import SentimentNormalizer
 from bluehorseshoe.analysis.ml_overlay import MLInference
 from bluehorseshoe.analysis.ml_profit_target import ProfitTargetInference
 from bluehorseshoe.analysis.ml_stop_loss import StopLossInference
+from bluehorseshoe.analysis.postprocess import CandidateAssembler, SentimentEnricher
 from bluehorseshoe.analysis.technical_analyzer import TechnicalAnalyzer
 from bluehorseshoe.core.config import Settings, get_settings, weights_config
 from bluehorseshoe.core.scores import ScoreManager
 from bluehorseshoe.core.symbols import (
     get_symbol_name_list, get_symbols_from_mongo, get_overview_from_mongo,
-    get_sentiment_score, get_sentiment_score_with_count, save_sentiment_snapshots,
-    fetch_news_sentiment_from_net, upsert_news_sentiment_to_mongo,
-)
-from bluehorseshoe.data.tiingo_news import (
-    fetch_tiingo_news, score_articles, upsert_tiingo_news_to_mongo,
-    get_tiingo_sentiment_score_with_count,
-)
-from bluehorseshoe.data.stocktwits import (
-    fetch_stocktwits_messages, score_stocktwits_messages,
-    upsert_stocktwits_to_mongo, get_stocktwits_sentiment_score_with_count,
-)
-from bluehorseshoe.data.finviz_news import (
-    fetch_finviz_news, score_finviz_headlines,
-    upsert_finviz_news_to_mongo, get_finviz_sentiment_score_with_count,
+    get_sentiment_score,
 )
 from bluehorseshoe.analysis.ml_utils import build_ml_features
 from bluehorseshoe.analysis.strategy_registry import get_all_strategies
@@ -998,87 +985,8 @@ class SwingTrader:
             logging.info("Saved %d scores (%d strategies) to trade_scores",
                          len(score_data), len(self.strategies))
 
-        # 6. Prepare Return Data for HTML Reporter
-        candidates = []
-        for r in valid_results:
-            for strat in self.strategies:
-                score = r.get(strat.score_key, 0)
-                if score > 0:
-                    setup = r.get(strat.setup_key, {})
-                    entry_price = setup.get("entry_price", 0)
-                    cand = {
-                        "symbol": r["symbol"],
-                        "exchange": r.get("exchange", "Unknown"),
-                        "strategy": strat.display_name,
-                        "score": score,
-                        "close": entry_price,
-                        "stop_loss": setup.get("stop_loss", 0),
-                        "t1_target": entry_price * 1.02 if entry_price > 0 else 0,
-                        "target": setup.get("take_profit", 0),
-                        "ml_prob": r.get(strat.ml_prob_key, 0.0),
-                        "sentiment": r.get("sentiment", 0.0),
-                        "sentiment_tiingo": r.get("sentiment_tiingo", 0.0),
-                        "sentiment_stocktwits": r.get("sentiment_stocktwits", 0.0),
-                        "sentiment_finviz": r.get("sentiment_finviz", 0.0),
-                        "reasons": [
-                            f"{k}={v:.1f}"
-                            for k, v in r.get(strat.components_key, {}).items()
-                            if v != 0
-                        ],
-                    }
-                    if r.get("connors_flag"):
-                        cand["connors_flag"] = True
-                    candidates.append(cand)
-
-        # Build Connors RSI(2) candidates — scanned from full universe independently
-        connors_candidates = []
-        for r in valid_results:
-            if not r.get('connors_flag'):
-                continue
-            # Prefer MR setup data, fall back to baseline (iterate strategies in reverse priority)
-            best_setup = None
-            best_score = 0
-            best_ml_prob = 0.0
-            for strat in reversed(self.strategies):
-                if r.get(strat.score_key, 0) > 0:
-                    best_setup = r.get(strat.setup_key, {})
-                    best_score = r[strat.score_key]
-                    best_ml_prob = r.get(strat.ml_prob_key, 0.0)
-            if not best_setup:
-                continue
-            entry_price = best_setup.get("entry_price", 0)
-            connors_candidates.append({
-                "symbol": r["symbol"],
-                "exchange": r.get("exchange", "Unknown"),
-                "strategy": "Connors",
-                "score": best_score,
-                "close": entry_price,
-                "stop_loss": best_setup.get("stop_loss", 0),
-                "t1_target": entry_price * 1.02 if entry_price > 0 else 0,
-                "target": best_setup.get("take_profit", 0),
-                "ml_prob": best_ml_prob,
-                "sentiment": r.get("sentiment", 0.0),
-                "sentiment_tiingo": r.get("sentiment_tiingo", 0.0),
-                "sentiment_stocktwits": r.get("sentiment_stocktwits", 0.0),
-                "sentiment_finviz": r.get("sentiment_finviz", 0.0),
-                "connors_rsi2": r.get("connors_rsi2"),
-                "connors_sma200": r.get("connors_sma200"),
-                "reasons": [f"RSI2={r.get('connors_rsi2', 0):.1f}", f"SMA200={r.get('connors_sma200', 0):.1f}"]
-            })
-        connors_candidates = sorted(connors_candidates, key=lambda x: x['score'], reverse=True)[:10]
-
-        # Take top 25 from each strategy so one can't crowd out the other
-        strategy_cands = []
-        for strat in self.strategies:
-            strat_top = sorted(
-                [c for c in candidates if c['strategy'] == strat.display_name],
-                key=lambda x: x['score'], reverse=True,
-            )[:25]
-            strategy_cands.extend(strat_top)
-        top_candidates = sorted(
-            strategy_cands + connors_candidates,
-            key=lambda x: x['score'], reverse=True,
-        )
+        candidate_assembler = CandidateAssembler(self.strategies)
+        top_candidates = candidate_assembler.build_top_candidates(valid_results)
 
         # 5b. Freeze Signal Journal (immutable record)
         if self.signal_journal is not None and valid_results:
@@ -1097,179 +1005,12 @@ class SwingTrader:
             except Exception as exc:  # pylint: disable=broad-exception-caught
                 logging.error("SignalJournal freeze failed (non-fatal): %s", exc)
 
-        # Refresh sentiment for top candidates only
-        unique_symbols = list({c["symbol"] for c in top_candidates})
-        logging.info("Refreshing sentiment for %d unique symbols in top 50 candidates", len(unique_symbols))
-        for sym in unique_symbols:
-            try:
-                news_data = fetch_news_sentiment_from_net(sym)
-                upsert_news_sentiment_to_mongo(sym, news_data, database=self.database)
-            except Exception:  # pylint: disable=broad-except
-                logging.warning("Failed to fetch sentiment for %s, keeping existing value", sym)
-
-        # Recalculate sentiment scores with fresh data and collect snapshots
-        sentiment_cache: Dict[str, tuple] = {}
-        sentiment_snapshots: List[Dict[str, Any]] = []
-        target_date_str = str(ctx.target_date)
-
-        # VIX snapshot (market-wide, not per-symbol)
-        vix = market_health.get('details', {}).get('VIX')
-        if vix:
-            sentiment_snapshots.append({
-                "symbol": "$VIX",
-                "date": target_date_str,
-                "score": vix['close'],
-                "article_count": 0,
-                "source": "vix",
-            })
-        # AAII snapshot (market-wide, not per-symbol)
-        aaii = market_health.get('details', {}).get('AAII')
-        if aaii:
-            sentiment_snapshots.append({
-                "symbol": "$AAII",
-                "date": target_date_str,
-                "score": aaii['spread_normalized'],
-                "article_count": 0,
-                "source": "aaii",
-            })
-        # CNN Fear & Greed snapshot (market-wide)
-        cnn = market_health.get('details', {}).get('CNN')
-        if cnn:
-            sentiment_snapshots.append({
-                "symbol": "$CNN_FG",
-                "date": target_date_str,
-                "score": cnn['score'],
-                "article_count": 0,
-                "source": "cnn_fear_greed",
-            })
-        for c in top_candidates:
-            sym = c["symbol"]
-            if sym not in sentiment_cache:
-                sentiment_cache[sym] = get_sentiment_score_with_count(
-                    sym, ctx.target_date, database=self.database
-                )
-                score, count = sentiment_cache[sym]
-                if score != 0.0:
-                    sentiment_snapshots.append({
-                        "symbol": sym,
-                        "date": target_date_str,
-                        "score": score,
-                        "article_count": count,
-                        "source": "alphavantage",
-                    })
-            c["sentiment"] = sentiment_cache[sym][0]
-
-        # Tiingo news sentiment (data collection — no ML/report impact yet)
-        tiingo_cache: Dict[str, tuple] = {}
-        if get_settings().tiingo_api_key:
-            logging.info("Fetching Tiingo news sentiment for %d symbols", len(unique_symbols))
-            for sym in unique_symbols:
-                try:
-                    articles = fetch_tiingo_news(sym)
-                    if articles:
-                        score_articles(articles)
-                        upsert_tiingo_news_to_mongo(sym, articles, database=self.database)
-                except Exception:  # pylint: disable=broad-except
-                    logging.warning("Tiingo news fetch failed for %s (non-fatal)", sym)
-
-            # Build Tiingo snapshots
-            for c in top_candidates:
-                sym = c["symbol"]
-                if sym not in tiingo_cache:
-                    tiingo_cache[sym] = get_tiingo_sentiment_score_with_count(
-                        sym, ctx.target_date, database=self.database
-                    )
-                    t_score, t_count = tiingo_cache[sym]
-                    if t_score != 0.0:
-                        sentiment_snapshots.append({
-                            "symbol": sym,
-                            "date": target_date_str,
-                            "score": t_score,
-                            "article_count": t_count,
-                            "source": "tiingo",
-                        })
-                c["sentiment_tiingo"] = tiingo_cache[sym][0]
-
-        # StockTwits sentiment (data collection — no ML/scoring impact yet)
-        stocktwits_cache: Dict[str, tuple] = {}
-        logging.info("Fetching StockTwits sentiment for %d symbols", len(unique_symbols))
-        for sym in unique_symbols:
-            try:
-                messages = fetch_stocktwits_messages(sym)
-                if messages:
-                    st_score_data = score_stocktwits_messages(messages)
-                    upsert_stocktwits_to_mongo(
-                        sym, messages, st_score_data, database=self.database
-                    )
-            except Exception:  # pylint: disable=broad-except
-                logging.warning("StockTwits fetch failed for %s (non-fatal)", sym)
-
-        # Build StockTwits snapshots
-        for c in top_candidates:
-            sym = c["symbol"]
-            if sym not in stocktwits_cache:
-                stocktwits_cache[sym] = get_stocktwits_sentiment_score_with_count(
-                    sym, ctx.target_date, database=self.database
-                )
-                st_score, st_count = stocktwits_cache[sym]
-                if st_score != 0.0:
-                    sentiment_snapshots.append({
-                        "symbol": sym,
-                        "date": target_date_str,
-                        "score": st_score,
-                        "article_count": st_count,
-                        "source": "stocktwits",
-                    })
-            c["sentiment_stocktwits"] = stocktwits_cache[sym][0]
-
-        # Finviz news sentiment (data collection — no ML/scoring impact yet)
-        finviz_cache: Dict[str, tuple] = {}
-        logging.info("Fetching Finviz news sentiment for %d symbols", len(unique_symbols))
-        for sym in unique_symbols:
-            try:
-                articles = fetch_finviz_news(sym)
-                if articles:
-                    score_finviz_headlines(articles)
-                    upsert_finviz_news_to_mongo(sym, articles, database=self.database)
-            except Exception:  # pylint: disable=broad-except
-                logging.warning("Finviz news fetch failed for %s (non-fatal)", sym)
-
-        # Build Finviz snapshots
-        for c in top_candidates:
-            sym = c["symbol"]
-            if sym not in finviz_cache:
-                finviz_cache[sym] = get_finviz_sentiment_score_with_count(
-                    sym, ctx.target_date, database=self.database
-                )
-                fv_score, fv_count = finviz_cache[sym]
-                if fv_score != 0.0:
-                    sentiment_snapshots.append({
-                        "symbol": sym,
-                        "date": target_date_str,
-                        "score": fv_score,
-                        "article_count": fv_count,
-                        "source": "finviz",
-                    })
-            c["sentiment_finviz"] = finviz_cache[sym][0]
-
-        # Persist sentiment snapshots (non-fatal)
-        try:
-            if sentiment_snapshots:
-                saved = save_sentiment_snapshots(sentiment_snapshots, database=self.database)
-                logging.info("Saved %d sentiment snapshots for %s", saved, target_date_str)
-        except Exception:  # pylint: disable=broad-except
-            logging.warning("Failed to save sentiment snapshots (non-fatal)")
-
-        # Compute z-score normalized composite sentiment
-        try:
-            normalizer = SentimentNormalizer(database=self.database)
-            normalizer.load_source_stats()
-            for c in top_candidates:
-                c["sentiment_composite"] = normalizer.composite(c)
-        except Exception:  # pylint: disable=broad-except
-            logging.warning("Composite sentiment computation failed (non-fatal)")
-            for c in top_candidates:
-                c.setdefault("sentiment_composite", 0.0)
+        sentiment_enricher = SentimentEnricher(self.database)
+        top_candidates = sentiment_enricher.enrich(
+            top_candidates,
+            target_date=ctx.target_date,
+            market_health=market_health,
+        )
 
         return {
             "regime": market_health,
