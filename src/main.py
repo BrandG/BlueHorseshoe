@@ -31,11 +31,10 @@ from sklearn.exceptions import ConvergenceWarning
 
 _REPO_ROOT = str(Path(__file__).resolve().parent.parent)
 
-from bluehorseshoe.reporting.html_reporter import HTMLReporter
+from bluehorseshoe.application.services import generate_reports, run_prediction, update_market_data
 from bluehorseshoe.cli.context import create_cli_context
 from bluehorseshoe.core.service import get_latest_market_date
-from bluehorseshoe.data.historical_data import build_all_symbols_history, check_market_status, BackfillConfig
-from bluehorseshoe.analysis.strategy import SwingTrader
+from bluehorseshoe.data.historical_data import check_market_status
 from bluehorseshoe.analysis.optimizer import WeightOptimizer
 
 DEBUG_SYMBOL = 'ABVC'
@@ -111,7 +110,13 @@ if __name__ == "__main__":
                         pass
                 backfill_overviews(ctx.db, limit=ov_limit)
 
-            build_all_symbols_history(BackfillConfig(recent=True, symbols=symbols_filter, active_only=active_only), database=ctx.db, store=ctx.store)
+            update_market_data(
+                database=ctx.db,
+                store=ctx.store,
+                recent=True,
+                symbols=symbols_filter,
+                active_only=active_only,
+            )
             logging.info("Recent historical data updated.")
     elif "-b" in sys.argv:
         deep = "--deep" in sys.argv
@@ -131,14 +136,15 @@ if __name__ == "__main__":
                 pass
 
         with create_cli_context() as ctx:
-            backfill_config = BackfillConfig(
+            update_market_data(
+                database=ctx.db,
+                store=ctx.store,
                 recent=False,
-                resume=resume if not deep else False,
-                limit=limit,
                 symbols=symbols_filter,
                 deep=deep,
+                resume=resume,
+                limit=limit,
             )
-            build_all_symbols_history(backfill_config, database=ctx.db, store=ctx.store)
             logging.info("Full historical data updated.")
     elif "-p" in sys.argv:
         logging.info('Predicting next midpoints...')
@@ -171,14 +177,6 @@ if __name__ == "__main__":
                 except (ValueError, IndexError):
                     pass
 
-            # Create SwingTrader with injected dependencies
-            trader = SwingTrader(
-                database=ctx.db,
-                config=ctx.config,
-                report_writer=ctx.report_writer,
-                store=ctx.store
-            )
-
             # Progress callback for pipeline status tracking
             def _progress_cb(current, total, pct):
                 try:
@@ -187,74 +185,32 @@ if __name__ == "__main__":
                 except Exception:  # pylint: disable=broad-exception-caught
                     pass  # Status tracking is best-effort
 
-            report_data = trader.swing_predict(
+            report_data = run_prediction(
+                database=ctx.db,
+                config=ctx.config,
+                report_writer=ctx.report_writer,
+                store=ctx.store,
                 target_date=target_date,
                 enabled_indicators=enabled_indicators,
                 aggregation=aggregation,
                 symbols=symbols_filter,
                 progress_callback=_progress_cb
             )
-            
-            # Calculate previous day's performance
-            prev_perf = trader.get_previous_performance(target_date)
 
             # Generate HTML Report
             if report_data:
-                # Flatten the regime data for the reporter
-                regime_for_html = report_data.get('regime', {})
-                spy_details = regime_for_html.get('details', {}).get('SPY', {})
-                regime_for_html['spy_price'] = spy_details.get('close', 'N/A')
-                regime_for_html['spy_ma50'] = spy_details.get('ema50', 'N/A')
-                regime_for_html['spy_ma200'] = spy_details.get('ema200', 'N/A')
-                vix_details = regime_for_html.get('details', {}).get('VIX', {})
-                if vix_details:
-                    regime_for_html['vix_close'] = vix_details.get('close', 'N/A')
-                    regime_for_html['vix_fear'] = vix_details.get('fear_level', '')
-                aaii_details = regime_for_html.get('details', {}).get('AAII', {})
-                if aaii_details:
-                    regime_for_html['aaii_spread'] = aaii_details.get('bull_bear_spread', 'N/A')
-                    regime_for_html['aaii_signal'] = aaii_details.get('signal', '')
-                cnn_details = regime_for_html.get('details', {}).get('CNN', {})
-                if cnn_details:
-                    regime_for_html['cnn_score'] = cnn_details.get('score', 'N/A')
-                    regime_for_html['cnn_rating'] = cnn_details.get('rating', '')
-
-                reporter = HTMLReporter(database=ctx.db)
-
-                # Generate full interactive report
-                html_content = reporter.generate_report(
-                    date=target_date,
-                    regime=regime_for_html,
-                    candidates=report_data.get('candidates', []),
-                    charts=report_data.get('charts', []),
-                    previous_performance=prev_perf
+                report_paths = generate_reports(
+                    database=ctx.db,
+                    report_data=report_data,
+                    include_arcade=True,
                 )
-
-                # Generate email-friendly report (no JavaScript, no charts)
-                email_html = reporter.generate_email_report(
-                    date=target_date,
-                    regime=regime_for_html,
-                    candidates=report_data.get('candidates', []),
-                    previous_performance=prev_perf
-                )
-
-                # Save both versions
-                full_path, email_path = reporter.save_both(html_content, email_html, f"report_{target_date}")
-                logging.info("HTML Report saved to %s", full_path)
-                logging.info("Email-friendly report saved to %s", email_path)
-                print(f"HTML Report generated: {full_path}")
-                print(f"Email-friendly report: {email_path}")
-
-                # Generate arcade report
-                arcade_html = reporter.generate_arcade_report(
-                    date=target_date,
-                    regime=regime_for_html,
-                    candidates=report_data.get('candidates', []),
-                    previous_performance=prev_perf
-                )
-                arcade_path = reporter.save_arcade(arcade_html, f"report_{target_date}_arcade.html")
-                logging.info("Arcade report saved to %s", arcade_path)
-                print(f"Arcade report: {arcade_path}")
+                logging.info("HTML Report saved to %s", report_paths["path"])
+                logging.info("Email-friendly report saved to %s", report_paths["email_path"])
+                print(f"HTML Report generated: {report_paths['path']}")
+                print(f"Email-friendly report: {report_paths['email_path']}")
+                if "arcade_path" in report_paths:
+                    logging.info("Arcade report saved to %s", report_paths["arcade_path"])
+                    print(f"Arcade report: {report_paths['arcade_path']}")
 
                 # ── Trade Idea Logging ─────────────────────────────
                 idea_lookup = {}
