@@ -1,7 +1,7 @@
 """
 Tests for backfill_missing_overviews in symbol_repository.py.
 """
-from unittest.mock import patch, MagicMock, call
+from unittest.mock import patch, MagicMock
 
 from bluehorseshoe.core.symbol_repository import backfill_missing_overviews
 
@@ -44,11 +44,7 @@ def test_backfill_skips_existing(mock_fetch, mock_upsert):
     )
     mock_fetch.return_value = {"Symbol": "GOOG", "MarketCapitalization": "1000000000"}
 
-    result = backfill_missing_overviews(
-        database=mock_db,
-        fetch_overview=mock_fetch,
-        upsert_overview_fn=mock_upsert,
-    )
+    result = backfill_missing_overviews(database=mock_db)
 
     # Should only fetch GOOG, not AAPL or MSFT
     mock_fetch.assert_called_once_with("GOOG")
@@ -67,11 +63,7 @@ def test_backfill_skips_nyse_arca(mock_fetch, mock_upsert):
 
     # Verify the query passed to symbols.find() excludes NYSE ARCA
     mock_fetch.return_value = {"Symbol": "GOOG", "MarketCapitalization": "1000000000"}
-    backfill_missing_overviews(
-        database=mock_db,
-        fetch_overview=mock_fetch,
-        upsert_overview_fn=mock_upsert,
-    )
+    backfill_missing_overviews(database=mock_db)
 
     # Check the filter passed to symbols.find
     symbols_col = mock_db["symbols"]
@@ -90,12 +82,7 @@ def test_backfill_respects_limit(mock_fetch, mock_upsert):
     )
     mock_fetch.return_value = {"Symbol": "X", "MarketCapitalization": "500000000"}
 
-    result = backfill_missing_overviews(
-        database=mock_db,
-        fetch_overview=mock_fetch,
-        upsert_overview_fn=mock_upsert,
-        limit=2,
-    )
+    result = backfill_missing_overviews(database=mock_db, limit=2)
 
     assert mock_fetch.call_count == 2
     assert result == 2
@@ -111,11 +98,7 @@ def test_backfill_handles_empty_overview(mock_fetch, mock_upsert):
     )
     mock_fetch.return_value = {}  # Empty overview (e.g., delisted/ETF)
 
-    result = backfill_missing_overviews(
-        database=mock_db,
-        fetch_overview=mock_fetch,
-        upsert_overview_fn=mock_upsert,
-    )
+    result = backfill_missing_overviews(database=mock_db)
 
     mock_fetch.assert_called_once_with("DEAD")
     mock_upsert.assert_not_called()
@@ -135,11 +118,7 @@ def test_backfill_handles_fetch_exception(mock_fetch, mock_upsert):
         {"Symbol": "OK", "MarketCapitalization": "500000000"},
     ]
 
-    result = backfill_missing_overviews(
-        database=mock_db,
-        fetch_overview=mock_fetch,
-        upsert_overview_fn=mock_upsert,
-    )
+    result = backfill_missing_overviews(database=mock_db)
 
     assert mock_fetch.call_count == 2
     assert mock_upsert.call_count == 1  # Only OK was upserted

@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime
-from typing import Any, Callable, Dict, Iterable, Optional
+from typing import Any, Dict, Iterable, Optional
 
 from pymongo import UpdateOne
 from pymongo.results import BulkWriteResult
@@ -57,11 +57,11 @@ def get_overview(symbol: str, *, database) -> Dict[str, Any]:
 def backfill_missing_overviews(
     *,
     database,
-    fetch_overview: Callable[[str], Dict[str, Any]],
-    upsert_overview_fn: Callable[[str, Dict[str, Any]], None],
     limit: Optional[int] = None,
 ) -> int:
     """Fetch overviews for symbols missing overview documents."""
+    from bluehorseshoe.core.symbols import fetch_overview_from_net  # pylint: disable=import-outside-toplevel
+
     existing = {doc["symbol"] for doc in database["symbol_overviews"].find({}, {"symbol": 1, "_id": 0})}
     candidates = database["symbols"].find(
         {"symbol": {"$nin": list(existing)}, "exchange": {"$nin": ["NYSE ARCA"]}},
@@ -76,9 +76,9 @@ def backfill_missing_overviews(
     fetched = 0
     for symbol in symbols:
         try:
-            overview = fetch_overview(symbol)
+            overview = fetch_overview_from_net(symbol)
             if overview and "Symbol" in overview:
-                upsert_overview_fn(symbol, overview)
+                upsert_overview(symbol, overview, database=database)
                 fetched += 1
         except Exception as exc:  # pylint: disable=broad-exception-caught
             logging.error("Overview fetch failed for %s: %s", symbol, exc)

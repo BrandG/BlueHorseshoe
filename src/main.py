@@ -108,13 +108,8 @@ if __name__ == "__main__":
                         ov_limit = int(sys.argv[sys.argv.index("--ov-limit") + 1])
                     except (ValueError, IndexError):
                         pass
-                from bluehorseshoe.core.symbols import fetch_overview_from_net  # pylint: disable=import-outside-toplevel
-                from bluehorseshoe.core.symbol_repository import upsert_overview  # pylint: disable=import-outside-toplevel
-
                 backfill_missing_overviews(
                     database=ctx.db,
-                    fetch_overview=fetch_overview_from_net,
-                    upsert_overview_fn=lambda symbol, overview: upsert_overview(symbol, overview, database=ctx.db),
                     limit=ov_limit,
                 )
 
