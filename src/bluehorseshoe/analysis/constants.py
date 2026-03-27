@@ -85,3 +85,36 @@ ENABLE_DYNAMIC_ENTRY = True  # Set to False to revert to 0.2 ATR default
 
 # Market Cap Universe Filter
 MIN_MARKET_CAP = 300_000_000  # $300M — approximate Russell 3000 floor
+
+# ---------------------------------------------------------------------------
+# Regime-aware parameter profiles
+# Derived from assumption_tester v2 research (2000 trades, 100 dates).
+# Key finding: bearish regimes favor wide stops (let bounces develop),
+# bullish regimes favor tight stops (cut fast, upside is modest).
+# ---------------------------------------------------------------------------
+REGIME_PROFILES = {
+    "Bearish": {
+        "stop_multiplier_baseline": 2.5,
+        "target_multiplier_baseline": 3.5,
+        "stop_multiplier_mean_reversion": 2.0,
+        "target_multiplier_mean_reversion": 2.5,
+        "hold_days": 7,
+        "max_positions_pct": 1.0,
+    },
+    "Neutral": {
+        "stop_multiplier_baseline": 2.0,
+        "target_multiplier_baseline": 3.0,
+        "stop_multiplier_mean_reversion": 1.5,
+        "target_multiplier_mean_reversion": 2.0,
+        "hold_days": 5,
+        "max_positions_pct": 1.0,
+    },
+    "Bullish": {
+        "stop_multiplier_baseline": 1.5,
+        "target_multiplier_baseline": 2.5,
+        "stop_multiplier_mean_reversion": 1.0,
+        "target_multiplier_mean_reversion": 1.5,
+        "hold_days": 5,
+        "max_positions_pct": 0.75,
+    },
+}

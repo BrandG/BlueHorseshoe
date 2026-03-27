@@ -22,6 +22,7 @@ from bluehorseshoe.analysis.constants import (
     MAX_STOCK_PRICE,
     MIN_RR_RATIO_BASELINE,
     MIN_RR_RATIO_MEAN_REVERSION,
+    REGIME_PROFILES,
     REQUIRE_WEEKLY_UPTREND,
 )
 from bluehorseshoe.core.config import weights_config
@@ -41,6 +42,7 @@ class StrategyResult:
     ml_prob: float
     stop_multiplier: float
     target_multiplier: float
+    regime_status: str = "Neutral"
 
 
 # ---------------------------------------------------------------------------
@@ -107,6 +109,22 @@ class TradingStrategy(ABC):
     @abstractmethod
     def min_rr_ratio(self) -> float:
         """Minimum risk/reward ratio to qualify."""
+
+    # --- Regime-aware multipliers -------------------------------------------
+
+    def get_regime_stop_multiplier(self, regime_status: Optional[str] = None) -> float:
+        """Return ATR stop multiplier adjusted for market regime."""
+        profile = REGIME_PROFILES.get(regime_status or "Neutral")
+        if profile:
+            return profile.get(f"stop_multiplier_{self.name}", self.default_stop_multiplier)
+        return self.default_stop_multiplier
+
+    def get_regime_target_multiplier(self, regime_status: Optional[str] = None) -> float:
+        """Return ATR target multiplier adjusted for market regime."""
+        profile = REGIME_PROFILES.get(regime_status or "Neutral")
+        if profile:
+            return profile.get(f"target_multiplier_{self.name}", self.default_target_multiplier)
+        return self.default_target_multiplier
 
     # --- Core methods -------------------------------------------------------
 
@@ -191,8 +209,9 @@ class BaselineStrategy(TradingStrategy):
     def process(self, trader, df, symbol, yesterday, ctx):
         """Direct extraction of ``SwingTrader._process_baseline()``."""
         # Regime / weekly uptrend check
+        regime_status = (ctx.market_health or {}).get('status')
         should_enforce_weekly = REQUIRE_WEEKLY_UPTREND
-        if ctx.market_health and ctx.market_health.get('status') == 'Bullish':
+        if regime_status == 'Bullish':
             should_enforce_weekly = False
 
         if should_enforce_weekly and not trader.is_weekly_uptrend(df):
@@ -206,8 +225,8 @@ class BaselineStrategy(TradingStrategy):
         )
         technical_score = score_components.get("total", 0.0)
 
-        # Step 2: Setup (stop / target / entry)
-        ml_stop_multiplier = self.default_stop_multiplier
+        # Step 2: Setup (stop / target / entry) — regime-adjusted multipliers
+        ml_stop_multiplier = self.get_regime_stop_multiplier(regime_status)
         ml_target_multiplier = trader.profit_target_inference.predict_profit_target_multiplier(
             symbol, score_components,
             target_date=str(yesterday['date'])[:10],
@@ -265,6 +284,7 @@ class BaselineStrategy(TradingStrategy):
             ml_prob=ml_prob,
             stop_multiplier=ml_stop_multiplier,
             target_multiplier=ml_target_multiplier,
+            regime_status=regime_status or "Neutral",
         )
 
     # -- Worker-process scoring ----------------------------------------------
@@ -280,8 +300,9 @@ class BaselineStrategy(TradingStrategy):
         aggregation = worker_state['aggregation']
 
         # Weekly uptrend check
+        regime_status = (market_health or {}).get('status')
         should_enforce_weekly = REQUIRE_WEEKLY_UPTREND
-        if market_health and market_health.get('status') == 'Bullish':
+        if regime_status == 'Bullish':
             should_enforce_weekly = False
         if should_enforce_weekly and not trader.is_weekly_uptrend(df):
             return None
@@ -293,8 +314,8 @@ class BaselineStrategy(TradingStrategy):
         )
         technical_score = score_components.get("total", 0.0)
 
-        # Step 2: Setup
-        ml_stop_multiplier = self.default_stop_multiplier
+        # Step 2: Setup — regime-adjusted multipliers
+        ml_stop_multiplier = self.get_regime_stop_multiplier(regime_status)
         from bluehorseshoe.analysis.strategy import _worker_ml_predict_profit_target
         ml_target_multiplier = _worker_ml_predict_profit_target(
             score_components, overview, sentiment, strategy=self.name,
@@ -350,6 +371,7 @@ class BaselineStrategy(TradingStrategy):
             ml_prob=ml_prob,
             stop_multiplier=ml_stop_multiplier,
             target_multiplier=ml_target_multiplier,
+            regime_status=regime_status or "Neutral",
         )
 
 
@@ -404,6 +426,8 @@ class MeanReversionStrategy(TradingStrategy):
 
     def process(self, trader, df, symbol, yesterday, ctx):
         """Direct extraction of ``SwingTrader._process_mr()``."""
+        regime_status = (ctx.market_health or {}).get('status')
+
         score_components = trader.technical_analyzer.calculate_technical_score(
             df,
             strategy=self.name,
@@ -448,6 +472,7 @@ class MeanReversionStrategy(TradingStrategy):
             ml_prob=ml_prob,
             stop_multiplier=ml_stop_multiplier,
             target_multiplier=ml_target_multiplier,
+            regime_status=regime_status or "Neutral",
         )
 
     # -- Worker-process scoring ----------------------------------------------
@@ -455,6 +480,8 @@ class MeanReversionStrategy(TradingStrategy):
     def process_worker(self, trader, df, symbol, yesterday, worker_state,
                        overview, sentiment):
         """Direct extraction of ``_worker_process_mr()``."""
+        market_health = worker_state.get('market_health')
+        regime_status = (market_health or {}).get('status')
         enabled_indicators = worker_state['enabled_indicators']
         aggregation = worker_state['aggregation']
 
@@ -501,4 +528,5 @@ class MeanReversionStrategy(TradingStrategy):
             ml_prob=ml_prob,
             stop_multiplier=ml_stop_multiplier,
             target_multiplier=ml_target_multiplier,
+            regime_status=regime_status or "Neutral",
         )
