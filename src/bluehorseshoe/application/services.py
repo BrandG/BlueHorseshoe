@@ -4,6 +4,7 @@ Application-level orchestration services.
 from __future__ import annotations
 
 import datetime
+import copy
 from typing import Any, Optional
 
 from bluehorseshoe.analysis.strategy import SwingTrader
@@ -76,7 +77,7 @@ def run_prediction(
 
 def flatten_regime_for_report(regime: dict[str, Any]) -> dict[str, Any]:
     """Flatten nested regime details for HTML reporter compatibility."""
-    flattened = dict(regime or {})
+    flattened = copy.deepcopy(regime or {})
 
     spy_details = flattened.get("details", {}).get("SPY", {})
     flattened["spy_price"] = spy_details.get("close", "N/A")
