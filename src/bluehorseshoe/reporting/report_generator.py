@@ -9,6 +9,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from threading import Lock
 from typing import Optional, Union
+
+from bluehorseshoe.core.config import REPO_ROOT
+
 import matplotlib.pyplot as plt
 from matplotlib.ticker import MultipleLocator
 import mplfinance as mpf #pylint: disable=import-error
@@ -85,7 +88,7 @@ def graph(graph_data: GraphData) -> str:
         plt.gca().xaxis.set_major_locator(MultipleLocator(20))
         plt.grid(which='both', linestyle='--', linewidth=0.5)
         current_time_ms = int(datetime.now().timestamp()) * 1000
-        file_path = f'/workspaces/BlueHorseshoe/src/graphs/{graph_data.labels["title"]}_{current_time_ms}.png'
+        file_path = f'{REPO_ROOT}/src/graphs/{graph_data.labels["title"]}_{current_time_ms}.png'
         plt.savefig(file_path)
         plt.gcf().canvas.draw_idle()
         plt.clf()
@@ -213,7 +216,7 @@ class ReportSingleton(ReportWriter):
         with self._lock:
             if not getattr(self, '_initialized', False):
                 # Call parent __init__ with default path
-                super().__init__(log_path=Path("/workspaces/BlueHorseshoe/src/logs/report.txt"))
+                super().__init__(log_path=Path(REPO_ROOT) / "src" / "logs" / "report.txt")
                 self._initialized = True
 
     def __enter__(self) -> 'ReportSingleton':

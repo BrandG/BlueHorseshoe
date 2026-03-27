@@ -31,6 +31,7 @@ from bluehorseshoe.core.symbols import (
     fetch_symbol_list_from_net as get_symbol_list_from_net,
     get_symbol_list
 )
+from bluehorseshoe.core.config import REPO_ROOT
 from bluehorseshoe.reporting.report_generator import (
     graph,
     GraphData,
@@ -60,7 +61,7 @@ def setup_invalid_symbols_file(tmp_path):
     invalid_symbols_file.write_text("AAPL\nGOOGL\nMSFT\n")
     GlobalData.base_path = str(tmp_path)
     yield
-    GlobalData.base_path = '/workspaces/BlueHorseshoe/src/historical_data/'
+    GlobalData.base_path = GlobalData().base_path
 
 def test_load_invalid_symbols():
     """
@@ -159,7 +160,7 @@ def test_graph(mock_datetime):
     )
 
     # Need to ensure the directory exists
-    os.makedirs('/workspaces/BlueHorseshoe/src/graphs', exist_ok=True)
+    os.makedirs(os.path.join(REPO_ROOT, 'src', 'graphs'), exist_ok=True)
 
     filepath = graph(graph_data)
     if filepath:

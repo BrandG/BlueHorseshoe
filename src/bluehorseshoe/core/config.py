@@ -4,12 +4,17 @@ Configuration management for BlueHorseshoe, handling application settings and in
 import json
 import os
 import logging
+from pathlib import Path
 from typing import Optional
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-WEIGHTS_FILE = os.environ.get('WEIGHTS_FILE', '/workspaces/BlueHorseshoe/src/weights.json')
-WEIGHTS_V2_FULL_FILE = os.environ.get('WEIGHTS_V2_FULL_FILE', '/workspaces/BlueHorseshoe/src/weights_v2_full.json')
-WEIGHTS_V3_FILE = os.environ.get('WEIGHTS_V3_FILE', '/workspaces/BlueHorseshoe/src/weights.json')
+# Derive repo root from this file's location:
+#   config.py is at src/bluehorseshoe/core/config.py → parents[3] = repo root
+REPO_ROOT = str(Path(__file__).resolve().parents[3])
+
+WEIGHTS_FILE = os.environ.get('WEIGHTS_FILE', f'{REPO_ROOT}/src/weights.json')
+WEIGHTS_V2_FULL_FILE = os.environ.get('WEIGHTS_V2_FULL_FILE', f'{REPO_ROOT}/src/weights_v2_full.json')
+WEIGHTS_V3_FILE = os.environ.get('WEIGHTS_V3_FILE', f'{REPO_ROOT}/src/weights.json')
 
 DEFAULT_WEIGHTS = {
     'trend': {
@@ -122,14 +127,14 @@ class Settings(BaseSettings):
     Uses Pydantic BaseSettings for validation and .env file support.
     """
     # MongoDB
-    mongo_uri: str = "mongodb://mongo:27017"
+    mongo_uri: str = "mongodb://127.0.0.1:27017"
     mongo_db: str = "bluehorseshoe"
 
     # File Paths
-    base_path: str = "/workspaces/BlueHorseshoe/src/historical_data"
-    logs_path: str = "/workspaces/BlueHorseshoe/src/logs"
-    graphs_path: str = "/workspaces/BlueHorseshoe/src/graphs"
-    weights_path: str = "/workspaces/BlueHorseshoe/src/weights.json"
+    base_path: str = f"{REPO_ROOT}/src/historical_data"
+    logs_path: str = f"{REPO_ROOT}/src/logs"
+    graphs_path: str = f"{REPO_ROOT}/src/graphs"
+    weights_path: str = f"{REPO_ROOT}/src/weights.json"
 
     # Alpha Vantage API
     alphavantage_key: str = ""
@@ -143,7 +148,7 @@ class Settings(BaseSettings):
     nasdaq_data_link_api_key: str = ""
 
     # IBKR Gateway
-    ibkr_host: str = "ib-gateway"
+    ibkr_host: str = "127.0.0.1"
     ibkr_port: int = 4004
     ibkr_client_id: int = 1
 
@@ -163,7 +168,7 @@ class Settings(BaseSettings):
     provider_max_retries: int = 1
 
     # DuckDB
-    duckdb_path: str = "/workspaces/BlueHorseshoe/data/ohlcv.duckdb"
+    duckdb_path: str = f"{REPO_ROOT}/data/ohlcv.duckdb"
 
     # Feature Flags
     holiday_mode: bool = False

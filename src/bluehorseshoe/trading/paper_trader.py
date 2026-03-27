@@ -12,6 +12,7 @@ from typing import Dict, List, Optional, Tuple
 
 from pymongo.database import Database
 
+from bluehorseshoe.core.config import REPO_ROOT
 from bluehorseshoe.data.ibkr_client import IBKRClient
 from bluehorseshoe.trading.trade_models import make_idea_id, make_order_ref, normalize_strategy
 
@@ -23,7 +24,7 @@ class PaperTradeConfig:
     """Configuration for paper trading."""
     total_investment: float = 10000.0
     max_positions: int = 10
-    logs_path: str = "/workspaces/BlueHorseshoe/src/logs"
+    logs_path: str = f"{REPO_ROOT}/src/logs"
 
 
 @dataclass

@@ -27,7 +27,7 @@ from ta.volatility import AverageTrueRange
 
 from bluehorseshoe.analysis.constants import ATR_WINDOW, MIN_STOCK_PRICE, MAX_STOCK_PRICE
 from bluehorseshoe.analysis.technical_analyzer import TechnicalAnalyzer
-from bluehorseshoe.core.config import weights_config
+from bluehorseshoe.core.config import REPO_ROOT, weights_config
 from bluehorseshoe.core.container import create_app_container
 from bluehorseshoe.data.historical_data import get_technical_indicators
 
@@ -154,8 +154,8 @@ def run_analysis():
     print("LEAVE-ONE-IN INDICATOR RESTORATION ANALYSIS")
     print("=" * 90)
 
-    v3_weights = load_weights_file("/workspaces/BlueHorseshoe/src/weights.json")
-    v2_weights = load_weights_file("/workspaces/BlueHorseshoe/src/weights_v2.json")
+    v3_weights = load_weights_file(f"{REPO_ROOT}/src/weights.json")
+    v2_weights = load_weights_file(f"{REPO_ROOT}/src/weights_v2.json")
 
     # Build all weight variants
     all_weight_sets: dict[str, dict] = {}

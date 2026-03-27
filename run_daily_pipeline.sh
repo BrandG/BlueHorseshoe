@@ -5,88 +5,93 @@
 # Mon-Fri: Update -> Predict -> Journal -> Report -> Email
 # Saturday: Full symbol update + Predict Friday data -> Journal -> Report -> Email
 
-LOG="/root/BlueHorseshoe/src/logs/daily_pipeline.log"
-STATUS="python src/pipeline_status.py"
+REPO="/root/BlueHorseshoe"
+PYTHON="$REPO/.venv/bin/python"
+export PYTHONPATH="$REPO/src"
+cd "$REPO"
+
+LOG="$REPO/src/logs/daily_pipeline.log"
+STATUS="$PYTHON src/pipeline_status.py"
 
 echo "--- Daily Pipeline Started: $(date) ---" >> "$LOG"
 
 # Initialize pipeline status
-docker exec bluehorseshoe $STATUS begin
+$STATUS begin
 
 # 1. Update historical data (active-only on weekdays, full on Saturday)
 DOW=$(date +%u)  # 1=Mon ... 6=Sat
-docker exec bluehorseshoe $STATUS start update
+$STATUS start update
 if [ "$DOW" -eq 6 ]; then
     echo "Saturday: running full symbol update" >> "$LOG"
-    docker exec bluehorseshoe python src/main.py -u >> "$LOG" 2>&1
+    $PYTHON src/main.py -u >> "$LOG" 2>&1
 else
     echo "Weekday: running active-only symbol update" >> "$LOG"
-    docker exec bluehorseshoe python src/main.py -u --active-only >> "$LOG" 2>&1
+    $PYTHON src/main.py -u --active-only >> "$LOG" 2>&1
 fi
 
 if [ $? -ne 0 ]; then
     echo "ERROR: Data update failed at $(date)" >> "$LOG"
-    docker exec bluehorseshoe $STATUS fail update "Data update failed"
+    $STATUS fail update "Data update failed"
     exit 1
 fi
-docker exec bluehorseshoe $STATUS complete update
+$STATUS complete update
 
 # 2. Run prediction (generates report)
-docker exec bluehorseshoe $STATUS start predict
-docker exec bluehorseshoe python src/main.py -p >> "$LOG" 2>&1
+$STATUS start predict
+$PYTHON src/main.py -p >> "$LOG" 2>&1
 if [ $? -ne 0 ]; then
     echo "ERROR: Prediction failed at $(date)" >> "$LOG"
-    docker exec bluehorseshoe $STATUS fail predict "Prediction failed"
+    $STATUS fail predict "Prediction failed"
     exit 1
 fi
-docker exec bluehorseshoe $STATUS complete predict
+$STATUS complete predict
 
 # 3. Trade journal — import fills, reconcile positions, generate review (non-fatal)
-docker exec bluehorseshoe $STATUS start journal
+$STATUS start journal
 JOURNAL_ERRORS=0
 
 # Import any new fills from IBKR (skip if gateway not connected)
-docker exec bluehorseshoe python src/main.py --journal-import-ibkr >> "$LOG" 2>&1 || ((JOURNAL_ERRORS++))
+$PYTHON src/main.py --journal-import-ibkr >> "$LOG" 2>&1 || ((JOURNAL_ERRORS++))
 
 # Reconcile fills into positions
-docker exec bluehorseshoe python src/main.py --journal-reconcile >> "$LOG" 2>&1 || ((JOURNAL_ERRORS++))
+$PYTHON src/main.py --journal-reconcile >> "$LOG" 2>&1 || ((JOURNAL_ERRORS++))
 
 # Generate daily review
-docker exec bluehorseshoe python src/main.py --journal-review >> "$LOG" 2>&1 || ((JOURNAL_ERRORS++))
+$PYTHON src/main.py --journal-review >> "$LOG" 2>&1 || ((JOURNAL_ERRORS++))
 
 if [ "$JOURNAL_ERRORS" -gt 0 ]; then
     echo "WARNING: Journal had $JOURNAL_ERRORS error(s) at $(date)" >> "$LOG"
-    docker exec bluehorseshoe $STATUS fail journal "Journal had $JOURNAL_ERRORS error(s)"
+    $STATUS fail journal "Journal had $JOURNAL_ERRORS error(s)"
 else
-    docker exec bluehorseshoe $STATUS complete journal
+    $STATUS complete journal
 fi
 
 # 4. Verify report was generated (created by predict step)
-docker exec bluehorseshoe $STATUS start report
+$STATUS start report
 # On Saturday, the report is for Friday (2 days ago), not yesterday
 if [ "$DOW" -eq 6 ]; then
     REPORT_DATE=$(date -d "2 days ago" +%Y-%m-%d 2>/dev/null || date -v-2d +%Y-%m-%d)
 else
     REPORT_DATE=$(date -d "yesterday" +%Y-%m-%d 2>/dev/null || date -v-1d +%Y-%m-%d)
 fi
-if docker exec bluehorseshoe test -f "src/logs/report_${REPORT_DATE}_arcade.html"; then
-    docker exec bluehorseshoe $STATUS complete report
+if [ -f "$REPO/src/logs/report_${REPORT_DATE}_arcade.html" ]; then
+    $STATUS complete report
 else
     echo "WARNING: Report file not found for ${REPORT_DATE}" >> "$LOG"
-    docker exec bluehorseshoe $STATUS fail report "Report file not found for ${REPORT_DATE}"
+    $STATUS fail report "Report file not found for ${REPORT_DATE}"
 fi
 
 # 5. Send report email
-docker exec bluehorseshoe $STATUS start email
-docker exec bluehorseshoe python src/send_report_email.py >> "$LOG" 2>&1
+$STATUS start email
+$PYTHON src/send_report_email.py >> "$LOG" 2>&1
 if [ $? -ne 0 ]; then
     echo "WARNING: Email send failed at $(date)" >> "$LOG"
-    docker exec bluehorseshoe $STATUS fail email "Email send failed"
+    $STATUS fail email "Email send failed"
 else
-    docker exec bluehorseshoe $STATUS complete email
+    $STATUS complete email
 fi
 
 # Mark pipeline as done
-docker exec bluehorseshoe $STATUS finish
+$STATUS finish
 
 echo "--- Daily Pipeline Finished: $(date) ---" >> "$LOG"

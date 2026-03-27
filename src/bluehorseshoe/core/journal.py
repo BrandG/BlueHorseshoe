@@ -18,7 +18,7 @@ from pymongo.database import Database
 from pymongo.errors import DuplicateKeyError
 
 from bluehorseshoe.analysis.strategy_registry import get_all_strategies
-from bluehorseshoe.core.config import weights_config
+from bluehorseshoe.core.config import REPO_ROOT, weights_config
 from bluehorseshoe.analysis.constants import (
     MIN_RR_RATIO_BASELINE,
     MIN_RR_RATIO_MEAN_REVERSION,
@@ -80,7 +80,7 @@ class SignalJournal:
                 text=True,
                 timeout=5,
                 check=False,
-                cwd="/workspaces/BlueHorseshoe",
+                cwd=REPO_ROOT,
             )
             return result.stdout.strip() if result.returncode == 0 else ""
         except Exception:  # pylint: disable=broad-exception-caught

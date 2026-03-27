@@ -75,9 +75,9 @@ if st.get('pipeline_end') is None:
     fi
 fi
 
-# Belt-and-suspenders: check if main.py is running inside container
-if docker top "$DOCKER_CONTAINER" 2>/dev/null | grep -q "main.py"; then
-    fail "main.py is running inside $DOCKER_CONTAINER — aborting backup"
+# Belt-and-suspenders: check if main.py is running
+if pgrep -f "python.*main.py" > /dev/null 2>&1; then
+    fail "main.py is running — aborting backup"
 fi
 
 # ── Step 2: Create staging directory ───────────────────────────────────
@@ -86,9 +86,9 @@ log "Staging directory: $STAGING_DIR"
 
 # ── Step 3: DuckDB — flush WAL and compress ────────────────────────────
 log "Flushing DuckDB WAL..."
-docker exec "$DOCKER_CONTAINER" python3 -c "
+$PYTHON -c "
 import duckdb
-con = duckdb.connect('$DUCKDB_CONTAINER_PATH')
+con = duckdb.connect('$DUCKDB_HOST_PATH')
 con.execute('CHECKPOINT')
 con.close()
 print('WAL flushed successfully')

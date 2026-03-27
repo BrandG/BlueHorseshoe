@@ -5,7 +5,10 @@ Scores a set of symbols with both weight profiles and compares results.
 import sys
 import json
 import os
+from pathlib import Path
 sys.path.insert(0, 'src')
+
+_REPO_ROOT = str(Path(__file__).resolve().parent.parent)
 
 import pandas as pd
 import numpy as np
@@ -83,8 +86,8 @@ def main():
     from bluehorseshoe.core.config import weights_config
 
     # Load V3 weights (current default)
-    v3_path = '/workspaces/BlueHorseshoe/src/weights.json'
-    v2_path = '/workspaces/BlueHorseshoe/src/weights_v2.json'
+    v3_path = f'{_REPO_ROOT}/src/weights.json'
+    v2_path = f'{_REPO_ROOT}/src/weights_v2.json'
 
     results = []
 

@@ -24,7 +24,8 @@ from bluehorseshoe.core.config import get_settings
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 log = logging.getLogger(__name__)
 
-OUTPUT_PATH = Path("/workspaces/BlueHorseshoe/src/test_dates.json")
+_REPO_ROOT = str(Path(__file__).resolve().parent.parent)
+OUTPUT_PATH = Path(_REPO_ROOT) / "src" / "test_dates.json"
 
 # Breadth stocks (same as MarketRegime)
 BREADTH_STOCKS = [

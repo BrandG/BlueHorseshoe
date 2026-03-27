@@ -159,8 +159,7 @@ class TestV2FullWeights:
             'weights_v2_full.json'
         )
         if not os.path.exists(v2_full_path):
-            # Try container path
-            v2_full_path = '/workspaces/BlueHorseshoe/src/weights_v2_full.json'
+            pytest.skip("weights_v2_full.json not found")
 
         with open(v2_full_path, 'r', encoding='utf-8') as f:
             weights = json.load(f)
@@ -180,8 +179,7 @@ class TestV2FullWeights:
         v2_full_path = os.path.join(base_dir, 'weights_v2_full.json')
 
         if not os.path.exists(v2_path):
-            v2_path = '/workspaces/BlueHorseshoe/src/weights_v2.json'
-            v2_full_path = '/workspaces/BlueHorseshoe/src/weights_v2_full.json'
+            pytest.skip("weights_v2.json not found")
 
         with open(v2_path, 'r', encoding='utf-8') as f:
             v2 = json.load(f)
@@ -204,10 +202,7 @@ class TestAdaptiveBacktest:
             os.path.join(os.path.dirname(os.path.dirname(__file__)), "run_clean_backtest.py")
         )
         if spec is None:
-            spec = importlib.util.spec_from_file_location(
-                "run_clean_backtest",
-                "/workspaces/BlueHorseshoe/src/run_clean_backtest.py"
-            )
+            pytest.skip("run_clean_backtest.py not found")
         mod = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(mod)
 

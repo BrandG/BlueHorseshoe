@@ -27,8 +27,10 @@ from pathlib import Path
 
 import pandas as pd
 
+_REPO_ROOT = str(Path(__file__).resolve().parent.parent)
+
 # ── Fixed Parameters ──────────────────────────────────────────────────────
-TEST_DATES_PATH = Path("/workspaces/BlueHorseshoe/src/test_dates.json")
+TEST_DATES_PATH = Path(_REPO_ROOT) / "src" / "test_dates.json"
 
 
 def load_target_dates() -> list:
@@ -67,18 +69,18 @@ HOLD_DAYS = 3
 SPLIT_T1_PCT = 0.02
 
 WEIGHT_FILES = {
-    "v2":  "/workspaces/BlueHorseshoe/src/weights_v2.json",
-    "v3":  "/workspaces/BlueHorseshoe/src/weights_v3.json",
-    "v31": "/workspaces/BlueHorseshoe/src/weights_v31.json",
+    "v2":  f"{_REPO_ROOT}/src/weights_v2.json",
+    "v3":  f"{_REPO_ROOT}/src/weights_v3.json",
+    "v31": f"{_REPO_ROOT}/src/weights_v31.json",
     "adaptive": None,  # Uses V2 or V3 per-date based on regime score
 }
 
 ADAPTIVE_WEIGHT_FILES = {
-    "v2": "/workspaces/BlueHorseshoe/src/weights_v2_full.json",
-    "v3": "/workspaces/BlueHorseshoe/src/weights_v3.json",
+    "v2": f"{_REPO_ROOT}/src/weights_v2_full.json",
+    "v3": f"{_REPO_ROOT}/src/weights_v3.json",
 }
 
-OUTPUT_DIR = Path("/workspaces/BlueHorseshoe/src/logs")
+OUTPUT_DIR = Path(_REPO_ROOT) / "src" / "logs"
 
 CSV_FIELDS = [
     "date", "symbol", "strategy", "score", "ml_prob",
@@ -397,7 +399,7 @@ def main():
     print_overall_summary(csv_path)
 
     # 8. Restore production weights
-    prod_weights_path = "/workspaces/BlueHorseshoe/src/weights.json"
+    prod_weights_path = f"{_REPO_ROOT}/src/weights.json"
     if os.path.exists(prod_weights_path):
         with open(prod_weights_path, "r", encoding="utf-8") as f:
             weights_config._weights = json.load(f)

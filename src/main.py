@@ -25,8 +25,11 @@ import sys
 import time
 import warnings
 import os
+from pathlib import Path
 
 from sklearn.exceptions import ConvergenceWarning
+
+_REPO_ROOT = str(Path(__file__).resolve().parent.parent)
 
 from bluehorseshoe.reporting.html_reporter import HTMLReporter
 from bluehorseshoe.cli.context import create_cli_context
@@ -50,7 +53,7 @@ if __name__ == "__main__":
         level=logging.DEBUG,
         format='%(asctime)s - %(levelname)s - %(message)s',
         handlers=[
-            logging.FileHandler('/workspaces/BlueHorseshoe/src/logs/blueHorseshoe.log', mode='w'),
+            logging.FileHandler(os.path.join(_REPO_ROOT, 'src', 'logs', 'blueHorseshoe.log'), mode='w'),
             logging.StreamHandler(sys.stdout)
         ],
         force=True

@@ -5,7 +5,12 @@
 # Crontab entry (every Sunday at 2 AM UTC):
 # 0 2 * * 0 /root/BlueHorseshoe/src/cron_weekly_retrain.sh >> /root/BlueHorseshoe/src/logs/cron_retrain.log 2>&1
 
-EXEC="docker exec bluehorseshoe python -m bluehorseshoe.core.maintenance"
+REPO="/root/BlueHorseshoe"
+PYTHON="$REPO/.venv/bin/python"
+export PYTHONPATH="$REPO/src"
+cd "$REPO"
+
+EXEC="$PYTHON -m bluehorseshoe.core.maintenance"
 
 echo "--- Weekly Retraining Started: $(date) ---"
 

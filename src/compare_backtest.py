@@ -4,7 +4,10 @@ Loads actual price data for the hold period and simulates outcomes.
 """
 import sys
 import json
+from pathlib import Path
 sys.path.insert(0, 'src')
+
+_REPO_ROOT = str(Path(__file__).resolve().parent.parent)
 
 import pandas as pd
 import numpy as np
@@ -178,8 +181,8 @@ def backtest_picks(scored_list, top_n=40, label=""):
 
 
 def main():
-    v3_path = '/workspaces/BlueHorseshoe/src/weights.json'
-    v2_path = '/workspaces/BlueHorseshoe/src/weights_v2.json'
+    v3_path = f'{_REPO_ROOT}/src/weights.json'
+    v2_path = f'{_REPO_ROOT}/src/weights_v2.json'
 
     # Get a good sample of liquid symbols
     # Use the symbols from the NASDAQ list

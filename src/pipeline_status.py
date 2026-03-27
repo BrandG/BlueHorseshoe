@@ -18,8 +18,10 @@ import json
 import os
 import sys
 from datetime import datetime
+from pathlib import Path
 
-STATUS_FILE = "/workspaces/BlueHorseshoe/src/logs/pipeline_status.json"
+_REPO_ROOT = str(Path(__file__).resolve().parent.parent)
+STATUS_FILE = os.path.join(_REPO_ROOT, "src", "logs", "pipeline_status.json")
 STEPS = ["update", "predict", "report", "email"]
 
 

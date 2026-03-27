@@ -60,7 +60,8 @@ NEWS_SENTIMENT_URL = (
 
 RECENT_TRADING_DAYS = int(os.environ.get("RECENT_TRADING_DAYS", "240"))
 
-INVALID_SYMBOLS_FILE = "/workspaces/BlueHorseshoe/src/historical_data/invalid_symbols.txt"
+from bluehorseshoe.core.config import REPO_ROOT
+INVALID_SYMBOLS_FILE = os.path.join(REPO_ROOT, "src", "historical_data", "invalid_symbols.txt")
 
 def get_invalid_symbols() -> set[str]:
     """Load the list of invalid symbols from the blacklist file."""

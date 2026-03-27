@@ -4,30 +4,32 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Critical Execution Requirements
 
-**ALL Python execution and testing MUST be performed through Docker containers:**
+**Python runs directly on the host via a venv (not in a Docker container):**
 
 ```bash
 # Execute main CLI
-docker exec bluehorseshoe python src/main.py [args]
+./run.sh python src/main.py [args]
 
 # Run tests
-docker exec bluehorseshoe pytest [path]
+./run.sh pytest [path]
 
 # Run specific test
-docker exec bluehorseshoe pytest src/tests/test_name.py::test_function
+./run.sh pytest src/tests/test_name.py::test_function
 
 # Lint code
-docker exec bluehorseshoe ./lint.sh
+./run.sh ./lint.sh
 
-# Container management
-cd docker && docker compose up -d    # Start containers
-cd docker && docker compose down     # Stop containers
-cd docker && docker compose restart  # Restart after .env changes
+# Or activate the venv manually:
+source .venv/bin/activate && PYTHONPATH=src python src/main.py [args]
+
+# Infrastructure containers (MongoDB, IBKR Gateway)
+cd docker && docker compose up -d    # Start infra containers
+cd docker && docker compose down     # Stop infra containers
 ```
 
-## Container Process Safety
+## Process Safety
 
-**NEVER interrupt, kill, or run concurrent heavy processes alongside the daily update (`-u`) or prediction (`-p`) pipeline.** These are critical production workflows that can take 30-60+ minutes. Running memory-intensive scripts (analysis, backtests, etc.) concurrently will OOM-kill the container and corrupt the run. Always wait for `-u` and `-p` to finish before starting other work. Check with `docker top bluehorseshoe` if unsure.
+**NEVER interrupt, kill, or run concurrent heavy processes alongside the daily update (`-u`) or prediction (`-p`) pipeline.** These are critical production workflows that can take 30-60+ minutes. Running memory-intensive scripts (analysis, backtests, etc.) concurrently will OOM-kill the process and corrupt the run. Always wait for `-u` and `-p` to finish before starting other work. Check with `pgrep -f "main.py"` if unsure.
 
 ## Git Operations Policy
 
@@ -47,9 +49,9 @@ BlueHorseshoe is a quantitative swing trading system that:
 
 - **Language:** Python 3.12
 - **Database:** DuckDB (OHLCV time-series storage), MongoDB 7 (scores, journal, overviews, symbols, news)
-- **API:** FastAPI + Uvicorn (async background jobs via BackgroundTasks)
+- **API:** FastAPI + Uvicorn (systemd service on port 8001)
 - **Analysis:** TA-Lib, pandas_ta, NumPy, Pandas, Scikit-learn
-- **Containerization:** Docker + Docker Compose (2 containers: bluehorseshoe, mongo)
+- **Infrastructure:** MongoDB and IBKR Gateway run in Docker containers; Python runs natively on the host via venv
 
 ## Architecture Overview
 
@@ -77,7 +79,7 @@ BlueHorseshoe is a quantitative swing trading system that:
 
 **`src/bluehorseshoe/core/`** - Infrastructure:
 - `database.py`: MongoDB connection management
-- `config.py`: Settings via Pydantic (loads from env vars and `weights.json`)
+- `config.py`: Settings via Pydantic (loads from env vars and `weights.json`). Exports `REPO_ROOT` for path derivation.
 - `scores.py`: `ScoreManager` persists daily scores to MongoDB
 - `symbols.py`: Symbol list management (NASDAQ stocks)
 - `container.py`: Dependency injection container for API/CLI contexts
@@ -135,12 +137,12 @@ Weights are stored in `src/weights.json` and loaded via `config.py`. Categories:
 
 ## Configuration
 
-**Environment Variables** (set in `docker/.env`):
+**Environment Variables** (set in `.env` at repo root, and `docker/.env` for container overrides):
 - `ALPHAVANTAGE_KEY`: API key for market data
 - `ALPHAVANTAGE_CPS`: Rate limit (calls per second) - use 2 to avoid rate limit errors
-- `MONGO_URI`: MongoDB connection string (default: `mongodb://mongo:27017`)
+- `MONGO_URI`: MongoDB connection string (default: `mongodb://127.0.0.1:27017`)
 - `MONGO_DB`: Database name (default: `bluehorseshoe`)
-- `DUCKDB_PATH`: Path to DuckDB file for OHLCV storage (default: `/workspaces/BlueHorseshoe/data/ohlcv.duckdb`)
+- `DUCKDB_PATH`: Path to DuckDB file for OHLCV storage (auto-derived from `REPO_ROOT`)
 - `NASDAQ_DATA_LINK_API_KEY`: API key for AAII sentiment data from Nasdaq Data Link (optional, falls back to Excel download)
 - Email settings for notifications (SMTP_SERVER, SMTP_USER, SMTP_PASSWORD, EMAIL_RECIPIENT)
 - `PAPER_TRADING_ENABLED`: Enable automatic bracket order submission after prediction (default: `false`)
@@ -148,7 +150,7 @@ Weights are stored in `src/weights.json` and loaded via `config.py`. Categories:
 - `PAPER_MAX_POSITIONS`: Maximum simultaneous positions / top N candidates (default: `10`)
 - `IBKR_READ_ONLY`: Controls IB Gateway read-only mode (set to `not` to enable order placement, default: `yes`)
 
-**After modifying `.env`:** Restart containers with `cd docker && docker compose up -d`
+**Path auto-detection:** All file paths are derived from `REPO_ROOT` in `config.py` (computed from the file's location). No hardcoded paths — works identically on any host.
 
 ## Important Constants
 
@@ -161,9 +163,9 @@ Weights are stored in `src/weights.json` and loaded via `config.py`. Categories:
 
 ## Testing
 
-**Run all tests:** `docker exec bluehorseshoe pytest`
-**Run specific test:** `docker exec bluehorseshoe pytest src/tests/test_swing_trading.py -v`
-**Coverage:** `docker exec bluehorseshoe pytest --cov=bluehorseshoe --cov-report=html`
+**Run all tests:** `./run.sh pytest`
+**Run specific test:** `./run.sh pytest src/tests/test_swing_trading.py -v`
+**Coverage:** `./run.sh pytest --cov=bluehorseshoe --cov-report=html`
 
 Test fixtures in `test_*.py` files include:
 - `base_data`: Sample OHLCV DataFrame with sufficient volatility to bypass "Dead Stock" filter
@@ -172,7 +174,7 @@ Test fixtures in `test_*.py` files include:
 
 ## API Usage
 
-**Start API:** `docker compose up -d` (runs on port 8001)
+**Managed by systemd:** `systemctl start|stop|restart bluehorseshoe-api` (runs on port 8001)
 **Endpoints:**
 - `POST /api/v1/predict`: Trigger async prediction (returns task_id)
 - `GET /api/v1/tasks/{task_id}`: Check task progress
@@ -190,10 +192,10 @@ Test fixtures in `test_*.py` files include:
 
 ## Development Workflow
 
-1. Make code changes locally (host volume mounted to `/workspaces/BlueHorseshoe`)
-2. Test: `docker exec bluehorseshoe pytest src/tests/test_file.py`
-3. Lint: `docker exec bluehorseshoe ./lint.sh`
-4. Run prediction: `docker exec bluehorseshoe python src/main.py -p`
+1. Make code changes (code is at `/root/BlueHorseshoe`)
+2. Test: `./run.sh pytest src/tests/test_file.py`
+3. Lint: `./run.sh ./lint.sh`
+4. Run prediction: `./run.sh python src/main.py -p`
 5. Check logs: `src/logs/blueHorseshoe.log`, `src/logs/report.txt`, `src/logs/backtest_log.csv`
 6. View reports: `src/graphs/report_YYYY-MM-DD.html`
 
@@ -203,12 +205,13 @@ Test fixtures in `test_*.py` files include:
 - **Strategy Core:** `src/bluehorseshoe/analysis/strategy.py`
 - **OHLCV Store:** `src/bluehorseshoe/data/duckdb_store.py` (DuckDB backend)
 - **OHLCV Data:** `data/ohlcv.duckdb` (not checked into git)
-- **Migration:** `src/migrate_to_duckdb.py` (one-time MongoDB → DuckDB)
 - **Indicator Config:** `src/weights.json`
-- **Environment:** `docker/.env` (copy from `.env.example`)
+- **Host Environment:** `.env` (repo root)
+- **Docker Environment:** `docker/.env` (container overrides for MongoDB/IBKR DNS)
+- **Python Wrapper:** `run.sh` (activates venv, sets PYTHONPATH)
 - **Logs:** `src/logs/` directory
 - **Reports:** `src/graphs/` directory
-- **Docker Config:** `docker/docker-compose.yml`, `docker/Dockerfile.bluehorseshoe`
+- **Docker Config:** `docker/docker-compose.yml` (MongoDB + IBKR Gateway only)
 
 ## gstack
 Use /browse from gstack for all web browsing.

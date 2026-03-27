@@ -2,10 +2,12 @@
 Allocate wallet balances based on trade scores and market regime.
 """
 import sys
+from pathlib import Path
 
+_REPO_ROOT = str(Path(__file__).resolve().parent.parent)
 
 # Ensure src is in PYTHONPATH
-sys.path.append('/workspaces/BlueHorseshoe/src')
+sys.path.append(str(Path(_REPO_ROOT) / 'src'))
 
 # pylint: disable=wrong-import-position
 from bluehorseshoe.cli.context import create_cli_context

@@ -10,7 +10,7 @@ from bluehorseshoe.api.tasks import (
     predict_task, run_daily_pipeline, task_store, new_task_id,
 )
 from bluehorseshoe.core.dependencies import get_database, get_config, get_ibkr_client, get_store
-from bluehorseshoe.core.config import Settings
+from bluehorseshoe.core.config import REPO_ROOT, Settings
 from bluehorseshoe.core.service import get_latest_market_date
 from bluehorseshoe.data.ibkr_client import IBKRClient
 import logging
@@ -537,7 +537,7 @@ async def health_check():
     return {"status": "ok", "service": "bluehorseshoe-api"}
 
 
-_PIPELINE_STATUS_FILE = "/workspaces/BlueHorseshoe/src/logs/pipeline_status.json"
+_PIPELINE_STATUS_FILE = os.path.join(REPO_ROOT, "src", "logs", "pipeline_status.json")
 
 
 @router.get("/pipeline/status")

@@ -22,6 +22,8 @@ import logging
 import os
 from dataclasses import dataclass, field
 
+from bluehorseshoe.core.config import REPO_ROOT
+
 @dataclass
 class GlobalData:
     """
@@ -36,7 +38,7 @@ class GlobalData:
 
     Note: MongoDB connections are now managed through AppContainer instead of global state.
     """
-    base_path: str = '/workspaces/BlueHorseshoe/src/historical_data/'
+    base_path: str = f'{REPO_ROOT}/src/historical_data/'
     invalid_symbols: list = field(default_factory=list)
 
 # MongoDB connections are now managed through the AppContainer class

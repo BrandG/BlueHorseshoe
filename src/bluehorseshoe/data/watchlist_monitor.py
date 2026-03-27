@@ -27,11 +27,12 @@ from pandas.tseries.holiday import (
     nearest_workday,
 )
 
+from bluehorseshoe.core.config import REPO_ROOT
 from bluehorseshoe.data.ibkr_client import IBKRClient, QuoteData
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_WATCHLIST_PATH = "/workspaces/BlueHorseshoe/src/watchlist.txt"
+DEFAULT_WATCHLIST_PATH = f"{REPO_ROOT}/src/watchlist.txt"
 
 
 # ---------------------------------------------------------------------------
@@ -115,7 +116,7 @@ class WatchlistMonitor:
     @staticmethod
     def _default_csv_path() -> str:
         today = datetime.now().strftime("%Y-%m-%d")
-        return f"/workspaces/BlueHorseshoe/src/logs/watchlist_{today}.csv"
+        return f"{REPO_ROOT}/src/logs/watchlist_{today}.csv"
 
     def run(self) -> None:
         """Main loop: poll → display → log → sleep. Ctrl-C for clean exit."""

@@ -15,9 +15,13 @@ Commented Out Tests:
 """
 
 import logging
+import os
 import sys
+from pathlib import Path
 import pytest
-sys.path.append('/workspaces/BlueHorseshoe/src') # pylint: disable=wrong-import-position
+
+_REPO_ROOT = str(Path(__file__).resolve().parent.parent.parent)
+sys.path.append(str(Path(_REPO_ROOT) / 'src')) # pylint: disable=wrong-import-position
 from main import debug_test
 
 @pytest.fixture
@@ -26,7 +30,7 @@ def setup_logging():
     Sets up logging configuration for the application.
 
     This function configures the logging to write logs to a file named
-    'blueHorseshoe_test.log' located in the '/workspaces/BlueHorseshoe/src/logs/'
+    'blueHorseshoe_test.log' located in the '<REPO_ROOT>/src/logs/'
     directory. The log file is overwritten each time the function is called.
     The logging level is set to DEBUG, and the log messages are formatted to
     include the timestamp, log level, and message.
@@ -36,7 +40,7 @@ def setup_logging():
 
     Shuts down the logging system after the yield statement.
     """
-    logging.basicConfig(filename='/workspaces/BlueHorseshoe/src/logs/blueHorseshoe_test.log', filemode='w',
+    logging.basicConfig(filename=os.path.join(_REPO_ROOT, 'src', 'logs', 'blueHorseshoe_test.log'), filemode='w',
                         level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
     yield
     logging.shutdown()

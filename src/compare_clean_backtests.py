@@ -17,8 +17,9 @@ import json
 import sys
 from pathlib import Path
 
-LOG_DIR = Path("/workspaces/BlueHorseshoe/src/logs")
-TEST_DATES_PATH = Path("/workspaces/BlueHorseshoe/src/test_dates.json")
+_REPO_ROOT = str(Path(__file__).resolve().parent.parent)
+LOG_DIR = Path(_REPO_ROOT) / "src" / "logs"
+TEST_DATES_PATH = Path(_REPO_ROOT) / "src" / "test_dates.json"
 
 FILES = {
     "V2":   LOG_DIR / "clean_backtest_v2.csv",
