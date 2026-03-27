@@ -121,8 +121,8 @@ def test_get_symbol_list_from_net(mock_get):
         {"symbol": "GOOGL", "name": "Alphabet Inc", "exchange": "NASDAQ"}
     ]
 @patch("bluehorseshoe.core.symbols.fetch_symbol_list_from_net")
-@patch("bluehorseshoe.core.symbols.get_symbols_from_mongo")
-def test_get_symbol_list(mock_get_symbols_from_mongo, mock_fetch_symbol_list_from_net):
+@patch("bluehorseshoe.core.symbols.get_symbols")
+def test_get_symbol_list(mock_get_symbols, mock_fetch_symbol_list_from_net):
     """
     Test the get_symbol_list function.
 
@@ -133,7 +133,7 @@ def test_get_symbol_list(mock_get_symbols_from_mongo, mock_fetch_symbol_list_fro
     Asserts:
         The returned list of symbols matches the expected list.
     """
-    mock_get_symbols_from_mongo.return_value = [{"symbol": "AAPL", "name": "Apple Inc"}]
+    mock_get_symbols.return_value = [{"symbol": "AAPL", "name": "Apple Inc"}]
     mock_fetch_symbol_list_from_net.return_value = [{"symbol": "AAPL", "name": "Apple Inc"}]
     symbols = get_symbol_list(prefer_net=True)
     assert len(symbols) > 0

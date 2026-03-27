@@ -9,6 +9,7 @@ from pymongo.errors import PyMongoError
 
 # Import our internal modules
 from bluehorseshoe.analysis.ml_overlay import MLOverlayTrainer
+from .symbol_repository import get_symbols, upsert_overview
 from . import symbols
 from .container import create_app_container
 
@@ -59,7 +60,7 @@ def update_history_batch(database, limit: int = 0, recent_only: bool = True, sto
     print(f"\n--- STEP 2: Updating Price History (Recent Only: {recent_only}) ---")
 
     # 1. Get all symbols from Mongo
-    all_symbols = symbols.get_symbols_from_mongo(database=database)
+    all_symbols = get_symbols(database=database)
 
     if limit > 0:
         all_symbols = all_symbols[:limit]
@@ -105,7 +106,7 @@ def update_overviews_batch(database, limit: int = 0):
         limit: Max number of symbols to update (0 for all).
     """
     print("\n--- STEP 3: Updating Company Overviews ---")
-    all_symbols = symbols.get_symbols_from_mongo(database=database)
+    all_symbols = get_symbols(database=database)
     if limit > 0:
         all_symbols = all_symbols[:limit]
 
@@ -120,7 +121,7 @@ def update_overviews_batch(database, limit: int = 0):
         try:
             overview = symbols.fetch_overview_from_net(ticker)
             if overview:
-                symbols.upsert_overview_to_mongo(ticker, overview, database=database)
+                upsert_overview(ticker, overview, database=database)
                 success_count += 1
         except (RequestException, PyMongoError, RuntimeError) as e:
             error_count += 1
@@ -138,7 +139,7 @@ def update_news_batch(database, limit: int = 0):
         limit: Max number of symbols to update (0 for all).
     """
     print("\n--- STEP 4: Updating News Sentiment ---")
-    all_symbols = symbols.get_symbols_from_mongo(database=database)
+    all_symbols = get_symbols(database=database)
     if limit > 0:
         all_symbols = all_symbols[:limit]
 

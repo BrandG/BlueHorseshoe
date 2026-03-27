@@ -48,8 +48,9 @@ from bluehorseshoe.analysis.postprocess import CandidateAssembler, SentimentEnri
 from bluehorseshoe.analysis.technical_analyzer import TechnicalAnalyzer
 from bluehorseshoe.core.config import Settings, get_settings, weights_config
 from bluehorseshoe.core.scores import ScoreManager
+from bluehorseshoe.core.symbol_repository import get_overview, get_symbols
 from bluehorseshoe.core.symbols import (
-    get_symbol_name_list, get_symbols_from_mongo, get_overview_from_mongo,
+    get_symbol_name_list,
     get_sentiment_score,
 )
 from bluehorseshoe.analysis.ml_utils import build_ml_features
@@ -617,7 +618,7 @@ class SwingTrader:
                 return None
 
         # 5. Load fundamental overview (for ML features)
-        overview = get_overview_from_mongo(symbol, database=self.database)
+        overview = get_overview(symbol, database=self.database)
 
         # 6. Load sentiment score (for ML features)
         target_date_str = str(yesterday['date'])[:10]
@@ -952,7 +953,7 @@ class SwingTrader:
         logging.info("Market-cap filter: %d → %d symbols (%d skipped)", before, len(symbols), before - len(symbols))
 
         # Build symbol metadata map
-        all_symbols = get_symbols_from_mongo(database=self.database)
+        all_symbols = get_symbols(database=self.database)
         symbol_map = {s['symbol']: s.get('exchange', 'Unknown') for s in all_symbols}
 
         ctx = StrategyContext(

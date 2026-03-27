@@ -11,7 +11,7 @@ Core utilities for:
 from __future__ import annotations
 
 from datetime import datetime, date
-from typing import Any, Dict, List, Optional, Iterable
+from typing import Any, Dict, List, Optional
 import os
 import csv
 import io
@@ -55,10 +55,7 @@ RECENT_TRADING_DAYS = int(os.environ.get("RECENT_TRADING_DAYS", "240"))
 
 from bluehorseshoe.core.invalid_symbols import load_invalid_symbol_set
 from bluehorseshoe.core.symbol_repository import (
-    backfill_missing_overviews,
-    get_overview,
     get_symbols,
-    upsert_overview,
     upsert_symbols,
 )
 
@@ -108,19 +105,6 @@ def fetch_symbol_list_from_net() -> List[Dict[str, Any]]:
     return symbols
 
 
-def upsert_symbols_to_mongo(symbols: Iterable[Dict[str, Any]], database=None) -> int:
-    """
-    Upsert symbol documents into MongoDB.
-
-    Args:
-        symbols: Iterable of symbol dictionaries to upsert.
-        database: MongoDB database instance. Required.
-    """
-    if database is None:
-        raise ValueError("database parameter is required for upsert_symbols_to_mongo")
-    return upsert_symbols(symbols, database=database)
-
-
 def refresh_symbols(database=None) -> Dict[str, Any]:
     """
     Fetch symbols from net and store in MongoDB.
@@ -135,7 +119,7 @@ def refresh_symbols(database=None) -> Dict[str, Any]:
     if not symbols:
         return {"status": "empty", "count": 0, "symbol_count": 0, "sample": []}
 
-    count = upsert_symbols_to_mongo(symbols, database=database)
+    count = upsert_symbols(symbols, database=database)
 
     return {
         "status": "ok",
@@ -148,23 +132,6 @@ def refresh_symbols(database=None) -> Dict[str, Any]:
 # ---------------------------------------------------------------------
 # Goal 2: Load symbol list from Mongo
 # ---------------------------------------------------------------------
-
-def get_symbols_from_mongo(database=None, limit: Optional[int] = None, active_only: bool = False) -> List[Dict[str, Any]]:
-    """
-    Return stored symbols sorted alphabetically.
-
-    Args:
-        database: MongoDB database instance. Required.
-        limit: Optional limit on number of symbols to return.
-        active_only: If True, only return symbols with active=True.
-
-    Returns:
-        List of symbol dictionaries.
-    """
-    if database is None:
-        raise ValueError("database parameter is required for get_symbols_from_mongo")
-    return get_symbols(database=database, limit=limit, active_only=active_only)
-
 
 def get_symbol_list(database=None, prefer_net: bool = False, active_only: bool = False) -> List[Dict[str, Any]]:
     """
@@ -189,7 +156,7 @@ def get_symbol_list(database=None, prefer_net: bool = False, active_only: bool =
             logging.warning("Net symbol fetch failed; falling back to Mongo: %s", e)
 
     if not symbols:
-        symbols = get_symbols_from_mongo(database=database, active_only=active_only)
+        symbols = get_symbols(database=database, active_only=active_only)
 
     return [s for s in symbols if s["symbol"].upper() not in invalid_symbols]
 
@@ -340,33 +307,6 @@ def fetch_overview_from_net(symbol: str) -> Dict[str, Any]:
         return {}
 
     return json_data
-
-
-def upsert_overview_to_mongo(symbol: str, overview: Dict[str, Any], database=None) -> None:
-    """
-    Store company overview metadata in the symbol_overviews collection.
-
-    Args:
-        symbol: Stock symbol.
-        overview: Overview data dictionary from Alpha Vantage.
-        database: MongoDB database instance. Required.
-    """
-    if database is None:
-        raise ValueError("database parameter is required for upsert_overview_to_mongo")
-    upsert_overview(symbol, overview, database=database)
-
-
-def get_overview_from_mongo(symbol: str, database=None) -> Dict[str, Any]:
-    """
-    Load company overview for a symbol from MongoDB.
-
-    Args:
-        symbol: Stock symbol.
-        database: MongoDB database instance. Required.
-    """
-    if database is None:
-        raise ValueError("database parameter is required for get_overview_from_mongo")
-    return get_overview(symbol, database=database)
 
 
 @sleep_and_retry
@@ -574,19 +514,6 @@ def get_sentiment_history(
         .limit(limit)
     )
     return list(cursor)
-
-
-def backfill_overviews(database, limit=None):
-    """
-    Fetch AV OVERVIEW for symbols missing from symbol_overviews.
-    Skips NYSE ARCA (mostly ETFs — AV has no overview for them).
-    """
-    return backfill_missing_overviews(
-        database=database,
-        fetch_overview=fetch_overview_from_net,
-        upsert_overview_fn=lambda symbol, overview: upsert_overview_to_mongo(symbol, overview, database=database),
-        limit=limit,
-    )
 
 
 def get_historical(symbol: str, store=None, **_kwargs) -> List[Dict[str, Any]]:

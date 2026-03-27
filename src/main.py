@@ -34,6 +34,7 @@ _REPO_ROOT = str(Path(__file__).resolve().parent.parent)
 from bluehorseshoe.application.services import generate_reports, run_prediction, update_market_data
 from bluehorseshoe.cli.context import create_cli_context
 from bluehorseshoe.core.service import get_latest_market_date
+from bluehorseshoe.core.symbol_repository import backfill_missing_overviews, get_symbols
 from bluehorseshoe.data.historical_data import check_market_status
 from bluehorseshoe.analysis.optimizer import WeightOptimizer
 
@@ -101,14 +102,21 @@ if __name__ == "__main__":
 
         with create_cli_context() as ctx:
             if "--refresh-overviews" in sys.argv:
-                from bluehorseshoe.core.symbols import backfill_overviews  # pylint: disable=import-outside-toplevel
                 ov_limit = None
                 if "--ov-limit" in sys.argv:
                     try:
                         ov_limit = int(sys.argv[sys.argv.index("--ov-limit") + 1])
                     except (ValueError, IndexError):
                         pass
-                backfill_overviews(ctx.db, limit=ov_limit)
+                from bluehorseshoe.core.symbols import fetch_overview_from_net  # pylint: disable=import-outside-toplevel
+                from bluehorseshoe.core.symbol_repository import upsert_overview  # pylint: disable=import-outside-toplevel
+
+                backfill_missing_overviews(
+                    database=ctx.db,
+                    fetch_overview=fetch_overview_from_net,
+                    upsert_overview_fn=lambda symbol, overview: upsert_overview(symbol, overview, database=ctx.db),
+                    limit=ov_limit,
+                )
 
             update_market_data(
                 database=ctx.db,
@@ -306,12 +314,12 @@ if __name__ == "__main__":
                 sys.exit(0)
 
             # 3. Build Symbol Map (for exchange info)
-            from bluehorseshoe.core.symbols import get_symbols_from_mongo, get_sentiment_score
+            from bluehorseshoe.core.symbols import get_sentiment_score
             from bluehorseshoe.data.tiingo_news import get_tiingo_sentiment_score_with_count
             from bluehorseshoe.data.stocktwits import get_stocktwits_sentiment_score_with_count
             from bluehorseshoe.data.finviz_news import get_finviz_sentiment_score_with_count
             from bluehorseshoe.analysis.sentiment_normalizer import SentimentNormalizer
-            all_symbols = get_symbols_from_mongo(database=ctx.db)
+            all_symbols = get_symbols(database=ctx.db)
             symbol_map = {s['symbol']: s.get('exchange', 'Unknown') for s in all_symbols}
 
             # Set up sentiment normalizer for composite computation
@@ -890,7 +898,6 @@ if __name__ == "__main__":
         logging.info("Building motif catalog...")
         with create_cli_context() as ctx:
             from bluehorseshoe.analysis.curves.motif_catalog import build_motif_catalog  # pylint: disable=import-outside-toplevel
-            from bluehorseshoe.core.symbols import get_symbols_from_mongo  # pylint: disable=import-outside-toplevel
 
             symbols_filter = None
             if "--symbols" in sys.argv:
@@ -903,11 +910,11 @@ if __name__ == "__main__":
             if symbols_filter:
                 symbols = symbols_filter
             elif "--full" in sys.argv:
-                all_syms = get_symbols_from_mongo(database=ctx.db)
+                all_syms = get_symbols(database=ctx.db)
                 symbols = [s['symbol'] for s in all_syms]
             else:
                 # Default: 200 most liquid symbols
-                all_syms = get_symbols_from_mongo(database=ctx.db)
+                all_syms = get_symbols(database=ctx.db)
                 symbols = [s['symbol'] for s in all_syms[:200]]
 
             n_workers = 4

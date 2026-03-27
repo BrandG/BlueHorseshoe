@@ -12,7 +12,7 @@ sys.path.append(str(Path(_REPO_ROOT) / 'src'))
 # pylint: disable=wrong-import-position
 from bluehorseshoe.cli.context import create_cli_context
 from bluehorseshoe.core.scores import ScoreManager
-from bluehorseshoe.core.symbols import get_overview_from_mongo
+from bluehorseshoe.core.symbol_repository import get_overview
 from bluehorseshoe.analysis.market_regime import MarketRegime
 from bluehorseshoe.data.historical_data import load_historical_data
 
@@ -43,7 +43,7 @@ def get_entry_price(symbol, target_date, database):
             return day['close']
     return data['days'][-1]['close']
 
-def _select_candidates(candidates, max_positions):
+def _select_candidates(candidates, max_positions, database):
     """Filter candidates based on score thresholds and market cap."""
     final_picks = []
     for cand in candidates:
@@ -55,7 +55,7 @@ def _select_candidates(candidates, max_positions):
 
         if total_score >= threshold:
             # Check overview for safety
-            overview = get_overview_from_mongo(symbol)
+            overview = get_overview(symbol, database=database)
             if overview:
                 # Basic safety filters
                 market_cap = float(overview.get('MarketCapitalization', 0))
@@ -102,7 +102,7 @@ def allocate(database):
     candidates.sort(key=lambda x: x.get('score', 0), reverse=True)
 
     # Select final positions
-    final_picks = _select_candidates(candidates, max_positions)
+    final_picks = _select_candidates(candidates, max_positions, database)
 
     print(f"Selected {len(final_picks)} positions:")
     for p in final_picks:
