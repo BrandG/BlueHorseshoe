@@ -1932,7 +1932,6 @@ document.addEventListener('DOMContentLoaded', function() {
             # Toolbar (calc button only)
             '<div class="toolbar">',
             '<button class="arcade-btn btn-pink" onclick="openPortfolioModal()">PORTFOLIO<span class="portfolio-badge" id="portfolioBadge">0</span></button>',
-            '<button class="arcade-btn btn-blue" onclick="openCalcModal()">CALC</button>',
             '</div>',
 
             # Status bar
