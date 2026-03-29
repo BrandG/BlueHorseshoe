@@ -65,6 +65,9 @@
 - Portfolio-level backtesting — simulate running top N picks simultaneously with fixed capital allocation
 - Track max drawdown, Sharpe ratio, and other portfolio-level metrics
 
+### Security
+- **Add MongoDB authentication** — Configure a MongoDB user with password and enable `--auth`. Update `MONGO_URI` in `.env` and `docker/.env` with credentials. Defense-in-depth alongside the ufw firewall and localhost bind (both done 2026-03-27 after ransomware incident).
+
 ### Data & Infrastructure
 - **Migrate OHLCV storage from DuckDB to Parquet files** — DuckDB's single-writer file lock causes contention when multiple processes/pipelines run concurrently (e.g. `-u` and `-p`, or orphaned ProcessPoolExecutor workers holding the lock after a kill). Two-phase approach:
   1. **Phase 1: DuckDB read-only mode** — worker processes and concurrent readers open with `read_only=True`. Eliminates lock contention for the common case (one writer, many readers). Quick win.
