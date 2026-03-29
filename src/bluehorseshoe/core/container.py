@@ -8,6 +8,7 @@ from typing import Optional, TYPE_CHECKING
 from pymongo import MongoClient
 from pymongo.database import Database
 from .config import Settings, get_settings
+from .invalid_symbols import load_invalid_symbols, resolve_invalid_symbols_path
 
 if TYPE_CHECKING:
     from bluehorseshoe.data.ibkr_client import IBKRClient
@@ -85,17 +86,12 @@ class AppContainer:
         These symbols are excluded from processing.
         """
         if self._invalid_symbols is None:
-            invalid_symbols_path = f"{self.settings.base_path}/invalid_symbols.txt"
-            try:
-                with open(invalid_symbols_path, 'r', encoding='utf-8') as f:
-                    self._invalid_symbols = [line.strip() for line in f if line.strip()]
+            invalid_symbols_path = resolve_invalid_symbols_path(self.settings.base_path)
+            self._invalid_symbols = load_invalid_symbols(invalid_symbols_path)
+            if self._invalid_symbols:
                 logger.info(f"Loaded {len(self._invalid_symbols)} invalid symbols")
-            except FileNotFoundError:
+            else:
                 logger.warning(f"Invalid symbols file not found at {invalid_symbols_path}")
-                self._invalid_symbols = []
-            except (OSError, IOError) as e:
-                logger.error(f"Error reading invalid symbols file: {e}")
-                self._invalid_symbols = []
         return self._invalid_symbols
 
     def close(self):

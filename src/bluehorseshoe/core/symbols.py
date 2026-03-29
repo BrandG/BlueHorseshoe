@@ -11,7 +11,7 @@ Core utilities for:
 from __future__ import annotations
 
 from datetime import datetime, date
-from typing import Any, Dict, List, Optional, Iterable
+from typing import Any, Dict, List, Optional
 import os
 import csv
 import io
@@ -21,13 +21,6 @@ import requests
 from requests.exceptions import RequestException
 from ratelimit import limits, sleep_and_retry
 from pymongo import UpdateOne
-from pymongo.results import BulkWriteResult
-
-# Database instances are now passed as parameters instead of using global singletons
-
-# ---------------------------------------------------------------------
-# Config
-# ---------------------------------------------------------------------
 
 ALPHAVANTAGE_KEY = os.environ.get("ALPHAVANTAGE_KEY", "")
 
@@ -60,19 +53,15 @@ NEWS_SENTIMENT_URL = (
 
 RECENT_TRADING_DAYS = int(os.environ.get("RECENT_TRADING_DAYS", "240"))
 
-from bluehorseshoe.core.config import REPO_ROOT
-INVALID_SYMBOLS_FILE = os.path.join(REPO_ROOT, "src", "historical_data", "invalid_symbols.txt")
+from bluehorseshoe.core.invalid_symbols import load_invalid_symbol_set
+from bluehorseshoe.core.symbol_repository import (
+    get_symbols,
+    upsert_symbols,
+)
 
 def get_invalid_symbols() -> set[str]:
     """Load the list of invalid symbols from the blacklist file."""
-    if not os.path.exists(INVALID_SYMBOLS_FILE):
-        return set()
-    try:
-        with open(INVALID_SYMBOLS_FILE, "r", encoding="utf-8") as f:
-            return {line.strip().upper() for line in f if line.strip()}
-    except OSError as e:
-        logging.error("Error reading invalid symbols file: %s", e)
-        return set()
+    return load_invalid_symbol_set()
 
 # ---------------------------------------------------------------------
 # Goal 1: Fetch symbol list from net -> upsert to Mongo
@@ -116,34 +105,6 @@ def fetch_symbol_list_from_net() -> List[Dict[str, Any]]:
     return symbols
 
 
-def upsert_symbols_to_mongo(symbols: Iterable[Dict[str, Any]], database=None) -> int:
-    """
-    Upsert symbol documents into MongoDB.
-
-    Args:
-        symbols: Iterable of symbol dictionaries to upsert.
-        database: MongoDB database instance. Required.
-    """
-    if database is None:
-        raise ValueError("database parameter is required for upsert_symbols_to_mongo")
-
-    _symbols_col = database["symbols"]
-
-    # Create index if it doesn't exist (idempotent)
-    _symbols_col.create_index("symbol", unique=True)
-
-    ops = [
-        UpdateOne({"symbol": s["symbol"]}, {"$set": s}, upsert=True)
-        for s in symbols
-        if s.get("symbol")
-    ]
-    if not ops:
-        return 0
-
-    result: BulkWriteResult = _symbols_col.bulk_write(ops, ordered=False)
-    return (result.upserted_count or 0) + (result.modified_count or 0)
-
-
 def refresh_symbols(database=None) -> Dict[str, Any]:
     """
     Fetch symbols from net and store in MongoDB.
@@ -158,7 +119,7 @@ def refresh_symbols(database=None) -> Dict[str, Any]:
     if not symbols:
         return {"status": "empty", "count": 0, "symbol_count": 0, "sample": []}
 
-    count = upsert_symbols_to_mongo(symbols, database=database)
+    count = upsert_symbols(symbols, database=database)
 
     return {
         "status": "ok",
@@ -171,28 +132,6 @@ def refresh_symbols(database=None) -> Dict[str, Any]:
 # ---------------------------------------------------------------------
 # Goal 2: Load symbol list from Mongo
 # ---------------------------------------------------------------------
-
-def get_symbols_from_mongo(database=None, limit: Optional[int] = None, active_only: bool = False) -> List[Dict[str, Any]]:
-    """
-    Return stored symbols sorted alphabetically.
-
-    Args:
-        database: MongoDB database instance. Required.
-        limit: Optional limit on number of symbols to return.
-        active_only: If True, only return symbols with active=True.
-
-    Returns:
-        List of symbol dictionaries.
-    """
-    if database is None:
-        raise ValueError("database parameter is required for get_symbols_from_mongo")
-
-    query = {"active": True} if active_only else {}
-    cursor = database["symbols"].find(query, {"_id": 0}).sort("symbol", 1)
-    if limit:
-        cursor = cursor.limit(limit)
-    return list(cursor)
-
 
 def get_symbol_list(database=None, prefer_net: bool = False, active_only: bool = False) -> List[Dict[str, Any]]:
     """
@@ -217,7 +156,7 @@ def get_symbol_list(database=None, prefer_net: bool = False, active_only: bool =
             logging.warning("Net symbol fetch failed; falling back to Mongo: %s", e)
 
     if not symbols:
-        symbols = get_symbols_from_mongo(database=database, active_only=active_only)
+        symbols = get_symbols(database=database, active_only=active_only)
 
     return [s for s in symbols if s["symbol"].upper() not in invalid_symbols]
 
@@ -368,46 +307,6 @@ def fetch_overview_from_net(symbol: str) -> Dict[str, Any]:
         return {}
 
     return json_data
-
-
-def upsert_overview_to_mongo(symbol: str, overview: Dict[str, Any], database=None) -> None:
-    """
-    Store company overview metadata in the symbol_overviews collection.
-
-    Args:
-        symbol: Stock symbol.
-        overview: Overview data dictionary from Alpha Vantage.
-        database: MongoDB database instance. Required.
-    """
-    sym = symbol.upper().strip()
-    if not sym:
-        raise ValueError("symbol is required")
-
-    if database is None:
-        raise ValueError("database parameter is required for upsert_overview_to_mongo")
-
-    _overviews = database["symbol_overviews"]
-
-    overview["symbol"] = sym
-    overview["last_updated"] = datetime.utcnow().isoformat()
-
-    _overviews.update_one({"symbol": sym}, {"$set": overview}, upsert=True)
-
-
-def get_overview_from_mongo(symbol: str, database=None) -> Dict[str, Any]:
-    """
-    Load company overview for a symbol from MongoDB.
-
-    Args:
-        symbol: Stock symbol.
-        database: MongoDB database instance. Required.
-    """
-    if database is None:
-        raise ValueError("database parameter is required for get_overview_from_mongo")
-
-    sym = symbol.upper().strip()
-    doc = database["symbol_overviews"].find_one({"symbol": sym}, {"_id": 0})
-    return doc or {}
 
 
 @sleep_and_retry
@@ -615,41 +514,6 @@ def get_sentiment_history(
         .limit(limit)
     )
     return list(cursor)
-
-
-def backfill_overviews(database, limit=None):
-    """
-    Fetch AV OVERVIEW for symbols missing from symbol_overviews.
-    Skips NYSE ARCA (mostly ETFs — AV has no overview for them).
-    """
-    existing = {doc["symbol"] for doc in
-                database["symbol_overviews"].find({}, {"symbol": 1, "_id": 0})}
-
-    # Only backfill stocks (skip ETF-heavy exchanges)
-    candidates = database["symbols"].find(
-        {"symbol": {"$nin": list(existing)},
-         "exchange": {"$nin": ["NYSE ARCA"]}},
-        {"symbol": 1, "_id": 0}
-    ).sort("symbol", 1)
-
-    symbols = [doc["symbol"] for doc in candidates]
-    if limit:
-        symbols = symbols[:limit]
-
-    logging.info("Backfilling overviews for %d symbols", len(symbols))
-
-    fetched = 0
-    for sym in symbols:
-        try:
-            overview = fetch_overview_from_net(sym)
-            if overview and "Symbol" in overview:
-                upsert_overview_to_mongo(sym, overview, database=database)
-                fetched += 1
-        except Exception as e:  # pylint: disable=broad-exception-caught
-            logging.error("Overview fetch failed for %s: %s", sym, e)
-
-    logging.info("Overview backfill complete: %d/%d fetched", fetched, len(symbols))
-    return fetched
 
 
 def get_historical(symbol: str, store=None, **_kwargs) -> List[Dict[str, Any]]:

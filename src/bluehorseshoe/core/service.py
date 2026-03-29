@@ -10,11 +10,9 @@ from pymongo.errors import PyMongoError
 from requests.exceptions import RequestException
 
 from .models import DailyReport, Candidate, PriceData, PredictionData
+from .symbol_repository import get_symbols, get_overview, upsert_overview
 from .symbols import (
-    get_symbols_from_mongo,
     fetch_overview_from_net,
-    upsert_overview_to_mongo,
-    get_overview_from_mongo
 )
 
 def run_backtest(symbol: str, start: date, end: date, strategy_name: str = "baseline") -> Dict[str, Any]:
@@ -66,16 +64,16 @@ def handle_trigger_action(action: str, payload: Dict[str, Any], database=None) -
 
     elif action == "backfill_overviews":
         limit = payload.get("limit", 10)
-        symbols = get_symbols_from_mongo(database=database, limit=limit)
+        symbols = get_symbols(database=database, limit=limit)
         count = 0
         for s in symbols:
             sym = s["symbol"]
             # Check if already exists
-            if not get_overview_from_mongo(sym, database=database):
+            if not get_overview(sym, database=database):
                 try:
                     ov = fetch_overview_from_net(sym)
                     if ov:
-                        upsert_overview_to_mongo(sym, ov, database=database)
+                        upsert_overview(sym, ov, database=database)
                         count += 1
                         time.sleep(0.2) # Small delay
                 except (RequestException, PyMongoError, RuntimeError) as e:

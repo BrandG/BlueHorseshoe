@@ -3,7 +3,8 @@
 Utility functions for ML model management and performance tracking.
 """
 from typing import Dict, Any
-from bluehorseshoe.core.symbols import get_overview_from_mongo, get_sentiment_score
+from bluehorseshoe.core.symbol_repository import get_overview
+from bluehorseshoe.core.symbols import get_sentiment_score
 
 def safe_float(val: Any) -> float:
     """Safely converts a value to float, handling None and strings."""
@@ -32,7 +33,7 @@ def extract_features(symbol: str, components: Dict[str, float], target_date: str
     feat = components.copy()
 
     # 2. Fundamental Features (from overviews)
-    overview = get_overview_from_mongo(symbol, database=database)
+    overview = get_overview(symbol, database=database)
 
     if overview:
         feat['Sector'] = overview.get('Sector', 'Unknown')

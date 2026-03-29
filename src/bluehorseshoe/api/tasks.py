@@ -2,11 +2,13 @@ import logging
 import datetime
 import numpy as np
 import uuid
-from bluehorseshoe.analysis.strategy import SwingTrader
+from bluehorseshoe.application.services import (
+    generate_reports,
+    run_prediction,
+    send_report_email,
+    update_market_data,
+)
 from bluehorseshoe.core.container import create_app_container
-from bluehorseshoe.data.historical_data import build_all_symbols_history, BackfillConfig
-from bluehorseshoe.reporting.html_reporter import HTMLReporter
-from bluehorseshoe.core.email_service import EmailService
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +51,11 @@ def update_market_data_task(task_id: str | None = None):
     container = create_app_container()
     try:
         container.get_mongo_client().server_info()
-        build_all_symbols_history(BackfillConfig(recent=True), database=container.get_database(), store=container.get_historical_store())
+        update_market_data(
+            database=container.get_database(),
+            store=container.get_historical_store(),
+            recent=True,
+        )
         logger.info("Market data update completed.")
         return "Data Updated"
     except Exception as e:
@@ -85,22 +91,15 @@ def predict_task(target_date: str = None, indicators: list = None, aggregation: 
     container = create_app_container()
     try:
         container.get_mongo_client().server_info()
-        trader = SwingTrader(
+        clean_data = convert_numpy(run_prediction(
             database=container.get_database(),
             config=container.settings,
-            report_writer=None,
-        )
-        report_data = trader.swing_predict(
+            store=container.get_historical_store(),
             target_date=target_date,
             enabled_indicators=indicators,
             aggregation=aggregation,
             progress_callback=progress_callback,
-        )
-        clean_data = convert_numpy(report_data)
-        if target_date:
-            clean_data["date"] = target_date
-        elif not clean_data.get("date"):
-            clean_data["date"] = str(datetime.date.today())
+        ))
         logger.info(f"Task {task_id}: Prediction completed successfully.")
         return clean_data
     except Exception as e:
@@ -120,30 +119,13 @@ def generate_report_task(report_data: dict, task_id: str | None = None):
         task_store[task_id] = {"status": "PROGRESS", "step": "generate_report"}
     container = create_app_container()
     try:
-        reporter = HTMLReporter(database=container.get_database())
-        date = report_data.get("date", str(datetime.date.today()))
-        regime = report_data.get("regime", {})
-        candidates = report_data.get("candidates", [])
-        charts = report_data.get("charts", [])
-
-        trader = SwingTrader(
+        result = generate_reports(
             database=container.get_database(),
-            config=container.settings,
-            report_writer=None,
+            report_data=report_data,
         )
-        prev_perf = trader.get_previous_performance(date)
-        html_content = reporter.generate_report(
-            date=date, regime=regime, candidates=candidates,
-            charts=charts, previous_performance=prev_perf,
-        )
-        email_html = reporter.generate_email_report(
-            date=date, regime=regime, candidates=candidates,
-            previous_performance=prev_perf,
-        )
-        full_path, email_path = reporter.save_both(html_content, email_html, f"report_{date}")
-        logger.info(f"Full report generated: {full_path}")
-        logger.info(f"Email-friendly report generated: {email_path}")
-        return {"status": "Report Generated", "path": full_path, "email_path": email_path}
+        logger.info(f"Full report generated: {result['path']}")
+        logger.info(f"Email-friendly report generated: {result['email_path']}")
+        return result
     except Exception as e:
         logger.error(f"Report generation failed: {e}", exc_info=True)
         raise
@@ -159,18 +141,14 @@ def send_email_task(report_info: dict, task_id: str | None = None):
     if task_id:
         task_store[task_id] = {"status": "PROGRESS", "step": "send_email"}
     try:
-        report_path = report_info.get("path")
-        if not report_path:
+        result = send_report_email(report_path=report_info.get("path"))
+        if result == "No Report Path":
             logger.warning("No report path provided to email task.")
-            return "No Report Path"
-        email_service = EmailService()
-        success = email_service.send_report(report_path)
-        if success:
+        elif result == "Email Sent":
             logger.info("Email sent successfully.")
-            return "Email Sent"
         else:
             logger.warning("Email sending failed (check logs).")
-            return "Email Failed"
+        return result
     except Exception as e:
         logger.error(f"Email task failed: {e}", exc_info=True)
         return f"Email Error: {e}"

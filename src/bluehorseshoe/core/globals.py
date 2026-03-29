@@ -19,10 +19,11 @@ Classes:
 """
 
 import logging
-import os
 from dataclasses import dataclass, field
 
 from bluehorseshoe.core.config import REPO_ROOT
+from bluehorseshoe.core.invalid_symbols import load_invalid_symbols as load_invalid_symbols_file
+from bluehorseshoe.core.invalid_symbols import resolve_invalid_symbols_path
 
 @dataclass
 class GlobalData:
@@ -59,15 +60,8 @@ def load_invalid_symbols():
     Logs:
         An error message if the file is not found, cannot be decoded, or if any other I/O error occurs.
     """
-    GlobalData.invalid_symbols = []
-    invalid_symbols_file_path = os.path.join(GlobalData.base_path, 'invalid_symbols.txt')
-    try:
-        with open(invalid_symbols_file_path, 'r', encoding='utf-8') as file:
-            GlobalData.invalid_symbols = [line.strip() for line in file if line.strip()]
-    except FileNotFoundError:
+    invalid_symbols_file_path = resolve_invalid_symbols_path(GlobalData.base_path)
+    GlobalData.invalid_symbols = load_invalid_symbols_file(invalid_symbols_file_path)
+    if not GlobalData.invalid_symbols:
         logging.error("Error: File not found at %s. Please check the file path.", invalid_symbols_file_path)
-    except UnicodeDecodeError:
-        logging.error("Error: Unable to decode the file %s. Please check the file encoding.", invalid_symbols_file_path)
-    except (OSError, IOError) as e:
-        logging.error("An error occurred while reading the file: %s", e)
 load_invalid_symbols()

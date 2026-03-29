@@ -1,9 +1,9 @@
 """
-Tests for backfill_overviews in symbols.py.
+Tests for backfill_missing_overviews in symbol_repository.py.
 """
-from unittest.mock import patch, MagicMock, call
+from unittest.mock import patch, MagicMock
 
-from bluehorseshoe.core.symbols import backfill_overviews
+from bluehorseshoe.core.symbol_repository import backfill_missing_overviews
 
 
 def _make_mock_db(existing_symbols, candidate_docs):
@@ -34,7 +34,7 @@ def _make_mock_db(existing_symbols, candidate_docs):
     return mock_db
 
 
-@patch("bluehorseshoe.core.symbols.upsert_overview_to_mongo")
+@patch("bluehorseshoe.core.symbol_repository.upsert_overview")
 @patch("bluehorseshoe.core.symbols.fetch_overview_from_net")
 def test_backfill_skips_existing(mock_fetch, mock_upsert):
     """Symbols already in symbol_overviews should not be fetched."""
@@ -44,7 +44,7 @@ def test_backfill_skips_existing(mock_fetch, mock_upsert):
     )
     mock_fetch.return_value = {"Symbol": "GOOG", "MarketCapitalization": "1000000000"}
 
-    result = backfill_overviews(mock_db)
+    result = backfill_missing_overviews(database=mock_db)
 
     # Should only fetch GOOG, not AAPL or MSFT
     mock_fetch.assert_called_once_with("GOOG")
@@ -52,7 +52,7 @@ def test_backfill_skips_existing(mock_fetch, mock_upsert):
     assert result == 1
 
 
-@patch("bluehorseshoe.core.symbols.upsert_overview_to_mongo")
+@patch("bluehorseshoe.core.symbol_repository.upsert_overview")
 @patch("bluehorseshoe.core.symbols.fetch_overview_from_net")
 def test_backfill_skips_nyse_arca(mock_fetch, mock_upsert):
     """NYSE ARCA symbols should be excluded by the DB query filter."""
@@ -63,7 +63,7 @@ def test_backfill_skips_nyse_arca(mock_fetch, mock_upsert):
 
     # Verify the query passed to symbols.find() excludes NYSE ARCA
     mock_fetch.return_value = {"Symbol": "GOOG", "MarketCapitalization": "1000000000"}
-    backfill_overviews(mock_db)
+    backfill_missing_overviews(database=mock_db)
 
     # Check the filter passed to symbols.find
     symbols_col = mock_db["symbols"]
@@ -72,7 +72,7 @@ def test_backfill_skips_nyse_arca(mock_fetch, mock_upsert):
     assert "NYSE ARCA" in query["exchange"]["$nin"]
 
 
-@patch("bluehorseshoe.core.symbols.upsert_overview_to_mongo")
+@patch("bluehorseshoe.core.symbol_repository.upsert_overview")
 @patch("bluehorseshoe.core.symbols.fetch_overview_from_net")
 def test_backfill_respects_limit(mock_fetch, mock_upsert):
     """The limit parameter should cap the number of symbols fetched."""
@@ -82,13 +82,13 @@ def test_backfill_respects_limit(mock_fetch, mock_upsert):
     )
     mock_fetch.return_value = {"Symbol": "X", "MarketCapitalization": "500000000"}
 
-    result = backfill_overviews(mock_db, limit=2)
+    result = backfill_missing_overviews(database=mock_db, limit=2)
 
     assert mock_fetch.call_count == 2
     assert result == 2
 
 
-@patch("bluehorseshoe.core.symbols.upsert_overview_to_mongo")
+@patch("bluehorseshoe.core.symbol_repository.upsert_overview")
 @patch("bluehorseshoe.core.symbols.fetch_overview_from_net")
 def test_backfill_handles_empty_overview(mock_fetch, mock_upsert):
     """Symbols returning empty overview should not be upserted."""
@@ -98,14 +98,14 @@ def test_backfill_handles_empty_overview(mock_fetch, mock_upsert):
     )
     mock_fetch.return_value = {}  # Empty overview (e.g., delisted/ETF)
 
-    result = backfill_overviews(mock_db)
+    result = backfill_missing_overviews(database=mock_db)
 
     mock_fetch.assert_called_once_with("DEAD")
     mock_upsert.assert_not_called()
     assert result == 0
 
 
-@patch("bluehorseshoe.core.symbols.upsert_overview_to_mongo")
+@patch("bluehorseshoe.core.symbol_repository.upsert_overview")
 @patch("bluehorseshoe.core.symbols.fetch_overview_from_net")
 def test_backfill_handles_fetch_exception(mock_fetch, mock_upsert):
     """Fetch exceptions should be logged but not abort the run."""
@@ -118,7 +118,7 @@ def test_backfill_handles_fetch_exception(mock_fetch, mock_upsert):
         {"Symbol": "OK", "MarketCapitalization": "500000000"},
     ]
 
-    result = backfill_overviews(mock_db)
+    result = backfill_missing_overviews(database=mock_db)
 
     assert mock_fetch.call_count == 2
     assert mock_upsert.call_count == 1  # Only OK was upserted
