@@ -1846,7 +1846,7 @@ function renderPortfolioTable(results) {
     return '<div class="portfolio-table-row">' +
       '<div class="portfolio-col-rank">' + String(i + 1).padStart(2, '0') + '</div>' +
       '<div class="portfolio-col-symbol">' + r.symbol + '</div>' +
-      '<div class="portfolio-col-shares">' + r.shares.toFixed(2) + '</div>' +
+      '<div class="portfolio-col-shares">' + (r.shares / 2).toFixed(2) + '</div>' +
       '<div class="portfolio-col-price">$' + r.close.toFixed(2) + '</div>' +
       '<div class="portfolio-col-stop">$' + r.stop_loss.toFixed(2) + '</div>' +
       '<div class="portfolio-col-t1" style="color:var(--neon-amber);text-shadow:0 0 4px var(--neon-amber)">' + t1Val + '</div>' +
@@ -2021,7 +2021,7 @@ document.addEventListener('DOMContentLoaded', function() {
             '<div class="portfolio-summary-item"><div class="portfolio-summary-label">PORTFOLIO R:R</div><div class="portfolio-summary-value rr" id="portfolioRR">---</div></div>',
             '</div>',
             '<div class="portfolio-table-header">',
-            '<div>#</div><div>SYM</div><div>QTY</div><div>PRICE</div><div class="portfolio-col-stop">STOP</div><div class="portfolio-col-t1">T1</div><div class="portfolio-col-target">T2</div><div class="portfolio-col-risk">RISK</div><div class="portfolio-col-reward">RWD</div>',
+            '<div>#</div><div>SYM</div><div>QTY/2</div><div>PRICE</div><div class="portfolio-col-stop">STOP</div><div class="portfolio-col-t1">T1</div><div class="portfolio-col-target">T2</div><div class="portfolio-col-risk">RISK</div><div class="portfolio-col-reward">RWD</div>',
             '</div>',
             '<div class="portfolio-table-body" id="portfolioTableBody"></div>',
             '</div></div>',
