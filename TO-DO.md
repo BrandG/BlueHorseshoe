@@ -7,6 +7,7 @@
 - Event-driven backtest with an order book. Instead of the current "check high/low against levels" approach, model it as: generate orders → feed daily bars → match orders → update positions. That naturally handles split exits, trailing stops, breakeven stops, shorts — all as different order types rather than special-case code paths.
 
 ### Regime-Aware Strategy (partially done)
+- Validate mr_curve at 5.0 in combination with optimized MR weights (spec 6.0, +1/-1 baseline) -- untested combination, run assumption tester after baseline tuning is complete
 - ~~Add REGIME_PROFILES to constants.py~~ (done)
 - ~~Wire regime-adjusted stop/target multipliers into BaselineStrategy~~ (done)
 - Paper trader: apply `max_positions_pct` from regime profile (reduce positions in bullish market)
