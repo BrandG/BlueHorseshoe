@@ -243,6 +243,16 @@ class TechnicalAnalyzer:
 
         return score_adj, components
 
+    @staticmethod
+    def _calculate_mean_reversion_modifiers(days: pd.DataFrame) -> tuple[float, Dict[str, float]]:
+        """Calculates additional penalties and bonuses specific to mean reversion."""
+        indicator = MeanReversionIndicator(days, weight_category='mr_mean_reversion_specific')
+        penalty_falling_knife = indicator.calculate_falling_knife()
+        components = {
+            "penalty_falling_knife": penalty_falling_knife,
+        }
+        return penalty_falling_knife, components
+
 
     @staticmethod
     def _score_indicators(
@@ -399,6 +409,10 @@ class TechnicalAnalyzer:
             mod_score, mod_components = TechnicalAnalyzer._calculate_baseline_modifiers(days)
             total_score += mod_score
             components.update(mod_components)
+
+            mr_mod_score, mr_mod_components = TechnicalAnalyzer._calculate_mean_reversion_modifiers(days)
+            total_score += mr_mod_score
+            components.update(mr_mod_components)
 
         components["total"] = float(total_score)
         return components

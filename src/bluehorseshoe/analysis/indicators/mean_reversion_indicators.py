@@ -265,6 +265,23 @@ class MeanReversionIndicator(Indicator):
 
         return score
 
+    def calculate_falling_knife(self) -> float:
+        """
+        Detect two consecutive red candles ending on the most recent bar.
+
+        Returns:
+            float: -5.0 when the last two candles both close below open, else 0.0
+        """
+        if len(self.days) < 2 or 'open' not in self.days.columns or 'close' not in self.days.columns:
+            return 0.0
+
+        recent = self.days[['open', 'close']].tail(2)
+        if recent.isna().any().any():
+            return 0.0
+
+        both_red = (recent['close'] < recent['open']).all()
+        return -5.0 if both_red else 0.0
+
     def get_score(self, enabled_sub_indicators: Optional[list[str]] = None, aggregation: str = "sum") -> IndicatorScore:
         """
         Compute aggregate buy/sell scores from all mean-reversion sub-indicators.
