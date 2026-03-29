@@ -1391,14 +1391,22 @@ body::after {
 .portfolio-table-row:nth-child(even) { background: rgba(22,22,42,0.4); }
 .portfolio-col-rank { color: var(--neon-amber); }
 .portfolio-col-symbol { color: var(--neon-blue); text-shadow: 0 0 4px var(--neon-blue); }
-.portfolio-col-stop { color: var(--neon-red); text-shadow: 0 0 4px var(--neon-red); }
+.portfolio-col-stop { color: var(--neon-red); text-shadow: 0 0 4px var(--neon-red); text-align: right; }
 .portfolio-col-alloc { color: var(--neon-green); text-shadow: 0 0 4px var(--neon-green); }
 .portfolio-col-pct { color: var(--pixel-white); }
-.portfolio-col-shares { color: var(--neon-pink); text-shadow: 0 0 4px var(--neon-pink); }
-.portfolio-col-price { color: var(--pixel-white); }
-.portfolio-col-risk { color: var(--neon-red); }
-.portfolio-col-reward { color: var(--neon-green); }
-.portfolio-col-target { color: var(--neon-green); text-shadow: 0 0 4px var(--neon-green); }
+.portfolio-col-shares { color: var(--neon-pink); text-shadow: 0 0 4px var(--neon-pink); text-align: right; }
+.portfolio-col-price { color: var(--pixel-white); text-align: right; }
+.portfolio-col-t1 { text-align: right; }
+.portfolio-col-risk { color: var(--neon-red); text-align: right; }
+.portfolio-col-reward { color: var(--neon-green); text-align: right; }
+.portfolio-col-target { color: var(--neon-green); text-shadow: 0 0 4px var(--neon-green); text-align: right; }
+.portfolio-table-header div:nth-child(3),
+.portfolio-table-header div:nth-child(4),
+.portfolio-table-header div:nth-child(5),
+.portfolio-table-header div:nth-child(6),
+.portfolio-table-header div:nth-child(7),
+.portfolio-table-header div:nth-child(8),
+.portfolio-table-header div:nth-child(9) { text-align: right; }
 /* Previous Performance */
 .prev-perf-section { border: 2px solid var(--neon-blue-dim); background: var(--pixel-dark); padding: 12px; margin-bottom: 12px; }
 .prev-perf-title { font-size: 1.0rem; color: var(--neon-blue); text-shadow: 0 0 4px var(--neon-blue); margin-bottom: 10px; letter-spacing: 1px; }
