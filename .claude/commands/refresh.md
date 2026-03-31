@@ -19,7 +19,7 @@ Perform these steps in order:
 1. Read `CLAUDE_ROLE.md`
 2. Read `CLAUDE_PROTOCOLS.md`
 3. Read `SESSION_HANDOFF.md`
-4. Read `TO-DO.md`
+4. Read `TODO.md`
 
 Then inspect the current repository state using read-only commands only:
 

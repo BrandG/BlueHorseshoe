@@ -8,7 +8,7 @@ Read these files in order:
 1. `/root/BlueHorseshoe/.claude/CLAUDE_ROLE.md`
 2. `/root/BlueHorseshoe/.claude/CLAUDE_PROTOCOLS.md`
 3. `/root/BlueHorseshoe/SESSION_HANDOFF.md`
-4. `/root/BlueHorseshoe/TO-DO.md`
+4. `/root/BlueHorseshoe/TODO.md`
 
 After reading them:
 
