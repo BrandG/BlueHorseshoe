@@ -9,6 +9,13 @@ REPO="/root/BlueHorseshoe"
 PYTHON="$REPO/.venv/bin/python"
 export PYTHONPATH="$REPO/src"
 cd "$REPO"
+if [ -f "$REPO/.env" ]; then
+  while IFS= read -r line || [ -n "$line" ]; do
+    # Skip comments and empty lines
+    [[ "$line" =~ ^#.*$ || -z "$line" ]] && continue
+    export "$line" 2>/dev/null || true
+  done < "$REPO/.env"
+fi
 
 LOG="$REPO/src/logs/daily_pipeline.log"
 STATUS="$PYTHON src/pipeline_status.py"
