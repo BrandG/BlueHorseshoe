@@ -316,6 +316,10 @@ class MeanReversionIndicator(Indicator):
                     buy_score += score
                 active_count += 1
 
+        # Cap mr_specific contribution to prevent score dominance
+        if aggregation == "sum" and buy_score > 8.0:
+            buy_score = 8.0
+
         if active_count == 0 or (aggregation == "product" and buy_score == 0):
             buy_score = 0.0
 
