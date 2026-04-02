@@ -11,46 +11,6 @@ services:
     networks:
       - app_net
 
-  bluehorseshoe:
-    build:
-      context: ..
-      dockerfile: docker/Dockerfile.bluehorseshoe
-    container_name: bluehorseshoe
-    restart: unless-stopped
-    ports:
-      - "8001:80"
-    environment:
-      MONGO_URI: "mongodb://mongo:27017"
-      ALPHAVANTAGE_KEY: ${ALPHAVANTAGE_KEY}
-      ALPHAVANTAGE_CPS: 1
-      TIINGO_API_KEY: ${TIINGO_API_KEY}
-      TIINGO_CPS: ${TIINGO_CPS:-5}
-      SMTP_SERVER: ${SMTP_SERVER:-smtp.gmail.com}
-      SMTP_PORT: ${SMTP_PORT:-587}
-      SMTP_USER: ${SMTP_USER}
-      SMTP_PASSWORD: ${SMTP_PASSWORD}
-      EMAIL_RECIPIENT: ${EMAIL_RECIPIENT}
-      EMAIL_SENDER: ${EMAIL_SENDER}
-      IBKR_HOST: ${IBKR_HOST:-ib-gateway}
-      IBKR_PORT: ${IBKR_PORT:-4004}
-      IBKR_CLIENT_ID: ${IBKR_CLIENT_ID:-1}
-      PAPER_TRADING_ENABLED: ${PAPER_TRADING_ENABLED:-false}
-      PAPER_TOTAL_INVESTMENT: ${PAPER_TOTAL_INVESTMENT:-10000}
-      PAPER_MAX_POSITIONS: ${PAPER_MAX_POSITIONS:-10}
-      YAHOO_ENABLED: ${YAHOO_ENABLED:-true}
-      YAHOO_CPS: ${YAHOO_CPS:-1}
-      ALPHAVANTAGE_DATA_ENABLED: ${ALPHAVANTAGE_DATA_ENABLED:-true}
-      PROVIDER_MAX_RETRIES: ${PROVIDER_MAX_RETRIES:-1}
-    depends_on:
-      - mongo
-    networks:
-      - app_net
-    cpus: 3
-    mem_limit: 6g
-    volumes:
-      # Mount the src folder from host into the container
-      - ..:/workspaces/BlueHorseshoe
-
   ib-gateway:
     image: ghcr.io/gnzsnz/ib-gateway:latest
     container_name: ib-gateway
