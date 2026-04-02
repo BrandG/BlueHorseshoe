@@ -1,78 +1,51 @@
 # Session Handoff
 
-**Date:** March 31, 2026
-**Status:** MR weight experiment attempted and reverted. Baseline weight tuning complete. Arcade report improvements shipped. Email delivery fixed. Falling knife filter added.
+**Date:** April 2, 2026
+**Status:** MR weight tuning resolved (cap_8 deployed). Baseline tuning complete (no changes needed). Email fixed. Docker cleanup done. System stable and producing good predictions.
 
 ---
 
-## What Was Done This Session (March 29-31)
+## What Was Done This Session (March 29 – April 2)
 
-### 1. MR Weight Tuning Experiment (bh-research droplet)
+### 1. MR Weight Tuning Experiment
 
-Recovered research data from crashed session on droplet `161.35.178.128`. The previous session had:
-- Created a +1/-1 "baseline" for MR weights based on indicator directionality
-- Tested individual category multipliers (trend, momentum, volume, specific, curve)
-- Found `mr_specific_3x` was the best single lever for bearish EV (+1.37%)
+Recovered research data from crashed session on droplet `161.35.178.128`. Ran extensive weight tuning:
 
-**This session extended the research:**
-- Tested `mr_curve` at 5x, 10x, 20x, 30x — signal saturates between 3x and 5x (identical results 5x through 30x)
-- Tested combo `spec3x + curve5x` — worse than spec alone (+1.04% vs +1.37%)
-- Tested blend approach (top-5 from each signal) — also worse (+0.96%), despite only 1.3/5 overlap per date
-- **Deployed optimized weights to production → caught falling knives (GOOG, GLAD in freefall)**
-- Root cause: `mr_mean_reversion_specific` at 6.0 contributed up to 96 points, drowning all other indicators
-- **Reverted to pre-experiment production weights** — known-good values back in place
+- Tested `mr_mean_reversion_specific` at various multipliers — 6.0 produced +1.37% bearish EV but caught falling knives in production (GOOG, GLAD in freefall)
+- Tested `mr_curve` (motif) at 3x, 5x, 10x, 20x, 30x — saturates between 3x and 5x
+- Tested combo and blend approaches — worse than individual signals
+- **Deployed experimental weights → caught falling knives → reverted to production weights**
+- Tested dominance fixes: cap_8, cap_10, average aggregation
+- **Cap_8 won** (+0.381% bearish EV vs +0.338% control) — deployed and validated
+- Falling knife filter also added (-5.0 penalty for 2 consecutive red candles, MR only)
 
-**Key lesson:** The assumption tester optimizes for "most oversold = best" because backtests capture the bounce mechanically. But in real trading, deeply oversold stocks may still be falling. Weight changes must be validated against qualitative checks, not just EV numbers.
+**Final MR state:** Original production weights + cap_8 on mr_specific + falling knife filter. Validated by eyeballing 2026-03-31 prediction — top 10 were all healthy uptrending stocks with balanced multi-factor scores.
 
-### 2. Baseline Weight Tuning (bh-research droplet)
+### 2. Baseline Weight Tuning
 
-Ran full category-by-category tuning with uniform 1.0 baseline as control:
-
-| Config | BL Bullish EV | BL Bearish EV |
-|--------|---------------|--------------|
-| baseline_1x (control) | **+0.116%** | +0.675% |
-| trend_2x | +0.114% | +0.609% |
-| trend_0.5x | -0.069% | +0.664% |
-| momentum_2x | -0.053% | **+0.897%** |
-| momentum_0.5x | +0.084% | +0.658% |
-| volume_2x | +0.062% | +0.624% |
-| candlestick_2x | -0.046% | +0.441% |
-| price_action_2x | +0.107% | +0.706% |
-| curve_10x | +0.116% | +0.675% |
-
-**Findings:**
-- Uniform 1.0 is optimal for bullish — no category boost improves it
-- Momentum_2x is best for bearish (+0.90%, 31% win rate) but kills bullish
-- Curve at 10x identical to 1x (same saturation as MR)
-- Baseline has real edge in bearish markets too (+0.67-0.90%), challenging the "BL=bullish only" assumption
-- Decision: Run both strategies in all regimes, let scores sort it out
+Ran full category-by-category tuning (trend, momentum, volume, candlestick, price_action, curve at 0.5x/1.0x/2.0x):
+- **Uniform 1.0 is optimal for bullish** (+0.116% EV) — no category boost helps
+- momentum_2x best for bearish (+0.90%) but kills bullish
+- Production weights tested: better for bearish (+0.914%) but worse for bullish (-0.020%)
+- **Decision: Keep current production Baseline weights** — bearish edge matters more since bull markets lift all boats
 
 ### 3. Arcade Report Improvements
+- Portfolio QTY column shows half-quantity per bracket leg (labeled "QTY/2")
+- All numeric columns right-aligned
+- Removed standalone CALC button (per-symbol CALC SHARES buttons retained)
 
-- **Half-quantity display** — Portfolio QTY column now shows shares/2 (per bracket leg), header labeled "QTY/2"
-- **Right-aligned numeric columns** — All portfolio table numbers right-aligned for readability
-- **Removed standalone CALC button** — Toolbar CALC button removed (opened empty calculator). Per-symbol "CALC SHARES" buttons on cards retained.
+### 4. Email Delivery Fix
+- Root cause: Brevo SMTP credentials were in `docker/.env` but not root `.env` after Docker→host migration
+- Fixed: Updated root `.env` with Brevo settings (port 2525)
+- Fixed: Added `.env` sourcing to `run.sh` and `run_daily_pipeline.sh`
+- Cron pipeline now sends emails successfully
 
-### 4. Falling Knife Filter
-
-Added `calculate_falling_knife()` to `mean_reversion_indicators.py`:
-- Returns -5.0 if last 2 candles both closed below open
-- Wired into MR scoring only (not baseline) via `_calculate_mean_reversion_modifiers()` in `technical_analyzer.py`
-- Appears as `penalty_falling_knife` in score components
-- **Note:** The -5.0 penalty is insufficient against inflated mr_specific scores. Adequate with the reverted (original) weights.
-
-### 5. Email Delivery Fix
-
-- **Root cause:** Docker→host migration left SMTP credentials in `docker/.env` but not root `.env`. Also, Gmail SMTP was configured but DigitalOcean blocks SMTP ports. Brevo credentials (from `docker/.env`) work on port 2525.
-- **Fixed:** Updated root `.env` with Brevo SMTP settings
-- **Fixed:** Added `.env` sourcing to `run.sh` (handles unquoted values with spaces)
-- **Fixed:** Added `.env` sourcing to `run_daily_pipeline.sh` (same pattern)
-- **Refactored:** `email_service.py` extracted `_build_report_email()` helper
-
-### 6. Codex Workflow
-
-- Established "make it so" shorthand — user says this to mean "write to /tmp/nextaction.md"
-- Codex venv setup instructions provided (one-time: `python3 -m venv .venv && pip install -r requirements.txt`)
+### 5. Infrastructure Cleanup
+- BH Python container stopped, removed from docker-compose.yml (pending merge)
+- Research droplet (`161.35.178.128`) destroyed — all findings preserved in memory
+- Docker system prune reclaimed 15.3 GB (orphaned images, volumes, build cache)
+- Codex's 6 refactor commits reviewed and approved (orchestration, postprocessing, symbol repository, etc.)
+- Renamed TO-DO.md → TODO.md
 
 ---
 
@@ -90,36 +63,32 @@ Added `calculate_falling_knife()` to `mean_reversion_indicators.py`:
 
 ## In Progress
 
-- **Codex branch sync** — `origin/codex-refactor` has `65219c6 Load env for daily pipeline` that needs merging to master
-- **Research droplet** (`161.35.178.128`) — All tuning runs complete. Data preserved in `src/research/bl_tuning_*` and `src/research/tuning_*` directories
+- **Codex branch:** `origin/codex-refactor` has 1 pending commit (`f30bafa Remove bluehorseshoe compose service`) — needs merge
 
 ## Next Steps
 
-1. **Merge codex-refactor** — Pipeline env fix needs to land before tonight's cron run
-2. **MR weight strategy rethink** — The +1/-1 baseline approach produced falling knives. Need a different approach:
-   - Option B (average instead of sum for mr_specific aggregation) was discussed but not tested
-   - Consider capping mr_specific contribution (Option A)
-   - Consider gating on trend/momentum confirmation (Option D)
-   - Whatever approach is chosen, **validate with assumption tester before deploying**
-3. **Validate falling knife filter effectiveness** — The -5.0 penalty works with current weights but was insufficient with inflated mr_specific. May need scaling.
-4. **Baseline weights decision** — Uniform 1.0 is optimal for bullish. Current production has non-uniform weights. Consider testing current production weights through assumption tester vs uniform 1.0 to decide if a change is warranted.
-5. **Run prediction and email** — `./run.sh python src/send_report_email.py` to send today's report
+1. **Merge codex-refactor** — docker-compose cleanup commit
+2. **Start systemd API service** — `systemctl start bluehorseshoe-api` (port 8001, replaces removed container)
+3. **Test API** — verify endpoints work after switching from container to systemd
+4. **MongoDB authentication** — configure auth, update MONGO_URI. Defense-in-depth after ransomware incident.
+5. **Hypothetical trade engine** — Layer B from TODO: auto-evaluate signal outcomes after hold period
+6. See `TODO.md` for full backlog
 
 ## Blockers / Open Questions
 
-- **MR weight optimization is unresolved** — The experiment showed real signal (mr_specific_3x had +1.37% bearish EV) but the scoring system amplifies it into falling knife territory. Need to find a way to capture the signal without the dominance problem.
-- **SMTP from sandbox is blocked** — User must run `send_report_email.py` manually from their shell. The daily cron pipeline will work once the env fix is merged.
-- **TO-DO item to validate mr_curve at 5.0** — This was added but is now moot since weights were reverted. Update TODO.md when MR weights are revisited.
+- **SMTP from Claude Code sandbox is blocked** — user must run `send_report_email.py` manually from their shell. Daily cron works fine.
+- **API service not yet started** — port 8001 is unserved after container removal. Start systemd service when ready.
 
 ---
 
 ## Key Decisions
 
-- **Run both strategies in all regimes** — Don't gate MR in bullish or BL in bearish. Let scores naturally surface the best picks. User can see strategy labels in the report and apply judgment.
-- **Reverted MR weights to pre-experiment values** — The +1/-1 baseline research was valid directionally but the magnitude was wrong. Deploying untested weight combinations to production was premature.
-- **Uniform 1.0 is the Baseline weight answer** — No single category boost improves bullish EV. The indicators are naturally well-balanced for trend-following.
-- **Email via Brevo on port 2525** — Gmail SMTP blocked by DigitalOcean. SendGrid key is stale. Brevo works.
-- **Falling knife filter: 2 red candles = -5.0 penalty** — Conservative threshold per user preference. MR-only, not applied to baseline.
+- **MR cap_8 is the production solution** — caps mr_mean_reversion_specific contribution at 8.0 points. Prevents falling knife dominance while preserving signal. Tested and validated.
+- **Run both strategies in all regimes** — don't gate MR in bullish or BL in bearish. Scores naturally surface best picks.
+- **Keep current production Baseline weights** — non-uniform weights (momentum-heavy) are better for bearish where edge matters. Bullish is "good enough" since rising tide lifts all boats.
+- **Validate before deploying weight changes** — always eyeball prediction output, not just assumption tester EV numbers. Learned the hard way.
+- **Email via Brevo on port 2525** — Gmail blocked by DigitalOcean, SendGrid key is stale.
+- **Research droplet destroyed** — findings preserved in memory, raw data expendable.
 
 ---
 
@@ -127,27 +96,17 @@ Added `calculate_falling_knife()` to `mean_reversion_indicators.py`:
 
 | File | Role |
 |------|------|
-| `src/weights.json` | Indicator weights — MR reverted to pre-experiment values |
-| `src/bluehorseshoe/analysis/indicators/mean_reversion_indicators.py` | Falling knife filter added here |
+| `src/weights.json` | Indicator weights — original production values with cap_8 protection |
+| `src/bluehorseshoe/analysis/indicators/mean_reversion_indicators.py` | Cap_8 in `get_score()`, falling knife filter |
 | `src/bluehorseshoe/analysis/technical_analyzer.py` | `_calculate_mean_reversion_modifiers()` wires knife filter |
-| `src/bluehorseshoe/core/email_service.py` | Refactored, SMTP-only delivery |
+| `src/bluehorseshoe/core/email_service.py` | SMTP delivery via Brevo |
 | `src/bluehorseshoe/reporting/html_reporter.py` | QTY/2, right-align, removed standalone CALC |
-| `run.sh` | Now sources `.env` |
-| `run_daily_pipeline.sh` | Now sources `.env` (pending merge) |
-| `.env` | Updated with Brevo SMTP credentials |
-| `docker/.env` | Source of truth for Brevo credentials (was missing from root `.env`) |
-
-### Research Droplet (`161.35.178.128`)
-
-| Directory | Contents |
-|-----------|----------|
-| `src/research/tuning_*` | MR weight tuning runs (baseline_1x through combo_spec2x_curve2x) |
-| `src/research/tuning_mr_curve_*` | MR curve multiplier tests (3x, 5x, 10x, 20x, 30x) |
-| `src/research/tuning_combo_spec3x_curve5x` | Combo test |
-| `src/research/tuning_blend_spec3x_curve5x` | Blend analysis (post-hoc, no Phase 1) |
-| `src/research/tuning_optimal` | Final MR run from previous session |
-| `src/research/bl_tuning_*` | Baseline weight tuning runs (all categories) |
-| `src/research/tuning_results.csv` | MR tuning summary CSV |
+| `src/bluehorseshoe/application/services.py` | Orchestration layer (Codex refactor) |
+| `src/bluehorseshoe/analysis/postprocess.py` | Candidate assembly + sentiment (Codex refactor) |
+| `run.sh` | Sources `.env`, activates venv |
+| `run_daily_pipeline.sh` | Sources `.env` for cron email delivery |
+| `.env` | Brevo SMTP credentials |
+| `docker/docker-compose.yml` | BH container removed (pending merge), mongo + ib-gateway remain |
 
 ---
 
@@ -188,9 +147,9 @@ doctl compute droplet delete bh-research --force
 
 **Branch:** master
 **Working tree:** Clean
-**Codex branch:** `origin/codex-refactor` — 1 commit ahead (pipeline env fix, needs merge)
+**Codex branch:** `origin/codex-refactor` — 1 commit ahead (docker-compose cleanup)
 **Tests:** 685+ passing
 
 ---
 
-**Last Updated:** March 31, 2026
+**Last Updated:** April 2, 2026
