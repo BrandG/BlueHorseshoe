@@ -112,9 +112,7 @@ mkdir -p "$MONGO_DUMP_DIR"
 for coll in "${MONGO_COLLECTIONS[@]}"; do
     log "  dumping $coll..."
     mongodump \
-        --host="$MONGO_BIND_IP" \
-        --port=27017 \
-        --db=bluehorseshoe \
+        --uri="$MONGO_URI" \
         --collection="$coll" \
         --out="$MONGO_DUMP_DIR" \
         --quiet \
@@ -157,7 +155,7 @@ Contents:
 
 DuckDB source:  $DUCKDB_HOST_PATH
 Models source:  $MODELS_HOST_PATH
-MongoDB host:   $MONGO_BIND_IP:27017
+MongoDB host:   (authenticated via MONGO_URI)
 MANIFEST
 
 log "Creating final archive..."
