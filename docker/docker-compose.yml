@@ -3,7 +3,7 @@ services:
     image: mongo:7
     container_name: mongo
     restart: always
-    command: ["mongod", "--wiredTigerCacheSizeGB", "1"]
+    command: ["mongod", "--wiredTigerCacheSizeGB", "1", "--auth"]
     ports:
       - "${MONGO_BIND_IP:-127.0.0.1}:27017:27017"
     volumes:
