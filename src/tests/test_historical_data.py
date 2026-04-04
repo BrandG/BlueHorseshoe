@@ -18,11 +18,11 @@ from bluehorseshoe.data.historical_data import (
     BackfillConfig,
 )
 
-@patch('bluehorseshoe.data.historical_data.requests.get')
-def test_load_historical_data_from_net(mock_get):
+@patch('bluehorseshoe.data.historical_data._get_provider_pool')
+def test_load_historical_data_from_net(mock_get_pool):
     """
-    Test the load_historical_data_from_net function to ensure it correctly loads and parses
-    historical stock data from a Tiingo API response.
+    Test the load_historical_data_from_net function to ensure it correctly loads data
+    through the provider pool abstraction.
 
     Asserts:
         - The result is not None.
@@ -31,26 +31,24 @@ def test_load_historical_data_from_net(mock_get):
         - The date of the historical data matches '2023-01-03'.
         - The opening price of the historical data matches 100.0.
     """
-    mock_response = MagicMock()
-    mock_response.status_code = 200
-    mock_response.json.return_value = [
-        {
-            'date': '2023-01-03T00:00:00+00:00',
-            'open': 102.0,
-            'high': 112.0,
-            'low': 92.0,
-            'close': 107.0,
-            'volume': 1200,
-            'adjOpen': 100.0,
-            'adjHigh': 110.0,
-            'adjLow': 90.0,
-            'adjClose': 105.0,
-            'adjVolume': 1000
-        }
-    ]
-    mock_get.return_value = mock_response
+    pool = MagicMock()
+    pool.fetch_single.return_value = {
+        'name': 'AAPL',
+        'days': [
+            {
+                'date': '2023-01-03',
+                'open': 100.0,
+                'high': 110.0,
+                'low': 90.0,
+                'close': 105.0,
+                'volume': 1000,
+            }
+        ]
+    }
+    mock_get_pool.return_value = pool
 
     result = load_historical_data_from_net('AAPL', recent=True)
+    pool.fetch_single.assert_called_once_with('AAPL', recent=True)
     assert result is not None
     assert result['name'] == 'AAPL'
     assert len(result['days']) == 1
