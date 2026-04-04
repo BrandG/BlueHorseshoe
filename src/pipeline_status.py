@@ -22,7 +22,7 @@ from pathlib import Path
 
 _REPO_ROOT = str(Path(__file__).resolve().parent.parent)
 STATUS_FILE = os.path.join(_REPO_ROOT, "src", "logs", "pipeline_status.json")
-STEPS = ["update", "predict", "report", "email"]
+STEPS = ["update", "predict", "report", "email", "evaluate"]
 
 
 def load_status():
