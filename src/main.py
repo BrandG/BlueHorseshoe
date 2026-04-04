@@ -1109,6 +1109,27 @@ if __name__ == "__main__":
                 logging.error("Journal log ideas failed: %s", e)
                 print(f"Error: {e}")
                 sys.exit(1)
+    elif "--evaluate" in sys.argv:
+        logging.info("Evaluating matured signal hypotheses...")
+        with create_cli_context() as ctx:
+            try:
+                ev_idx = sys.argv.index("--evaluate")
+                eval_date = None
+                if len(sys.argv) > ev_idx + 1 and not sys.argv[ev_idx + 1].startswith("-"):
+                    eval_date = sys.argv[ev_idx + 1]
+
+                from bluehorseshoe.analysis.hypothesis_engine import HypothesisEngine  # pylint: disable=import-outside-toplevel
+                engine = HypothesisEngine(database=ctx.db, store=ctx.store)
+                summaries = engine.run(as_of_date=eval_date)
+                for s in summaries:
+                    print(f"Batch {s['batch_date']}: {s['evaluated']} evaluated, "
+                          f"outcomes: {s['outcomes']}")
+                if not summaries:
+                    print("No mature batches to evaluate.")
+            except Exception as e:  # pylint: disable=broad-exception-caught
+                logging.error("Hypothesis evaluation failed: %s", e)
+                print(f"Error: {e}")
+                sys.exit(1)
     elif "-d" in sys.argv:
         logging.info("Debugging...")
         debug_test()

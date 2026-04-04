@@ -98,6 +98,16 @@ else
     $STATUS complete email
 fi
 
+# 6. Evaluate matured signal hypotheses (non-fatal, runs last)
+$STATUS start evaluate
+$PYTHON src/main.py --evaluate >> "$LOG" 2>&1
+if [ $? -ne 0 ]; then
+    echo "WARNING: Hypothesis evaluation failed at $(date)" >> "$LOG"
+    $STATUS fail evaluate "Hypothesis evaluation failed"
+else
+    $STATUS complete evaluate
+fi
+
 # Mark pipeline as done
 $STATUS finish
 
