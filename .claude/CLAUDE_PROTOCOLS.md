@@ -105,6 +105,10 @@ approval_required: yes
 
 <why it is needed>
 
+Additionally, write the command(s) to `/tmp/humanaction.sh` with a comment header so the human can review and execute from any tmux pane:
+
+      bash /tmp/humanaction.sh
+
 ---
 
 # 2. Refresh Protocol

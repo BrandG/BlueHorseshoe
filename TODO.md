@@ -16,6 +16,12 @@
 - Baseline weight tuning complete — uniform 1.0 is optimal for bullish. No changes needed to production Baseline weights.
 - ~~mr_curve saturation test~~ (done) — motif signal saturates between 3x and 5x for both MR and Baseline. Current production values (25x MR, 10x BL) are well above threshold.
 
+### Hypothesis Engine Enhancements
+- ~~Build hypothesis engine (Layer B)~~ (done 2026-04-04) — `trade_evaluator.py`, `hypothesis_engine.py`, CLI `--evaluate`, pipeline integration
+- ~~Remove "Yesterday's Results" from reports~~ (done 2026-04-04) — one-day price action is noise
+- **Add "Signal Track Record" report section** — replace Yesterday's Results with real N-day outcomes from `journal_hypothetical_trades`. Show win rate, avg P&L, alpha vs SPY, top winners/losers for recently matured batches. Wait until 5-10 batches accumulate before building.
+- **Refactor Backtester to use trade_evaluator.py** — Phase 2: `_check_entry()` and `_check_active_trade()` in backtest.py delegate to shared `trade_evaluator` functions, eliminating duplication.
+
 ### Regime-Aware Strategy (partially done)
 - ~~Add REGIME_PROFILES to constants.py~~ (done)
 - ~~Wire regime-adjusted stop/target multipliers into BaselineStrategy~~ (done)

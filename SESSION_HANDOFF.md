@@ -1,57 +1,58 @@
 # Session Handoff
 
-**Date:** April 2, 2026
-**Status:** MR weight tuning resolved (cap_8 deployed). Baseline tuning complete (no changes needed). Email fixed. Docker cleanup done. System stable and producing good predictions.
+**Date:** April 4, 2026
+**Status:** Hypothetical Trade Engine (Layer B) shipped and validated. MongoDB authentication enabled. Docker-compose cleanup merged. System stable.
 
 ---
 
-## What Was Done This Session (March 29 – April 2)
+## What Was Done This Session (April 2–4)
 
-### 1. MR Weight Tuning Experiment
+### 1. Codex Branch Cleanup
+- Merged `codex-refactor` docker-compose change (removed BH Python container) via cherry-pick, excluding stale SESSION_HANDOFF.md each time
+- Codex-refactor branch is now effectively dead — all useful commits cherry-picked to master
 
-Recovered research data from crashed session on droplet `161.35.178.128`. Ran extensive weight tuning:
+### 2. MongoDB Authentication
+- Created `bhapp` user with `readWrite` on `bluehorseshoe` database
+- Enabled `--auth` in docker-compose.yml
+- Updated `MONGO_URI` in both `.env` (127.0.0.1) and `docker/.env` (mongo hostname)
+- Restarted MongoDB and API service
+- Verified: unauthenticated access denied, API health OK, reports serve correctly
+- Fixed `backup.sh` to use `--uri` flag instead of `--host`/`--port`/`--db`
+- Fixed `backup.conf` to source root `.env` (not `docker/.env`) for host-accessible MONGO_URI
 
-- Tested `mr_mean_reversion_specific` at various multipliers — 6.0 produced +1.37% bearish EV but caught falling knives in production (GOOG, GLAD in freefall)
-- Tested `mr_curve` (motif) at 3x, 5x, 10x, 20x, 30x — saturates between 3x and 5x
-- Tested combo and blend approaches — worse than individual signals
-- **Deployed experimental weights → caught falling knives → reverted to production weights**
-- Tested dominance fixes: cap_8, cap_10, average aggregation
-- **Cap_8 won** (+0.381% bearish EV vs +0.338% control) — deployed and validated
-- Falling knife filter also added (-5.0 penalty for 2 consecutive red candles, MR only)
+### 3. Hypothetical Trade Engine (Layer B) — 4 commits
+Built and shipped the full hypothesis evaluation system:
 
-**Final MR state:** Original production weights + cap_8 on mr_specific + falling knife filter. Validated by eyeballing 2026-03-31 prediction — top 10 were all healthy uptrending stocks with balanced multi-factor scores.
+1. **`trade_evaluator.py`** — Pure walk-forward evaluation functions (entry buffer, gap-down slippage, MAE/MFE tracking, 4 outcomes: WIN/LOSS/TIMEOUT/NOT_ENTERED)
+2. **`hypothesis_engine.py`** — Batch discovery, bulk OHLCV loading, per-signal evaluation, SPY benchmark, idempotent MongoDB storage in `journal_hypothetical_trades`
+3. **20 unit tests** — Full coverage of evaluator functions and engine class with mocked dependencies
+4. **CLI + pipeline integration** — `--evaluate` flag in main.py, step in `run_daily_pipeline.sh` (runs last, after email), `pipeline_status.py` updated
 
-### 2. Baseline Weight Tuning
+**Validated with real data:**
+- 2026-02-20 batch: 3,355 signals evaluated (WIN: 995, LOSS: 1,147, TIMEOUT: 1,034, NOT_ENTERED: 179)
+- 2026-02-24 batch: 1,323 signals evaluated (WIN: 237, LOSS: 714, TIMEOUT: 309, NOT_ENTERED: 63)
+- Idempotency confirmed (re-run skips duplicates)
+- Remaining 11 batches will auto-evaluate as they mature
 
-Ran full category-by-category tuning (trend, momentum, volume, candlestick, price_action, curve at 0.5x/1.0x/2.0x):
-- **Uniform 1.0 is optimal for bullish** (+0.116% EV) — no category boost helps
-- momentum_2x best for bearish (+0.90%) but kills bullish
-- Production weights tested: better for bearish (+0.914%) but worse for bullish (-0.020%)
-- **Decision: Keep current production Baseline weights** — bearish edge matters more since bull markets lift all boats
+### 4. API Service
+- Already running on port 8001 via systemd (was started before this session)
+- Health check passes, reports endpoint serves data
+- Restart counter was high (37,794) from pre-fix crash looping — stable now
 
-### 3. Arcade Report Improvements
-- Portfolio QTY column shows half-quantity per bracket leg (labeled "QTY/2")
-- All numeric columns right-aligned
-- Removed standalone CALC button (per-symbol CALC SHARES buttons retained)
-
-### 4. Email Delivery Fix
-- Root cause: Brevo SMTP credentials were in `docker/.env` but not root `.env` after Docker→host migration
-- Fixed: Updated root `.env` with Brevo settings (port 2525)
-- Fixed: Added `.env` sourcing to `run.sh` and `run_daily_pipeline.sh`
-- Cron pipeline now sends emails successfully
-
-### 5. Infrastructure Cleanup
-- BH Python container stopped, removed from docker-compose.yml (pending merge)
-- Research droplet (`161.35.178.128`) destroyed — all findings preserved in memory
-- Docker system prune reclaimed 15.3 GB (orphaned images, volumes, build cache)
-- Codex's 6 refactor commits reviewed and approved (orchestration, postprocessing, symbol repository, etc.)
-- Renamed TO-DO.md → TODO.md
+### 5. Report Cleanup & Test Fix
+- Removed "Yesterday's Results" / "Previous Day Performance" from all three report types (standard, email, arcade)
+- Removed `get_previous_performance()` and `_get_previous_trading_date()` from strategy.py
+- Removed `previous_performance` parameter from all reporter methods and callers (services.py, main.py)
+- Removed associated CSS (`.prev-perf-*` classes) from arcade report
+- Fixed pre-existing test failure: `test_load_historical_data_from_net` — updated mock from `requests.get` to `_get_provider_pool` to match provider pool refactor
+- Added `/tmp/humanaction.sh` protocol to CLAUDE_PROTOCOLS.md for tmux-friendly human action requests
 
 ---
 
 ## Previous Sessions Summary
 
-- **March 27:** Assumption tester built, regime-aware stop/target multipliers, Docker→host migration
+- **March 29 – April 2:** MR weight tuning (cap_8 deployed), Baseline tuning (no changes), email fix, Docker cleanup, research droplet destroyed
+- **March 27:** Assumption tester, regime-aware stop/target multipliers, Docker→host migration
 - **March 23:** Trade journal system (5-phase lifecycle)
 - **March 19-22:** Curve/motif analysis, CNN Fear & Greed, AAII sentiment
 - **March 15:** Finviz sentiment, z-score normalizer, arcade report, VIX, StockTwits, Tiingo News
@@ -63,32 +64,36 @@ Ran full category-by-category tuning (trend, momentum, volume, candlestick, pric
 
 ## In Progress
 
-- **Codex branch:** `origin/codex-refactor` has 1 pending commit (`f30bafa Remove bluehorseshoe compose service`) — needs merge
+- **Nothing actively in progress** — all tasks completed and validated
 
 ## Next Steps
 
-1. **Merge codex-refactor** — docker-compose cleanup commit
-2. **Start systemd API service** — `systemctl start bluehorseshoe-api` (port 8001, replaces removed container)
-3. **Test API** — verify endpoints work after switching from container to systemd
-4. **MongoDB authentication** — configure auth, update MONGO_URI. Defense-in-depth after ransomware incident.
-5. **Hypothetical trade engine** — Layer B from TODO: auto-evaluate signal outcomes after hold period
+1. **Monitor hypothesis engine** — Watch tomorrow's pipeline run (02:00 UTC) to confirm `evaluate` step works in cron context. More batches will mature over the coming days.
+2. **Analyze hypothesis results** — Once enough batches accumulate, query `journal_hypothetical_trades` for insights: win rate by strategy, score threshold discovery, regime-based performance
+3. **Event-driven backtest** — Order-book model replacing check-levels approach (TODO near-term)
+4. **DuckDB read-only mode** — Phase 1 of Parquet migration, eliminates lock contention
+5. **Regime-aware remaining items** — Paper trader position sizing, backtester hold_days, HTML report regime display
 6. See `TODO.md` for full backlog
 
 ## Blockers / Open Questions
 
 - **SMTP from Claude Code sandbox is blocked** — user must run `send_report_email.py` manually from their shell. Daily cron works fine.
-- **API service not yet started** — port 8001 is unserved after container removal. Start systemd service when ready.
+- **Hypothesis engine only has 2 evaluated batches so far** — Need more data to draw meaningful conclusions. Remaining batches will auto-evaluate as they mature.
+- **Codex-refactor branch** is stale (all changes cherry-picked) — can be deleted with `git push origin --delete codex-refactor` when convenient.
 
 ---
 
 ## Key Decisions
 
-- **MR cap_8 is the production solution** — caps mr_mean_reversion_specific contribution at 8.0 points. Prevents falling knife dominance while preserving signal. Tested and validated.
-- **Run both strategies in all regimes** — don't gate MR in bullish or BL in bearish. Scores naturally surface best picks.
-- **Keep current production Baseline weights** — non-uniform weights (momentum-heavy) are better for bearish where edge matters. Bullish is "good enough" since rising tide lifts all boats.
-- **Validate before deploying weight changes** — always eyeball prediction output, not just assumption tester EV numbers. Learned the hard way.
+- **MongoDB authentication enabled** — defense-in-depth: ufw + localhost bind + auth. User `bhapp` with `readWrite` on `bluehorseshoe` database.
+- **Entry buffer 0.1%** — Hypothesis engine requires price to cross 0.1% below entry to account for execution delay. Gap-down slippage uses open price.
+- **Hold period is regime-aware** — Bearish=7d, Bullish/Neutral=5d from REGIME_PROFILES in constants.py.
+- **Evaluate all signals (score > 0)** — Collect maximum data, discover the real edge later via analysis.
+- **Evaluation runs last in pipeline** — After report and email, so it never delays delivery.
+- **Maturity = hold_days + 5 trading days** — Checked via SPY bar count in DuckDB, avoids holiday calendar complexity.
+- **MR cap_8 is the production solution** — caps mr_mean_reversion_specific contribution at 8.0 points.
+- **Run both strategies in all regimes** — scores naturally surface best picks.
 - **Email via Brevo on port 2525** — Gmail blocked by DigitalOcean, SendGrid key is stale.
-- **Research droplet destroyed** — findings preserved in memory, raw data expendable.
 
 ---
 
@@ -96,17 +101,16 @@ Ran full category-by-category tuning (trend, momentum, volume, candlestick, pric
 
 | File | Role |
 |------|------|
-| `src/weights.json` | Indicator weights — original production values with cap_8 protection |
-| `src/bluehorseshoe/analysis/indicators/mean_reversion_indicators.py` | Cap_8 in `get_score()`, falling knife filter |
-| `src/bluehorseshoe/analysis/technical_analyzer.py` | `_calculate_mean_reversion_modifiers()` wires knife filter |
-| `src/bluehorseshoe/core/email_service.py` | SMTP delivery via Brevo |
-| `src/bluehorseshoe/reporting/html_reporter.py` | QTY/2, right-align, removed standalone CALC |
-| `src/bluehorseshoe/application/services.py` | Orchestration layer (Codex refactor) |
-| `src/bluehorseshoe/analysis/postprocess.py` | Candidate assembly + sentiment (Codex refactor) |
-| `run.sh` | Sources `.env`, activates venv |
-| `run_daily_pipeline.sh` | Sources `.env` for cron email delivery |
-| `.env` | Brevo SMTP credentials |
-| `docker/docker-compose.yml` | BH container removed (pending merge), mongo + ib-gateway remain |
+| `src/bluehorseshoe/analysis/trade_evaluator.py` | Pure walk-forward trade evaluation functions (NEW) |
+| `src/bluehorseshoe/analysis/hypothesis_engine.py` | Hypothesis engine — batch discovery, evaluation, MongoDB storage (NEW) |
+| `src/tests/test_hypothesis_engine.py` | 20 unit tests for evaluator + engine (NEW) |
+| `src/main.py` | CLI entry — added `--evaluate` flag |
+| `run_daily_pipeline.sh` | Added evaluate step (runs last) |
+| `src/pipeline_status.py` | Added "evaluate" to STEPS |
+| `docker/docker-compose.yml` | `--auth` enabled for MongoDB |
+| `backup.sh` | Uses `--uri` for authenticated mongodump |
+| `backup.conf` | Sources root `.env` for MONGO_URI |
+| `src/weights.json` | Indicator weights — production values with cap_8 |
 
 ---
 
@@ -114,6 +118,8 @@ Ran full category-by-category tuning (trend, momentum, volume, candlestick, pric
 ```bash
 ./run.sh python src/main.py -p                          # Prediction (~60 min)
 ./run.sh python src/main.py -u                          # Data update (~30 min)
+./run.sh python src/main.py --evaluate                  # Evaluate matured hypotheses (~20 sec)
+./run.sh python src/main.py --evaluate 2026-04-01       # Evaluate as-of specific date
 ./run.sh python src/main.py -r YYYY-MM-DD               # Regenerate report (~30 sec)
 ./run.sh python src/send_report_email.py                 # Send latest report email
 ./run.sh pytest -v                                       # Tests
@@ -146,10 +152,10 @@ doctl compute droplet delete bh-research --force
 ## Git Status
 
 **Branch:** master
-**Working tree:** Clean
-**Codex branch:** `origin/codex-refactor` — 1 commit ahead (docker-compose cleanup)
-**Tests:** 685+ passing
+**Working tree:** Clean (after this handoff commit)
+**Codex branch:** `origin/codex-refactor` — stale, all changes cherry-picked. Safe to delete.
+**Tests:** 714 passing (all green)
 
 ---
 
-**Last Updated:** April 2, 2026
+**Last Updated:** April 4, 2026
