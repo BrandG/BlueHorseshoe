@@ -70,14 +70,18 @@ class AppContainer:
             self._ibkr_client = IBKRClient(config=config)
         return self._ibkr_client
 
-    def get_historical_store(self) -> "DuckDBStore":
+    def get_historical_store(self, read_only: bool = False) -> "DuckDBStore":
         """
         Get or create DuckDBStore for OHLCV data (lazy initialization).
         """
         if self._duckdb_store is None:
             from bluehorseshoe.data.duckdb_store import DuckDBStore  # pylint: disable=import-outside-toplevel
-            self._duckdb_store = DuckDBStore(self.settings.duckdb_path)
-            logger.info("DuckDB store initialized at %s", self.settings.duckdb_path)
+            self._duckdb_store = DuckDBStore(self.settings.duckdb_path, read_only=read_only)
+            logger.info(
+                "DuckDB store initialized at %s (read_only=%s)",
+                self.settings.duckdb_path,
+                read_only,
+            )
         return self._duckdb_store
 
     def get_invalid_symbols(self) -> list:
