@@ -355,7 +355,7 @@ class HTMLReporter:
         return f"<details><summary>{summary_html}</summary>{chart_html}</details>"
 
 
-    def generate_report(self, date: str, regime: Dict[str, Any], candidates: List[Dict[str, Any]], charts: List[str], previous_performance: Dict[str, Any] = None) -> str:
+    def generate_report(self, date: str, regime: Dict[str, Any], candidates: List[Dict[str, Any]], charts: List[str]) -> str:
         """
         Builds the complete HTML string.
         """
@@ -488,44 +488,6 @@ class HTMLReporter:
         else:
             html.append("<p style='color:#777'>No Connors RSI(2) setups today.</p>")
 
-        # Previous Performance Section
-        if previous_performance and previous_performance.get('results'):
-            prev_date = previous_performance.get('date', 'Unknown')
-            results = previous_performance.get('results', [])
-            
-            html.append(f"<h2>Previous Day Performance <small style='font-size:0.6em; color:#777'>(Suggestions from {prev_date})</small></h2>")
-            html.append("<table>")
-            html.append("<tr><th>Symbol</th><th>Strategy</th><th>Setup (E/S/T)</th><th>Outcome</th><th>PnL</th></tr>")
-            
-            for r in results:
-                symbol = r['symbol']
-                url = f"https://finance.yahoo.com/quote/{symbol}"
-                outcome = r['outcome']
-                pnl = r['pnl']
-                
-                outcome_style = "background-color: #95a5a6;" # Gray (No Entry)
-                if outcome == "Active":
-                    outcome_style = "background-color: #3498db;" # Blue
-                elif outcome == "Target Hit":
-                    outcome_style = "background-color: #27ae60;" # Green
-                elif outcome == "Stopped Out":
-                    outcome_style = "background-color: #c0392b;" # Red
-                
-                pnl_color = "color: #27ae60;" if pnl > 0 else ("color: #c0392b;" if pnl < 0 else "color: #777;")
-                pnl_str = f"{pnl*100:.2f}%" if outcome != "No Entry" else "-"
-                
-                setup_str = f"E:${r['entry']:.2f} S:${r['stop']:.2f} T:${r['target']:.2f}"
-                
-                html.append("<tr>")
-                html.append(f"<td><a href='{url}' target='_blank' class='symbol-link'><b>{symbol}</b></a></td>")
-                html.append(f"<td>{r['strategy']}</td>")
-                html.append(f"<td><small>{setup_str}</small></td>")
-                html.append(f"<td><span class='badge' style='{outcome_style}'>{outcome}</span></td>")
-                html.append(f"<td style='font-weight:bold; {pnl_color}'>{pnl_str}</td>")
-                html.append("</tr>")
-                
-            html.append("</table>")
-
         # Candidates Section - limit to top N by score (primary), then ML confidence (secondary)
         top_candidates = sorted(candidates,
                                key=lambda x: (x.get('score', 0), x.get('ml_prob', 0)),
@@ -579,7 +541,7 @@ class HTMLReporter:
 
         return "\n".join(html)
 
-    def generate_email_report(self, date: str, regime: Dict[str, Any], candidates: List[Dict[str, Any]], previous_performance: Dict[str, Any] = None) -> str:
+    def generate_email_report(self, date: str, regime: Dict[str, Any], candidates: List[Dict[str, Any]]) -> str:
         """
         Generates a simplified, email-friendly HTML report without JavaScript or interactive elements.
 
@@ -587,7 +549,6 @@ class HTMLReporter:
             date: Report date
             regime: Market regime data
             candidates: Trading candidates
-            previous_performance: Optional previous day performance data
 
         Returns:
             Email-friendly HTML string
@@ -812,54 +773,6 @@ class HTMLReporter:
             html.append("<p>No Connors RSI(2) setups today.</p>")
         html.append("</div>")
 
-        # Previous Performance Section
-        if previous_performance and previous_performance.get('results'):
-            prev_date = previous_performance.get('date', 'Unknown')
-            results = previous_performance.get('results', [])
-
-            html.append(f"<h2>Previous Day Performance</h2>")
-            html.append(f"<p class='small-text'>Suggestions from: <strong>{prev_date}</strong></p>")
-            html.append("<table>")
-            html.append("<tr><th>Symbol</th><th>Strategy</th><th>Entry</th><th>Stop</th><th>Target</th><th>Outcome</th><th>PnL</th></tr>")
-
-            for r in results:
-                symbol = r['symbol']
-                url = f"https://finance.yahoo.com/quote/{symbol}"
-                outcome = r['outcome']
-                pnl = r['pnl']
-
-                # Outcome badge
-                if outcome == "Active":
-                    outcome_badge = '<span class="badge" style="background-color:#3498db">Active</span>'
-                elif outcome == "Target Hit":
-                    outcome_badge = '<span class="badge badge-bull">Target Hit</span>'
-                elif outcome == "Stopped Out":
-                    outcome_badge = '<span class="badge badge-bear">Stopped Out</span>'
-                else:
-                    outcome_badge = '<span class="badge" style="background-color:#95a5a6">No Entry</span>'
-
-                pnl_style = ""
-                if pnl > 0:
-                    pnl_style = "color:#27ae60;font-weight:bold"
-                elif pnl < 0:
-                    pnl_style = "color:#c0392b;font-weight:bold"
-                else:
-                    pnl_style = "color:#777"
-
-                pnl_str = f"{pnl*100:.2f}%" if outcome != "No Entry" else "-"
-
-                html.append("<tr>")
-                html.append(f"<td><a href='{url}' target='_blank'><strong>{symbol}</strong></a></td>")
-                html.append(f"<td>{r['strategy']}</td>")
-                html.append(f"<td>${r['entry']:.2f}</td>")
-                html.append(f"<td>${r['stop']:.2f}</td>")
-                html.append(f"<td>${r['target']:.2f}</td>")
-                html.append(f"<td>{outcome_badge}</td>")
-                html.append(f"<td style='{pnl_style}'>{pnl_str}</td>")
-                html.append("</tr>")
-
-            html.append("</table>")
-
         # Top Candidates Table - simplified
         top_candidates = sorted(candidates,
                                key=lambda x: (x.get('score', 0), x.get('ml_prob', 0)),
@@ -949,67 +862,8 @@ class HTMLReporter:
             f.write(html_content)
         return path
 
-    def _build_arcade_prev_perf(self, previous_performance: Dict[str, Any] = None) -> str:
-        """Build the previous performance HTML section for the arcade report."""
-        if not previous_performance or not previous_performance.get('results'):
-            return ''
-
-        prev_date = previous_performance.get('date', 'Unknown')
-        results = previous_performance['results'][:10]
-
-        rows = []
-        for r in results:
-            symbol = r['symbol']
-            strategy = r.get('strategy', '')
-            outcome = r['outcome']
-            pnl = r['pnl']
-
-            if outcome == "Target Hit":
-                badge_cls = "win"
-                badge_text = "TARGET HIT"
-            elif outcome == "Stopped Out":
-                badge_cls = "loss"
-                badge_text = "STOPPED"
-            elif outcome == "Active":
-                badge_cls = "active"
-                badge_text = "ACTIVE"
-            else:
-                badge_cls = "noentry"
-                badge_text = "NO ENTRY"
-
-            if outcome != "No Entry":
-                pnl_pct = f"{pnl*100:+.2f}%"
-                pnl_color = "var(--neon-green)" if pnl > 0 else ("var(--neon-red)" if pnl < 0 else "var(--pixel-gray)")
-            else:
-                pnl_pct = "---"
-                pnl_color = "var(--pixel-gray)"
-
-            setup = f"E:${r['entry']:.2f} S:${r['stop']:.2f} T:${r['target']:.2f}"
-
-            rows.append(
-                f'<div class="prev-perf-row">'
-                f'<span><a href="https://finance.yahoo.com/quote/{symbol}" target="_blank" '
-                f'style="color:var(--neon-blue);text-decoration:none;text-shadow:0 0 4px var(--neon-blue)">{symbol}</a></span>'
-                f'<span style="color:var(--pixel-gray)">{strategy}</span>'
-                f'<span style="color:var(--pixel-white);font-size:0.7rem">{setup}</span>'
-                f'<span><span class="outcome-badge {badge_cls}">{badge_text}</span></span>'
-                f'<span style="color:{pnl_color}">{pnl_pct}</span>'
-                f'</div>'
-            )
-
-        return (
-            f'<div class="prev-perf-section">'
-            f'<div class="prev-perf-title">YESTERDAY\'S RESULTS &mdash; {prev_date}</div>'
-            f'<div class="prev-perf-header">'
-            f'<span>SYMBOL</span><span>STRAT</span><span>SETUP</span><span>OUTCOME</span><span>PnL</span>'
-            f'</div>'
-            + '\n'.join(rows) +
-            f'</div>'
-        )
-
     def generate_arcade_report(self, date: str, regime: Dict[str, Any],
-                               candidates: List[Dict[str, Any]],
-                               previous_performance: Dict[str, Any] = None) -> str:
+                               candidates: List[Dict[str, Any]]) -> str:
         """
         Generates a standalone arcade-themed HTML report with all data embedded.
 
@@ -1017,7 +871,6 @@ class HTMLReporter:
             date: Report date string
             regime: Market regime data dict
             candidates: List of trading candidate dicts
-            previous_performance: Optional previous day performance data
 
         Returns:
             Complete HTML string for the arcade report
@@ -1080,7 +933,6 @@ class HTMLReporter:
         # Escape </script> in JSON to prevent premature tag closing
         data_json = data_json.replace('</script>', '<\\/script>')
 
-        prev_perf_html = self._build_arcade_prev_perf(previous_performance)
         gen_timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
         # Embed banner image as base64 if available
@@ -1407,18 +1259,6 @@ body::after {
 .portfolio-table-header div:nth-child(7),
 .portfolio-table-header div:nth-child(8),
 .portfolio-table-header div:nth-child(9) { text-align: right; }
-/* Previous Performance */
-.prev-perf-section { border: 2px solid var(--neon-blue-dim); background: var(--pixel-dark); padding: 12px; margin-bottom: 12px; }
-.prev-perf-title { font-size: 1.0rem; color: var(--neon-blue); text-shadow: 0 0 4px var(--neon-blue); margin-bottom: 10px; letter-spacing: 1px; }
-.prev-perf-header, .prev-perf-row { display: grid; grid-template-columns: 90px 70px 1fr 100px 80px; padding: 8px 8px; font-size: 0.8rem; align-items: center; }
-.prev-perf-header { color: var(--neon-amber); text-shadow: 0 0 4px var(--neon-amber); border-bottom: 1px solid var(--neon-amber-dim); letter-spacing: 1px; }
-.prev-perf-row { border-bottom: 1px solid rgba(85,85,112,0.2); }
-.prev-perf-row:nth-child(even) { background: rgba(22,22,42,0.3); }
-.outcome-badge { font-size: 0.6rem; padding: 2px 6px; border: 1px solid; display: inline-block; }
-.outcome-badge.win { color: var(--neon-green); border-color: var(--neon-green-dim); background: rgba(57,255,20,0.1); }
-.outcome-badge.loss { color: var(--neon-red); border-color: var(--neon-red-dim); background: rgba(255,51,51,0.1); }
-.outcome-badge.active { color: var(--neon-blue); border-color: var(--neon-blue-dim); background: rgba(0,212,255,0.1); }
-.outcome-badge.noentry { color: var(--pixel-gray); border-color: rgba(85,85,112,0.3); background: rgba(85,85,112,0.1); }
 /* Calc button in toolbar */
 .toolbar { display: flex; gap: 8px; margin-bottom: 12px; justify-content: flex-end; }
 @media (max-width: 900px) {
@@ -1427,7 +1267,6 @@ body::after {
   .detail-grid { grid-template-columns: 1fr; }
   .status-bar { grid-template-columns: 1fr; }
   .health-bar { width: 40px; }
-  .prev-perf-header, .prev-perf-row { grid-template-columns: 70px 50px 1fr 80px 60px; font-size: 0.7rem; }
   .portfolio-table-header, .portfolio-table-row { grid-template-columns: 30px 70px 65px 70px 70px 60px 60px; }
   .portfolio-col-risk, .portfolio-col-reward { display: none; }
   .portfolio-summary { grid-template-columns: repeat(2, 1fr); }
@@ -1436,8 +1275,6 @@ body::after {
   .leaderboard-header, .leaderboard-row { grid-template-columns: 24px 30px 1fr 70px 70px; }
   .col-stop, .col-t1, .col-target, .col-rr, .col-ml, .col-sent { display: none; }
   .marquee-title { font-size: 0.7rem; letter-spacing: 2px; }
-  .prev-perf-header, .prev-perf-row { grid-template-columns: 60px 1fr 70px 60px; }
-  .prev-perf-header span:nth-child(2), .prev-perf-row span:nth-child(2) { display: none; }
   .portfolio-table-header, .portfolio-table-row { grid-template-columns: 30px 1fr 60px 60px 60px 60px; }
   .portfolio-col-stop, .portfolio-col-t1, .portfolio-col-target { display: none; }
 }
@@ -1959,9 +1796,6 @@ document.addEventListener('DOMContentLoaded', function() {
             '</div>',
             '<div class="leaderboard-body" id="leaderboardBody"></div>',
             '</div>',
-
-            # Previous performance
-            prev_perf_html,
 
             # Stats row
             '<div class="stat-row" id="statsRow" style="display:none">',
