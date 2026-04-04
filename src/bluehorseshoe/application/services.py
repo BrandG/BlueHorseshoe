@@ -71,7 +71,6 @@ def run_prediction(
     elif not report_data.get("date"):
         report_data["date"] = str(datetime.date.today())
 
-    report_data["previous_performance"] = trader.get_previous_performance(report_data["date"])
     return report_data
 
 
@@ -110,7 +109,6 @@ def generate_reports(
 ) -> dict[str, Any]:
     """Generate HTML report artifacts from prediction output."""
     report_date = report_data.get("date", str(datetime.date.today()))
-    previous_performance = report_data.get("previous_performance", {})
     regime = flatten_regime_for_report(report_data.get("regime", {}))
     candidates = report_data.get("candidates", [])
     charts = report_data.get("charts", [])
@@ -121,13 +119,11 @@ def generate_reports(
         regime=regime,
         candidates=candidates,
         charts=charts,
-        previous_performance=previous_performance,
     )
     email_html = reporter.generate_email_report(
         date=report_date,
         regime=regime,
         candidates=candidates,
-        previous_performance=previous_performance,
     )
     full_path, email_path = reporter.save_both(html_content, email_html, f"report_{report_date}")
 
@@ -141,7 +137,6 @@ def generate_reports(
             date=report_date,
             regime=regime,
             candidates=candidates,
-            previous_performance=previous_performance,
         )
         result["arcade_path"] = reporter.save_arcade(arcade_html, f"report_{report_date}_arcade.html")
 

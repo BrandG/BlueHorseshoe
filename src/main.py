@@ -478,10 +478,6 @@ if __name__ == "__main__":
             top_candidates = candidates[:50] + connors_candidates
 
             # 5. Generate Report
-            # Calculate previous day's performance
-            trader = SwingTrader(database=ctx.db, store=ctx.store)
-            prev_perf = trader.get_previous_performance(target_date)
-
             reporter = HTMLReporter(database=ctx.db)
 
             # Generate full interactive report
@@ -490,7 +486,6 @@ if __name__ == "__main__":
                 regime=market_health,
                 candidates=top_candidates,
                 charts=[],
-                previous_performance=prev_perf
             )
 
             # Generate email-friendly report (no JavaScript, no charts)
@@ -498,7 +493,6 @@ if __name__ == "__main__":
                 date=target_date,
                 regime=market_health,
                 candidates=top_candidates,
-                previous_performance=prev_perf
             )
 
             # Save both versions
@@ -513,7 +507,6 @@ if __name__ == "__main__":
                 date=target_date,
                 regime=market_health,
                 candidates=top_candidates,
-                previous_performance=prev_perf
             )
             arcade_path = reporter.save_arcade(arcade_html, f"report_{target_date}_arcade.html")
             logging.info("Arcade report regenerated at %s", arcade_path)

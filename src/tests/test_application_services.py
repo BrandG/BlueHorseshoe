@@ -32,7 +32,7 @@ def test_update_market_data_builds_backfill_config(monkeypatch):
     assert captured["config"].limit == 25
 
 
-def test_run_prediction_resolves_date_and_adds_previous_performance(monkeypatch):
+def test_run_prediction_resolves_date(monkeypatch):
     class FakeTrader:
         def __init__(self, **kwargs):
             self.kwargs = kwargs
@@ -41,10 +41,6 @@ def test_run_prediction_resolves_date_and_adds_previous_performance(monkeypatch)
             assert kwargs["target_date"] == "2026-03-26"
             assert kwargs["aggregation"] == "sum"
             return {"regime": {"status": "ok"}, "candidates": []}
-
-        def get_previous_performance(self, target_date):
-            assert target_date == "2026-03-26"
-            return {"date": "2026-03-25", "results": []}
 
     monkeypatch.setattr(services, "SwingTrader", FakeTrader)
     monkeypatch.setattr(services, "get_latest_market_date", lambda **kwargs: "2026-03-26")
@@ -57,7 +53,6 @@ def test_run_prediction_resolves_date_and_adds_previous_performance(monkeypatch)
     )
 
     assert result["date"] == "2026-03-26"
-    assert result["previous_performance"] == {"date": "2026-03-25", "results": []}
 
 
 def test_generate_reports_uses_flattened_regime_and_optional_arcade(monkeypatch):
@@ -99,7 +94,6 @@ def test_generate_reports_uses_flattened_regime_and_optional_arcade(monkeypatch)
         },
         "candidates": [{"symbol": "SPY"}],
         "charts": [],
-        "previous_performance": {"date": "2026-03-25", "results": []},
     }
 
     result = services.generate_reports(database="db", report_data=report_data, include_arcade=True)
