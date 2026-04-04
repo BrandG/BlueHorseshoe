@@ -7,6 +7,7 @@ universe snapshots).
 
 Usage:
     store = DuckDBStore("/path/to/ohlcv.duckdb")
+    store_ro = DuckDBStore("/path/to/ohlcv.duckdb", read_only=True)
     store.save_symbol("AAPL", df, full_name="Apple Inc.")
     df = store.load_symbol("AAPL", start_date="2024-01-01")
     store.close()
@@ -40,11 +41,13 @@ _CORE_COLUMNS = {"symbol", "date", "open", "high", "low", "close", "volume"}
 class DuckDBStore:
     """Embedded columnar store for OHLCV + indicator data."""
 
-    def __init__(self, db_path: str = ":memory:"):
+    def __init__(self, db_path: str = ":memory:", read_only: bool = False):
         self._db_path = db_path
-        self._con = duckdb.connect(db_path)
+        self._read_only = read_only
+        self._con = duckdb.connect(db_path, read_only=read_only)
         self._lock = threading.RLock()
-        self._init_schema()
+        if not read_only:
+            self._init_schema()
 
     # ------------------------------------------------------------------
     # Schema
@@ -82,6 +85,9 @@ class DuckDBStore:
         Thread-safe: serialized via _lock since the DuckDB Python
         connection object is not thread-safe.
         """
+        if self._read_only:
+            raise RuntimeError("Cannot write to a read-only DuckDBStore")
+
         if df is None or df.empty:
             return
 

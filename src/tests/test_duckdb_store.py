@@ -268,3 +268,78 @@ class TestColumnFiltering:
     def test_save_none_is_noop(self, store):
         store.save_symbol("AAPL", None)
         assert store.load_symbol("AAPL") is None
+
+
+def test_read_only_store_can_read(tmp_path):
+    """Read-only store can load data saved by a read-write store."""
+    db_path = str(tmp_path / "test.duckdb")
+
+    rw = DuckDBStore(db_path)
+    df = pd.DataFrame({
+        "date": ["2024-01-01", "2024-01-02"],
+        "open": [100.0, 101.0],
+        "high": [110.0, 111.0],
+        "low": [90.0, 91.0],
+        "close": [105.0, 106.0],
+        "volume": [1000.0, 1100.0],
+    })
+    rw.save_symbol("AAPL", df)
+    rw.close()
+
+    ro = DuckDBStore(db_path, read_only=True)
+    result = ro.load_symbol("AAPL")
+    assert result is not None
+    assert len(result) == 2
+    assert list(result["close"]) == [105.0, 106.0]
+    ro.close()
+
+
+def test_read_only_store_rejects_write(tmp_path):
+    """Read-only store raises RuntimeError on save_symbol()."""
+    db_path = str(tmp_path / "test.duckdb")
+
+    rw = DuckDBStore(db_path)
+    rw.close()
+
+    ro = DuckDBStore(db_path, read_only=True)
+    df = pd.DataFrame({
+        "date": ["2024-01-01"],
+        "open": [100.0],
+        "high": [110.0],
+        "low": [90.0],
+        "close": [105.0],
+        "volume": [1000.0],
+    })
+    with pytest.raises(RuntimeError, match="read-only"):
+        ro.save_symbol("AAPL", df)
+    ro.close()
+
+
+def test_multiple_read_only_stores_concurrent(tmp_path):
+    """Multiple read-only stores can open the same database simultaneously."""
+    db_path = str(tmp_path / "test.duckdb")
+
+    rw = DuckDBStore(db_path)
+    df = pd.DataFrame({
+        "date": ["2024-01-01"],
+        "open": [100.0],
+        "high": [110.0],
+        "low": [90.0],
+        "close": [105.0],
+        "volume": [1000.0],
+    })
+    rw.save_symbol("AAPL", df)
+    rw.close()
+
+    ro1 = DuckDBStore(db_path, read_only=True)
+    ro2 = DuckDBStore(db_path, read_only=True)
+
+    result1 = ro1.load_symbol("AAPL")
+    result2 = ro2.load_symbol("AAPL")
+
+    assert len(result1) == 1
+    assert len(result2) == 1
+    assert result1["close"].iloc[0] == result2["close"].iloc[0]
+
+    ro1.close()
+    ro2.close()
