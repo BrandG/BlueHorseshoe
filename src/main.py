@@ -100,7 +100,7 @@ if __name__ == "__main__":
 
         active_only = "--all" not in sys.argv  # active-only by default; use --all to override
 
-        with create_cli_context() as ctx:
+        with create_cli_context(read_only_store=False) as ctx:
             if "--refresh-overviews" in sys.argv:
                 ov_limit = None
                 if "--ov-limit" in sys.argv:
@@ -138,7 +138,7 @@ if __name__ == "__main__":
             except (ValueError, IndexError):
                 pass
 
-        with create_cli_context() as ctx:
+        with create_cli_context(read_only_store=False) as ctx:
             update_market_data(
                 database=ctx.db,
                 store=ctx.store,

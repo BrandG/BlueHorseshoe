@@ -19,7 +19,7 @@ class CLIContext:
     This provides a clean interface for accessing injected dependencies.
     """
 
-    def __init__(self, container: AppContainer, report_writer: ReportWriter):
+    def __init__(self, container: AppContainer, report_writer: ReportWriter, read_only_store: bool = True):
         """
         Initialize CLI context with container and report writer.
 
@@ -29,6 +29,7 @@ class CLIContext:
         """
         self._container = container
         self._report_writer = report_writer
+        self._read_only_store = read_only_store
 
     @property
     def container(self) -> AppContainer:
@@ -58,7 +59,7 @@ class CLIContext:
     @property
     def store(self):
         """Access to DuckDB historical data store."""
-        return self._container.get_historical_store()
+        return self._container.get_historical_store(read_only=self._read_only_store)
 
     @property
     def invalid_symbols(self) -> list:
@@ -67,7 +68,7 @@ class CLIContext:
 
 
 @contextmanager
-def create_cli_context() -> Generator[CLIContext, None, None]:
+def create_cli_context(read_only_store: bool = True) -> Generator[CLIContext, None, None]:
     """
     Create a CLI context manager with proper resource lifecycle.
 
@@ -97,7 +98,7 @@ def create_cli_context() -> Generator[CLIContext, None, None]:
     report_writer = ReportWriter(log_path=report_path)
 
     # Create context object
-    ctx = CLIContext(container=container, report_writer=report_writer)
+    ctx = CLIContext(container=container, report_writer=report_writer, read_only_store=read_only_store)
 
     try:
         yield ctx
