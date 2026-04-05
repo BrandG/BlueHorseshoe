@@ -7,7 +7,7 @@ from __future__ import annotations
 import os
 import time
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Dict, Any
 
 from pymongo.collection import Collection
@@ -77,7 +77,7 @@ def set_checkpoint(database, last_symbol: str, processed_total: int, run_count: 
             "last_symbol": last_symbol,
             "processed_total": processed_total,
             "run_count": run_count,
-            "updated_at": datetime.utcnow().isoformat(),
+            "updated_at": datetime.now(timezone.utc).isoformat(),
         }},
         upsert=True
     )

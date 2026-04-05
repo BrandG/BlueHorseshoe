@@ -10,7 +10,7 @@ Core utilities for:
 
 from __future__ import annotations
 
-from datetime import datetime, date
+from datetime import datetime, date, timezone
 from typing import Any, Dict, List, Optional
 import os
 import csv
@@ -282,7 +282,7 @@ def refresh_historical_for_symbol(symbol: str, recent: bool = False, database=No
         "num_days": len(days),
         "first_date": days[0]["date"],
         "last_date": days[-1]["date"],
-        "last_updated": datetime.utcnow().isoformat(),
+        "last_updated": datetime.now(timezone.utc).isoformat(),
     }
 
 
@@ -343,7 +343,7 @@ def upsert_news_sentiment_to_mongo(symbol: str, news_data: Dict[str, Any], datab
     doc = {
         "symbol": sym,
         "feed": news_data.get("feed", []),
-        "last_updated": datetime.utcnow().isoformat()
+        "last_updated": datetime.now(timezone.utc).isoformat()
     }
     _news.update_one({"symbol": sym}, {"$set": doc}, upsert=True)
 
@@ -478,7 +478,7 @@ def save_sentiment_snapshots(
                 "score": s["score"],
                 "article_count": s["article_count"],
                 "source": s.get("source", "alphavantage"),
-                "updated_at": datetime.utcnow(),
+                "updated_at": datetime.now(timezone.utc),
             }},
             upsert=True,
         )

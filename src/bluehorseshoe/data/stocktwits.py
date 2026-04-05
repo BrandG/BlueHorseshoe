@@ -9,7 +9,7 @@ No API key required — uses the free public endpoint.
 from __future__ import annotations
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Tuple
 
 import requests
@@ -134,7 +134,7 @@ def upsert_stocktwits_to_mongo(
         "bullish": bullish,
         "bearish": bearish,
         "total_tagged": total_tagged,
-        "last_updated": datetime.utcnow().isoformat(),
+        "last_updated": datetime.now(timezone.utc).isoformat(),
     }
     col.update_one({"symbol": sym}, {"$set": doc}, upsert=True)
 
