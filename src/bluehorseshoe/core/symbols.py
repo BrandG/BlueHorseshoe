@@ -21,6 +21,7 @@ import requests
 from requests.exceptions import RequestException
 from ratelimit import limits, sleep_and_retry
 from pymongo import UpdateOne
+from pymongo.results import BulkWriteResult
 
 ALPHAVANTAGE_KEY = os.environ.get("ALPHAVANTAGE_KEY", "")
 

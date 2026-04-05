@@ -551,7 +551,7 @@ async def get_pipeline_status():
         with open(_PIPELINE_STATUS_FILE, "r", encoding="utf-8") as f:
             return json.load(f)
     except (json.JSONDecodeError, IOError) as e:
-        raise HTTPException(status_code=500, detail=f"Failed to read pipeline status: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to read pipeline status: {e}") from e
 
 
 @router.get("/quote/{symbol}")
