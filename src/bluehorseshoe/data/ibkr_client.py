@@ -102,13 +102,13 @@ class IBKRClient:
                 "Connected to IB Gateway at %s:%s (client_id=%s)",
                 self._config.host, self._config.port, self._config.client_id,
             )
-        except ConnectionRefusedError:
+        except ConnectionRefusedError as exc:
             self._ib = None
             raise ConnectionRefusedError(
                 f"Cannot connect to IB Gateway at {self._config.host}:{self._config.port}. "
                 "Is the ib-gateway container running? Start it with: "
                 "cd docker && docker compose up -d ib-gateway"
-            )
+            ) from exc
         except Exception:
             self._ib = None
             raise

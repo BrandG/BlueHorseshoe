@@ -37,6 +37,7 @@ from bluehorseshoe.core.service import get_latest_market_date
 from bluehorseshoe.core.symbol_repository import backfill_missing_overviews, get_symbols
 from bluehorseshoe.data.historical_data import check_market_status
 from bluehorseshoe.analysis.optimizer import WeightOptimizer
+from bluehorseshoe.reporting.html_reporter import HTMLReporter
 
 DEBUG_SYMBOL = 'ABVC'
 DEBUG = False
