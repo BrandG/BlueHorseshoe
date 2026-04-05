@@ -2,7 +2,7 @@
 Module for managing trade scores in MongoDB.
 """
 from typing import List, Dict, Any, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 from pymongo import UpdateOne
 from pymongo.database import Database
 
@@ -49,7 +49,7 @@ class ScoreManager:
                     "score": s["score"],
                     "version": s.get("version", "1.0"),
                     "metadata": s.get("metadata", {}),
-                    "updated_at": datetime.utcnow()
+                    "updated_at": datetime.now(timezone.utc)
                 }
             }
             operations.append(UpdateOne(filter_query, update_query, upsert=True))

@@ -8,7 +8,7 @@ and store results in MongoDB.  No API key required — uses finvizfinance librar
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timedelta, date
+from datetime import datetime, date, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
 from ratelimit import limits, sleep_and_retry
@@ -85,7 +85,7 @@ def upsert_finviz_news_to_mongo(
     doc = {
         "symbol": sym,
         "articles": articles,
-        "last_updated": datetime.utcnow().isoformat(),
+        "last_updated": datetime.now(timezone.utc).isoformat(),
     }
     col.update_one({"symbol": sym}, {"$set": doc}, upsert=True)
 

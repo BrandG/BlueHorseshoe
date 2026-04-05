@@ -8,7 +8,7 @@ and store results in MongoDB for comparison with Alpha Vantage sentiment.
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timedelta, date
+from datetime import datetime, timedelta, date, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
 import requests
@@ -63,9 +63,9 @@ def fetch_tiingo_news(
         tickers = ",".join(tickers)
 
     if not start_date:
-        start_date = (datetime.utcnow() - timedelta(days=7)).strftime("%Y-%m-%d")
+        start_date = (datetime.now(timezone.utc) - timedelta(days=7)).strftime("%Y-%m-%d")
     if not end_date:
-        end_date = datetime.utcnow().strftime("%Y-%m-%d")
+        end_date = datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
     params = {
         "tickers": tickers,
@@ -127,7 +127,7 @@ def upsert_tiingo_news_to_mongo(
     doc = {
         "symbol": sym,
         "articles": articles,
-        "last_updated": datetime.utcnow().isoformat(),
+        "last_updated": datetime.now(timezone.utc).isoformat(),
     }
     col.update_one({"symbol": sym}, {"$set": doc}, upsert=True)
 

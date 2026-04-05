@@ -4,7 +4,7 @@ Repository helpers for symbol and overview persistence.
 from __future__ import annotations
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, Iterable, Optional
 
 from pymongo import UpdateOne
@@ -45,7 +45,7 @@ def upsert_overview(symbol: str, overview: Dict[str, Any], *, database) -> None:
 
     document = dict(overview)
     document["symbol"] = normalized
-    document["last_updated"] = datetime.utcnow().isoformat()
+    document["last_updated"] = datetime.now(timezone.utc).isoformat()
     database["symbol_overviews"].update_one({"symbol": normalized}, {"$set": document}, upsert=True)
 
 

@@ -11,7 +11,7 @@ and restart with --resume.
 import logging
 from collections import defaultdict
 from concurrent.futures import ProcessPoolExecutor
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, List, Tuple
 
 import numpy as np
@@ -183,7 +183,7 @@ def _save_checkpoint(database, processed_symbols: set, accumulator: dict) -> Non
             '_id': 'checkpoint',
             'processed_symbols': list(processed_symbols),
             'accumulator': accumulator,
-            'updated_at': datetime.utcnow(),
+            'updated_at': datetime.now(timezone.utc),
             'symbol_count': len(processed_symbols),
         },
         upsert=True,
@@ -389,7 +389,7 @@ def _save_catalog_to_mongo(catalog: Dict[str, Dict], database) -> None:
         return
 
     docs = []
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     for key, stats in catalog.items():
         doc = stats.copy()
         doc['updated_at'] = now
