@@ -2,6 +2,13 @@
 
 ## Near Term
 
+### Reporting
+- **Holiday-aware exit warning banner** — On all report types (standard, email, arcade), detect when a market holiday falls within the current week (Mon–Fri) and surface a prominent warning at the top of the report. Example: "Today is Thursday, and the market is closed Friday — consider exiting today to preserve your weekly hold pattern."
+  - Scope: only this week (Mon–Fri containing today). Don't warn for holidays in subsequent weeks.
+  - Show unconditionally as a generic alert (not tied to open positions in the journal).
+  - Use a year-over-year correct holiday source — `pandas_market_calendars` (NYSE calendar) is the recommended dependency; add to `requirements.txt` if not already present.
+  - Render with distinct warning styling at the top of standard, email, and arcade report templates.
+
 ### Architecture & Refactoring
 
 - Event-driven backtest with an order book. Instead of the current "check high/low against levels" approach, model it as: generate orders → feed daily bars → match orders → update positions. That naturally handles split exits, trailing stops, breakeven stops, shorts — all as different order types rather than special-case code paths.

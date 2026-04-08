@@ -1,56 +1,44 @@
 # Session Handoff
 
-**Date:** April 4, 2026
-**Status:** Hypothetical Trade Engine (Layer B) shipped and validated. MongoDB authentication enabled. Docker-compose cleanup merged. System stable.
+**Date:** April 5, 2026
+**Status:** DuckDB read-only mode shipped. Code quality sweep complete (deprecated calls, lint bugs). Report cleanup done. System stable, 717 tests passing.
 
 ---
 
-## What Was Done This Session (April 2–4)
+## What Was Done This Session (April 4–5)
 
-### 1. Codex Branch Cleanup
-- Merged `codex-refactor` docker-compose change (removed BH Python container) via cherry-pick, excluding stale SESSION_HANDOFF.md each time
-- Codex-refactor branch is now effectively dead — all useful commits cherry-picked to master
-
-### 2. MongoDB Authentication
-- Created `bhapp` user with `readWrite` on `bluehorseshoe` database
-- Enabled `--auth` in docker-compose.yml
-- Updated `MONGO_URI` in both `.env` (127.0.0.1) and `docker/.env` (mongo hostname)
-- Restarted MongoDB and API service
-- Verified: unauthenticated access denied, API health OK, reports serve correctly
-- Fixed `backup.sh` to use `--uri` flag instead of `--host`/`--port`/`--db`
-- Fixed `backup.conf` to source root `.env` (not `docker/.env`) for host-accessible MONGO_URI
-
-### 3. Hypothetical Trade Engine (Layer B) — 4 commits
-Built and shipped the full hypothesis evaluation system:
-
-1. **`trade_evaluator.py`** — Pure walk-forward evaluation functions (entry buffer, gap-down slippage, MAE/MFE tracking, 4 outcomes: WIN/LOSS/TIMEOUT/NOT_ENTERED)
-2. **`hypothesis_engine.py`** — Batch discovery, bulk OHLCV loading, per-signal evaluation, SPY benchmark, idempotent MongoDB storage in `journal_hypothetical_trades`
-3. **20 unit tests** — Full coverage of evaluator functions and engine class with mocked dependencies
-4. **CLI + pipeline integration** — `--evaluate` flag in main.py, step in `run_daily_pipeline.sh` (runs last, after email), `pipeline_status.py` updated
-
-**Validated with real data:**
-- 2026-02-20 batch: 3,355 signals evaluated (WIN: 995, LOSS: 1,147, TIMEOUT: 1,034, NOT_ENTERED: 179)
-- 2026-02-24 batch: 1,323 signals evaluated (WIN: 237, LOSS: 714, TIMEOUT: 309, NOT_ENTERED: 63)
-- Idempotency confirmed (re-run skips duplicates)
-- Remaining 11 batches will auto-evaluate as they mature
-
-### 4. API Service
-- Already running on port 8001 via systemd (was started before this session)
-- Health check passes, reports endpoint serves data
-- Restart counter was high (37,794) from pre-fix crash looping — stable now
-
-### 5. Report Cleanup & Test Fix
+### 1. Report Cleanup
 - Removed "Yesterday's Results" / "Previous Day Performance" from all three report types (standard, email, arcade)
-- Removed `get_previous_performance()` and `_get_previous_trading_date()` from strategy.py
-- Removed `previous_performance` parameter from all reporter methods and callers (services.py, main.py)
+- Removed `get_previous_performance()`, `_get_previous_trading_date()` from strategy.py
+- Removed `previous_performance` parameter from all reporter methods and callers
 - Removed associated CSS (`.prev-perf-*` classes) from arcade report
-- Fixed pre-existing test failure: `test_load_historical_data_from_net` — updated mock from `requests.get` to `_get_provider_pool` to match provider pool refactor
+
+### 2. DuckDB Read-Only Mode (Phase 1 of Parquet migration)
+- **Phase 1:** Added `read_only` parameter to `DuckDBStore.__init__` — opens lock-free DuckDB connections when `read_only=True`, skips schema init, guards `save_symbol()` with RuntimeError
+- **Phase 2:** Wired through `AppContainer.get_historical_store()` and `create_cli_context()` — default is `read_only=True`, only `-u` and `-b` pass `read_only_store=False`
+- 3 new tests: read-only reads, write rejection, concurrent readers
+
+### 3. Code Quality Fixes
+- Replaced all 13 `datetime.utcnow()` calls with `datetime.now(timezone.utc)` across 8 files — eliminates Python 3.12 deprecation warnings
+- Fixed 4 pylint-reported runtime bugs:
+  - `main.py` — missing `HTMLReporter` import (would crash on `-r`)
+  - `symbols.py` — missing `BulkWriteResult` import (would crash on sentiment save)
+  - `routes.py` — added `from e` exception chaining
+  - `ibkr_client.py` — added `from exc` exception chaining
+
+### 4. Test Fix
+- Fixed `test_load_historical_data_from_net` — updated mock from `requests.get` to `_get_provider_pool` to match provider pool refactor
+
+### 5. Housekeeping
 - Added `/tmp/humanaction.sh` protocol to CLAUDE_PROTOCOLS.md for tmux-friendly human action requests
+- Deleted stale branches: local `claude`, `Tweak_indicators`, remote numbered claude branches (17-21)
+- Removed `/root/bh-claude` worktree (was on fully-merged `claude` branch)
 
 ---
 
 ## Previous Sessions Summary
 
+- **April 2–4:** Hypothesis engine (Layer B) shipped, MongoDB auth enabled, docker-compose cleanup, codex branch cherry-picks
 - **March 29 – April 2:** MR weight tuning (cap_8 deployed), Baseline tuning (no changes), email fix, Docker cleanup, research droplet destroyed
 - **March 27:** Assumption tester, regime-aware stop/target multipliers, Docker→host migration
 - **March 23:** Trade journal system (5-phase lifecycle)
@@ -68,32 +56,30 @@ Built and shipped the full hypothesis evaluation system:
 
 ## Next Steps
 
-1. **Monitor hypothesis engine** — Watch tomorrow's pipeline run (02:00 UTC) to confirm `evaluate` step works in cron context. More batches will mature over the coming days.
-2. **Analyze hypothesis results** — Once enough batches accumulate, query `journal_hypothetical_trades` for insights: win rate by strategy, score threshold discovery, regime-based performance
-3. **Event-driven backtest** — Order-book model replacing check-levels approach (TODO near-term)
-4. **DuckDB read-only mode** — Phase 1 of Parquet migration, eliminates lock contention
-5. **Regime-aware remaining items** — Paper trader position sizing, backtester hold_days, HTML report regime display
-6. See `TODO.md` for full backlog
+1. **Monitor hypothesis engine** — Confirm `evaluate` step works in cron context. More batches will mature over the coming days.
+2. **Analyze hypothesis results** — Once 5-10 batches accumulate, query `journal_hypothetical_trades` for insights: win rate by strategy, score threshold discovery, regime-based performance
+3. **Signal Track Record report section** — Replace Yesterday's Results with real N-day outcomes (blocked until enough batches mature)
+4. **Event-driven backtest** — Order-book model replacing check-levels approach (TODO near-term)
+5. **Refactor Backtester to use trade_evaluator.py** — Phase 2: dedup `_check_entry()` / `_check_active_trade()`
+6. **Regime-aware remaining items** — Paper trader position sizing, backtester hold_days, HTML report regime display
+7. **Unused imports cleanup** — 102 unused imports flagged by pylint (low priority, mechanical)
+8. See `TODO.md` for full backlog
 
 ## Blockers / Open Questions
 
 - **SMTP from Claude Code sandbox is blocked** — user must run `send_report_email.py` manually from their shell. Daily cron works fine.
-- **Hypothesis engine only has 2 evaluated batches so far** — Need more data to draw meaningful conclusions. Remaining batches will auto-evaluate as they mature.
-- **Codex-refactor branch** is stale (all changes cherry-picked) — can be deleted with `git push origin --delete codex-refactor` when convenient.
+- **Hypothesis engine batches still maturing** — Need more data to draw meaningful conclusions. Remaining batches will auto-evaluate as they mature.
+- **Codex-refactor branch** still in use by Codex (worktree at `/root/bh-codex`). Do not delete.
 
 ---
 
 ## Key Decisions
 
-- **MongoDB authentication enabled** — defense-in-depth: ufw + localhost bind + auth. User `bhapp` with `readWrite` on `bluehorseshoe` database.
-- **Entry buffer 0.1%** — Hypothesis engine requires price to cross 0.1% below entry to account for execution delay. Gap-down slippage uses open price.
-- **Hold period is regime-aware** — Bearish=7d, Bullish/Neutral=5d from REGIME_PROFILES in constants.py.
-- **Evaluate all signals (score > 0)** — Collect maximum data, discover the real edge later via analysis.
-- **Evaluation runs last in pipeline** — After report and email, so it never delays delivery.
-- **Maturity = hold_days + 5 trading days** — Checked via SPY bar count in DuckDB, avoids holiday calendar complexity.
-- **MR cap_8 is the production solution** — caps mr_mean_reversion_specific contribution at 8.0 points.
-- **Run both strategies in all regimes** — scores naturally surface best picks.
-- **Email via Brevo on port 2525** — Gmail blocked by DigitalOcean, SendGrid key is stale.
+- **DuckDB read-only by default** — `create_cli_context()` defaults to `read_only_store=True`. Only `-u` and `-b` use read-write. Eliminates lock contention for concurrent readers.
+- **Yesterday's Results removed** — one-day price action is noise; hypothesis engine provides real N-day outcomes via `journal_hypothetical_trades`.
+- **Human action scripts** — When Claude needs the user to run git/shell commands, write to `/tmp/humanaction.sh` for easy tmux execution (added to CLAUDE_PROTOCOLS.md).
+- **journal.py cell-var-from-loop is a false positive** — pylint flags `strat` captured in lambda at line 135, but `items.sort()` executes immediately so it's safe. Do not "fix" it.
+- Prior decisions (MongoDB auth, hypothesis engine design, MR cap_8, Brevo email) remain in effect — see previous handoffs.
 
 ---
 
@@ -101,16 +87,12 @@ Built and shipped the full hypothesis evaluation system:
 
 | File | Role |
 |------|------|
-| `src/bluehorseshoe/analysis/trade_evaluator.py` | Pure walk-forward trade evaluation functions (NEW) |
-| `src/bluehorseshoe/analysis/hypothesis_engine.py` | Hypothesis engine — batch discovery, evaluation, MongoDB storage (NEW) |
-| `src/tests/test_hypothesis_engine.py` | 20 unit tests for evaluator + engine (NEW) |
-| `src/main.py` | CLI entry — added `--evaluate` flag |
-| `run_daily_pipeline.sh` | Added evaluate step (runs last) |
-| `src/pipeline_status.py` | Added "evaluate" to STEPS |
-| `docker/docker-compose.yml` | `--auth` enabled for MongoDB |
-| `backup.sh` | Uses `--uri` for authenticated mongodump |
-| `backup.conf` | Sources root `.env` for MONGO_URI |
-| `src/weights.json` | Indicator weights — production values with cap_8 |
+| `src/bluehorseshoe/data/duckdb_store.py` | DuckDB store — added `read_only` parameter |
+| `src/bluehorseshoe/cli/context.py` | CLI context — `read_only_store=True` default |
+| `src/bluehorseshoe/core/container.py` | App container — `read_only` passthrough |
+| `src/bluehorseshoe/reporting/html_reporter.py` | Reports — Yesterday's Results removed |
+| `src/bluehorseshoe/analysis/strategy.py` | Strategy — `get_previous_performance()` removed |
+| `.claude/CLAUDE_PROTOCOLS.md` | Added `/tmp/humanaction.sh` protocol |
 
 ---
 
@@ -153,9 +135,10 @@ doctl compute droplet delete bh-research --force
 
 **Branch:** master
 **Working tree:** Clean (after this handoff commit)
-**Codex branch:** `origin/codex-refactor` — stale, all changes cherry-picked. Safe to delete.
-**Tests:** 714 passing (all green)
+**Codex branch:** `origin/codex-refactor` — active, used by Codex (worktree at `/root/bh-codex`)
+**Stale branches:** All cleaned up (claude, Tweak_indicators, numbered claude branches deleted)
+**Tests:** 717 passing (all green, 2 skipped)
 
 ---
 
-**Last Updated:** April 4, 2026
+**Last Updated:** April 5, 2026
