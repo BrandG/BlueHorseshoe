@@ -364,9 +364,9 @@ class HTMLReporter:
             
         return f"<details><summary>{summary_html}</summary>{chart_html}</details>"
 
-    def _holiday_banner_html(self):
+    def _holiday_banner_html(self, report_date: str):
         """Return standard holiday warning banner HTML lines, or empty list."""
-        warning = get_holiday_warning()
+        warning = get_holiday_warning(datetime.strptime(report_date, "%Y-%m-%d").date())
         if not warning:
             return []
         return [
@@ -376,9 +376,9 @@ class HTMLReporter:
             '</div>',
         ]
 
-    def _holiday_banner_email_html(self):
+    def _holiday_banner_email_html(self, report_date: str):
         """Return inline-styled holiday warning banner for email, or empty list."""
-        warning = get_holiday_warning()
+        warning = get_holiday_warning(datetime.strptime(report_date, "%Y-%m-%d").date())
         if not warning:
             return []
         return [
@@ -389,9 +389,9 @@ class HTMLReporter:
             '</div>',
         ]
 
-    def _holiday_banner_arcade_html(self):
+    def _holiday_banner_arcade_html(self, report_date: str):
         """Return arcade-styled neon holiday warning banner, or empty list."""
-        warning = get_holiday_warning()
+        warning = get_holiday_warning(datetime.strptime(report_date, "%Y-%m-%d").date())
         if not warning:
             return []
         return [
@@ -438,7 +438,7 @@ class HTMLReporter:
             "<div class='container'>",
             f"<h1>BlueHorseshoe Daily Report <small style='font-size:0.5em; color:#777'>{date}</small></h1>",
             # Holiday warning banner
-            *(self._holiday_banner_html() or []),
+            *(self._holiday_banner_html(date) or []),
             # Market Regime Section
             "<details>",
             f"<summary style='cursor:pointer; font-size: 1.5em; font-weight: bold; color: var(--heading-color); padding-bottom: 10px;'>Market Regime: {self._get_regime_badge(regime.get('status', 'Unknown'))}</summary>",
@@ -660,7 +660,7 @@ class HTMLReporter:
             f"<h1>BlueHorseshoe Daily Report</h1>",
             f"<p class='small-text'>Report Date: <strong>{date}</strong></p>",
             # Holiday warning banner (inline-styled for email)
-            *(self._holiday_banner_email_html() or []),
+            *(self._holiday_banner_email_html(date) or []),
         ]
 
         # Market Regime Section (simplified, no collapsible)
@@ -1817,7 +1817,7 @@ document.addEventListener('DOMContentLoaded', function() {
             f'<div class="marquee-date">REPORT: {date}</div>',
             '</div>',
             # Holiday warning banner (arcade neon style)
-            *(self._holiday_banner_arcade_html() or []),
+            *(self._holiday_banner_arcade_html(date) or []),
         ]
 
         html.extend([
