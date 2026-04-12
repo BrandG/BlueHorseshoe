@@ -11,6 +11,7 @@ import mplfinance as mpf
 from datetime import datetime
 from typing import List, Dict, Any
 from bluehorseshoe.analysis.strategy_registry import get_all_strategies
+from bluehorseshoe.core.market_calendar import get_holiday_warning
 from bluehorseshoe.data.historical_data import load_historical_data
 
 class HTMLReporter:
@@ -91,6 +92,15 @@ class HTMLReporter:
             .sentiment-neutral { color: #a3a3a3; }
             .sentiment-bearish { color: #ef4444; font-weight: bold; }
             .footer { margin-top: 40px; font-size: 0.8em; color: var(--secondary-text); text-align: center; }
+            .holiday-warning {
+                background: #fff3cd;
+                border: 2px solid #f0ad4e;
+                color: #856404;
+                padding: 12px 16px;
+                border-radius: 6px;
+                margin-bottom: 20px;
+                font-weight: 500;
+            }
             .chart-container { display: flex; flex-wrap: wrap; gap: 20px; justify-content: center; }
             .chart-box { border: 1px solid var(--border-color); padding: 10px; border-radius: 4px; background: var(--container-bg); }
             img { max-width: 100%; height: auto; }
@@ -354,6 +364,46 @@ class HTMLReporter:
             
         return f"<details><summary>{summary_html}</summary>{chart_html}</details>"
 
+    def _holiday_banner_html(self):
+        """Return standard holiday warning banner HTML lines, or empty list."""
+        warning = get_holiday_warning()
+        if not warning:
+            return []
+        return [
+            '<div style="background: #fff3cd; border: 2px solid #ffc107; border-radius: 8px; '
+            'padding: 12px 20px; margin: 10px 0 20px 0; color: #856404; font-size: 1.1em;">',
+            f'<strong>&#9888; Holiday Alert:</strong> {warning["message"]}',
+            '</div>',
+        ]
+
+    def _holiday_banner_email_html(self):
+        """Return inline-styled holiday warning banner for email, or empty list."""
+        warning = get_holiday_warning()
+        if not warning:
+            return []
+        return [
+            '<div style="background-color: #fff3cd; border: 2px solid #ffc107; border-radius: 8px; '
+            'padding: 12px 20px; margin: 10px 0 20px 0; color: #856404; font-size: 16px; '
+            'font-family: Arial, sans-serif;">',
+            f'<strong>&#9888; Holiday Alert:</strong> {warning["message"]}',
+            '</div>',
+        ]
+
+    def _holiday_banner_arcade_html(self):
+        """Return arcade-styled neon holiday warning banner, or empty list."""
+        warning = get_holiday_warning()
+        if not warning:
+            return []
+        return [
+            '<div style="background: rgba(255, 200, 0, 0.1); border: 2px solid #ffcc00; '
+            'border-radius: 4px; padding: 10px 16px; margin: 8px 16px; '
+            'color: #ffcc00; font-family: \'Press Start 2P\', monospace; font-size: 0.7em; '
+            'text-align: center; text-shadow: 0 0 8px rgba(255, 204, 0, 0.6); '
+            'animation: blink-glow 1.5s ease-in-out infinite alternate;">',
+            f'&#9888; {warning["message"].upper()}',
+            '</div>',
+        ]
+
 
     def generate_report(self, date: str, regime: Dict[str, Any], candidates: List[Dict[str, Any]], charts: List[str]) -> str:
         """
@@ -387,7 +437,8 @@ class HTMLReporter:
             "<button class='theme-toggle' onclick='toggleTheme()'>Toggle Dark Mode</button>",
             "<div class='container'>",
             f"<h1>BlueHorseshoe Daily Report <small style='font-size:0.5em; color:#777'>{date}</small></h1>",
-
+            # Holiday warning banner
+            *(self._holiday_banner_html() or []),
             # Market Regime Section
             "<details>",
             f"<summary style='cursor:pointer; font-size: 1.5em; font-weight: bold; color: var(--heading-color); padding-bottom: 10px;'>Market Regime: {self._get_regime_badge(regime.get('status', 'Unknown'))}</summary>",
@@ -608,6 +659,8 @@ class HTMLReporter:
             "<div class='container'>",
             f"<h1>BlueHorseshoe Daily Report</h1>",
             f"<p class='small-text'>Report Date: <strong>{date}</strong></p>",
+            # Holiday warning banner (inline-styled for email)
+            *(self._holiday_banner_email_html() or []),
         ]
 
         # Market Regime Section (simplified, no collapsible)
@@ -1034,6 +1087,10 @@ body::after {
 .marquee-date {
   font-size: 0.45rem; color: var(--neon-green); text-shadow: var(--glow-green);
   margin-top: 6px; letter-spacing: 1px;
+}
+@keyframes blink-glow {
+  from { opacity: 0.7; }
+  to { opacity: 1.0; }
 }
 .pixel-corner {
   position: absolute; width: 8px; height: 8px;
@@ -1759,7 +1816,11 @@ document.addEventListener('DOMContentLoaded', function() {
             '<div class="marquee-subtitle">SWING TRADING ARCADE &bull; EST. 2026</div>',
             f'<div class="marquee-date">REPORT: {date}</div>',
             '</div>',
+            # Holiday warning banner (arcade neon style)
+            *(self._holiday_banner_arcade_html() or []),
+        ]
 
+        html.extend([
             # Ticker
             '<div class="ticker-bar">',
             '<div class="ticker-content" id="tickerContent">',
@@ -1874,6 +1935,6 @@ document.addEventListener('DOMContentLoaded', function() {
             '</script>',
             '</body>',
             '</html>',
-        ]
+        ])
 
         return '\n'.join(html)

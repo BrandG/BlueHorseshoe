@@ -10,9 +10,9 @@ from zoneinfo import ZoneInfo
 import pytest
 
 from bluehorseshoe.data.ibkr_client import QuoteData
+from bluehorseshoe.core.market_calendar import nyse_holidays_for_year
 from bluehorseshoe.data.watchlist_monitor import (
     WatchlistMonitor,
-    _nyse_holidays_for_year,
     load_watchlist,
 )
 
@@ -302,9 +302,9 @@ def test_market_open_veterans_day():
     assert WatchlistMonitor._is_market_open(t) is True
 
 
-def test_nyse_holidays_for_year_2026():
-    """_nyse_holidays_for_year returns exactly 10 dates with expected entries."""
-    holidays = _nyse_holidays_for_year(2026)
+def test_market_calendar_holidays_for_year_2026():
+    """nyse_holidays_for_year returns exactly 10 dates with expected entries."""
+    holidays = nyse_holidays_for_year(2026)
     assert len(holidays) == 10
     # Good Friday 2026 = April 3
     assert _dt.date(2026, 4, 3) in holidays
