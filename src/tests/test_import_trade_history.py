@@ -155,10 +155,12 @@ def test_orphan_sell_skipped(tmp_path):
         ),
     )
 
-    fill_docs, positions, _, warnings = build_import_documents(parse_csv(str(path)))
+    fill_docs, positions, reviews, warnings = build_import_documents(parse_csv(str(path)))
 
     assert len(fill_docs) == 2
     assert len(positions) == 1
+    assert positions[0]["tags"] == ["csv_import", "pre_bh"]
+    assert reviews[0]["tags"] == ["csv_import", "pre_bh"]
     assert warnings == ["Skipped: KEX (orphan sell, no prior buy)"]
     assert all(doc["symbol"] != "KEX" for doc in fill_docs)
 
@@ -209,6 +211,7 @@ def test_review_outcome(tmp_path):
         "actual_entry": 10,
         "total_pnl": 1,
         "legs": [{"exit_price": 11, "hold_days": 1}],
+        "tags": ["csv_import", "pre_bh"],
     }
     loss = dict(win, position_id="pos_csv_2025-01-02_LOSS_1", symbol="LOSS", total_pnl=-1)
     flat = dict(win, position_id="pos_csv_2025-01-02_FLAT_1", symbol="FLAT", total_pnl=0)
@@ -216,3 +219,24 @@ def test_review_outcome(tmp_path):
     assert review_from_position(win)["outcome"] == "win"
     assert review_from_position(loss)["outcome"] == "loss"
     assert review_from_position(flat)["outcome"] == "breakeven"
+
+
+def test_era_tags(tmp_path):
+    path = _csv(
+        tmp_path,
+        _sample_csv(
+            "12/31/2025,BOUGHT,1,OLD,10",
+            "12/31/2025,SOLD,1,OLD,11",
+            "1/2/2026,BOUGHT,1,NEW,10",
+            "1/2/2026,SOLD,1,NEW,11",
+        ),
+    )
+
+    _, positions, reviews, _ = build_import_documents(parse_csv(str(path)))
+    by_symbol = {position["symbol"]: position for position in positions}
+    reviews_by_symbol = {review["symbol"]: review for review in reviews}
+
+    assert by_symbol["OLD"]["tags"] == ["csv_import", "pre_bh"]
+    assert reviews_by_symbol["OLD"]["tags"] == ["csv_import", "pre_bh"]
+    assert by_symbol["NEW"]["tags"] == ["csv_import", "bh_v2"]
+    assert reviews_by_symbol["NEW"]["tags"] == ["csv_import", "bh_v2"]
