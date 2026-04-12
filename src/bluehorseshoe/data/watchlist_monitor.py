@@ -10,64 +10,19 @@ import os
 import sys
 import time
 from datetime import datetime
-from typing import Dict, List, Optional, Set
+from typing import List, Optional
 from zoneinfo import ZoneInfo
 
-import datetime as _dt
-
-from pandas.tseries.holiday import (
-    AbstractHolidayCalendar,
-    GoodFriday,
-    Holiday,
-    USLaborDay,
-    USMartinLutherKingJr,
-    USMemorialDay,
-    USPresidentsDay,
-    USThanksgivingDay,
-    nearest_workday,
-)
-
 from bluehorseshoe.core.config import REPO_ROOT
+from bluehorseshoe.core.market_calendar import nyse_holidays_for_year
 from bluehorseshoe.data.ibkr_client import IBKRClient, QuoteData
 
 logger = logging.getLogger(__name__)
 
 DEFAULT_WATCHLIST_PATH = f"{REPO_ROOT}/src/watchlist.txt"
 
-
-# ---------------------------------------------------------------------------
-# NYSE Holiday Calendar
-# ---------------------------------------------------------------------------
-
-class NYSEHolidayCalendar(AbstractHolidayCalendar):
-    """NYSE-observed holidays (10 per year)."""
-
-    rules = [
-        Holiday("New Year's Day", month=1, day=1, observance=nearest_workday),
-        USMartinLutherKingJr,
-        USPresidentsDay,
-        GoodFriday,
-        USMemorialDay,
-        Holiday("Juneteenth", month=6, day=19, observance=nearest_workday, start_date="2022-01-01"),
-        Holiday("Independence Day", month=7, day=4, observance=nearest_workday),
-        USLaborDay,
-        USThanksgivingDay,
-        Holiday("Christmas", month=12, day=25, observance=nearest_workday),
-    ]
-
-
-_nyse_calendar = NYSEHolidayCalendar()
-_nyse_holiday_cache: Dict[int, Set[_dt.date]] = {}
-
-
-def _nyse_holidays_for_year(year: int) -> Set[_dt.date]:
-    """Return the set of NYSE holiday dates for *year* (cached)."""
-    if year not in _nyse_holiday_cache:
-        start = _dt.datetime(year, 1, 1)
-        end = _dt.datetime(year, 12, 31)
-        holidays = _nyse_calendar.holidays(start=start, end=end)
-        _nyse_holiday_cache[year] = {d.date() for d in holidays}
-    return _nyse_holiday_cache[year]
+# Backward-compatible alias retained for existing imports and tests.
+_nyse_holidays_for_year = nyse_holidays_for_year
 
 
 def load_watchlist(path: str = DEFAULT_WATCHLIST_PATH) -> List[str]:
@@ -147,7 +102,7 @@ class WatchlistMonitor:
         if now_et.weekday() >= 5:
             return False
         # NYSE holidays
-        if now_et.date() in _nyse_holidays_for_year(now_et.year):
+        if now_et.date() in nyse_holidays_for_year(now_et.year):
             return False
         market_open = now_et.replace(hour=9, minute=30, second=0, microsecond=0)
         market_close = now_et.replace(hour=16, minute=0, second=0, microsecond=0)
