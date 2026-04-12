@@ -3,11 +3,7 @@
 ## Near Term
 
 ### Reporting
-- **Holiday-aware exit warning banner** — On all report types (standard, email, arcade), detect when a market holiday falls within the current week (Mon–Fri) and surface a prominent warning at the top of the report. Example: "Today is Thursday, and the market is closed Friday — consider exiting today to preserve your weekly hold pattern."
-  - Scope: only this week (Mon–Fri containing today). Don't warn for holidays in subsequent weeks.
-  - Show unconditionally as a generic alert (not tied to open positions in the journal).
-  - Use a year-over-year correct holiday source — `pandas_market_calendars` (NYSE calendar) is the recommended dependency; add to `requirements.txt` if not already present.
-  - Render with distinct warning styling at the top of standard, email, and arcade report templates.
+- ~~Holiday-aware exit warning banner~~ (done 2026-04-12) — Amber/neon banners on all three HTML report types (standard, email, arcade) when an NYSE holiday falls in the current week. Uses existing `pandas.tseries.holiday` via shared `market_calendar.py` module (no new dependency). Banner uses the report's target date, not system clock.
 
 ### Architecture & Refactoring
 
@@ -59,13 +55,10 @@
   - Non-deterministic output makes backtesting difficult; would need caching/snapshotting
 
 ### Track Record / Signal Journal
-- Layer B: Hypothetical trade engine — auto-evaluate signal outcomes after hold period
-  - Run automatically N days after each batch (e.g. cron or post-prediction check for mature batches)
-  - For each signal: was entry hit? Stop hit first? Target hit? Time exit?
-  - Track max adverse excursion (MAE), max favorable excursion (MFE), holding days
-  - Store in `journal_hypothetical_trades` collection
-  - Compute: win rate, avg win/loss, expectancy, profit factor, Sharpe, Sortino, max drawdown
-  - Include SPY benchmark comparison for the same period
+- ~~Layer B: Hypothetical trade engine~~ (done 2026-04-04) — `trade_evaluator.py`, `hypothesis_engine.py`, CLI `--evaluate`, pipeline integration. Auto-evaluates matured signals for entry/stop/target/time exit. Stores outcomes in `journal_hypothetical_trades` with MAE/MFE.
+  - Remaining: win rate, expectancy, profit factor, Sharpe, Sortino, max drawdown computations (will come with Signal Track Record report section)
+  - Remaining: SPY benchmark comparison for the same period
+- ~~Trade history CSV import~~ (done 2026-04-12) — `src/import_trade_history.py` imports raw broker fills into `trade_fills`, synthesizes FIFO positions into `trade_positions`, generates `trade_reviews`. Era-tagged: `"pre_bh"` (pre-2026) vs `"bh_v2"` (2026+). 101 positions imported, 64.9% win rate on BH-era trades.
 - **Journal enhancements:**
   - `journal_capital_snapshots` — daily equity state (one record per trading day)
   - `journal_skipped_signals` — signals BH recommended but you chose not to trade
@@ -88,7 +81,7 @@
 - Track max drawdown, Sharpe ratio, and other portfolio-level metrics
 
 ### Security
-- **Add MongoDB authentication** — Configure a MongoDB user with password and enable `--auth`. Update `MONGO_URI` in `.env` and `docker/.env` with credentials. Defense-in-depth alongside the ufw firewall and localhost bind (both done 2026-03-27 after ransomware incident).
+- ~~Add MongoDB authentication~~ (done 2026-04-03) — User `bhapp` with readWrite on `bluehorseshoe` database, `--auth` flag in docker-compose. Defense-in-depth alongside the ufw firewall and localhost bind (both done 2026-03-27 after ransomware incident).
 
 ### Data & Infrastructure
 - **Migrate OHLCV storage from DuckDB to Parquet files** — DuckDB's single-writer file lock causes contention when multiple processes/pipelines run concurrently (e.g. `-u` and `-p`, or orphaned ProcessPoolExecutor workers holding the lock after a kill). Two-phase approach:

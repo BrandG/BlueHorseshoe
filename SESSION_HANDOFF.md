@@ -1,83 +1,46 @@
 # Session Handoff
 
-<<<<<<< HEAD
-**Date:** April 10, 2026
-**Status:** Holiday warning banner designed and handed off to Codex on `codex/holiday-warning` branch. Codex has not yet started implementation. System otherwise stable, 717 tests passing on master.
+**Date:** April 12, 2026
+**Status:** Holiday warning banner shipped and verified. Trade history CSV importer shipped with era tags. System stable, 735 tests passing on master.
 
 ---
 
-## What Was Done This Session (April 7–10)
+## What Was Done This Session (April 12)
 
-### 1. Holiday-Aware Exit Warning Banner — Designed & Handed Off
-- Added new "Reporting" subsection to `TODO.md` under Near Term, capturing the requirement: detect when an NYSE holiday falls inside the current Mon–Fri week and surface a warning banner across all HTML reports so the user can preserve their weekly hold pattern
-- Investigated existing infrastructure: `src/bluehorseshoe/data/watchlist_monitor.py:42-70` already ships an `NYSEHolidayCalendar` using `pandas.tseries.holiday`. **No new pip dependency needed** — the design extracts that into a shared module instead of pulling in `pandas_market_calendars`
-- Drafted full design and emitted `/tmp/nextaction.md` (`id: holiday-warning-banner`) for Codex with:
-  - New `src/bluehorseshoe/core/market_calendar.py` (extracted holiday calendar + new `get_holiday_warning()` helper returning `{holiday_name, holiday_date, holiday_weekday, today_weekday, message}` or None)
-  - Refactor `watchlist_monitor.py` to import from the new module (rename `_nyse_holidays_for_year` → `nyse_holidays_for_year`)
-  - Banner insertion in `html_reporter.py` at three call sites: `generate_report()` (~line 389), `generate_email_report()` (~line 610), `generate_arcade_report()` (~line 1761)
-  - CSS: amber/orange standard, inline-styled email, blinking neon arcade variant
-  - New `src/tests/test_market_calendar.py` (8 cases including Thursday-before-Good-Friday, today-is-the-holiday skip, weekend skip, caching)
-  - Validation: full pytest, lint, eyeball check via `-r 2025-04-17`
-- Scope decisions:
-  - **HTML reports only** — text reporter (`report_generator.py`) intentionally out of scope (user works almost exclusively in arcade)
-  - **Skip when today is the holiday** — nothing actionable since market is closed
-  - **Only "this week"** — don't warn for holidays in subsequent weeks; the Friday case is the trigger that prompted this work
+### 1. Holiday Warning Banner — Implemented, Reviewed, Merged
+- Rewrote `/tmp/nextaction.md` for Codex (prior session's handoff was lost)
+- Codex implemented on `codex/holiday-warning` branch; reviewed in three rounds:
+  1. **Initial implementation** (`8b9a703`) — new `market_calendar.py` module, banners in all three HTML report types, 9 tests. Approved with minor cleanup needed.
+  2. **Dead code cleanup** (`d61d752`) — removed unused `.holiday-warning-arcade` CSS class, `@keyframes holiday-blink`, and `_nyse_holidays_for_year` backward-compat alias. Also updated `test_watchlist_monitor.py` to import from the new shared module.
+  3. **Report-date fix** (`362879c`) — banner helpers were using `date.today()` instead of the report's target date, so banners never appeared on regenerated reports or weekend runs. Fixed by threading `report_date: str` through the three `_holiday_banner_*` methods.
+- Eyeball-verified: `./run.sh python src/main.py -r 2026-04-02` shows Good Friday banner in all three report files.
 
-### 2. Branch Setup for Codex
-- Created `codex/holiday-warning` off `master` so Codex doesn't touch master directly and `codex-refactor` (still in use at `/root/bh-codex`) is left alone
-- **Bug in initial humanaction.sh:** ran `git checkout -b codex/holiday-warning` inside `/root/BlueHorseshoe`, leaving the main worktree pinned to that branch and blocking Codex from checking it out (one-worktree-per-branch rule). Fixed by writing a follow-up `humanaction.sh` that switches main back to master.
-- **Lesson logged:** for Codex branch handoffs, prefer `git branch <name> master && git push origin <name>` (create without checkout) over `checkout -b`. Will write this up as a feedback memory next session if not already saved.
+### 2. Trade History CSV Importer — Designed, Implemented, Reviewed, Merged
+- User provided `data/trade_history.csv` with 365 raw broker fills (Dec 2024 – Apr 2026, zero-commission "lite" account)
+- Analyzed data: 95 unique symbols, 1 orphan sell (KEX, pre-BH), IAU as DCA position
+- Designed and handed off `import-trade-history` nextaction to Codex:
+  - `src/import_trade_history.py` — standalone CLI with `--dry-run`, `--force`, `--csv` flags
+  - Phase 1: CSV parsing → `trade_fills` documents
+  - Phase 2: FIFO position synthesis (handles split fills, re-entries, DCA, orphan sells)
+  - Phase 3: `trade_reviews` generation with outcome classification
+  - Phase 4: Dry-run summary with position table and win/loss/breakeven stats
+- Codex implemented (`572cd7d`), 10/10 tests passing
+- **Era tags** added in follow-up (`62ed7c7`): `"pre_bh"` for pre-2026 trades, `"bh_v2"` for 2026+ trades. Applied to both `trade_positions` and `trade_reviews` documents.
+- Import results:
+  - **Full dataset:** 101 positions, 59.4% win rate, $5.35 total P&L
+  - **2026 only (BH-informed):** 77 positions, 64.9% win rate, $133.29 total P&L
+- Added `data/trade_history.csv` to `.gitignore` (personal trade data)
 
-### 3. State of `codex/holiday-warning`
-- Branch exists locally and on `origin`
-- Codex worktree at `/root/bh-codex` is now on this branch (no longer on `codex-refactor`)
-- Only commit ahead of master is `44fb319 "updating md files"` — authored by user, contains the TODO.md `### Reporting` block plus a SESSION_HANDOFF.md reorganization. **No implementation work yet.**
-=======
-**Date:** April 5, 2026
-**Status:** DuckDB read-only mode shipped. Code quality sweep complete (deprecated calls, lint bugs). Report cleanup done. System stable, 717 tests passing.
-
----
-
-## What Was Done This Session (April 4–5)
-
-### 1. Report Cleanup
-- Removed "Yesterday's Results" / "Previous Day Performance" from all three report types (standard, email, arcade)
-- Removed `get_previous_performance()`, `_get_previous_trading_date()` from strategy.py
-- Removed `previous_performance` parameter from all reporter methods and callers
-- Removed associated CSS (`.prev-perf-*` classes) from arcade report
-
-### 2. DuckDB Read-Only Mode (Phase 1 of Parquet migration)
-- **Phase 1:** Added `read_only` parameter to `DuckDBStore.__init__` — opens lock-free DuckDB connections when `read_only=True`, skips schema init, guards `save_symbol()` with RuntimeError
-- **Phase 2:** Wired through `AppContainer.get_historical_store()` and `create_cli_context()` — default is `read_only=True`, only `-u` and `-b` pass `read_only_store=False`
-- 3 new tests: read-only reads, write rejection, concurrent readers
-
-### 3. Code Quality Fixes
-- Replaced all 13 `datetime.utcnow()` calls with `datetime.now(timezone.utc)` across 8 files — eliminates Python 3.12 deprecation warnings
-- Fixed 4 pylint-reported runtime bugs:
-  - `main.py` — missing `HTMLReporter` import (would crash on `-r`)
-  - `symbols.py` — missing `BulkWriteResult` import (would crash on sentiment save)
-  - `routes.py` — added `from e` exception chaining
-  - `ibkr_client.py` — added `from exc` exception chaining
-
-### 4. Test Fix
-- Fixed `test_load_historical_data_from_net` — updated mock from `requests.get` to `_get_provider_pool` to match provider pool refactor
-
-### 5. Housekeeping
-- Added `/tmp/humanaction.sh` protocol to CLAUDE_PROTOCOLS.md for tmux-friendly human action requests
-- Deleted stale branches: local `claude`, `Tweak_indicators`, remote numbered claude branches (17-21)
-- Removed `/root/bh-claude` worktree (was on fully-merged `claude` branch)
->>>>>>> codex/holiday-warning
+### 3. Merge Conflict in SESSION_HANDOFF.md
+- The `codex/holiday-warning` branch had an older copy of SESSION_HANDOFF.md that conflicted with master. Resolved by rewriting the file cleanly this session.
 
 ---
 
 ## Previous Sessions Summary
 
-<<<<<<< HEAD
+- **April 7–10:** Holiday warning banner designed and handed off to Codex (not yet implemented)
 - **April 4–5:** Report cleanup (Yesterday's Results removed), DuckDB read-only mode (Phase 1 of Parquet migration), code quality sweep (utcnow → datetime.now(timezone.utc), 4 pylint runtime bugs fixed), test fix
 - **April 2–4:** Hypothesis engine (Layer B) shipped, MongoDB auth enabled, docker-compose cleanup, codex-refactor cherry-picks
-=======
-- **April 2–4:** Hypothesis engine (Layer B) shipped, MongoDB auth enabled, docker-compose cleanup, codex branch cherry-picks
->>>>>>> codex/holiday-warning
 - **March 29 – April 2:** MR weight tuning (cap_8 deployed), Baseline tuning (no changes), email fix, Docker cleanup, research droplet destroyed
 - **March 27:** Assumption tester, regime-aware stop/target multipliers, Docker→host migration
 - **March 23:** Trade journal system (5-phase lifecycle)
@@ -90,16 +53,15 @@
 
 ## In Progress
 
-- **Holiday warning banner** — designed, handed off to Codex on `codex/holiday-warning`, awaiting implementation. Next session: check `git log master..codex/holiday-warning` to see if Codex has committed work, then review the diff against `/tmp/nextaction.md`.
+- Nothing actively in progress. All items from this session are merged.
 
 ## Next Steps
 
-<<<<<<< HEAD
-1. **Review Codex's holiday warning implementation** — once Codex commits to `codex/holiday-warning`, inspect the diff, verify tests pass, eyeball the banner in all three HTML reports, then approve a merge to master.
-2. **Monitor hypothesis engine** — confirm `--evaluate` step works in cron context. Batches keep maturing.
-3. **Analyze hypothesis results** — Once 5-10 batches accumulate, query `journal_hypothetical_trades` for insights
-4. **Signal Track Record report section** — Replace Yesterday's Results with real N-day outcomes (blocked until enough batches mature)
-5. **Event-driven backtest** — Order-book model replacing check-levels approach
+1. **Monitor hypothesis engine** — confirm `--evaluate` step works in cron context. Batches keep maturing.
+2. **Analyze hypothesis results** — once 5-10 batches accumulate, query `journal_hypothetical_trades` for insights
+3. **Analyze imported trade history** — query `trade_positions` / `trade_reviews` for deeper insights (P&L by hold period, monthly returns, strategy breakdown once strategies are known)
+4. **Signal Track Record report section** — replace Yesterday's Results with real N-day outcomes (blocked until enough hypothesis batches mature)
+5. **Event-driven backtest** — order-book model replacing check-levels approach
 6. **Refactor Backtester to use `trade_evaluator.py`** — Phase 2: dedup `_check_entry()` / `_check_active_trade()`
 7. **Regime-aware remaining items** — Paper trader position sizing, backtester hold_days, HTML report regime display
 8. **Unused imports cleanup** — 102 unused imports flagged by pylint (low priority, mechanical)
@@ -107,47 +69,24 @@
 
 ## Blockers / Open Questions
 
-- **Codex hasn't started the holiday warning work yet** — `/tmp/nextaction.md` is in place and the branch is ready. Possible reasons: waiting for explicit go signal, finishing prior task, or hadn't seen the file. May need a nudge next session.
 - **SMTP from Claude Code sandbox is blocked** — user must run `send_report_email.py` manually. Daily cron works fine.
 - **Hypothesis engine batches still maturing** — need more data before meaningful analysis.
 - **Codex-refactor branch** is no longer in active use by Codex (Codex moved to `codex/holiday-warning`). Confirm with user before deleting.
-=======
-1. **Monitor hypothesis engine** — Confirm `evaluate` step works in cron context. More batches will mature over the coming days.
-2. **Analyze hypothesis results** — Once 5-10 batches accumulate, query `journal_hypothetical_trades` for insights: win rate by strategy, score threshold discovery, regime-based performance
-3. **Signal Track Record report section** — Replace Yesterday's Results with real N-day outcomes (blocked until enough batches mature)
-4. **Event-driven backtest** — Order-book model replacing check-levels approach (TODO near-term)
-5. **Refactor Backtester to use trade_evaluator.py** — Phase 2: dedup `_check_entry()` / `_check_active_trade()`
-6. **Regime-aware remaining items** — Paper trader position sizing, backtester hold_days, HTML report regime display
-7. **Unused imports cleanup** — 102 unused imports flagged by pylint (low priority, mechanical)
-8. See `TODO.md` for full backlog
-
-## Blockers / Open Questions
-
-- **SMTP from Claude Code sandbox is blocked** — user must run `send_report_email.py` manually from their shell. Daily cron works fine.
-- **Hypothesis engine batches still maturing** — Need more data to draw meaningful conclusions. Remaining batches will auto-evaluate as they mature.
-- **Codex-refactor branch** still in use by Codex (worktree at `/root/bh-codex`). Do not delete.
->>>>>>> codex/holiday-warning
+- **`codex/holiday-warning` branch** can be deleted — all work merged to master.
 
 ---
 
 ## Key Decisions
 
-<<<<<<< HEAD
 - **No new pip dependency for holiday detection** — reuse existing `pandas.tseries.holiday` infrastructure from `watchlist_monitor.py` rather than adding `pandas_market_calendars`.
-- **Holiday banner is unconditional** — not tied to open positions in journal. Renders for everyone whenever the calendar condition matches.
-- **Holiday banner skips today-is-the-holiday case** — nothing actionable. Skips weekends. Skips holidays earlier in the week than today.
-- **Codex stays off master** — gets a dedicated `codex/<feature>` branch per task. Prevents accidental master mutation and gives Claude a clean diff to review.
+- **Holiday banner uses report date, not system clock** — ensures banners render correctly on regenerated reports and weekend runs.
+- **Trade history import uses FIFO matching** — oldest buys matched to sells first. Re-entries create separate positions. IAU DCA naturally handled.
+- **Era tags on imported trades** — `"pre_bh"` for pre-2026, `"bh_v2"` for 2026+. Enables filtering BH-informed trades from pre-BH baseline.
+- **KEX orphan sell skipped** — no prior buy in dataset, pre-BH trade.
+- **Codex stays off master** — gets a dedicated `codex/<feature>` branch per task.
 - **DuckDB read-only by default** — `create_cli_context()` defaults to `read_only_store=True`. Only `-u` and `-b` use read-write.
-- **Yesterday's Results removed** — hypothesis engine provides real N-day outcomes via `journal_hypothetical_trades`.
 - **Human action scripts** — When Claude needs the user to run git/shell commands, write to `/tmp/humanaction.sh` for tmux execution.
 - Prior decisions (MongoDB auth, hypothesis engine design, MR cap_8, Brevo email) remain in effect.
-=======
-- **DuckDB read-only by default** — `create_cli_context()` defaults to `read_only_store=True`. Only `-u` and `-b` use read-write. Eliminates lock contention for concurrent readers.
-- **Yesterday's Results removed** — one-day price action is noise; hypothesis engine provides real N-day outcomes via `journal_hypothetical_trades`.
-- **Human action scripts** — When Claude needs the user to run git/shell commands, write to `/tmp/humanaction.sh` for easy tmux execution (added to CLAUDE_PROTOCOLS.md).
-- **journal.py cell-var-from-loop is a false positive** — pylint flags `strat` captured in lambda at line 135, but `items.sort()` executes immediately so it's safe. Do not "fix" it.
-- Prior decisions (MongoDB auth, hypothesis engine design, MR cap_8, Brevo email) remain in effect — see previous handoffs.
->>>>>>> codex/holiday-warning
 
 ---
 
@@ -155,24 +94,16 @@
 
 | File | Role |
 |------|------|
-<<<<<<< HEAD
-| `/tmp/nextaction.md` | Codex instructions for `holiday-warning-banner` (id) |
-| `TODO.md` | New `### Reporting` subsection added under Near Term |
-| `src/bluehorseshoe/reporting/html_reporter.py` | Three insertion points: ~389, ~610, ~1761 |
-| `src/bluehorseshoe/data/watchlist_monitor.py` | Source of NYSE calendar code being extracted (lines 18-70) |
-| `src/bluehorseshoe/core/market_calendar.py` | NEW (to be created by Codex) |
-| `src/tests/test_market_calendar.py` | NEW (to be created by Codex) |
-| `src/bluehorseshoe/data/duckdb_store.py` | DuckDB store with `read_only` parameter (April 5) |
+| `src/bluehorseshoe/core/market_calendar.py` | NYSE holiday calendar + `get_holiday_warning()` |
+| `src/tests/test_market_calendar.py` | 9 holiday warning tests |
+| `src/bluehorseshoe/reporting/html_reporter.py` | Three banner insertion points + helper methods |
+| `src/bluehorseshoe/data/watchlist_monitor.py` | Refactored to import from `market_calendar` |
+| `src/import_trade_history.py` | Trade history CSV importer (standalone CLI) |
+| `src/tests/test_import_trade_history.py` | 10 importer tests |
+| `data/trade_history.csv` | Raw broker fills (gitignored) |
+| `src/bluehorseshoe/data/duckdb_store.py` | DuckDB store with `read_only` parameter |
 | `src/bluehorseshoe/cli/context.py` | CLI context — `read_only_store=True` default |
 | `.claude/CLAUDE_PROTOCOLS.md` | `/tmp/humanaction.sh` protocol |
-=======
-| `src/bluehorseshoe/data/duckdb_store.py` | DuckDB store — added `read_only` parameter |
-| `src/bluehorseshoe/cli/context.py` | CLI context — `read_only_store=True` default |
-| `src/bluehorseshoe/core/container.py` | App container — `read_only` passthrough |
-| `src/bluehorseshoe/reporting/html_reporter.py` | Reports — Yesterday's Results removed |
-| `src/bluehorseshoe/analysis/strategy.py` | Strategy — `get_previous_performance()` removed |
-| `.claude/CLAUDE_PROTOCOLS.md` | Added `/tmp/humanaction.sh` protocol |
->>>>>>> codex/holiday-warning
 
 ---
 
@@ -184,6 +115,8 @@
 ./run.sh python src/main.py --evaluate 2026-04-01       # Evaluate as-of specific date
 ./run.sh python src/main.py -r YYYY-MM-DD               # Regenerate report (~30 sec)
 ./run.sh python src/send_report_email.py                # Send latest report email
+./run.sh python src/import_trade_history.py --dry-run   # Preview trade history import
+./run.sh python src/import_trade_history.py             # Import trade history to MongoDB
 ./run.sh pytest -v                                      # Tests
 ./run.sh ./lint.sh                                      # Lint
 ```
@@ -214,22 +147,11 @@ doctl compute droplet delete bh-research --force
 ## Git Status
 
 **Branch:** master
-<<<<<<< HEAD
-**Working tree:** SESSION_HANDOFF.md and TODO.md modified this session (uncommitted)
-**Active feature branch:** `codex/holiday-warning` — Codex worktree at `/root/bh-codex`, awaiting implementation. Only commit ahead of master is `44fb319` (md housekeeping by user).
+**Working tree:** `.gitignore` modified (added `data/trade_history.csv`)
+**Active feature branch:** `codex/holiday-warning` — fully merged, safe to delete
 **Codex-refactor branch:** No longer in active use. Confirm with user before deleting.
-**Tests:** 717 passing (master, unchanged this session)
+**Tests:** 735 passing, 2 skipped
 
 ---
 
-**Last Updated:** April 10, 2026
-=======
-**Working tree:** Clean (after this handoff commit)
-**Codex branch:** `origin/codex-refactor` — active, used by Codex (worktree at `/root/bh-codex`)
-**Stale branches:** All cleaned up (claude, Tweak_indicators, numbered claude branches deleted)
-**Tests:** 717 passing (all green, 2 skipped)
-
----
-
-**Last Updated:** April 5, 2026
->>>>>>> codex/holiday-warning
+**Last Updated:** April 12, 2026

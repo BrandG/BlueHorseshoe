@@ -29,3 +29,4 @@ maintenance.log
 data/*.duckdb
 data/*.duckdb.wal
 .venv/*
+data/trade_history.csv
