@@ -21,10 +21,6 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_WATCHLIST_PATH = f"{REPO_ROOT}/src/watchlist.txt"
 
-# Backward-compatible alias retained for existing imports and tests.
-_nyse_holidays_for_year = nyse_holidays_for_year
-
-
 def load_watchlist(path: str = DEFAULT_WATCHLIST_PATH) -> List[str]:
     """
     Read a watchlist file, returning a list of uppercase symbols.

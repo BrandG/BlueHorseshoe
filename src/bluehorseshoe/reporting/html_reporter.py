@@ -1088,22 +1088,6 @@ body::after {
   font-size: 0.45rem; color: var(--neon-green); text-shadow: var(--glow-green);
   margin-top: 6px; letter-spacing: 1px;
 }
-@keyframes holiday-blink {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.7; }
-}
-.holiday-warning-arcade {
-  background: #ffd700;
-  color: #1a0033;
-  border: 4px solid #ff0080;
-  font-family: 'Press Start 2P', monospace;
-  font-size: 0.7em;
-  padding: 12px 16px;
-  margin: 8px 0;
-  text-align: center;
-  letter-spacing: 1px;
-  animation: holiday-blink 1.5s ease-in-out infinite;
-}
 @keyframes blink-glow {
   from { opacity: 0.7; }
   to { opacity: 1.0; }
