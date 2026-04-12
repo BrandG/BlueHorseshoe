@@ -126,6 +126,13 @@ def _outcome(pnl: float) -> str:
     return "breakeven"
 
 
+def _era_tag(opened_at: datetime) -> str:
+    """Return era tag based on position open date."""
+    if opened_at.date().year < 2026:
+        return "pre_bh"
+    return "bh_v2"
+
+
 def _make_position_doc(
     *,
     position_id: str,
@@ -144,6 +151,7 @@ def _make_position_doc(
     hold_days = (last_sell_date - first_buy_date).days if last_sell_date else 0
     entry_ids = ",".join(record[3] for record in buy_records)
     exit_ids = ",".join(record[3] for record in sell_records) or None
+    opened_at = noon_utc(first_buy_date)
 
     return {
         "position_id": position_id,
@@ -174,7 +182,8 @@ def _make_position_doc(
         "total_pnl": total_pnl,
         "total_commission": 0.0,
         "entry_slippage": 0.0,
-        "opened_at": noon_utc(first_buy_date),
+        "tags": ["csv_import", _era_tag(opened_at)],
+        "opened_at": opened_at,
         "closed_at": noon_utc(last_sell_date) if last_sell_date else None,
         "created_at": created_at,
         "updated_at": created_at,
@@ -207,7 +216,7 @@ def review_from_position(position: dict, created_at: Optional[datetime] = None) 
         "stop_hit": False,
         "followed_plan": True,
         "discipline_score": 1.0,
-        "tags": ["csv_import"],
+        "tags": position["tags"],
         "notes": "",
         "lessons_learned": "",
         "created_at": created_at,
