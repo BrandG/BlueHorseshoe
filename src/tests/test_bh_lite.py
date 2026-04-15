@@ -15,6 +15,7 @@ from bh_lite import (
     fetch_ohlcv,
     load_config,
     rank_signals,
+    score_instrument,
 )
 
 
@@ -63,7 +64,7 @@ def test_fetch_ohlcv_columns(mocker):
                         "high": [p * 1.01 for p in prices],
                         "low": [p * 0.99 for p in prices],
                         "close": [p + 0.5 for p in prices],
-                        "volume": [1000000] * 200,
+                        "volume": [0] * 200,
                     }]
                 },
             }]
@@ -76,6 +77,7 @@ def test_fetch_ohlcv_columns(mocker):
     assert list(df.columns) == ["date", "open", "high", "low", "close", "volume"]
     assert isinstance(df.iloc[0]["date"], str)
     assert pd.api.types.is_numeric_dtype(df["volume"])
+    assert df["volume"].min() == 1
     assert len(df) == 200
 
 
@@ -85,6 +87,31 @@ def test_enrich_adds_indicators():
     for col in ["rsi_14", "macd_line", "adx", "avg_volume_20"]:
         assert col in df.columns
     assert df["rsi_14"].notna().any()
+
+
+def test_zero_volume_does_not_produce_nan():
+    """Forex-like data with zero volume should still produce valid setups."""
+    df = make_ohlcv()
+    df["volume"] = 0
+    df["volume"] = df["volume"].replace(0, 1)
+
+    enriched = enrich_dataframe(df)
+    setup = LiteTrader().calculate_baseline_setup(enriched, technical_score=5)
+
+    assert not pd.isna(setup["entry_price"])
+    assert not pd.isna(setup["stop_loss"])
+    assert not pd.isna(setup["take_profit"])
+
+
+def test_forex_zero_volume_scores_nonzero():
+    """Instruments with floored volume should produce non-zero scores."""
+    df = make_ohlcv()
+    df["volume"] = 1
+
+    enriched = enrich_dataframe(df)
+    scores = score_instrument(enriched)
+
+    assert scores["baseline_score"] != 0.0 or scores["mean_reversion_score"] != 0.0
 
 
 def test_lite_trader_baseline_setup():
