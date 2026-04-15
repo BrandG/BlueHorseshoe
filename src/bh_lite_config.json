@@ -1,0 +1,31 @@
+{
+  "account": {
+    "size": 100000,
+    "currency": "USD"
+  },
+  "risk": {
+    "max_risk_per_trade_pct": 0.01,
+    "max_daily_risk_pct": 0.04,
+    "max_concurrent_positions": 3,
+    "t1_split_pct": 0.5
+  },
+  "instruments": [
+    {"symbol": "EURUSD=X", "name": "EUR/USD", "type": "forex", "pip_size": 0.0001, "dollar_per_pip_per_lot": 10.0, "min_lot": 0.01},
+    {"symbol": "GBPUSD=X", "name": "GBP/USD", "type": "forex", "pip_size": 0.0001, "dollar_per_pip_per_lot": 10.0, "min_lot": 0.01},
+    {"symbol": "USDJPY=X", "name": "USD/JPY", "type": "forex", "pip_size": 0.01, "dollar_per_pip_per_lot": 6.67, "min_lot": 0.01},
+    {"symbol": "AUDUSD=X", "name": "AUD/USD", "type": "forex", "pip_size": 0.0001, "dollar_per_pip_per_lot": 10.0, "min_lot": 0.01},
+    {"symbol": "USDCAD=X", "name": "USD/CAD", "type": "forex", "pip_size": 0.0001, "dollar_per_pip_per_lot": 7.50, "min_lot": 0.01},
+    {"symbol": "USDCHF=X", "name": "USD/CHF", "type": "forex", "pip_size": 0.0001, "dollar_per_pip_per_lot": 11.00, "min_lot": 0.01},
+    {"symbol": "NZDUSD=X", "name": "NZD/USD", "type": "forex", "pip_size": 0.0001, "dollar_per_pip_per_lot": 10.0, "min_lot": 0.01},
+    {"symbol": "EURGBP=X", "name": "EUR/GBP", "type": "forex", "pip_size": 0.0001, "dollar_per_pip_per_lot": 12.50, "min_lot": 0.01},
+    {"symbol": "GC=F", "name": "Gold", "type": "commodity", "contract_size": 100, "point_value": 1.0, "min_lot": 0.01},
+    {"symbol": "SI=F", "name": "Silver", "type": "commodity", "contract_size": 5000, "point_value": 1.0, "min_lot": 0.01},
+    {"symbol": "CL=F", "name": "Crude Oil", "type": "commodity", "contract_size": 1000, "point_value": 1.0, "min_lot": 0.01},
+    {"symbol": "^DJI", "name": "US30", "type": "index", "contract_size": 1, "point_value": 1.0, "min_lot": 0.1},
+    {"symbol": "^IXIC", "name": "NAS100", "type": "index", "contract_size": 1, "point_value": 1.0, "min_lot": 0.1},
+    {"symbol": "^GSPC", "name": "S&P 500", "type": "index", "contract_size": 1, "point_value": 1.0, "min_lot": 0.1},
+    {"symbol": "^GDAXI", "name": "DAX40", "type": "index", "contract_size": 1, "point_value": 1.0, "min_lot": 0.1},
+    {"symbol": "BTC-USD", "name": "Bitcoin", "type": "crypto", "contract_size": 1, "point_value": 1.0, "min_lot": 0.01},
+    {"symbol": "ETH-USD", "name": "Ethereum", "type": "crypto", "contract_size": 1, "point_value": 1.0, "min_lot": 0.01}
+  ]
+}
