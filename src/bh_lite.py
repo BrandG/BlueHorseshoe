@@ -10,7 +10,7 @@ from datetime import date
 from typing import Any, Dict, List, Optional, Sequence
 
 import pandas as pd
-import yfinance as yf
+import requests
 from ta.volatility import AverageTrueRange
 
 from bluehorseshoe.analysis.constants import (
@@ -36,37 +36,35 @@ def load_config(path: str = DEFAULT_CONFIG_PATH) -> dict:
 
 
 def fetch_ohlcv(symbol: str, period: str = "6mo") -> Optional[pd.DataFrame]:
-    """Fetch daily OHLCV data from yfinance and normalize columns."""
+    """Fetch daily OHLCV from Yahoo Finance chart API."""
+    url = f"https://query2.finance.yahoo.com/v8/finance/chart/{symbol}"
+    params = {"range": period, "interval": "1d"}
+    headers = {"User-Agent": "Mozilla/5.0"}
     try:
-        raw = yf.download(symbol, period=period, progress=False, auto_adjust=False)
+        resp = requests.get(url, params=params, headers=headers, timeout=15)
+        resp.raise_for_status()
+        data = resp.json()
     except Exception as exc:  # pragma: no cover - network failure path
         logger.warning("Failed to fetch %s: %s", symbol, exc)
         return None
 
-    if raw is None or raw.empty:
-        logger.warning("No data returned for %s", symbol)
+    try:
+        result = data["chart"]["result"][0]
+        timestamps = result["timestamp"]
+        quote = result["indicators"]["quote"][0]
+        df = pd.DataFrame({
+            "date": pd.to_datetime(timestamps, unit="s").strftime("%Y-%m-%d"),
+            "open": quote["open"],
+            "high": quote["high"],
+            "low": quote["low"],
+            "close": quote["close"],
+            "volume": [v if v is not None else 0 for v in quote["volume"]],
+        })
+    except (KeyError, IndexError, TypeError) as exc:
+        logger.warning("Failed to parse data for %s: %s", symbol, exc)
         return None
 
-    df = raw.copy()
-    if isinstance(df.columns, pd.MultiIndex):
-        df.columns = [col[0] for col in df.columns]
-    df = df.reset_index()
-    df.columns = [str(col).lower().replace(" ", "_") for col in df.columns]
-    if "adj_close" in df.columns and "close" not in df.columns:
-        df["close"] = df["adj_close"]
-    if "date" not in df.columns:
-        first_col = df.columns[0]
-        df = df.rename(columns={first_col: "date"})
-
-    required = ["date", "open", "high", "low", "close"]
-    if any(col not in df.columns for col in required):
-        logger.warning("Missing OHLC columns for %s", symbol)
-        return None
-
-    if "volume" not in df.columns:
-        df["volume"] = 0
-    df = df[["date", "open", "high", "low", "close", "volume"]].copy()
-    df["date"] = pd.to_datetime(df["date"]).dt.strftime("%Y-%m-%d")
+    df = df.dropna(subset=["open", "high", "low", "close"])
     for col in ["open", "high", "low", "close", "volume"]:
         df[col] = pd.to_numeric(df[col], errors="coerce")
     df["volume"] = df["volume"].fillna(0)

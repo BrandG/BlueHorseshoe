@@ -2,6 +2,7 @@
 
 import json
 import os
+import time
 
 import numpy as np
 import pandas as pd
@@ -47,17 +48,35 @@ def test_load_config(tmp_path):
 
 
 def test_fetch_ohlcv_columns(mocker):
-    raw = make_ohlcv().copy()
-    raw["Date"] = pd.to_datetime(raw.pop("date"))
-    raw = raw.set_index("Date")
-    raw.columns = [col.title() for col in raw.columns]
-    mocker.patch("bh_lite.yf.download", return_value=raw)
+    now = int(time.time())
+    timestamps = [now - 86400 * i for i in range(200, 0, -1)]
+    prices = [100 + i * 0.1 for i in range(200)]
+    mock_resp = mocker.Mock()
+    mock_resp.raise_for_status = mocker.Mock()
+    mock_resp.json.return_value = {
+        "chart": {
+            "result": [{
+                "timestamp": timestamps,
+                "indicators": {
+                    "quote": [{
+                        "open": prices,
+                        "high": [p * 1.01 for p in prices],
+                        "low": [p * 0.99 for p in prices],
+                        "close": [p + 0.5 for p in prices],
+                        "volume": [1000000] * 200,
+                    }]
+                },
+            }]
+        }
+    }
+    mocker.patch("bh_lite.requests.get", return_value=mock_resp)
 
     df = fetch_ohlcv("EURUSD=X")
 
     assert list(df.columns) == ["date", "open", "high", "low", "close", "volume"]
     assert isinstance(df.iloc[0]["date"], str)
     assert pd.api.types.is_numeric_dtype(df["volume"])
+    assert len(df) == 200
 
 
 def test_enrich_adds_indicators():
