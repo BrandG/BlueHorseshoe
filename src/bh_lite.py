@@ -68,6 +68,10 @@ def fetch_ohlcv(symbol: str, period: str = "6mo") -> Optional[pd.DataFrame]:
     for col in ["open", "high", "low", "close", "volume"]:
         df[col] = pd.to_numeric(df[col], errors="coerce")
     df["volume"] = df["volume"].fillna(0)
+    # Floor volume at 1 to prevent division-by-zero in volume indicators.
+    # Yahoo returns 0 volume for forex pairs; setting to 1 makes volume
+    # indicators return neutral scores instead of NaN.
+    df["volume"] = df["volume"].replace(0, 1)
     df = df.dropna(subset=["open", "high", "low", "close"])
     return df.reset_index(drop=True)
 
