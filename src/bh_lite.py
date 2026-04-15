@@ -27,12 +27,31 @@ from bluehorseshoe.data.historical_data import get_technical_indicators
 logger = logging.getLogger(__name__)
 
 DEFAULT_CONFIG_PATH = os.path.join(os.path.dirname(__file__), "bh_lite_config.json")
+DEFAULT_POSITIONS_PATH = os.path.join(os.path.dirname(__file__), "bh_lite_positions.json")
 
 
 def load_config(path: str = DEFAULT_CONFIG_PATH) -> dict:
     """Load BH Lite JSON config."""
     with open(path, "r", encoding="utf-8") as f:
         return json.load(f)
+
+
+def load_positions(path: str = DEFAULT_POSITIONS_PATH) -> List[dict]:
+    """Load open positions. Returns empty list if file missing or empty."""
+    if not os.path.exists(path):
+        return []
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            positions = json.load(f)
+        return positions if isinstance(positions, list) else []
+    except (json.JSONDecodeError, OSError):
+        return []
+
+
+def summarize_positions(positions: List[dict]) -> dict:
+    """Summarize open positions: total risk used and position count."""
+    total_risk = sum(position.get("risk_usd", 0) for position in positions)
+    return {"total_risk_usd": total_risk, "count": len(positions)}
 
 
 def fetch_ohlcv(symbol: str, period: str = "6mo") -> Optional[pd.DataFrame]:
@@ -342,16 +361,41 @@ def rank_signals(signals: Sequence[dict], top_n: Optional[int] = None) -> List[d
     return ranked[:top_n] if top_n is not None else ranked
 
 
-def format_output(signals: Sequence[dict], account_config: dict, risk_config: dict, daily_risk_used: float) -> str:
+def format_output(
+    signals: Sequence[dict],
+    account_config: dict,
+    risk_config: dict,
+    daily_risk_used: float,
+    positions: Optional[Sequence[dict]] = None,
+) -> str:
     """Format ranked signal table for the console."""
+    positions = positions or []
     daily_budget = account_config["size"] * risk_config["max_daily_risk_pct"]
+    remaining_budget = max(0.0, daily_budget - daily_risk_used)
+    max_positions = risk_config["max_concurrent_positions"]
     lines = [
         f"BH Lite FTMO Signals - {date.today().isoformat()}",
-        f"Account: ${account_config['size']:,.0f} {account_config.get('currency', 'USD')} | Daily risk budget: ${daily_budget:,.2f}",
+        f"Account: ${account_config['size']:,.0f} {account_config.get('currency', 'USD')} | Remaining daily risk: ${remaining_budget:,.2f}",
         "",
+    ]
+    if positions:
+        lines.append("Open Positions:")
+        for position in positions:
+            lines.append(
+                f"  {position.get('ftmo_symbol', ''):<14}  {position.get('side', ''):<4}  "
+                f"{position.get('lots', 0):>6.2f} lots  entry {position.get('entry', 0):.2f}  "
+                f"stop {position.get('stop', 0):.2f}  risk ${position.get('risk_usd', 0):,.2f}  "
+                f"opened {position.get('opened', '')}"
+            )
+        lines.extend([
+            "",
+            f"Positions: {len(positions)}/{max_positions} | Daily risk committed: ${daily_risk_used:,.2f} / ${daily_budget:,.2f}",
+            "",
+        ])
+    lines.extend([
         "Rank  Instrument  Strategy  Score   Entry      Stop       T1         T2         Lots    Risk$",
         "----  ----------  --------  ------  ---------  ---------  ---------  ---------  ------  --------",
-    ]
+    ])
     used = daily_risk_used
     for idx, signal in enumerate(signals, start=1):
         setup = signal["setup"]
@@ -431,15 +475,20 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     """Run BH Lite signal generation."""
     parser = argparse.ArgumentParser(description="Generate BH Lite FTMO daily-bar signals.")
     parser.add_argument("--config", default=DEFAULT_CONFIG_PATH, help="Path to BH Lite config JSON.")
+    parser.add_argument("--positions", default=DEFAULT_POSITIONS_PATH, help="Path to BH Lite open positions JSON.")
     parser.add_argument("--top", type=int, default=3, help="Number of ranked signals to print.")
     parser.add_argument("--csv", action="store_true", help="Write ranked signals to src/logs/bh_lite_YYYY-MM-DD.csv.")
     args = parser.parse_args(argv)
 
     logging.basicConfig(level=logging.INFO, format="%(levelname)s:%(name)s:%(message)s")
     config = load_config(args.config)
+    positions = load_positions(args.positions)
+    pos_summary = summarize_positions(positions)
+    daily_risk_used = pos_summary["total_risk_usd"]
+    positions_open = pos_summary["count"]
+    max_new_positions = config["risk"]["max_concurrent_positions"] - positions_open
     signals = []
     failed = []
-    daily_risk_used = 0.0
 
     for instrument in config["instruments"]:
         df = fetch_ohlcv(instrument["symbol"])
@@ -451,8 +500,9 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         if "position_size" in signal and not signal["position_size"]["skipped"]:
             signals.append(signal)
 
-    ranked = rank_signals(signals, top_n=args.top)
-    daily_risk_used = 0.0
+    effective_top = min(args.top, max(0, max_new_positions))
+    ranked = rank_signals(signals, top_n=effective_top)
+    daily_risk_used = pos_summary["total_risk_usd"]
     for signal in ranked:
         signal["position_size"] = calculate_position_size(
             signal["setup"]["entry_price"],
@@ -464,7 +514,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         )
         daily_risk_used += signal["position_size"]["risk_usd"]
 
-    output = format_output(ranked, config["account"], config["risk"], 0.0)
+    output = format_output(ranked, config["account"], config["risk"], pos_summary["total_risk_usd"], positions)
     if failed:
         output += "\nFailed fetches: " + ", ".join(failed)
     print(output)

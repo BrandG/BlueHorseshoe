@@ -13,9 +13,12 @@ from bh_lite import (
     calculate_t1_t2,
     enrich_dataframe,
     fetch_ohlcv,
+    format_output,
     load_config,
+    load_positions,
     rank_signals,
     score_instrument,
+    summarize_positions,
 )
 
 
@@ -46,6 +49,42 @@ def test_load_config(tmp_path):
     assert config["account"]["size"] == 100000
     assert "risk" in config
     assert config["instruments"][0]["symbol"] == "EURUSD=X"
+
+
+def test_load_positions_empty_file(tmp_path):
+    path = tmp_path / "positions.json"
+    path.write_text("[]")
+
+    assert load_positions(str(path)) == []
+
+
+def test_load_positions_missing_file(tmp_path):
+    assert load_positions(str(tmp_path / "missing.json")) == []
+
+
+def test_load_positions_with_data(tmp_path):
+    position = {
+        "ftmo_symbol": "GSPC.sim",
+        "name": "S&P 500",
+        "side": "buy",
+        "entry": 6967.38,
+        "stop": 6821.54,
+        "lots": 6.8,
+        "risk_usd": 992.0,
+        "opened": "2026-04-15",
+    }
+    path = tmp_path / "positions.json"
+    path.write_text(json.dumps([position]))
+
+    assert load_positions(str(path)) == [position]
+
+
+def test_summarize_positions():
+    positions = [{"risk_usd": 992.0}, {"risk_usd": 500.5}]
+
+    summary = summarize_positions(positions)
+
+    assert summary == {"total_risk_usd": 1492.5, "count": 2}
 
 
 def test_fetch_ohlcv_columns(mocker):
@@ -172,6 +211,49 @@ def test_daily_risk_budget_exhausted():
     size = calculate_position_size(1.1000, 1.0900, instrument, risk, account, 4000)
 
     assert size == {"lots": 0, "risk_usd": 0, "skipped": True}
+
+
+def test_positions_reduce_budget():
+    position = {
+        "ftmo_symbol": "GSPC.sim",
+        "name": "S&P 500",
+        "side": "buy",
+        "entry": 6967.38,
+        "stop": 6821.54,
+        "lots": 6.8,
+        "risk_usd": 992.0,
+        "opened": "2026-04-15",
+    }
+    account = {"size": 100000, "currency": "USD"}
+    risk = {"max_risk_per_trade_pct": 0.01, "max_daily_risk_pct": 0.04, "max_concurrent_positions": 3}
+    instrument = {"type": "commodity", "contract_size": 100, "min_lot": 0.01}
+
+    summary = summarize_positions([position])
+    size = calculate_position_size(2000, 1990, instrument, risk, account, summary["total_risk_usd"])
+    output = format_output([], account, risk, summary["total_risk_usd"], [position])
+
+    assert size["risk_usd"] == 1000
+    assert "Remaining daily risk: $3,008.00" in output
+    assert "Positions: 1/3 | Daily risk committed: $992.00 / $4,000.00" in output
+
+
+def test_max_concurrent_reached():
+    positions = [{"risk_usd": 100}, {"risk_usd": 200}, {"risk_usd": 300}]
+    risk = {"max_concurrent_positions": 3}
+    signals = [
+        {
+            "instrument": {"name": "A"},
+            "baseline_score": 10,
+            "baseline_setup": {"is_realistic": True, "rr_ratio": 1.0},
+            "mean_reversion_score": 8,
+            "mean_reversion_setup": {"is_realistic": True, "rr_ratio": 1.0},
+        }
+    ]
+
+    max_new_positions = risk["max_concurrent_positions"] - summarize_positions(positions)["count"]
+    effective_top = min(5, max(0, max_new_positions))
+
+    assert rank_signals(signals, top_n=effective_top) == []
 
 
 def test_rank_signals():

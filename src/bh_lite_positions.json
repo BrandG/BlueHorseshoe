@@ -1,0 +1,12 @@
+[
+  {
+    "ftmo_symbol": "GSPC.sim",
+    "name": "S&P 500",
+    "side": "buy",
+    "entry": 6967.38,
+    "stop": 6821.54,
+    "lots": 6.8,
+    "risk_usd": 992.00,
+    "opened": "2026-04-15"
+  }
+]
