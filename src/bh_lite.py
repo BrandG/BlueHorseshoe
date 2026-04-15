@@ -392,22 +392,36 @@ def format_output(
             f"Positions: {len(positions)}/{max_positions} | Daily risk committed: ${daily_risk_used:,.2f} / ${daily_budget:,.2f}",
             "",
         ])
+    t1_split = risk_config.get("t1_split_pct", 0.5)
     lines.extend([
-        "Rank  Instrument  Strategy  Score   Entry      Stop       T1         T2         Lots    Risk$",
-        "----  ----------  --------  ------  ---------  ---------  ---------  ---------  ------  --------",
+        "== ORDERS TO PLACE ==",
+        "",
+        "  #  FTMO Symbol     Leg  Strategy  Score   Entry      Stop       Target     Lots    Risk$",
+        "  -  --------------  ---  --------  ------  ---------  ---------  ---------  ------  --------",
     ])
     used = daily_risk_used
     for idx, signal in enumerate(signals, start=1):
         setup = signal["setup"]
         size = signal["position_size"]
         targets = signal["targets"]
+        ftmo = signal["instrument"].get("ftmo", signal["instrument"]["name"])
+        min_lot = signal["instrument"].get("min_lot", 0.01)
+        total_lots = size["lots"]
+        t1_lots = _round_down_to_lot(total_lots * t1_split, min_lot)
+        t2_lots = _round_down_to_lot(total_lots - t1_lots, min_lot)
         used += size["risk_usd"]
         lines.append(
-            f"{idx:>4}  {signal['instrument']['name']:<10}  {signal['strategy']:<8}  "
+            f"  {idx}  {ftmo:<14}  T1   {signal['strategy']:<8}  "
             f"{signal['score']:>6.2f}  {setup['entry_price']:>9.5f}  {setup['stop_loss']:>9.5f}  "
-            f"{targets['t1']:>9.5f}  {targets['t2']:>9.5f}  {size['lots']:>6.2f}  ${size['risk_usd']:>7.2f}"
+            f"{targets['t1']:>9.5f}  {t1_lots:>6.2f}  ${size['risk_usd'] * t1_split:>7.2f}"
         )
-    lines.extend(["", f"Daily risk used: ${used:,.2f} / ${daily_budget:,.2f}"])
+        lines.append(
+            f"     {'':<14}  T2   {'':<8}  "
+            f"{'':>6}  {'':>9}  {'':>9}  "
+            f"{targets['t2']:>9.5f}  {t2_lots:>6.2f}  ${size['risk_usd'] * (1 - t1_split):>7.2f}"
+        )
+        lines.append("")
+    lines.append(f"Daily risk used: ${used:,.2f} / ${daily_budget:,.2f}")
     return "\n".join(lines)
 
 

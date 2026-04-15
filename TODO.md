@@ -95,6 +95,8 @@
 - Remove BH Python container from docker-compose — Python now runs natively on host via venv, but the container is still defined in docker-compose.yml as a fallback. Remove it after confirming the host-based daily pipeline succeeds (next run: 02:00 UTC). Then start the systemd API service (`systemctl start bluehorseshoe-api`).
 - ~~Fix email delivery after Docker→host migration~~ (done) — Brevo SMTP credentials moved to root `.env`, `.env` sourcing added to `run.sh` and `run_daily_pipeline.sh`
 - Remove Docker dependency from research droplet setup (optional, low priority)
+- Upgrade yfinance from 0.2.25 to latest (1.2.2+) — Yahoo changed their API and the old version can't parse responses. Raw API works fine; the library is broken. Test upgrade impact on BH's existing Yahoo provider before deploying.
+- Suppress "Cannot write to a read-only DuckDBStore" warnings during `-p` — `save_historical_data()` in `historical_data.py:86` attempts opportunistic cache-writes that correctly fail in read-only mode. Check `store._read_only` (or add a `store.is_read_only` property) before calling `save_symbol()` to avoid noisy warnings. Low priority — harmless, prediction still works.
 
 ## Long Term
 
