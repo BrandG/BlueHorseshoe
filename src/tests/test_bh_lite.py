@@ -210,7 +210,10 @@ def test_daily_risk_budget_exhausted():
 
     size = calculate_position_size(1.1000, 1.0900, instrument, risk, account, 4000)
 
-    assert size == {"lots": 0, "risk_usd": 0, "skipped": True}
+    # Still shows full recommended size, but flags over_budget
+    assert size["lots"] == 1.0
+    assert size["risk_usd"] == 1000
+    assert size["over_budget"] is True
 
 
 def test_positions_reduce_budget():
