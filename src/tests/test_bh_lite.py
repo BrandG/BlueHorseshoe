@@ -288,3 +288,87 @@ def test_rank_signals():
 
     assert [item["instrument"]["name"] for item in ranked] == ["B", "A"]
     assert ranked[0]["strategy"] == "MeanRev"
+
+
+def test_find_instrument_by_ftmo():
+    from bh_lite import _find_instrument_by_ftmo
+
+    config = {
+        "instruments": [
+            {"symbol": "AUDJPY=X", "ftmo": "AUDJPY.sim", "type": "forex"},
+            {"symbol": "^GSPC", "name": "S&P 500", "type": "index"},
+        ]
+    }
+
+    assert _find_instrument_by_ftmo("AUDJPY.sim", config)["symbol"] == "AUDJPY=X"
+    assert _find_instrument_by_ftmo("GSPC.sim", config)["symbol"] == "^GSPC"
+
+
+def test_find_instrument_by_ftmo_unknown():
+    from bh_lite import _find_instrument_by_ftmo
+
+    config = {"instruments": [{"symbol": "AUDJPY=X", "ftmo": "AUDJPY.sim"}]}
+
+    assert _find_instrument_by_ftmo("UNKNOWN.sim", config) is None
+
+
+def test_position_health_ok(mocker):
+    from bh_lite import check_position_health
+
+    df = make_ohlcv(start_price=100.0)
+    df.loc[df.index[-1], "close"] = 104.0
+    config = {"instruments": [{"symbol": "^GSPC", "name": "S&P 500", "type": "index", "contract_size": 1}]}
+    position = {"ftmo_symbol": "GSPC.sim", "side": "buy", "entry": 100.0, "stop": 90.0, "lots": 2.0}
+    mocker.patch("bh_lite.fetch_ohlcv", return_value=df)
+    mocker.patch("bh_lite.score_instrument", return_value={"baseline_score": 20.0, "mean_reversion_score": 12.0})
+
+    health = check_position_health(position, config)
+
+    assert health["status"] == "OK"
+    assert health["warnings"] == []
+    assert health["current_strategy"] == "Baseline"
+    assert health["pnl_usd"] == 8.0
+
+
+def test_position_health_weakening(mocker):
+    from bh_lite import check_position_health
+
+    df = make_ohlcv(start_price=100.0)
+    df.loc[df.index[-1], "close"] = 99.0
+    config = {"instruments": [{"symbol": "^GSPC", "name": "S&P 500", "type": "index", "contract_size": 1}]}
+    position = {"ftmo_symbol": "GSPC.sim", "side": "buy", "entry": 100.0, "stop": 90.0, "lots": 2.0}
+    mocker.patch("bh_lite.fetch_ohlcv", return_value=df)
+    mocker.patch("bh_lite.score_instrument", return_value={"baseline_score": 3.0, "mean_reversion_score": 2.0})
+
+    health = check_position_health(position, config)
+
+    assert health["status"] == "WEAKENING"
+    assert any("Score below 5.0" in warning for warning in health["warnings"])
+
+
+def test_position_health_critical(mocker):
+    from bh_lite import check_position_health
+
+    df = make_ohlcv(start_price=100.0)
+    df.loc[df.index[-1], "close"] = 98.0
+    config = {"instruments": [{"symbol": "^GSPC", "name": "S&P 500", "type": "index", "contract_size": 1}]}
+    position = {"ftmo_symbol": "GSPC.sim", "side": "buy", "entry": 100.0, "stop": 97.5, "lots": 2.0}
+    mocker.patch("bh_lite.fetch_ohlcv", return_value=df)
+    mocker.patch("bh_lite.score_instrument", return_value={"baseline_score": 0.0, "mean_reversion_score": -1.0})
+
+    health = check_position_health(position, config)
+
+    assert health["status"] == "CRITICAL"
+    assert any("Score collapsed" in warning for warning in health["warnings"])
+
+
+def test_position_pnl_forex():
+    from bh_lite import _calculate_position_pnl
+
+    position = {"side": "buy", "entry": 1.1000, "lots": 1.0}
+    instrument = {"type": "forex", "pip_size": 0.0001, "dollar_per_pip_per_lot": 10.0}
+
+    pnl_usd, pnl_pct = _calculate_position_pnl(position, instrument, 1.1050)
+
+    assert pnl_usd == 500.0
+    assert pnl_pct == 0.45

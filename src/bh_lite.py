@@ -58,6 +58,41 @@ def summarize_positions(positions: List[dict], default_risk: float = 1000.0) -> 
     return {"total_risk_usd": total_risk, "count": len(positions)}
 
 
+def _find_instrument_by_ftmo(ftmo_symbol: str, config: dict) -> Optional[dict]:
+    """Find instrument config by FTMO symbol."""
+    normalized = ftmo_symbol.replace(".sim", "").replace("/", "").upper()
+    aliases = {
+        "GSPC": "^GSPC",
+        "US500": "^GSPC",
+        "SPX500": "^GSPC",
+        "US30": "^DJI",
+        "DJI": "^DJI",
+        "NAS100": "^IXIC",
+        "USTEC": "^IXIC",
+        "IXIC": "^IXIC",
+        "DAX40": "^GDAXI",
+        "GDAXI": "^GDAXI",
+        "XAUUSD": "GC=F",
+        "GOLD": "GC=F",
+        "XAGUSD": "SI=F",
+        "SILVER": "SI=F",
+        "USOIL": "CL=F",
+        "WTI": "CL=F",
+        "BTCUSD": "BTC-USD",
+        "ETHUSD": "ETH-USD",
+    }
+    for inst in config.get("instruments", []):
+        ftmo = inst.get("ftmo", "").replace(".sim", "").replace("/", "").upper()
+        yahoo = inst.get("symbol", "").replace("=X", "").replace("/", "").upper()
+        if normalized in (ftmo, yahoo):
+            return inst
+        if len(normalized) == 6 and normalized.isalpha() and f"{normalized}=X" == inst.get("symbol"):
+            return inst
+        if aliases.get(normalized) == inst.get("symbol"):
+            return inst
+    return None
+
+
 def fetch_ohlcv(symbol: str, period: str = "6mo") -> Optional[pd.DataFrame]:
     """Fetch daily OHLCV from Yahoo Finance chart API."""
     url = f"https://query2.finance.yahoo.com/v8/finance/chart/{symbol}"
@@ -288,6 +323,92 @@ def score_instrument(df: pd.DataFrame) -> dict:
     }
 
 
+def _calculate_position_pnl(position: dict, instrument: dict, current_price: float) -> tuple:
+    entry = float(position.get("entry", 0))
+    lots = float(position.get("lots", 0))
+    side = position.get("side", "buy").lower()
+    if entry <= 0:
+        return 0.0, 0.0
+    price_delta = current_price - entry
+    if side == "sell":
+        price_delta = -price_delta
+    if instrument["type"] == "forex":
+        pips = price_delta / instrument["pip_size"]
+        pnl = pips * instrument["dollar_per_pip_per_lot"] * lots
+    else:
+        pnl = price_delta * lots * instrument["contract_size"]
+    pnl_pct = (price_delta / entry) * 100
+    return round(pnl, 2), round(pnl_pct, 2)
+
+
+def check_position_health(position: dict, config: dict) -> Optional[dict]:
+    """Re-score an open position and assess health."""
+    instrument = _find_instrument_by_ftmo(position.get("ftmo_symbol", ""), config)
+    if instrument is None:
+        logger.warning("No instrument config found for %s", position.get("ftmo_symbol", ""))
+        return None
+
+    df = fetch_ohlcv(instrument["symbol"])
+    if df is None or df.empty:
+        logger.warning("No data returned for open position %s", position.get("ftmo_symbol", ""))
+        return None
+
+    enriched = enrich_dataframe(df)
+    scores = score_instrument(enriched)
+    baseline_score = scores["baseline_score"]
+    mean_reversion_score = scores["mean_reversion_score"]
+    if baseline_score >= mean_reversion_score:
+        current_score = baseline_score
+        current_strategy = "Baseline"
+    else:
+        current_score = mean_reversion_score
+        current_strategy = "MeanRev"
+
+    current_price = float(enriched.iloc[-1]["close"])
+    pnl_usd, pnl_pct = _calculate_position_pnl(position, instrument, current_price)
+    stop = float(position.get("stop", current_price))
+    distance_to_stop = abs(current_price - stop)
+    distance_to_stop_pct = (distance_to_stop / current_price) * 100 if current_price else 0.0
+    atr = LiteTrader()._calculate_atr(enriched)
+
+    # entry_score from positions file, or assume 10.0 (BH Lite minimum actionable)
+    entry_score = float(position.get("entry_score", 10.0))
+
+    warnings = []
+    if current_score <= 0:
+        warnings.append(f"Score collapsed to {current_score:.1f}")
+    elif current_score < 5.0:
+        warnings.append(f"Score below 5.0 threshold ({current_score:.1f})")
+    if entry_score > 0 and current_score < entry_score * 0.5:
+        warnings.append(f"Score dropped >50% from entry ({entry_score:.0f} -> {current_score:.1f})")
+    if distance_to_stop <= 0.5 * atr:
+        warnings.append("Price within 0.5 ATR of stop loss")
+    if pnl_pct <= -3.0:
+        warnings.append("Unrealized loss exceeds 3%")
+    if pnl_pct < 0 and current_score < 5.0:
+        warnings.append("Price below entry and score is weak")
+    if abs(pnl_pct) < 0.5 and current_score < entry_score * 0.6:
+        warnings.append(f"Flat P&L with fading signal ({current_score:.1f} vs {entry_score:.0f} at entry)")
+
+    status = "OK"
+    if current_score <= 0 or distance_to_stop <= 0.5 * atr or pnl_pct <= -3.0:
+        status = "CRITICAL"
+    elif warnings:
+        status = "WEAKENING"
+
+    return {
+        "position": position,
+        "current_price": current_price,
+        "pnl_usd": pnl_usd,
+        "pnl_pct": pnl_pct,
+        "current_score": current_score,
+        "current_strategy": current_strategy,
+        "distance_to_stop_pct": round(distance_to_stop_pct, 2),
+        "status": status,
+        "warnings": warnings,
+    }
+
+
 def calculate_t1_t2(entry: float, stop: float, take_profit: float) -> dict:
     """Calculate split targets."""
     risk = entry - stop
@@ -379,9 +500,11 @@ def format_output(
     risk_config: dict,
     daily_risk_used: float,
     positions: Optional[Sequence[dict]] = None,
+    health_checks: Optional[Sequence[dict]] = None,
 ) -> str:
     """Format ranked signal table for the console."""
     positions = positions or []
+    health_checks = health_checks or []
     daily_budget = account_config["size"] * risk_config["max_daily_risk_pct"]
     remaining_budget = max(0.0, daily_budget - daily_risk_used)
     max_positions = risk_config["max_concurrent_positions"]
@@ -404,6 +527,24 @@ def format_output(
             f"Positions: {len(positions)}/{max_positions} | Daily risk committed: ${daily_risk_used:,.2f} / ${daily_budget:,.2f}",
             "",
         ])
+    if health_checks:
+        lines.extend(["== POSITION HEALTH CHECK ==", ""])
+        for health in health_checks:
+            position = health["position"]
+            prefix = ""
+            if health["status"] == "CRITICAL":
+                prefix = "!! "
+            elif health["status"] == "WEAKENING":
+                prefix = "! "
+            lines.append(
+                f"{prefix}{position.get('ftmo_symbol', ''):<12}  {position.get('side', ''):<4} "
+                f"@ {position.get('entry', 0):.2f}   now {health['current_price']:.2f}   "
+                f"P&L ${health['pnl_usd']:,.0f} ({health['pnl_pct']:+.1f}%)   "
+                f"Score: {health['current_score']:.1f} {health['current_strategy']}   {health['status']}"
+            )
+            for warning in health["warnings"]:
+                lines.append(f"    -> {warning}")
+        lines.append("")
     t1_split = risk_config.get("t1_split_pct", 0.5)
     lines.extend([
         "== TOP SIGNALS ==",
@@ -514,6 +655,7 @@ def _write_orders(signals: Sequence[dict], output_path: str) -> None:
             "stop": round(setup["stop_loss"], 5),
             "lots": size["lots"],
             "risk_usd": size["risk_usd"],
+            "entry_score": signal.get("score", 0),
             "opened": date.today().isoformat(),
         })
     with open(output_path, "w", encoding="utf-8") as f:
@@ -533,6 +675,11 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     config = load_config(args.config)
     positions = load_positions(args.positions)
     pos_summary = summarize_positions(positions)
+    health_checks = []
+    for position in positions:
+        health = check_position_health(position, config)
+        if health:
+            health_checks.append(health)
     signals = []
     failed = []
 
@@ -561,7 +708,14 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         if not signal["position_size"]["skipped"]:
             daily_risk_used += signal["position_size"]["risk_usd"]
 
-    output = format_output(ranked, config["account"], config["risk"], pos_summary["total_risk_usd"], positions)
+    output = format_output(
+        ranked,
+        config["account"],
+        config["risk"],
+        pos_summary["total_risk_usd"],
+        positions,
+        health_checks,
+    )
     if failed:
         output += "\nFailed fetches: " + ", ".join(failed)
     print(output)
