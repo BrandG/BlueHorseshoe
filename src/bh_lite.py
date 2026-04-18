@@ -530,8 +530,8 @@ def format_output(
     lines.extend([
         "== ORDERS TO PLACE ==",
         "",
-        "  #  FTMO Symbol     Leg  Strategy  Score   Entry      Stop       Target     Lots    Risk$",
-        "  -  --------------  ---  --------  ------  ---------  ---------  ---------  ------  --------",
+        "  #  FTMO Symbol     Leg  Strategy  Score   Ctx     Entry      Stop       Target     Lots    Risk$",
+        "  -  --------------  ---  --------  ------  ------  ---------  ---------  ---------  ------  --------",
     ])
     used = daily_risk_used
     for idx, signal in enumerate(signals, start=1):
@@ -543,15 +543,17 @@ def format_output(
         total_lots = size["lots"]
         t1_lots = _round_down_to_lot(total_lots * t1_split, min_lot)
         t2_lots = _round_down_to_lot(total_lots - t1_lots, min_lot)
+        ctx_display = f"{signal.get('intraday_context', 0.0):>+5.2f}"
+        fb_flag = " !FB" if signal.get("failed_breakout") else ""
         used += size["risk_usd"]
         lines.append(
             f"  {idx}  {ftmo:<14}  T1   {signal['strategy']:<8}  "
-            f"{signal['score']:>6.2f}  {setup['entry_price']:>9.5f}  {setup['stop_loss']:>9.5f}  "
+            f"{signal['score']:>6.2f}  {ctx_display}{fb_flag:<4}  {setup['entry_price']:>9.5f}  {setup['stop_loss']:>9.5f}  "
             f"{targets['t1']:>9.5f}  {t1_lots:>6.2f}  ${size['risk_usd'] * t1_split:>7.2f}"
         )
         lines.append(
             f"     {'':<14}  T2   {'':<8}  "
-            f"{'':>6}  {'':>9}  {'':>9}  "
+            f"{'':>6}  {'':>6}  {'':>9}  {'':>9}  "
             f"{targets['t2']:>9.5f}  {t2_lots:>6.2f}  ${size['risk_usd'] * (1 - t1_split):>7.2f}"
         )
         lines.append("")
@@ -564,7 +566,10 @@ def _write_csv(signals: Sequence[dict], output_path: str) -> None:
     with open(output_path, "w", encoding="utf-8", newline="") as f:
         writer = csv.DictWriter(
             f,
-            fieldnames=["rank", "instrument", "symbol", "strategy", "score", "entry", "stop", "t1", "t2", "lots", "risk_usd"],
+            fieldnames=[
+                "rank", "instrument", "symbol", "strategy", "score", "context_score",
+                "entry", "stop", "t1", "t2", "lots", "risk_usd",
+            ],
         )
         writer.writeheader()
         for idx, signal in enumerate(signals, start=1):
@@ -578,6 +583,7 @@ def _write_csv(signals: Sequence[dict], output_path: str) -> None:
                     "symbol": signal["instrument"]["symbol"],
                     "strategy": signal["strategy"],
                     "score": signal["score"],
+                    "context_score": signal.get("intraday_context", 0.0),
                     "entry": setup["entry_price"],
                     "stop": setup["stop_loss"],
                     "t1": targets["t1"],
@@ -591,6 +597,13 @@ def _write_csv(signals: Sequence[dict], output_path: str) -> None:
 def _build_signal(instrument: dict, df: pd.DataFrame, config: dict, daily_risk_used: float) -> dict:
     trader = LiteTrader()
     scores = score_instrument(df)
+    from bluehorseshoe.analysis.intraday_context import compute_daily_context
+    ctx = compute_daily_context(df)
+    context_bonus = ctx["context_score"] * 3.0
+    scores["baseline_score"] += context_bonus
+    scores["baseline_components"]["intraday_context"] = context_bonus
+    scores["mean_reversion_score"] += context_bonus * 0.67
+    scores["mean_reversion_components"]["intraday_context"] = context_bonus * 0.67
     baseline_setup = trader.calculate_baseline_setup(df, technical_score=scores["baseline_score"])
     mean_reversion_setup = trader.calculate_mean_reversion_setup(df)
     signal = {
@@ -602,6 +615,9 @@ def _build_signal(instrument: dict, df: pd.DataFrame, config: dict, daily_risk_u
         "mean_reversion_components": scores["mean_reversion_components"],
         "mean_reversion_setup": mean_reversion_setup,
     }
+    signal["intraday_context"] = ctx["context_score"]
+    signal["intraday_label"] = ctx["context_label"]
+    signal["failed_breakout"] = ctx["failed_breakout"]
     ranked = rank_signals([signal], top_n=1)
     if not ranked:
         return signal

@@ -270,6 +270,14 @@ class BaselineStrategy(TradingStrategy):
             score_components["score_acceleration"] = accel_bonus
             score_components["total"] += accel_bonus
 
+        # Intraday Context bonus (daily-bar proxy)
+        from bluehorseshoe.analysis.intraday_context import compute_daily_context
+        from bluehorseshoe.analysis.constants import INTRADAY_CONTEXT_WEIGHT
+        ctx_result = compute_daily_context(df)
+        ctx_bonus = ctx_result["context_score"] * INTRADAY_CONTEXT_WEIGHT
+        score_components["intraday_context"] = ctx_bonus
+        score_components["total"] += ctx_bonus
+
         # ML Win Probability
         ml_prob = trader.ml_inference.predict_probability(
             symbol, score_components,
@@ -358,6 +366,14 @@ class BaselineStrategy(TradingStrategy):
             score_components["score_acceleration"] = accel_bonus
             score_components["total"] += accel_bonus
 
+        # Intraday Context bonus (daily-bar proxy)
+        from bluehorseshoe.analysis.intraday_context import compute_daily_context
+        from bluehorseshoe.analysis.constants import INTRADAY_CONTEXT_WEIGHT
+        ctx_result = compute_daily_context(df)
+        ctx_bonus = ctx_result["context_score"] * INTRADAY_CONTEXT_WEIGHT
+        score_components["intraday_context"] = ctx_bonus
+        score_components["total"] += ctx_bonus
+
         # ML Win Probability (worker variant — no DB)
         from bluehorseshoe.analysis.strategy import _worker_ml_predict_probability
         ml_prob = _worker_ml_predict_probability(
@@ -435,6 +451,14 @@ class MeanReversionStrategy(TradingStrategy):
             aggregation=ctx.aggregation,
         )
 
+        # Intraday Context bonus (daily-bar proxy)
+        from bluehorseshoe.analysis.intraday_context import compute_daily_context
+        from bluehorseshoe.analysis.constants import INTRADAY_CONTEXT_WEIGHT_MR
+        ctx_result = compute_daily_context(df)
+        ctx_bonus = ctx_result["context_score"] * INTRADAY_CONTEXT_WEIGHT_MR
+        score_components["intraday_context"] = ctx_bonus
+        score_components["total"] += ctx_bonus
+
         ml_stop_multiplier = trader.stop_loss_inference.predict_stop_loss_multiplier(
             symbol, score_components,
             target_date=str(yesterday['date'])[:10],
@@ -490,6 +514,14 @@ class MeanReversionStrategy(TradingStrategy):
             enabled_indicators=enabled_indicators, aggregation=aggregation,
             motif_scores=worker_state.get('motif_scores'),
         )
+
+        # Intraday Context bonus (daily-bar proxy)
+        from bluehorseshoe.analysis.intraday_context import compute_daily_context
+        from bluehorseshoe.analysis.constants import INTRADAY_CONTEXT_WEIGHT_MR
+        ctx_result = compute_daily_context(df)
+        ctx_bonus = ctx_result["context_score"] * INTRADAY_CONTEXT_WEIGHT_MR
+        score_components["intraday_context"] = ctx_bonus
+        score_components["total"] += ctx_bonus
 
         from bluehorseshoe.analysis.strategy import (
             _worker_ml_predict_stop_loss,
