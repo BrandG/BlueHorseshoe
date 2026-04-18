@@ -42,6 +42,26 @@ def _make_bars(days=30, start_price=100.0, trend=0.001):
     return df
 
 
+def _make_intraday_bars(n=78, start_price=100.0, trend=0.001):
+    """Generate synthetic 5-min OHLCV DataFrame."""
+    rng = np.random.default_rng(99)
+    base = pd.Timestamp("2026-04-17 09:30:00")
+    datetimes = [base + pd.Timedelta(minutes=5 * i) for i in range(n)]
+    prices = [start_price]
+    for _ in range(1, n):
+        prices.append(prices[-1] * (1 + trend + rng.normal(0, 0.002)))
+    highs = [p * (1 + rng.uniform(0.001, 0.005)) for p in prices]
+    lows = [p * (1 - rng.uniform(0.001, 0.005)) for p in prices]
+    return pd.DataFrame({
+        "datetime": datetimes,
+        "open": [p * (1 + rng.uniform(-0.002, 0.002)) for p in prices],
+        "high": highs,
+        "low": lows,
+        "close": prices,
+        "volume": [int(rng.uniform(1000, 5000)) for _ in prices],
+    })
+
+
 def test_failed_breakout_detected():
     df = _make_bars(30)
     prior_max_high = df.iloc[-21:-1]["high"].max()
@@ -216,10 +236,126 @@ def test_serializable():
     assert isinstance(serialized, str)
 
 
-def test_intraday_confirmation_stub():
-    df = _make_bars(10)
+def test_breakout_accepted():
+    df = _make_intraday_bars(n=30, start_price=100.0, trend=0.0)
+    resistance = 101.0
+    df.loc[df.index[-6:], "close"] = resistance + 0.5
+    df.loc[df.index[-6:], "high"] = resistance + 0.8
+    df.loc[df.index[-6:], "low"] = resistance + 0.2
+
+    result = compute_intraday_confirmation(df, resistance=resistance)
+
+    assert result["breakout_accepted"] is True
+
+
+def test_breakout_not_accepted():
+    df = _make_intraday_bars(n=30, start_price=100.0, trend=0.0)
+    resistance = 101.0
+    df["close"] = resistance - 0.2
+    df.loc[df.index[-2:], "high"] = resistance + 0.5
+    df.loc[df.index[-2:], "close"] = resistance + 0.1
+
+    result = compute_intraday_confirmation(df, resistance=resistance)
+
+    assert result["breakout_accepted"] is False
+
+
+def test_volume_confirmed():
+    df = _make_intraday_bars(n=30, start_price=100.0, trend=0.0)
+    resistance = 101.0
+    df["high"] = resistance - 0.5
+    df["close"] = resistance - 0.7
+    df["volume"] = 1000
+    df.loc[df.index[20], "high"] = resistance + 0.5
+    df.loc[df.index[20], "close"] = resistance + 0.2
+    df.loc[df.index[20], "volume"] = 3001
+
+    result = compute_intraday_confirmation(df, resistance=resistance)
+
+    assert result["volume_confirmed"] is True
+
+
+def test_volume_not_confirmed():
+    df = _make_intraday_bars(n=30, start_price=100.0, trend=0.0)
+    resistance = 101.0
+    df["high"] = resistance - 0.5
+    df["close"] = resistance - 0.7
+    df["volume"] = 1000
+    df.loc[df.index[20], "high"] = resistance + 0.5
+    df.loc[df.index[20], "close"] = resistance + 0.2
+
+    result = compute_intraday_confirmation(df, resistance=resistance)
+
+    assert result["volume_confirmed"] is False
+
+
+def test_intraday_trend_up():
+    df = _make_intraday_bars(n=30, start_price=100.0, trend=0.0)
+    prices = np.linspace(100.0, 110.0, len(df))
+    df["close"] = prices
+    df["high"] = prices + 0.5
+    df["low"] = prices - 0.5
+
+    result = compute_intraday_confirmation(df, resistance=120.0)
+
+    assert result["intraday_trend"] == "up"
+
+
+def test_intraday_trend_down():
+    df = _make_intraday_bars(n=30, start_price=100.0, trend=0.0)
+    prices = np.linspace(110.0, 100.0, len(df))
+    df["close"] = prices
+    df["high"] = prices + 0.5
+    df["low"] = prices - 0.5
+
+    result = compute_intraday_confirmation(df, resistance=120.0)
+
+    assert result["intraday_trend"] == "down"
+
+
+def test_close_trajectory_rising():
+    df = _make_intraday_bars(n=30, start_price=100.0, trend=0.0)
+    tail_prices = np.linspace(100.0, 104.0, 6)
+    df.loc[df.index[-6:], "close"] = tail_prices
+    df.loc[df.index[-6:], "high"] = tail_prices + 0.5
+    df.loc[df.index[-6:], "low"] = tail_prices - 0.5
+
+    result = compute_intraday_confirmation(df, resistance=120.0)
+
+    assert result["close_trajectory"] == "rising"
+
+
+def test_close_trajectory_falling():
+    df = _make_intraday_bars(n=30, start_price=100.0, trend=0.0)
+    tail_prices = np.linspace(104.0, 100.0, 6)
+    df.loc[df.index[-6:], "close"] = tail_prices
+    df.loc[df.index[-6:], "high"] = tail_prices + 0.5
+    df.loc[df.index[-6:], "low"] = tail_prices - 0.5
+
+    result = compute_intraday_confirmation(df, resistance=120.0)
+
+    assert result["close_trajectory"] == "falling"
+
+
+def test_confirmation_score_range():
+    for trend in (-0.002, 0.0, 0.002):
+        df = _make_intraday_bars(n=78, start_price=100.0, trend=trend)
+        result = compute_intraday_confirmation(df, resistance=101.0)
+        assert 0.0 <= result["confirmation_score"] <= 1.0
+
+
+def test_empty_dataframe():
+    df = pd.DataFrame(columns=["datetime", "open", "high", "low", "close", "volume"])
     result = compute_intraday_confirmation(df, resistance=105.0)
 
     assert result["confirmation_score"] == 0.0
     assert result["breakout_accepted"] is False
     assert result["intraday_trend"] == "mixed"
+
+
+def test_confirmation_serializable():
+    df = _make_intraday_bars(n=30)
+    result = compute_intraday_confirmation(df, resistance=101.0)
+    serialized = json.dumps(result)
+
+    assert isinstance(serialized, str)

@@ -130,6 +130,43 @@ def fetch_ohlcv(symbol: str, period: str = "6mo") -> Optional[pd.DataFrame]:
     return df.reset_index(drop=True)
 
 
+def fetch_intraday_ohlcv(symbol: str, period: str = "1d") -> Optional[pd.DataFrame]:
+    """Fetch 5-minute intraday OHLCV from Yahoo Finance chart API."""
+    url = f"https://query2.finance.yahoo.com/v8/finance/chart/{symbol}"
+    params = {"range": period, "interval": "5m"}
+    headers = {"User-Agent": "Mozilla/5.0"}
+    try:
+        resp = requests.get(url, params=params, headers=headers, timeout=15)
+        resp.raise_for_status()
+        data = resp.json()
+    except Exception as exc:  # pragma: no cover - network failure path
+        logger.warning("Failed to fetch intraday %s: %s", symbol, exc)
+        return None
+
+    try:
+        result = data["chart"]["result"][0]
+        timestamps = result["timestamp"]
+        quote = result["indicators"]["quote"][0]
+        df = pd.DataFrame({
+            "datetime": pd.to_datetime(timestamps, unit="s"),
+            "open": quote["open"],
+            "high": quote["high"],
+            "low": quote["low"],
+            "close": quote["close"],
+            "volume": [v if v is not None else 0 for v in quote["volume"]],
+        })
+    except (KeyError, IndexError, TypeError) as exc:
+        logger.warning("Failed to parse intraday data for %s: %s", symbol, exc)
+        return None
+
+    df = df.dropna(subset=["open", "high", "low", "close"])
+    for col in ["open", "high", "low", "close", "volume"]:
+        df[col] = pd.to_numeric(df[col], errors="coerce")
+    df["volume"] = df["volume"].fillna(0).replace(0, 1)
+    df = df.dropna(subset=["open", "high", "low", "close"])
+    return df.reset_index(drop=True)
+
+
 def enrich_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     """Add BlueHorseshoe technical indicators to a DataFrame."""
     enriched = df.copy()
@@ -544,8 +581,8 @@ def format_output(
     lines.extend([
         "== TOP SIGNALS ==",
         "",
-        "  #  FTMO Symbol     Leg  Strategy  Score   Ctx     Entry      Stop       Target     Lots    Risk$",
-        "  -  --------------  ---  --------  ------  ------  ---------  ---------  ---------  ------  --------",
+        "  #  FTMO Symbol     Leg  Strategy  Score   Ctx     Conf  Entry      Stop       Target     Lots    Risk$",
+        "  -  --------------  ---  --------  ------  ------  ----  ---------  ---------  ---------  ------  --------",
     ])
     used = daily_risk_used
     for idx, signal in enumerate(signals, start=1):
@@ -559,18 +596,21 @@ def format_output(
         t2_lots = _round_down_to_lot(total_lots - t1_lots, min_lot)
         ctx_display = f"{signal.get('intraday_context', 0.0):>+5.2f}"
         fb_flag = " !FB" if signal.get("failed_breakout") else ""
+        conf = signal.get("intraday_confirmation", {})
+        conf_score = conf.get("confirmation_score", 0.0)
+        conf_display = f"{conf_score:>4.2f}" if conf_score > 0 else "  - "
         budget_note = ""
         if size.get("over_budget"):
             budget_note = "  ** OVER DAILY BUDGET **"
         used += size["risk_usd"]
         lines.append(
             f"  {idx}  {ftmo:<14}  T1   {signal['strategy']:<8}  "
-            f"{signal['score']:>6.2f}  {ctx_display}{fb_flag:<4}  {setup['entry_price']:>9.5f}  {setup['stop_loss']:>9.5f}  "
+            f"{signal['score']:>6.2f}  {ctx_display}{fb_flag:<4}  {conf_display}  {setup['entry_price']:>9.5f}  {setup['stop_loss']:>9.5f}  "
             f"{targets['t1']:>9.5f}  {t1_lots:>6.2f}  ${size['risk_usd'] * t1_split:>7.2f}{budget_note}"
         )
         lines.append(
             f"     {'':<14}  T2   {'':<8}  "
-            f"{'':>6}  {'':>6}  {'':>9}  {'':>9}  "
+            f"{'':>6}  {'':>6}  {'':>4}  {'':>9}  {'':>9}  "
             f"{targets['t2']:>9.5f}  {t2_lots:>6.2f}  ${size['risk_usd'] * (1 - t1_split):>7.2f}"
         )
         lines.append("")
@@ -659,6 +699,7 @@ def _build_signal(instrument: dict, df: pd.DataFrame, config: dict, daily_risk_u
         "mean_reversion_setup": mean_reversion_setup,
     }
     signal["intraday_context"] = ctx["context_score"]
+    signal["intraday_context_data"] = ctx
     signal["intraday_label"] = ctx["context_label"]
     signal["failed_breakout"] = ctx["failed_breakout"]
     ranked = rank_signals([signal], top_n=1)
@@ -732,6 +773,22 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             signals.append(signal)
 
     ranked = rank_signals(signals, top_n=args.top)
+    from bluehorseshoe.analysis.intraday_context import compute_intraday_confirmation
+    for signal in ranked:
+        ctx = signal.get("intraday_context_data", {})
+        resistance = ctx.get("resistance") if ctx else None
+        if resistance is None:
+            continue
+        intraday_df = fetch_intraday_ohlcv(signal["instrument"]["symbol"])
+        if intraday_df is not None and len(intraday_df) >= 10:
+            confirmation = compute_intraday_confirmation(intraday_df, resistance)
+            signal["intraday_confirmation"] = confirmation
+        else:
+            signal["intraday_confirmation"] = compute_intraday_confirmation(
+                pd.DataFrame(columns=["datetime", "open", "high", "low", "close", "volume"]),
+                resistance or 0.0,
+            )
+
     daily_risk_used = pos_summary["total_risk_usd"]
     for signal in ranked:
         signal["position_size"] = calculate_position_size(

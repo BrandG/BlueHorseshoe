@@ -276,6 +276,7 @@ class BaselineStrategy(TradingStrategy):
         ctx_result = compute_daily_context(df)
         ctx_bonus = ctx_result["context_score"] * INTRADAY_CONTEXT_WEIGHT
         score_components["intraday_context"] = ctx_bonus
+        score_components["intraday_resistance"] = ctx_result["resistance"]
         score_components["total"] += ctx_bonus
 
         # ML Win Probability
@@ -372,6 +373,7 @@ class BaselineStrategy(TradingStrategy):
         ctx_result = compute_daily_context(df)
         ctx_bonus = ctx_result["context_score"] * INTRADAY_CONTEXT_WEIGHT
         score_components["intraday_context"] = ctx_bonus
+        score_components["intraday_resistance"] = ctx_result["resistance"]
         score_components["total"] += ctx_bonus
 
         # ML Win Probability (worker variant — no DB)
@@ -457,6 +459,7 @@ class MeanReversionStrategy(TradingStrategy):
         ctx_result = compute_daily_context(df)
         ctx_bonus = ctx_result["context_score"] * INTRADAY_CONTEXT_WEIGHT_MR
         score_components["intraday_context"] = ctx_bonus
+        score_components["intraday_resistance"] = ctx_result["resistance"]
         score_components["total"] += ctx_bonus
 
         ml_stop_multiplier = trader.stop_loss_inference.predict_stop_loss_multiplier(
@@ -521,6 +524,7 @@ class MeanReversionStrategy(TradingStrategy):
         ctx_result = compute_daily_context(df)
         ctx_bonus = ctx_result["context_score"] * INTRADAY_CONTEXT_WEIGHT_MR
         score_components["intraday_context"] = ctx_bonus
+        score_components["intraday_resistance"] = ctx_result["resistance"]
         score_components["total"] += ctx_bonus
 
         from bluehorseshoe.analysis.strategy import (

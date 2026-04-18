@@ -71,6 +71,7 @@ class CandidateAssembler:
 
             setup = result.get(strategy.setup_key, {})
             entry_price = setup.get("entry_price", 0)
+            components = result.get(strategy.components_key, {})
             candidate = {
                 "symbol": result["symbol"],
                 "exchange": result.get("exchange", "Unknown"),
@@ -85,10 +86,11 @@ class CandidateAssembler:
                 "sentiment_tiingo": result.get("sentiment_tiingo", 0.0),
                 "sentiment_stocktwits": result.get("sentiment_stocktwits", 0.0),
                 "sentiment_finviz": result.get("sentiment_finviz", 0.0),
+                "intraday_resistance": components.get("intraday_resistance"),
                 "reasons": [
                     f"{key}={value:.1f}"
-                    for key, value in result.get(strategy.components_key, {}).items()
-                    if value != 0
+                    for key, value in components.items()
+                    if key != "intraday_resistance" and value != 0
                 ],
             }
             if result.get("connors_flag"):

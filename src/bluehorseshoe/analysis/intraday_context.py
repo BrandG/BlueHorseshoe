@@ -3,7 +3,7 @@
 Phase 1: daily-bar proxy -- computes failed breakout detection, close strength,
 and range expansion from existing enriched DataFrames.
 
-Phase 2 (future): 5-min bar confirmation for top N candidates.
+Phase 2: 5-min bar confirmation for top N candidates.
 """
 
 import math
@@ -166,15 +166,91 @@ def compute_daily_context(
 def compute_intraday_confirmation(
     intraday_df: pd.DataFrame, resistance: float,
 ) -> dict:
-    """Phase 2 stub: intraday confirmation from 5-min bars.
-
-    Currently returns neutral values. Will be implemented in Phase 2 to
-    confirm/deny daily-bar context signals using intraday price action.
-    """
-    return {
+    """Compute intraday confirmation from 5-minute bars."""
+    neutral = {
         "breakout_accepted": False,
         "volume_confirmed": False,
         "intraday_trend": "mixed",
         "close_trajectory": "flat",
         "confirmation_score": 0.0,
+    }
+    required = {"open", "high", "low", "close", "volume"}
+    if intraday_df is None or intraday_df.empty or not required.issubset(intraday_df.columns):
+        return neutral
+
+    df = intraday_df.copy()
+    for col in required:
+        df[col] = pd.to_numeric(df[col], errors="coerce")
+    df = df.dropna(subset=["open", "high", "low", "close"])
+    if df.empty:
+        return neutral
+
+    above_resistance = df["close"] > resistance
+    groups = (above_resistance != above_resistance.shift()).cumsum()
+    run_lengths = above_resistance.groupby(groups).sum()
+    breakout_accepted = bool(run_lengths.max() >= BREAKOUT_HOLD_BARS)
+
+    cross_idx = None
+    for i in range(1, len(df)):
+        if df.iloc[i]["high"] > resistance and df.iloc[i - 1]["high"] <= resistance:
+            cross_idx = i
+            break
+
+    if cross_idx is not None and cross_idx >= INTRADAY_TRAILING_BARS:
+        trailing_avg = df.iloc[cross_idx - INTRADAY_TRAILING_BARS:cross_idx]["volume"].mean()
+        volume_confirmed = bool(df.iloc[cross_idx]["volume"] > trailing_avg * VOLUME_CONFIRMATION_MULT)
+    else:
+        volume_confirmed = False
+
+    n = len(df)
+    third = max(1, n // 3)
+    first_third_close = df.iloc[third - 1]["close"]
+    last_third_close = df.iloc[-1]["close"]
+    mid_close = df.iloc[min(2 * third - 1, n - 1)]["close"]
+
+    if last_third_close > first_third_close and last_third_close > mid_close:
+        intraday_trend = "up"
+    elif last_third_close < first_third_close and last_third_close < mid_close:
+        intraday_trend = "down"
+    else:
+        intraday_trend = "mixed"
+
+    tail = df.tail(min(6, len(df)))
+    if len(tail) >= 3:
+        slope = tail["close"].iloc[-1] - tail["close"].iloc[0]
+        avg_range = (tail["high"] - tail["low"]).mean()
+        if avg_range > 0:
+            normalized = slope / avg_range
+            if normalized > 0.3:
+                close_trajectory = "rising"
+            elif normalized < -0.3:
+                close_trajectory = "falling"
+            else:
+                close_trajectory = "flat"
+        else:
+            close_trajectory = "flat"
+    else:
+        close_trajectory = "flat"
+
+    score = 0.0
+    if breakout_accepted:
+        score += 0.4
+    if volume_confirmed:
+        score += 0.25
+    if intraday_trend == "up":
+        score += 0.2
+    elif intraday_trend == "down":
+        score -= 0.1
+    if close_trajectory == "rising":
+        score += 0.15
+    elif close_trajectory == "falling":
+        score -= 0.1
+    confirmation_score = max(0.0, min(1.0, score))
+
+    return {
+        "breakout_accepted": breakout_accepted,
+        "volume_confirmed": volume_confirmed,
+        "intraday_trend": intraday_trend,
+        "close_trajectory": close_trajectory,
+        "confirmation_score": round(confirmation_score, 4),
     }

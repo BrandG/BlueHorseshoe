@@ -12,6 +12,7 @@ from bh_lite import (
     calculate_position_size,
     calculate_t1_t2,
     enrich_dataframe,
+    fetch_intraday_ohlcv,
     fetch_ohlcv,
     format_output,
     load_config,
@@ -118,6 +119,37 @@ def test_fetch_ohlcv_columns(mocker):
     assert pd.api.types.is_numeric_dtype(df["volume"])
     assert df["volume"].min() == 1
     assert len(df) == 200
+
+
+def test_fetch_intraday_ohlcv_columns(mocker):
+    now = int(time.time())
+    timestamps = [now - 300 * i for i in range(78, 0, -1)]
+    prices = [100 + i * 0.01 for i in range(78)]
+    mock_resp = mocker.Mock()
+    mock_resp.raise_for_status = mocker.Mock()
+    mock_resp.json.return_value = {
+        "chart": {
+            "result": [{
+                "timestamp": timestamps,
+                "indicators": {
+                    "quote": [{
+                        "open": prices,
+                        "high": [p * 1.001 for p in prices],
+                        "low": [p * 0.999 for p in prices],
+                        "close": [p + 0.005 for p in prices],
+                        "volume": [1000] * 78,
+                    }]
+                },
+            }]
+        }
+    }
+    mocker.patch("bh_lite.requests.get", return_value=mock_resp)
+
+    df = fetch_intraday_ohlcv("EURUSD=X")
+
+    assert "datetime" in df.columns
+    assert list(df.columns) == ["datetime", "open", "high", "low", "close", "volume"]
+    assert len(df) == 78
 
 
 def test_enrich_adds_indicators():

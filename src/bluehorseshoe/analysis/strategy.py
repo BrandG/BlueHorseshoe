@@ -833,6 +833,42 @@ class SwingTrader:
                     })
         return score_data
 
+    def _enrich_with_intraday(self, candidates: List[dict]) -> List[dict]:
+        """Fetch 5-min bars for top candidates and compute intraday confirmation."""
+        from bluehorseshoe.analysis.intraday_context import compute_intraday_confirmation
+
+        for candidate in candidates[:20]:
+            symbol = candidate.get("symbol", "")
+            resistance = candidate.get("intraday_resistance")
+            if not symbol or not resistance:
+                continue
+            try:
+                import requests as req
+
+                url = f"https://query2.finance.yahoo.com/v8/finance/chart/{symbol}"
+                params = {"range": "1d", "interval": "5m"}
+                headers = {"User-Agent": "Mozilla/5.0"}
+                resp = req.get(url, params=params, headers=headers, timeout=10)
+                resp.raise_for_status()
+                data = resp.json()
+                result = data["chart"]["result"][0]
+                timestamps = result["timestamp"]
+                quote = result["indicators"]["quote"][0]
+                df = pd.DataFrame({
+                    "datetime": pd.to_datetime(timestamps, unit="s"),
+                    "open": quote["open"],
+                    "high": quote["high"],
+                    "low": quote["low"],
+                    "close": quote["close"],
+                    "volume": [v if v is not None else 1 for v in quote["volume"]],
+                })
+                df = df.dropna(subset=["open", "high", "low", "close"])
+                if len(df) >= 10:
+                    candidate["intraday_confirmation"] = compute_intraday_confirmation(df, resistance)
+            except Exception as exc:  # pylint: disable=broad-exception-caught
+                logging.debug("Intraday confirmation skipped for %s: %s", symbol, exc)
+        return candidates
+
     def swing_predict(
         self,
         target_date: Optional[str] = None,
@@ -899,6 +935,7 @@ class SwingTrader:
 
         candidate_assembler = CandidateAssembler(self.strategies)
         top_candidates = candidate_assembler.build_top_candidates(valid_results)
+        top_candidates = self._enrich_with_intraday(top_candidates)
 
         # 5b. Freeze Signal Journal (immutable record)
         if self.signal_journal is not None and valid_results:
