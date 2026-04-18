@@ -49,11 +49,7 @@ def load_positions(path: str = DEFAULT_POSITIONS_PATH) -> List[dict]:
 
 
 def summarize_positions(positions: List[dict], default_risk: float = 1000.0) -> dict:
-    """Summarize open positions: total risk used and position count.
-
-    If a position is missing ``risk_usd``, ``default_risk`` is assumed
-    (typically account_size * max_risk_per_trade_pct = $1,000).
-    """
+    """Summarize open positions: total risk used and position count."""
     total_risk = sum(position.get("risk_usd") or default_risk for position in positions)
     return {"total_risk_usd": total_risk, "count": len(positions)}
 
@@ -370,6 +366,7 @@ def check_position_health(position: dict, config: dict) -> Optional[dict]:
     distance_to_stop = abs(current_price - stop)
     distance_to_stop_pct = (distance_to_stop / current_price) * 100 if current_price else 0.0
     atr = LiteTrader()._calculate_atr(enriched)
+    entry_score = float(position.get("entry_score", 10.0))
 
     # entry_score from positions file, or assume 10.0 (BH Lite minimum actionable)
     entry_score = float(position.get("entry_score", 10.0))
@@ -381,14 +378,14 @@ def check_position_health(position: dict, config: dict) -> Optional[dict]:
         warnings.append(f"Score below 5.0 threshold ({current_score:.1f})")
     if entry_score > 0 and current_score < entry_score * 0.5:
         warnings.append(f"Score dropped >50% from entry ({entry_score:.0f} -> {current_score:.1f})")
+    if abs(pnl_pct) < 0.5 and current_score < entry_score * 0.6:
+        warnings.append(f"Flat P&L with fading signal ({current_score:.1f} vs {entry_score:.0f} at entry)")
     if distance_to_stop <= 0.5 * atr:
         warnings.append("Price within 0.5 ATR of stop loss")
     if pnl_pct <= -3.0:
         warnings.append("Unrealized loss exceeds 3%")
     if pnl_pct < 0 and current_score < 5.0:
         warnings.append("Price below entry and score is weak")
-    if abs(pnl_pct) < 0.5 and current_score < entry_score * 0.6:
-        warnings.append(f"Flat P&L with fading signal ({current_score:.1f} vs {entry_score:.0f} at entry)")
 
     status = "OK"
     if current_score <= 0 or distance_to_stop <= 0.5 * atr or pnl_pct <= -3.0:
@@ -436,11 +433,11 @@ def calculate_position_size(
     """
     risk_per_unit = abs(entry - stop)
     max_risk_usd = account_config["size"] * risk_config["max_risk_per_trade_pct"]
+    remaining_daily = account_config["size"] * risk_config["max_daily_risk_pct"] - daily_risk_used
+    risk_usd = max_risk_usd
 
     if risk_per_unit <= 0:
         return {"lots": 0, "risk_usd": 0, "skipped": True, "over_budget": False}
-
-    risk_usd = max_risk_usd
 
     if instrument["type"] == "forex":
         risk_in_pips = risk_per_unit / instrument["pip_size"]
@@ -456,9 +453,7 @@ def calculate_position_size(
     else:
         actual_risk = lots * risk_per_unit * instrument["contract_size"]
 
-    remaining_daily = account_config["size"] * risk_config["max_daily_risk_pct"] - daily_risk_used
     over_budget = actual_risk > remaining_daily
-
     return {"lots": lots, "risk_usd": round(actual_risk, 2), "skipped": lots == 0, "over_budget": over_budget}
 
 
@@ -549,8 +544,8 @@ def format_output(
     lines.extend([
         "== TOP SIGNALS ==",
         "",
-        "  #  FTMO Symbol     Leg  Strategy  Score   Entry      Stop       Target     Lots    Risk$",
-        "  -  --------------  ---  --------  ------  ---------  ---------  ---------  ------  --------",
+        "  #  FTMO Symbol     Leg  Strategy  Score   Ctx     Entry      Stop       Target     Lots    Risk$",
+        "  -  --------------  ---  --------  ------  ------  ---------  ---------  ---------  ------  --------",
     ])
     used = daily_risk_used
     for idx, signal in enumerate(signals, start=1):
@@ -562,18 +557,20 @@ def format_output(
         total_lots = size["lots"]
         t1_lots = _round_down_to_lot(total_lots * t1_split, min_lot)
         t2_lots = _round_down_to_lot(total_lots - t1_lots, min_lot)
+        ctx_display = f"{signal.get('intraday_context', 0.0):>+5.2f}"
+        fb_flag = " !FB" if signal.get("failed_breakout") else ""
         budget_note = ""
         if size.get("over_budget"):
             budget_note = "  ** OVER DAILY BUDGET **"
         used += size["risk_usd"]
         lines.append(
             f"  {idx}  {ftmo:<14}  T1   {signal['strategy']:<8}  "
-            f"{signal['score']:>6.2f}  {setup['entry_price']:>9.5f}  {setup['stop_loss']:>9.5f}  "
+            f"{signal['score']:>6.2f}  {ctx_display}{fb_flag:<4}  {setup['entry_price']:>9.5f}  {setup['stop_loss']:>9.5f}  "
             f"{targets['t1']:>9.5f}  {t1_lots:>6.2f}  ${size['risk_usd'] * t1_split:>7.2f}{budget_note}"
         )
         lines.append(
             f"     {'':<14}  T2   {'':<8}  "
-            f"{'':>6}  {'':>9}  {'':>9}  "
+            f"{'':>6}  {'':>6}  {'':>9}  {'':>9}  "
             f"{targets['t2']:>9.5f}  {t2_lots:>6.2f}  ${size['risk_usd'] * (1 - t1_split):>7.2f}"
         )
         lines.append("")
@@ -586,7 +583,10 @@ def _write_csv(signals: Sequence[dict], output_path: str) -> None:
     with open(output_path, "w", encoding="utf-8", newline="") as f:
         writer = csv.DictWriter(
             f,
-            fieldnames=["rank", "instrument", "symbol", "strategy", "score", "entry", "stop", "t1", "t2", "lots", "risk_usd"],
+            fieldnames=[
+                "rank", "instrument", "symbol", "strategy", "score", "context_score",
+                "entry", "stop", "t1", "t2", "lots", "risk_usd",
+            ],
         )
         writer.writeheader()
         for idx, signal in enumerate(signals, start=1):
@@ -600,6 +600,7 @@ def _write_csv(signals: Sequence[dict], output_path: str) -> None:
                     "symbol": signal["instrument"]["symbol"],
                     "strategy": signal["strategy"],
                     "score": signal["score"],
+                    "context_score": signal.get("intraday_context", 0.0),
                     "entry": setup["entry_price"],
                     "stop": setup["stop_loss"],
                     "t1": targets["t1"],
@@ -610,9 +611,42 @@ def _write_csv(signals: Sequence[dict], output_path: str) -> None:
             )
 
 
+def _write_orders(signals: Sequence[dict], output_path: str) -> None:
+    """Write ready-to-paste position entries for accepted BH Lite signals."""
+    orders = []
+    for signal in signals:
+        setup = signal["setup"]
+        size = signal["position_size"]
+        instrument = signal["instrument"]
+        orders.append({
+            "ftmo_symbol": instrument.get("ftmo", instrument["name"]),
+            "name": instrument["name"],
+            "symbol": instrument["symbol"],
+            "side": "buy",
+            "strategy": signal["strategy"],
+            "entry": round(setup["entry_price"], 5),
+            "stop": round(setup["stop_loss"], 5),
+            "lots": size["lots"],
+            "risk_usd": size["risk_usd"],
+            "entry_score": round(signal["score"], 2),
+            "opened": date.today().isoformat(),
+        })
+
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    with open(output_path, "w", encoding="utf-8") as f:
+        json.dump(orders, f, indent=2)
+
+
 def _build_signal(instrument: dict, df: pd.DataFrame, config: dict, daily_risk_used: float) -> dict:
     trader = LiteTrader()
     scores = score_instrument(df)
+    from bluehorseshoe.analysis.intraday_context import compute_daily_context
+    ctx = compute_daily_context(df)
+    context_bonus = ctx["context_score"] * 3.0
+    scores["baseline_score"] += context_bonus
+    scores["baseline_components"]["intraday_context"] = context_bonus
+    scores["mean_reversion_score"] += context_bonus * 0.67
+    scores["mean_reversion_components"]["intraday_context"] = context_bonus * 0.67
     baseline_setup = trader.calculate_baseline_setup(df, technical_score=scores["baseline_score"])
     mean_reversion_setup = trader.calculate_mean_reversion_setup(df)
     signal = {
@@ -624,6 +658,9 @@ def _build_signal(instrument: dict, df: pd.DataFrame, config: dict, daily_risk_u
         "mean_reversion_components": scores["mean_reversion_components"],
         "mean_reversion_setup": mean_reversion_setup,
     }
+    signal["intraday_context"] = ctx["context_score"]
+    signal["intraday_label"] = ctx["context_label"]
+    signal["failed_breakout"] = ctx["failed_breakout"]
     ranked = rank_signals([signal], top_n=1)
     if not ranked:
         return signal
@@ -680,6 +717,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         health = check_position_health(position, config)
         if health:
             health_checks.append(health)
+    daily_risk_used = pos_summary["total_risk_usd"]
     signals = []
     failed = []
 
@@ -689,12 +727,11 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             failed.append(instrument["name"])
             continue
         enriched = enrich_dataframe(df)
-        signal = _build_signal(instrument, enriched, config, 0.0)
+        signal = _build_signal(instrument, enriched, config, daily_risk_used)
         if "setup" in signal:
             signals.append(signal)
 
     ranked = rank_signals(signals, top_n=args.top)
-    # Recalculate position sizes with awareness of committed risk
     daily_risk_used = pos_summary["total_risk_usd"]
     for signal in ranked:
         signal["position_size"] = calculate_position_size(
@@ -719,6 +756,10 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     if failed:
         output += "\nFailed fetches: " + ", ".join(failed)
     print(output)
+
+    orders_path = os.path.join(os.path.dirname(__file__), "bh_lite_orders.json")
+    _write_orders(ranked, orders_path)
+    print(f"Orders template: {orders_path}")
 
     if args.csv:
         path = os.path.join("src", "logs", f"bh_lite_{date.today().isoformat()}.csv")

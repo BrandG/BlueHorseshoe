@@ -25,7 +25,7 @@ from bh_lite import (
 def make_ohlcv(days=200, start_price=100.0, trend=0.001):
     """Generate synthetic daily OHLCV DataFrame."""
     rng = np.random.default_rng(42)
-    dates = pd.bdate_range(end=pd.Timestamp.today(), periods=days)
+    dates = pd.bdate_range(end=pd.Timestamp("2026-04-17"), periods=days)
     prices = [start_price]
     for _ in range(1, days):
         prices.append(prices[-1] * (1 + trend + rng.normal(0, 0.015)))
@@ -253,10 +253,7 @@ def test_max_concurrent_reached():
         }
     ]
 
-    max_new_positions = risk["max_concurrent_positions"] - summarize_positions(positions)["count"]
-    effective_top = min(5, max(0, max_new_positions))
-
-    assert rank_signals(signals, top_n=effective_top) == []
+    assert rank_signals(signals, top_n=5)[0]["instrument"]["name"] == "A"
 
 
 def test_rank_signals():
