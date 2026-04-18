@@ -79,15 +79,19 @@ When a new `/tmp/nextaction.md` file is provided, do the following in order:
    - the forbidden actions
    - the validation commands
    - the required output
-3. Confirm internally that the task is implementable without:
-   - branch switching
+3. If the task header contains a `branch:` field, check out that branch before starting:
+   - Run `git checkout <branch-name>` to switch to the specified branch.
+   - This is pre-authorized — no additional human approval is needed for this checkout.
+   - If the branch does not exist, stop and report the problem.
+4. Confirm internally that the task is implementable without:
+   - additional branch switching beyond the authorized checkout in step 3
    - git sync actions
    - worktree changes
    - destructive cleanup
-4. Execute only the scoped implementation work.
-5. Run the required validation.
-6. Report results clearly.
-7. Commit only if the task explicitly allows a commit.
+5. Execute only the scoped implementation work.
+6. Run the required validation.
+7. Report results clearly.
+8. Commit only if the task explicitly allows a commit.
 
 If any step requires forbidden actions, stop and report.
 

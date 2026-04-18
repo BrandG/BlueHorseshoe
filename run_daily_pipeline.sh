@@ -1,6 +1,6 @@
 #!/bin/bash
 # Daily Trading Pipeline for BlueHorseshoe
-# Cron: 0 2 * * 1-6 /root/BlueHorseshoe/run_daily_pipeline.sh
+# Cron: 0 1 * * 2-6 /root/BlueHorseshoe/run_daily_pipeline.sh
 #
 # Mon-Fri: Update -> Predict -> Journal -> Report -> Email
 # Saturday: Full symbol update + Predict Friday data -> Journal -> Report -> Email
