@@ -199,11 +199,14 @@ def test_failed_breakdown_recovery_bullish():
     assert label == "bullish"
 
 
-def test_score_clamped():
+def test_score_unbounded():
+    """Context score is no longer clamped — signals add up directly."""
     score_low, _ = compute_context_score(True, False, 0.0, 3.0)
     score_high, _ = compute_context_score(False, True, 1.0, 0.5)
-    assert score_low >= -1.0
-    assert score_high <= 1.0
+    # Failed breakout (-0.5) + low close_str (0.0 - 0.5)*2.0 = -1.0 → total -1.5
+    assert score_low < -1.0
+    # High close_str (1.0 - 0.5)*2.0 = +1.0
+    assert score_high > 0.0
 
 
 def test_compute_daily_context_all_keys():

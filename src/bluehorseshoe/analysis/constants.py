@@ -121,7 +121,8 @@ REGIME_PROFILES = {
 
 # ---------------------------------------------------------------------------
 # Intraday Context Layer (Phase 1)
-# Weight applied to context_score (-1.0 to +1.0) before adding to total score.
+# Strategy-level multiplier applied to context_score before adding to total.
+# Signal-level weights live in intraday_context.py.
 # ---------------------------------------------------------------------------
-INTRADAY_CONTEXT_WEIGHT = 3.0
-INTRADAY_CONTEXT_WEIGHT_MR = 2.0
+INTRADAY_CONTEXT_WEIGHT = 6.0
+INTRADAY_CONTEXT_WEIGHT_MR = 4.0

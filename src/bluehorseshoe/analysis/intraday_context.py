@@ -13,13 +13,15 @@ import pandas as pd
 
 # ---------------------------------------------------------------------------
 # Tier 1 Constants (daily-bar proxy)
+# Each weight controls direct score-point contribution (no intermediate clamp).
+# The integration weight in constants.py is the strategy-level multiplier.
 # ---------------------------------------------------------------------------
 LOOKBACK_DAYS = 20
-FAILED_BREAKOUT_PENALTY = 0.5
-FAILED_BREAKDOWN_BONUS = 0.4
-CLOSE_STRENGTH_WEIGHT = 0.6
-WIDE_RANGE_THRESHOLD = 1.5
-WIDE_RANGE_REVERSAL_PENALTY = 0.2
+FAILED_BREAKOUT_PENALTY = 0.5       # Score points lost on failed breakout
+FAILED_BREAKDOWN_BONUS = 0.0        # Empirically zero impact — disabled
+CLOSE_STRENGTH_WEIGHT = 2.0         # (close_str - 0.5) × this; range ±1.0
+WIDE_RANGE_THRESHOLD = 1.5          # Detection threshold (not a weight)
+WIDE_RANGE_REVERSAL_PENALTY = 0.0   # Empirically zero impact — disabled
 CONTEXT_BULLISH_THRESHOLD = 0.2
 CONTEXT_BEARISH_THRESHOLD = -0.2
 
@@ -94,7 +96,9 @@ def compute_context_score(
 
     Returns:
         (context_score, context_label)
-        context_score: -1.0 to +1.0
+        context_score: unbounded — each signal contributes directly via its own
+        weight.  The strategy-level integration weight in constants.py scales
+        the total before adding to the candidate score.
         context_label: "bullish", "bearish", or "neutral"
     """
     score = 0.0
@@ -109,8 +113,6 @@ def compute_context_score(
 
     if range_exp > WIDE_RANGE_THRESHOLD and close_str < 0.3:
         score -= WIDE_RANGE_REVERSAL_PENALTY
-
-    score = max(-1.0, min(1.0, score))
 
     if score > CONTEXT_BULLISH_THRESHOLD:
         label = "bullish"
