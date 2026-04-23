@@ -9,15 +9,12 @@
 
 - Event-driven backtest with an order book. Instead of the current "check high/low against levels" approach, model it as: generate orders → feed daily bars → match orders → update positions. That naturally handles split exits, trailing stops, breakeven stops, shorts — all as different order types rather than special-case code paths.
 
-### MR Weight Optimization (in progress)
-- **Fix mr_mean_reversion_specific dominance** — at any multiplier above ~1.5, mr_specific drowns out all other indicator categories (up to 96 points at 6x). Options to explore:
-  - **Option A: Cap** — hard-limit mr_specific contribution to 8-10 points regardless of how many sub-indicators fire
-  - **Option B: Average** — change aggregation from sum to average across 5 sub-indicators (max ~6 instead of ~30)
-  - **Option D: Gate** — only allow mr_specific to contribute if trend/momentum/volume also show positive signal (confirmation that bleeding is slowing)
-  - Whichever approach is chosen, **validate with assumption tester AND eyeball prediction output before deploying**
-- ~~Falling knife filter~~ (done) — -5.0 penalty for 2 consecutive red candles, MR only. Adequate with current weights, insufficient against inflated mr_specific.
+### Weight Optimization
+- ~~Intraday context weight tuning~~ (done 2026-04-19) — Grid search (504 combos, 22 dates) found optimal: CSW=2.0, IW=6.0/4.0, FBP=0.5. Removed [-1,+1] clamp. +17% avg PnL vs baseline. FBB and WRP disabled (zero impact). Research droplet validated and destroyed.
+- ~~MR cap_8~~ (done 2026-03-29) — mr_specific capped at 8.0
+- ~~Falling knife filter~~ (done) — -5.0 penalty for 2 consecutive red candles, MR only.
 - Baseline weight tuning complete — uniform 1.0 is optimal for bullish. No changes needed to production Baseline weights.
-- ~~mr_curve saturation test~~ (done) — motif signal saturates between 3x and 5x for both MR and Baseline. Current production values (25x MR, 10x BL) are well above threshold.
+- ~~mr_curve saturation test~~ (done) — motif signal saturates between 3x and 5x for both MR and Baseline.
 
 ### Hypothesis Engine Enhancements
 - ~~Build hypothesis engine (Layer B)~~ (done 2026-04-04) — `trade_evaluator.py`, `hypothesis_engine.py`, CLI `--evaluate`, pipeline integration
@@ -94,7 +91,7 @@
 - Distributed backtesting — allow running date ranges in parallel across multiple workers
 - Remove BH Python container from docker-compose — Python now runs natively on host via venv, but the container is still defined in docker-compose.yml as a fallback. Remove it after confirming the host-based daily pipeline succeeds (next run: 02:00 UTC). Then start the systemd API service (`systemctl start bluehorseshoe-api`).
 - ~~Fix email delivery after Docker→host migration~~ (done) — Brevo SMTP credentials moved to root `.env`, `.env` sourcing added to `run.sh` and `run_daily_pipeline.sh`
-- Remove Docker dependency from research droplet setup (optional, low priority)
+- ~~Research droplet~~ (destroyed 2026-04-19) — weight tuning complete, SSH key revoked
 - Upgrade yfinance from 0.2.25 to latest (1.2.2+) — Yahoo changed their API and the old version can't parse responses. Raw API works fine; the library is broken. Test upgrade impact on BH's existing Yahoo provider before deploying.
 - Suppress "Cannot write to a read-only DuckDBStore" warnings during `-p` — `save_historical_data()` in `historical_data.py:86` attempts opportunistic cache-writes that correctly fail in read-only mode. Check `store._read_only` (or add a `store.is_read_only` property) before calling `save_symbol()` to avoid noisy warnings. Low priority — harmless, prediction still works.
 
