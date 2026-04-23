@@ -390,7 +390,17 @@ def check_position_health(position: dict, config: dict) -> Optional[dict]:
     scores = score_instrument(enriched)
     baseline_score = scores["baseline_score"]
     mean_reversion_score = scores["mean_reversion_score"]
-    if baseline_score >= mean_reversion_score:
+
+    # Re-score using the entry strategy so a resolving MeanRev signal
+    # isn't falsely flagged as CRITICAL when Baseline "wins" with 0.
+    entry_strategy = position.get("entry_strategy", "")
+    if entry_strategy == "MeanRev":
+        current_score = mean_reversion_score
+        current_strategy = "MeanRev"
+    elif entry_strategy == "Baseline":
+        current_score = baseline_score
+        current_strategy = "Baseline"
+    elif baseline_score >= mean_reversion_score:
         current_score = baseline_score
         current_strategy = "Baseline"
     else:
@@ -403,9 +413,6 @@ def check_position_health(position: dict, config: dict) -> Optional[dict]:
     distance_to_stop = abs(current_price - stop)
     distance_to_stop_pct = (distance_to_stop / current_price) * 100 if current_price else 0.0
     atr = LiteTrader()._calculate_atr(enriched)
-    entry_score = float(position.get("entry_score", 10.0))
-
-    # entry_score from positions file, or assume 10.0 (BH Lite minimum actionable)
     entry_score = float(position.get("entry_score", 10.0))
 
     warnings = []
@@ -424,9 +431,20 @@ def check_position_health(position: dict, config: dict) -> Optional[dict]:
     if pnl_pct < 0 and current_score < 5.0:
         warnings.append("Price below entry and score is weak")
 
+    # Status considers both score AND P&L direction:
+    # - CRITICAL: real danger (near stop, big loss, or losing + no signal)
+    # - TAKE PROFIT: in profit but signal fading — consider closing
+    # - WEAKENING: warnings present but not urgent
+    # - OK: no concerns
     status = "OK"
-    if current_score <= 0 or distance_to_stop <= 0.5 * atr or pnl_pct <= -3.0:
+    if distance_to_stop <= 0.5 * atr or pnl_pct <= -3.0:
         status = "CRITICAL"
+    elif current_score <= 0 and pnl_pct < 0:
+        status = "CRITICAL"
+    elif current_score <= 0 and pnl_pct >= 0:
+        status = "TAKE PROFIT"
+    elif pnl_pct >= 0.5 and current_score < entry_score * 0.5:
+        status = "TAKE PROFIT"
     elif warnings:
         status = "WEAKENING"
 
@@ -566,6 +584,8 @@ def format_output(
             prefix = ""
             if health["status"] == "CRITICAL":
                 prefix = "!! "
+            elif health["status"] == "TAKE PROFIT":
+                prefix = "$$ "
             elif health["status"] == "WEAKENING":
                 prefix = "! "
             lines.append(
@@ -734,6 +754,7 @@ def _write_orders(signals: Sequence[dict], output_path: str) -> None:
             "lots": size["lots"],
             "risk_usd": size["risk_usd"],
             "entry_score": signal.get("score", 0),
+            "entry_strategy": signal.get("strategy", ""),
             "opened": date.today().isoformat(),
         })
     with open(output_path, "w", encoding="utf-8") as f:
