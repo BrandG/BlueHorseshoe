@@ -1,0 +1,22 @@
+{
+  "_comment": "BH FTMO indicator weights. Phase 2b placeholder; Phase 2c will tune via walk-forward backtest. Loaded by bh_ftmo.analysis.strategy.",
+  "baseline": {
+    "description": "Long-only trend-following signal",
+    "direction": 1,
+    "min_score_threshold": 3.0,
+    "components": {
+      "trend_above_ema_50": 1.0,
+      "trend_adx_strong_bullish": 1.0,
+      "trend_supertrend_up": 1.5,
+      "trend_ichimoku_above_cloud": 1.0,
+      "trend_macd_bullish": 1.0,
+      "momentum_rsi_healthy": 1.0,
+      "momentum_rsi_not_overbought": 1.0,
+      "candlestick_bullish_reversal": 1.0,
+      "strength_base_strong": 1.5,
+      "strength_quote_weak": 1.0,
+      "dxy_alignment": 1.0,
+      "session_overlap_bonus": 0.5
+    }
+  }
+}
