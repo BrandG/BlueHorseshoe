@@ -166,9 +166,17 @@ Rationale: 5pm NY is the canonical "daily roll" in retail forex. A bar closing a
 
 **Split from original Phase 2 per decision 14A — lookback tuning moved to Phase 2c after the backtest exists.**
 
-### Shared indicators refactor (decision 15C)
+### Indicator isolation (decision 15D, supersedes 15C)
 
-**First deliverable:** extract `src/bluehorseshoe/analysis/indicators/` → `src/shared/indicators/`. Equity code updated to import from the new location. All existing equity tests must still pass (this is the single most important regression event in the whole project).
+**Decision reversal 2026-04-24.** During Phase 2a kickoff, investigation showed the equity-side indicators import `bluehorseshoe.core.config.weights_config` (global singleton), `bluehorseshoe.reporting.report_generator`, `bluehorseshoe.analysis.curves.*`, and `bluehorseshoe.analysis.constants` — a naive physical move to `src/shared/indicators/` would leave the new package reaching back into the equity side, and FTMO code would read the equity `weights_config` by accident. Properly extracting all four coupling surfaces is ~1 week of work on production equity code ("the single most important regression event in the whole project" per the original 15C framing).
+
+Brand's call: **skip the extraction. Let BH FTMO have fully independent indicators at `src/bh_ftmo/indicators/`**. Zero shared code between the two systems. Intentional duplication is preferred over refactor risk to the live equity pipeline. A bug in the FTMO indicators can never affect the equity system, and vice versa.
+
+**Consequences:**
+- No `src/shared/` package is created.
+- BH FTMO indicator implementations are written fresh (informed by equity versions, but independent code).
+- Equity code is NOT touched during Phase 2a.
+- Any future "refactor to share" is a separate project, explicitly out of scope.
 
 ### Port with defaults
 
@@ -200,8 +208,7 @@ Port the shared indicators as-is with **BH equity default lookbacks as starting 
 
 ### Deliverables
 
-- `src/shared/indicators/` (extracted from `bluehorseshoe/analysis/indicators/`)
-- `src/bh_ftmo/indicators/` — forex-specific additions only (currency_strength, sessions, pivots, dxy_correlation)
+- `src/bh_ftmo/indicators/` — **all** indicator implementations (per decision 15D, fresh/independent; not extracted from equity). Ports of equity logic (RSI, MACD, ADX, ATR, Bollinger Bands, EMA/SMA, Ichimoku, SuperTrend, Donchian, candlestick patterns, pivots) plus forex-specific additions (currency_strength, sessions, pivots, dxy_correlation)
 - Registry pattern for indicator lookup
 - Per-indicator unit tests on synthetic 4h data
 - **Mandatory: no-lookahead property tests for multi-pair indicators** (per review decision — elevated from TODO). Pattern: feed data up to bar T, snapshot output, add bars > T, verify T's output is unchanged. Catches silent edge-inflation bugs in currency strength, DXY correlation, and similar aggregators.
@@ -399,10 +406,11 @@ src/bh_ftmo/
 │   ├── backfill.py
 │   ├── validate.py
 │   └── calendar.py
-├── indicators/
+├── indicators/             # fully independent of bluehorseshoe/ per decision 15D
 │   ├── momentum.py
 │   ├── trend.py
 │   ├── volatility.py
+│   ├── candlestick.py
 │   ├── sessions.py
 │   ├── strength.py
 │   └── pivots.py
@@ -465,7 +473,8 @@ Tests mirror this structure in `src/tests/bh_ftmo/`.
 | 8A | Schema metadata | Add `provider`, `ingested_at`, `is_complete` columns | **Locked** |
 | 9A | Walk-forward backport | Remove from this plan; track equity-side backport as separate TODO | **Locked** |
 | 14A | Phase 2/3 circularity | Split Phase 2 into 2a (port with defaults) + 2c (tune after backtest) | **Locked** |
-| 15C | Indicator reuse | Extract `bluehorseshoe/analysis/indicators/` → `src/shared/indicators/`; equity imports from shared; FTMO-specific adds in `bh_ftmo/indicators/` | **Locked** |
+| 15C | Indicator reuse | Extract `bluehorseshoe/analysis/indicators/` → `src/shared/indicators/`; equity imports from shared; FTMO-specific adds in `bh_ftmo/indicators/` | **Superseded by 15D (2026-04-24)** |
+| 15D | Indicator isolation | **Reversed 15C.** Equity indicators are deeply coupled to `weights_config` / `reporting` / `curves` / `constants`; extracting cleanly would require ~1 week of regression-risky refactoring on live equity code. Instead: BH FTMO has fully independent indicators in `src/bh_ftmo/indicators/`. Zero shared code. Intentional duplication over risk to the equity pipeline. | **Locked 2026-04-24** |
 | 16A | Entry-edge gate | Strict: Sharpe ≥ 1.0, PF ≥ 1.3, WR ≥ 45%, Max DD ≤ 10%, FTMO pass ≥ 70% | **Locked** |
 | 17B | Backtest baselines | Beat three: random-entry, fixed-schedule (Mon/Fri), simple RSI(14) | **Locked** |
 | R-1 | No-lookahead tests | Mandatory Phase 2 requirement (not TODO) for multi-pair indicators | **Locked** |
