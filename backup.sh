@@ -104,6 +104,28 @@ zstd -T0 -3 --rm "$STAGING_DIR/ohlcv.duckdb" \
     || fail "DuckDB compression failed"
 log "DuckDB compressed: $(du -h "$STAGING_DIR/ohlcv.duckdb.zst" | cut -f1)"
 
+# ── Step 3b: FX DuckDB (BH FTMO) — flush WAL and compress ──────────────
+# Optional: only back up if the file exists (fresh installs won't have it
+# until the Phase 1 backfill runs).
+if [[ -f "$FX_DUCKDB_HOST_PATH" ]]; then
+    log "Flushing FX DuckDB WAL..."
+    $PYTHON -c "
+import duckdb
+con = duckdb.connect('$FX_DUCKDB_HOST_PATH')
+con.execute('CHECKPOINT')
+con.close()
+print('FX WAL flushed successfully')
+" || fail "FX DuckDB WAL flush failed"
+
+    log "Compressing FX DuckDB ($(du -h "$FX_DUCKDB_HOST_PATH" | cut -f1))..."
+    cp "$FX_DUCKDB_HOST_PATH" "$STAGING_DIR/fx_4h.duckdb"
+    zstd -T0 -3 --rm "$STAGING_DIR/fx_4h.duckdb" \
+        || fail "FX DuckDB compression failed"
+    log "FX DuckDB compressed: $(du -h "$STAGING_DIR/fx_4h.duckdb.zst" | cut -f1)"
+else
+    log "WARNING: FX DuckDB not found at $FX_DUCKDB_HOST_PATH — skipping (run backfill to create it)"
+fi
+
 # ── Step 4: MongoDB — selective mongodump + compress ───────────────────
 log "Dumping MongoDB collections..."
 MONGO_DUMP_DIR="$STAGING_DIR/mongodump"
@@ -150,21 +172,30 @@ Date (UTC): $(date -u +%Y-%m-%d)
 
 Contents:
   ohlcv.duckdb.zst    — DuckDB OHLCV database ($(du -h "$STAGING_DIR/ohlcv.duckdb.zst" 2>/dev/null | cut -f1 || echo "N/A"))
+  fx_4h.duckdb.zst    — BH FTMO forex H4+H1 bars ($(du -h "$STAGING_DIR/fx_4h.duckdb.zst" 2>/dev/null | cut -f1 || echo "N/A (not yet backfilled)"))
   mongodump.tar.zst   — MongoDB collections: ${MONGO_COLLECTIONS[*]}
   models.tar.zst      — ML model files (*.joblib)
 
-DuckDB source:  $DUCKDB_HOST_PATH
-Models source:  $MODELS_HOST_PATH
-MongoDB host:   (authenticated via MONGO_URI)
+DuckDB source:     $DUCKDB_HOST_PATH
+FX DuckDB source:  $FX_DUCKDB_HOST_PATH
+Models source:     $MODELS_HOST_PATH
+MongoDB host:      (authenticated via MONGO_URI)
 MANIFEST
 
 log "Creating final archive..."
+# Build the content list dynamically so optional files (fx_4h, models) only
+# appear when present.
+ARCHIVE_CONTENTS=(ohlcv.duckdb.zst mongodump.tar.zst manifest.txt)
+[[ -f "$STAGING_DIR/fx_4h.duckdb.zst" ]] && ARCHIVE_CONTENTS+=(fx_4h.duckdb.zst)
+if [[ -f "$STAGING_DIR/models.tar.zst" ]]; then
+    ARCHIVE_CONTENTS+=(models.tar.zst)
+else
+    ARCHIVE_CONTENTS+=(models.tar.zst.EMPTY)
+fi
+
 tar -cf "$STAGING_DIR/$ARCHIVE_NAME" \
     -C "$STAGING_DIR" \
-    ohlcv.duckdb.zst \
-    mongodump.tar.zst \
-    manifest.txt \
-    $(ls "$STAGING_DIR/models.tar.zst" 2>/dev/null && echo "models.tar.zst" || echo "models.tar.zst.EMPTY") \
+    "${ARCHIVE_CONTENTS[@]}" \
     || fail "Archive creation failed"
 
 ARCHIVE_SIZE="$(du -h "$STAGING_DIR/$ARCHIVE_NAME" | cut -f1)"
