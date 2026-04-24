@@ -1,0 +1,38 @@
+[
+  {
+    "ftmo_symbol": "NZDCHF.sim",
+    "name": "NZD/CHF",
+    "side": "buy",
+    "entry": 0.46048,
+    "stop": 0.45539,
+    "lots": 1.78,
+    "risk_usd": 996.03,
+    "entry_score": 9.658809,
+    "entry_strategy": "MeanRev",
+    "opened": "2026-04-24"
+  },
+  {
+    "ftmo_symbol": "CADJPY.sim",
+    "name": "CAD/JPY",
+    "side": "buy",
+    "entry": 116.45418,
+    "stop": 114.16938,
+    "lots": 0.65,
+    "risk_usd": 990.58,
+    "entry_score": 2.7516,
+    "entry_strategy": "Baseline",
+    "opened": "2026-04-24"
+  },
+  {
+    "ftmo_symbol": "CADCHF.sim",
+    "name": "CAD/CHF",
+    "side": "buy",
+    "entry": 0.57329,
+    "stop": 0.56066,
+    "lots": 0.71,
+    "risk_usd": 986.25,
+    "entry_score": 2.6943,
+    "entry_strategy": "Baseline",
+    "opened": "2026-04-24"
+  }
+]

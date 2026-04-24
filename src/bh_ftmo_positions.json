@@ -1,0 +1,42 @@
+[
+  {
+    "ftmo_symbol": "USDZAR.sim",
+    "name": "USD/ZAR",
+    "side": "buy",
+    "entry": 16.6397,
+    "stop": 16.0618,
+    "lots": 0.31,
+    "risk_usd": 985.32,
+    "entry_score": 17.143,
+    "entry_strategy": "Baseline",
+    "opened": "2026-04-24",
+    "target": 17.21761
+  },
+  {
+    "ftmo_symbol": "NZDCHF.sim",
+    "name": "NZD/CHF",
+    "side": "buy",
+    "entry": 0.46013,
+    "stop": 0.45504,
+    "lots": 1.78,
+    "risk_usd": 996.03,
+    "entry_score": 8.986665,
+    "entry_strategy": "MeanRev",
+    "opened": "2026-04-24",
+    "target": 0.46522
+  },
+  {
+    "ftmo_symbol": "EURHUF.sim",
+    "name": "EUR/HUF",
+    "side": "buy",
+    "entry": 365.8987,
+    "stop": 354.81376,
+    "lots": 3.34,
+    "risk_usd": 999.64,
+    "entry_score": 8.4255,
+    "entry_strategy": "Baseline",
+    "opened": "2026-04-24",
+    "target": 376.98364
+
+  }
+]
