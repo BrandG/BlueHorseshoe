@@ -1,9 +1,25 @@
 # BH FTMO Plan
 
-**Status:** `/plan-eng-review` + `/plan-ceo-review` complete (2026-04-24) — 19 decisions locked in reviews, ready to begin Phase 0
+**Status:** Phases 0 → 2b ✅ complete (2026-04-24). Phase 3 (Backtesting Framework) is next.
 **Drafted:** 2026-04-24
 **Owner:** Brand
 **Strategic goal:** INCOME — BH FTMO generates transferable profit that feeds the BH equity IBKR account. Once FTMO is profitable, additional prop firms (MyForexFunds, FundedNext, etc.) will be added as parallel capital-generation tributaries. BH equity is the long-term alpha engine; BH FTMO is capital-generation for it. Framework-generalization is not the goal, but the architecture should remain cohesive enough to accept a second prop firm later without a rewrite.
+
+## Phase Progress
+
+| Phase | Status | Notes |
+|---|---|---|
+| Phase 0 — Copy & Stabilize | ✅ done | commit `1bf7f9f` |
+| Phase 0.5 — OANDA Validation Probe | ✅ done | 40/40 pass (`7d8c8f1`) |
+| Phase 1 — Data Foundation | ✅ done | 9 commits; 10y backfill clean (3.2M bars, zero gaps) |
+| Phase 2a — Indicator Port | ✅ done | 8 commits; decision 15D (full isolation) |
+| Phase 2b — Scoring Layer | ✅ done | `8f2338a`, `d18b9c8`, `a1f131e`, `17983c2` |
+| Phase 3 — Backtesting Framework | ⏳ next | bid/ask sim + FTMO rules + walk-forward harness |
+| Phase 2c — Indicator Tuning | blocked on 3 | walk-forward grid search needs the backtest |
+| Phase 4 — Edge-Exit Scoring | blocked on 3 entry-edge gate | only if Phase 3 passes Sharpe ≥1.0, PF ≥1.3, etc. |
+| Phase 5 — Economic Calendar | blocked on 3 | calendar-driven blackouts |
+| Phase 6 — Live Cutover | blocked on 4-5 | 2+ weeks parallel paper trading |
+| Phase 7 — Dashboard | post-cutover | polish layer |
 
 ---
 
@@ -29,7 +45,11 @@ This plan formalizes BH FTMO as a sibling system to BH equities: shared foundati
 
 ---
 
-## Phase 0: Copy & Stabilize (≤2 hours)
+## Phase 0: Copy & Stabilize (≤2 hours) ✅ COMPLETED 2026-04-24
+
+Commit `1bf7f9f`. `src/bh_ftmo/` package created from `bh_lite` copy; `LiteTrader` → `FTMOTrader` in the copy only; bh_lite frozen until Phase 6 cutover.
+
+
 
 Low-risk warm-up. No behavior changes. **Starts as package from day one (decision 1A)** — avoids the Phase-2 package-graduation collision. **bh_lite.* files are COPIED, not renamed, per decision C-5** — they remain frozen as the parallel comparison system for Phase 6 paper trading, deleted only at final cutover.
 
@@ -75,7 +95,9 @@ Brand's token turned out to be scoped to the **live** environment (demo token wo
 
 ---
 
-## Phase 1: Data Foundation (~1 week)
+## Phase 1: Data Foundation (~1 week) ✅ COMPLETED 2026-04-24
+
+Nine commits land the full data foundation (`5570fef`, `8fed8bd`, `5f93a80`, `889ace7`, `94a4f24`, `7975ecf`, `d105cdb`, `8d7808a`, `0edb681`). 10y live backfill ran cleanly: 3,207,322 bars across 40 symbols × H4+H1 in ~14 min, zero gaps. Every-4h incremental update ready (Brand to run `/tmp/humanaction.sh` to install cron). FTMO_RULES.md §2 still has TBD placeholders awaiting Brand's FTMO-dashboard fill-in (does not block Phase 3 development).
 
 The gating phase. Get the data right.
 
@@ -162,7 +184,9 @@ Rationale: 5pm NY is the canonical "daily roll" in retail forex. A bar closing a
 
 ---
 
-## Phase 2a: Indicator Port (~4-5 days)
+## Phase 2a: Indicator Port (~4-5 days) ✅ COMPLETED 2026-04-24
+
+Eight commits land the full indicator suite, fully independent of equity per decision 15D (`7ed29f6`, `bfac46c`, `c57a757`, `ca8c67b`, `279ef0c`, `5d7550d`, `25998e2`, `a2a8b97`). Lookback tuning deferred to Phase 2c per decision 14A — current values are equity defaults as starting point.
 
 **Split from original Phase 2 per decision 14A — lookback tuning moved to Phase 2c after the backtest exists.**
 
@@ -217,6 +241,24 @@ Port the shared indicators as-is with **BH equity default lookbacks as starting 
 ### Exit criterion
 
 All equity tests still pass (shared refactor is backward-compat). All forex-specific indicators have unit tests. Multi-pair indicators have no-lookahead property tests.
+
+---
+
+## Phase 2b: Scoring Layer ✅ COMPLETED 2026-04-24
+
+Four commits land the multi-pair scoring pipeline (`8f2338a`, `d18b9c8`, `a1f131e`, `17983c2`).
+
+### Deliverables (shipped)
+
+- **`bh_ftmo_weights.json`** — `baseline` + `mean_reversion` weight blocks (placeholder values; Phase 2c tunes them via walk-forward backtest)
+- **`bh_ftmo/analysis/strategy.py`** — `Signal` dataclass + `BaselineStrategy`. 12 rule components: trend (EMA50, ADX+DI, SuperTrend, Ichimoku cloud, MACD hist), momentum (RSI 40-70, RSI<70), candlestick (hammer or bull-engulf), context (strength base top-3, strength quote bottom-3, DXY slope alignment, OVERLAP-session bonus). `Signal.components: dict[str, float]` makes every signal explainable.
+- **`bh_ftmo/analysis/signal_generator.py`** — `SignalGenerator` with shared DXY + currency-strength context built once per run. Default 20-pair strength universe (every G8 currency in ≥3 pairs). Best-effort context: DXY needs all 6 ICE constituents; strengths needs ≥4 pairs. `generate_from_store(store, symbols, ...)` for one-call multi-pair scoring.
+- **`bh_ftmo/analysis/cluster_filter.py`** — currency flag-bearer dedup. Each long signal on `BASE_QUOTE` expresses long-BASE + short-QUOTE; per `(timestamp, currency, direction)`, the highest-scoring signal wins. A signal survives if it's the flag-bearer for ≥1 of its 2 exposures. Balanced — drops genuinely redundant bets without over-suppressing independent setups. `explain_cluster_filter()` returns per-candidate diagnostics. Sub-threshold signals pass through unfiltered.
+- **`bh_ftmo/analysis/mean_reversion.py`** — `MeanReversionStrategy`, two-sided. Per-bar direction: oversold conditions (RSI<30, BB-lower, Williams<-80, CCI<-100) fire long; overbought conditions fire short; neither fires direction=0 / no signal. Direction-neutral bonuses (ADX<20, ASIA session) attach to whichever side anchored. Strength/DXY rules intentionally absent — they're trend-following heuristics that fight the MR thesis.
+
+### Live multi-strategy smoke (Apr 15-23, 2026)
+
+1440 baseline + 1440 MR signals → 565 above-threshold (395 baseline-long, 117 MR-long, 53 MR-short) → 361 after cluster filter. Top-scoring bars all show 7-8 of 12 rules firing with balanced trend/momentum/strength/DXY contributions.
 
 ---
 

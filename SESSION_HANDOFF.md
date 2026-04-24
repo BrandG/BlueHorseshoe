@@ -1,50 +1,59 @@
 # Session Handoff
 
-**Date:** April 23, 2026
-**Status:** Intraday context weights tuned and deployed. BH Lite health check fixed. Research droplet destroyed. System stable, 792 tests passing.
+**Date:** April 24, 2026
+**Status:** BH FTMO Phases 1, 2a, 2b complete — full multi-pair signal pipeline running on real OANDA data. 1211 tests passing.
 
 ---
 
-## What Was Done This Session (April 19–23)
+## What Was Done This Session (April 24)
 
-### 1. Intraday Context Weight Tuning
-- Built `src/tune_intraday_weights.py` — replay-based grid search that:
-  - Loads historical trade_scores from MongoDB (22 dates, ~3,500 symbols each)
-  - Pre-computes context signals from DuckDB OHLCV data
-  - Grid-searches weight combinations, re-ranks candidates, grades against actual next-day price action
-  - Reports win rate, avg PnL, profit factor per combo
-- **Removed [-1,+1] clamp** from `compute_context_score()` — individual signal weights now control contribution directly, no intermediate saturation
-- **Disabled zero-impact signals:** `FAILED_BREAKDOWN_BONUS` → 0.0, `WIDE_RANGE_REVERSAL_PENALTY` → 0.0
-- **Deployed aggressive config** (validated by 504-combo full grid on research droplet):
-  - `CLOSE_STRENGTH_WEIGHT`: 0.6 → 2.0
-  - `INTRADAY_CONTEXT_WEIGHT`: 3.0 → 6.0 (baseline), 2.0 → 4.0 (MR)
-  - `FAILED_BREAKOUT_PENALTY`: 0.5 (unchanged)
-- **Result:** +17% avg PnL (0.668% vs 0.573%) and +7% profit factor (1.72 vs 1.61) vs no-context baseline
+Twenty-four BH FTMO commits land Phases 1 → 2b. The system now ingests 10 years of OANDA bid/ask 4h forex bars for the 40 FTMO instruments, computes a full forex indicator suite, and emits cluster-filtered Baseline + MeanReversion signals across the universe.
 
-### 2. Research Droplet Weight Validation
-- Synced code via scp (no GitHub SSH key on droplet)
-- Set up SSH tunnel for MongoDB access (production stays bound to localhost — no exposure)
-- Ran full 504-combo grid search (7 FBP × 8 CSW × 9 IW) — confirmed deployed config is global optimum
-- **Destroyed droplet** after validation complete
-- Revoked droplet SSH key from production `authorized_keys`
+### Phase 0.5 — OANDA Validation Probe ✅
+- `src/bh_ftmo/data/oanda_probe.py` ran against the live OANDA account
+- 40/40 FTMO instruments pass: bid+ask, 10y history, 5000-bar pages, zero rate-limit hits
+- Verdict GO; commits `7d8c8f1`
 
-### 3. BH Lite Health Check Fixes
-- **Entry strategy bug:** Health check was picking whichever strategy scored highest today. MeanRev trades that were working (oversold conditions resolving) would flip to Baseline with 0.0 → false CRITICAL. Now re-scores using the entry strategy stored in each position.
-- **New `entry_strategy` field** saved in positions JSON; backfilled existing positions
-- **New TAKE PROFIT status (`$$`):** Positions in profit with fading signal get "take your money" advice instead of false CRITICAL alarm. Status matrix:
-  - `!!` CRITICAL — near stop, big loss (>3%), or losing + score collapsed
-  - `$$` TAKE PROFIT — in profit but signal exhausted, consider closing
-  - `!` WEAKENING — warnings present but not urgent
-  - (blank) OK — no concerns
-- Removed duplicate `entry_score` line in `check_position_health()`
+### Phase 1 — Data Foundation ✅
+- `src/bh_ftmo/data/oanda_client.py` — OANDA v20 REST client with rate limiter, paginated candle iterator, `Retry-After` honoring exponential backoff (`5570fef`)
+- `src/bh_ftmo/data/fx_time_utils.py` + `docs/planning/FX_TIME_SPEC.md` — DST-aware NY 5pm session anchor, UK/US holiday handling, gap classifier with `BarGapKind {WEEKEND, US_HOLIDAY, UK_HOLIDAY, DATA_GAP}` (`8fed8bd`)
+- `src/bh_ftmo/data/fx_store.py` — DuckDB wrapper for `ohlcv_4h` + `ohlcv_1h` (PK `(symbol, timestamp)`, bid+ask + `provider`/`ingested_at`/`is_complete`). `save_rows` dedupes within batch to handle pagination overlap. (`5f93a80`)
+- `src/bh_ftmo/data/validate.py` — pre-ingestion candle validator + post-storage audit using `classify_gaps` (`889ace7`)
+- `src/bh_ftmo/logging/scrubber.py` — `SecretScrubber` logging filter redacting OANDA tokens + account IDs (decision C-2) (`94a4f24`)
+- `src/bh_ftmo/data/backfill.py` — year-chunked, resumable 10y backfill with `CheckpointStore` (`7975ecf`)
+- `docs/planning/FTMO_RULES.md` — policy spec for daily-loss / max-drawdown / profit-target / weekend-flatten rules (decision 5A) (`d105cdb`)
+- `data/fx_4h.duckdb` added to `backup.sh` pipeline (`8d7808a`)
+- `src/bh_ftmo/data/incremental_update.py` — every-4h cron entry point with SMTP failure email (`0edb681`)
+- **Live backfill ran cleanly: 3,207,322 bars across 40 symbols × H4+H1 in ~14 min, zero gaps.**
+
+### Phase 2a — Indicator Port (decision 15D, fully independent) ✅
+Decision 15D reversed the original "share-with-equity" plan after investigation showed deep coupling to `weights_config`/`reporting`/`curves`/`constants`. BH FTMO indicators are now wholly independent at `src/bh_ftmo/indicators/`. Equity code untouched.
+
+- `momentum.py` — RSI (Wilder's), MACD, Stochastic, CCI, Williams %R (`7ed29f6`)
+- `volatility.py` — true_range, ATR (Wilder's), atr_percent, Bollinger Bands (`bfac46c`)
+- `trend.py` — SMA, EMA, ADX (with +DI/-DI), SuperTrend (iterative), Donchian, Ichimoku (`c57a757`)
+- `pivots.py` — vectorized NY-calendar-day aggregation + classic pivot formulas; Monday uses Friday via `prior_forex_day` (`ca8c67b`)
+- `candlestick.py` — hand-rolled (no talib): doji, hammer, shooting star, bullish/bearish engulfing (`279ef0c`)
+- `strength.py` — currency strength meter via log-return aggregation across all pairs each currency appears in (`5d7550d`)
+- `dxy_correlation.py` — synthesized DXY using ICE formula `50.14348112 × EURUSD^-0.576 × USDJPY^0.136 × ...` + per-pair rolling correlation (`25998e2`)
+- `sessions.py` — `Session` enum (ASIA/LONDON/OVERLAP/NY/CLOSED) with NY-local hour boundaries; `session_label`, `session_ranges` (`a2a8b97`)
+
+### Phase 2b — Scoring Layer ✅
+- `src/bh_ftmo/analysis/strategy.py` + `bh_ftmo_weights.json` — `Signal` dataclass, `BaselineStrategy` (12 rule components: trend / momentum / candlestick / context). Each Signal carries `components: dict[str, float]` for explainability. (`8f2338a`)
+- `src/bh_ftmo/analysis/signal_generator.py` — `SignalGenerator` builds shared DXY + currency-strength context once, fans strategies across pairs. Best-effort context: DXY needs all 6 ICE constituents; strengths needs ≥4 pairs. Default 20-pair strength universe ensures every G8 currency appears in ≥3 pairs. (`d18b9c8`)
+- `src/bh_ftmo/analysis/cluster_filter.py` — currency flag-bearer dedup. Each long signal on `BASE_QUOTE` expresses long-BASE + short-QUOTE; per `(timestamp, currency, direction)`, the highest-scoring signal wins. A signal survives if it's the flag-bearer for ≥1 of its 2 exposures. `explain_cluster_filter()` returns per-candidate diagnostics. (`a1f131e`)
+- `src/bh_ftmo/analysis/mean_reversion.py` — two-sided MR. Per-bar direction: oversold conditions (RSI<30, BB-lower, Williams<-80, CCI<-100) fire long; overbought conditions fire short; neither fires direction=0. Direction-neutral bonuses (ADX<20, ASIA session) attach to whichever side anchored. (`17983c2`)
+
+**Live multi-strategy smoke (Apr 15-23, 2026)**: 1440 baseline + 1440 MR signals → 565 above-threshold (395 baseline-long, 117 MR-long, 53 MR-short) → 361 after cluster filter.
 
 ---
 
 ## Previous Sessions Summary
 
+- **April 19–23:** Intraday context weight tuning (504-combo grid search), unclamped context score, deployed CSW=2.0/IW=6.0; BH Lite health check fixes (entry-strategy stickiness + TAKE PROFIT status); research droplet destroyed
 - **April 17–19:** Intraday context layer (Phase 1 + Phase 2) shipped, BH Lite cron automated, research droplet spun up
 - **April 15–17:** BH Lite FTMO signal generator built and iterated
-- **April 12:** Holiday warning banner shipped, trade history CSV importer shipped with era tags
+- **April 12:** Holiday warning banner, trade history CSV importer with era tags
 - **April 4–5:** Report cleanup, DuckDB read-only mode, code quality sweep
 - **April 2–4:** Hypothesis engine (Layer B) shipped, MongoDB auth enabled
 - **March 29 – April 2:** MR weight tuning (cap_8 deployed), research droplet
@@ -57,61 +66,71 @@
 
 ## In Progress
 
-- Nothing actively in progress. All items from this session are merged.
+- Nothing actively in progress. All Phase 2b items committed and tests green.
 
 ## Next Steps
 
-1. **Monitor tuned weights in production** — compare prediction quality before/after over the next week
-2. **Monitor BH Lite cron** — health check fixes will show in next automated run
-3. **yfinance upgrade** (0.2.25 → 1.2.2+) — currently bypassed with direct Yahoo API
-4. **Suppress "cannot write to read-only store" warnings** — cosmetic DuckDB noise
-5. **Signal Track Record report section** — needs more hypothesis batches to mature
-6. See `TODO.md` for full backlog
+1. **Phase 3 — Backtesting Framework** (~1–2 weeks): bid/ask-aware simulator, FTMO rule enforcement (daily 5%, max 10%, profit target, CE(S)T reset), walk-forward harness over 10y backfill, Phase-3 entry-edge gate (Sharpe ≥1.0, PF ≥1.3, win-rate ≥45%, MaxDD ≤10%, FTMO pass-rate ≥70%).
+2. **Brand fills FTMO_RULES.md §2 TBD values** from FTMO live dashboard → `bh_ftmo_config.json` `ftmo` block. Doesn't block Phase 3 simulator development; it gates the Phase 6 cutover.
+3. **Brand installs GitHub App** before May 8 so the scheduled BH FTMO check-in routine (`trig_01RfvYoMo6V7bETCRBLn5WNT`) can run.
+4. **Brand runs `bash /tmp/humanaction.sh`** to install the every-4h incremental-update cron when ready.
+5. **Phase 2c — Indicator Tuning** runs after Phase 3 exists (walk-forward grid search for forex-appropriate lookback periods).
+6. See `TODO.md` for full backlog and `docs/planning/BH_FTMO_PLAN.md` for the locked plan.
 
 ## Blockers / Open Questions
 
-- **SMTP from Claude Code sandbox is blocked** — user must run `send_report_email.py` manually
-- **bh-codex worktree** at `/root/bh-codex` — still on `codex/intraday-phase2` branch. Will get cleaned up on next Codex task.
-- **Phase 2 intraday confirmation on weekends/holidays** — 5-min bars won't be available. Handled gracefully (skips silently).
+- **SMTP from Claude Code sandbox is blocked** — Brand must run `send_report_email.py` manually for equity reports
+- **Phase 3 baseline implementations** (decision 17B): random-entry+ATR-exit, Mon-in/Fri-out fixed-schedule, simple RSI(14) — needed for entry-edge-gate comparison
+- **Crypto deferred for v1** — no BTC_USD / ETH_USD on this OANDA account; if crypto becomes strategically important, fall back to Binance public REST 4h klines
 
 ---
 
 ## Key Decisions
 
-- **Intraday context score is unclamped** — no [-1,+1] saturation. Each signal's weight directly controls its score-point contribution. The integration weight (IW) is a strategy-level multiplier.
-- **Effective close-strength weight = 12** (CSW 2.0 × IW 6.0). Validated as global optimum across 504 weight combinations.
-- **FBB and WRP disabled** — empirically zero impact across all tested dates. Signals kept in code but weights set to 0.0.
-- **Health check uses entry strategy** — MeanRev positions scored as MeanRev, not whatever strategy happens to score highest today.
-- **TAKE PROFIT status** — profitable positions with fading signals get actionable "lock in gains" advice instead of false CRITICAL.
-- **SSH tunnel for remote MongoDB** — never expose MongoDB port to network. Research droplet used `ssh -fN -L` tunnel through private VPC.
-- Prior decisions (MongoDB auth, hypothesis engine, MR cap_8, Brevo email, human action scripts, advisory budget model, fresh Codex branches) remain in effect.
+- **Decision 15D (BH FTMO indicator isolation)** — fully independent indicators at `src/bh_ftmo/indicators/`. Zero shared code with equity. Reverses the original 15C "extract to `src/shared/`" plan after investigation showed deep equity-side coupling.
+- **MR strategy drops strength/DXY rules** — those are trend-following heuristics that fight the MR thesis. Phase 2c can revisit if tuning shows benefit.
+- **Cluster filter is currency flag-bearer, not correlation-based** — per `(timestamp, currency, direction)` the highest-scoring signal wins; a signal survives if it's the flag-bearer for ≥1 of its 2 exposures. Balanced dedup that doesn't over-suppress independent setups.
+- **Default strength universe is 20 majors crosses** ensuring every G8 currency appears in ≥3 pairs.
+- **OANDA live account, data-only** — Brand's token is live-scoped. Demo account dormant. Data-only access to live is zero-risk since orders are manual paste to FTMO MT5. Configurable via `OANDA_ENV=practice` later.
+- Prior decisions (intraday context unclamped, MongoDB auth, hypothesis engine, MR cap_8, Brevo email, human-action scripts, advisory budget model, fresh Codex branches, BH Lite frozen until Phase 6 cutover) remain in effect.
 
 ---
 
-## Key Files
+## Key Files (BH FTMO additions)
 
 | File | Role |
 |------|------|
-| `src/tune_intraday_weights.py` | Replay-based grid search for intraday context weights |
-| `src/bluehorseshoe/analysis/intraday_context.py` | Shared intraday context module (unclamped, tuned weights) |
-| `src/bluehorseshoe/analysis/constants.py` | `INTRADAY_CONTEXT_WEIGHT` = 6.0, `_MR` = 4.0 |
-| `src/bluehorseshoe/analysis/strategy_interface.py` | Context bonus integration (4 process variants) |
-| `src/bluehorseshoe/analysis/strategy.py` | `_enrich_with_intraday()` for BH main top-20 candidates |
-| `src/bh_lite.py` | BH Lite with fixed health check + TAKE PROFIT status |
-| `src/bh_lite_positions.json` | Open positions with `entry_strategy` field (gitignored) |
-| `run_bh_lite.sh` | Cron wrapper for BH Lite (23:30 UTC Mon-Fri) |
-| `run_daily_pipeline.sh` | BH main cron wrapper (01:00 UTC Mon-Sat) |
+| `src/bh_ftmo/data/oanda_client.py` | OANDA v20 REST client with rate limiter + retry |
+| `src/bh_ftmo/data/fx_store.py` | DuckDB wrapper for 4h + 1h forex bars (bid/ask) |
+| `src/bh_ftmo/data/fx_time_utils.py` | DST-aware session boundaries + gap classification |
+| `src/bh_ftmo/data/backfill.py` | Resumable 10y year-chunked OANDA backfill |
+| `src/bh_ftmo/data/incremental_update.py` | Every-4h cron entry point with email-on-failure |
+| `src/bh_ftmo/data/validate.py` | OANDA candle + stored-bar validators |
+| `src/bh_ftmo/indicators/` | Full forex indicator suite (independent of equity) |
+| `src/bh_ftmo/analysis/strategy.py` | `BaselineStrategy` + `Signal` |
+| `src/bh_ftmo/analysis/mean_reversion.py` | `MeanReversionStrategy` (two-sided) |
+| `src/bh_ftmo/analysis/signal_generator.py` | Multi-pair driver with shared context |
+| `src/bh_ftmo/analysis/cluster_filter.py` | Currency flag-bearer dedup |
+| `src/bh_ftmo/logging/scrubber.py` | Token/account-ID redaction filter |
+| `src/bh_ftmo_weights.json` | Baseline + mean_reversion weight blocks |
+| `data/fx_4h.duckdb` | 10y bid/ask 4h + 1h bars (gitignored) |
+| `docs/planning/FTMO_RULES.md` | FTMO policy spec — §2 TBD until Brand fills |
+| `docs/planning/FX_TIME_SPEC.md` | Canonical time/DST/holiday rules |
+| `docs/planning/BH_FTMO_PLAN.md` | Locked plan, source of truth for architecture |
 
 ---
 
 ### Production Commands (Host)
 ```bash
-./run.sh python src/main.py -p                          # Prediction (~3 hours)
-./run.sh python src/main.py -u                          # Data update (~30 min)
+./run.sh python src/main.py -p                          # Equity prediction (~3 hours)
+./run.sh python src/main.py -u                          # Equity data update (~30 min)
 ./run.sh python src/main.py --evaluate                  # Evaluate matured hypotheses
-./run.sh python src/main.py -r YYYY-MM-DD               # Regenerate report
+./run.sh python src/main.py -r YYYY-MM-DD               # Regenerate equity report
 ./run.sh python src/send_report_email.py                # Send latest report email
-./run.sh python src/bh_lite.py --top 5                  # BH Lite manual run
+./run.sh python src/bh_lite.py --top 5                  # BH Lite manual run (frozen until Phase 6)
+./run.sh python -m bh_ftmo.data.backfill                # BH FTMO backfill CLI
+./run.sh python -m bh_ftmo.data.incremental_update      # BH FTMO incremental update
+./run.sh python -m bh_ftmo.data.oanda_client            # BH FTMO health check
 ./run.sh pytest -v                                      # Tests
 ./run.sh ./lint.sh                                      # Lint
 ```
@@ -133,20 +152,21 @@ doctl compute droplet delete bh-research --force
 *************** END OF IMMUTABLE SECTION
 
 **Cron schedule:**
-- BH Lite: 23:30 UTC Mon-Fri (7:30 PM EDT / 6:30 PM EST)
+- BH Lite: 23:30 UTC Mon-Fri (7:30 PM EDT / 6:30 PM EST) — frozen until Phase 6 cutover
 - BH Main: 01:00 UTC Mon-Sat (9 PM EDT / 8 PM EST)
-- Backup: 05:00 UTC daily → Google Drive via rclone
+- BH FTMO incremental update: every 4 hours (pending Brand running `/tmp/humanaction.sh` to install)
+- Backup: 05:00 UTC daily → Google Drive via rclone (now includes `data/fx_4h.duckdb`)
 
 ---
 
 ## Git Status
 
 **Branch:** master
-**Working tree:** clean (SESSION_HANDOFF.md pending)
-**Active feature branches:** none (codex/intraday-phase2 local only, tied to bh-codex worktree)
-**Codex-refactor branch:** stale, safe to delete when convenient
-**Tests:** 792 passing, 2 skipped
+**Working tree:** clean (post-Phase-2b commits)
+**Active feature branches:** none
+**Phase 2b commits:** `8f2338a`, `d18b9c8`, `a1f131e`, `17983c2`
+**Tests:** 1211 passing, 3 skipped
 
 ---
 
-**Last Updated:** April 23, 2026
+**Last Updated:** April 24, 2026

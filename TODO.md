@@ -139,10 +139,31 @@ Discovered during `/plan-ceo-review` of BH FTMO plan: `bh_lite`'s displayed P&L 
 - Alert on prediction pipeline failures or anomalous outputs
 - Backtest regression suite — auto-run on weight or code changes to catch performance degradation
 
+### BH FTMO
+
+**Phases 0 → 2b complete (2026-04-24).** Full multi-pair signal pipeline running on real OANDA data. 24 BH FTMO commits land Phase 0 → 2b. See `docs/planning/BH_FTMO_PLAN.md` for the locked plan.
+
+**Phase 3 — Backtesting Framework — NEXT (~1–2 weeks):**
+- `src/bh_ftmo/backtest/engine.py` — bid/ask-aware bar-by-bar simulator
+- Spread modeling: entry at ask (buy) / bid (sell), inverse on exit; stop-loss triggers at unfavorable side of spread
+- Swap/rollover: daily carry charge per open position, configurable per-symbol
+- FTMO rule enforcement: daily 5% loss cap (CE(S)T reset), max 10% drawdown, 10% profit target, trailing-DD tracker
+- Walk-forward harness: 18mo IS / 6mo OOS / 6mo roll over the 10y backfill
+- OOS-contamination assertion: shuffling OOS data must not change IS scores
+- Three baselines for comparison (decision 17B): random-entry+ATR-exit, Mon-in/Fri-out fixed-schedule, simple RSI(14)
+- Entry-edge gate (decision 16A): Sharpe ≥1.0, PF ≥1.3, win-rate ≥45%, MaxDD ≤10%, FTMO pass-rate ≥70% — must pass before Phase 4
+- Reporting: HTML + CSV with per-cluster, per-session, per-strategy breakdowns + worst-DD trade chain
+- Tests: known-outcome sample trades, walk-forward fold correctness, FTMO rule trigger cases
+
+**Brand action items (not blocking Phase 3 development):**
+- Fill in `docs/planning/FTMO_RULES.md` §2 TBD values from FTMO live dashboard → `bh_ftmo_config.json` `ftmo` block. Gates Phase 6 cutover.
+- Run `bash /tmp/humanaction.sh` to install the every-4h incremental-update cron.
+- Install GitHub App before May 8 so the scheduled BH FTMO check-in routine (`trig_01RfvYoMo6V7bETCRBLn5WNT`) can run.
+
 ### BH FTMO follow-ups (added 2026-04-24 via /plan-eng-review)
 
 - **Walk-forward optimization backport to BH equities backtest** — teach the equity `Backtester` and `WeightOptimizer` to run walk-forward 18mo-IS / 6mo-OOS / 6mo-roll splits. Why: BH FTMO will prove walk-forward first; the equity side currently runs single-fold grid search and likely overfits. Pros: better equity weight robustness. Cons: requires equity backtest changes + regression testing; decoupled from FTMO scope per BH FTMO plan decision 9A. Context: decision made during `/plan-eng-review` to maintain scope hygiene. Depends on: BH FTMO Phase 3 completion. Start: after BH FTMO Phase 3 passes its entry-edge gate.
 
-- **OANDA demo token health check** — startup probe that hits OANDA's `/v3/accounts` endpoint and fails loud if 401. Why: demo tokens expire after inactivity; mid-backfill 401 is a silent failure mode. Pros: prevents silent data gaps during BH FTMO daily cron runs. Cons: ~30 lines of code. Context: flagged as critical gap during `/plan-eng-review` test review. Depends on: BH FTMO Phase 1 OANDA client exists. Start: during BH FTMO Phase 1.
+- ~~**OANDA demo token health check**~~ (done 2026-04-24) — `OandaClient.health_check()` hits `/v3/accounts` and returns rich diagnostic; CLI via `python -m bh_ftmo.data.oanda_client`. Backfill installs the secret scrubber so 401 traces never leak token bytes.
 
 - **BH FTMO cron outage monitoring** — email alert if Friday NY-afternoon cron run is missing (critical for weekend-flatten feature). Why: if Friday's cron fails silently, open positions stay through weekend gaps — pure operational risk, not a code bug. Pros: protects the whole weekend-flatten risk-exit feature. Cons: needs an alerting mechanism — the existing Brevo SMTP pipeline (used for equity reports) works. Context: during `/plan-eng-review`, this was elevated from TODO to mandatory Phase 6 deliverable. Depends on: BH FTMO Phase 6 cutover. **Note: already listed as mandatory in Phase 6 of `docs/planning/BH_FTMO_PLAN.md` — duplicating here for visibility only.**
