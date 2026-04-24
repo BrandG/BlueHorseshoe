@@ -24,6 +24,14 @@ from bh_ftmo.indicators.momentum import (
     stochastic,
     williams_r,
 )
+from bh_ftmo.indicators.trend import (
+    adx,
+    donchian,
+    ema,
+    ichimoku,
+    sma,
+    supertrend,
+)
 from bh_ftmo.indicators.volatility import (
     atr,
     atr_percent,
@@ -44,4 +52,11 @@ __all__ = [
     "atr",
     "atr_percent",
     "bollinger_bands",
+    # trend
+    "sma",
+    "ema",
+    "adx",
+    "supertrend",
+    "donchian",
+    "ichimoku",
 ]
