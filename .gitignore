@@ -22,6 +22,7 @@ src/logs/*.html
 src/logs/*.txt
 src/logs/*.csv
 src/logs/*.json
+src/logs/*.md
 src/models/*.joblib
 BlueHorseshoe.svg
 BlueHorseshoeBanner.png

@@ -51,23 +51,27 @@ Low-risk warm-up. No behavior changes. **Starts as package from day one (decisio
 
 ---
 
-## Phase 0.5: OANDA Validation Probe (~2–4 hrs human / ~30 min CC)
+## Phase 0.5: OANDA Validation Probe ✅ COMPLETED 2026-04-24
 
-**Gates Phase 1.** Added per decision 3A — prove OANDA can actually deliver before committing to it.
+**Gated Phase 1.** Probe script `src/bh_ftmo/data/oanda_probe.py` ran against the OANDA v20 account.
 
-Single-use script `src/bh_ftmo/data/oanda_probe.py`. For each of the 40 FTMO instruments + DXY:
+### Environment note
 
-- Fetch 1 day of 4h bars (auth smoke test)
-- Fetch 1 year of 4h bars (pagination smoke test)
-- Fetch 10 years of 4h bars (depth smoke test)
-- Confirm bid/ask fields populated
-- Measure rate-limit behavior under burst
+Brand's token turned out to be scoped to the **live** environment (demo token would be separate; demo account `101-001-39154243-001` is dormant). Since v1 never places orders via OANDA (orders are manual paste to FTMO MT5), data-only access to live is zero-risk. Probe + future data code uses `api-fxtrade.oanda.com` with account `001-001-21321256-001`. Configurable via `OANDA_ENV=practice` for when we eventually need execution testing.
 
-**Produces a go/no-go report:**
-- Per-instrument: exists Y/N, bid+ask Y/N, contiguous history depth, rate-limit cost
-- Crypto sub-question resolved: does OANDA have BTCUSD / ETHUSD on this demo account?
+### Results (report at `src/logs/oanda_probe_2026-04-24.md`, gitignored)
 
-**Exit criterion:** all 40 instruments + DXY report ≥10 years of bars with bid/ask. If ≥2 instruments fail, pivot to HistData.com before starting Phase 1 infrastructure.
+- **40/40 FTMO forex instruments** pass all checks: exist, bid+ask, 10y history (earliest bar ~2016-01-03), 5000-bar page fetch works
+- **Rate-limit hits: 0** across ~120 probe requests (3 per instrument)
+- **Runtime: 6.2s** for the full probe
+- **68 total forex pairs** available on the account (beyond the 40 FTMO ones)
+
+### Residuals
+
+- **No `BTC_USD` / `ETH_USD` on this account** → crypto deferred for v1. Decision 11 said "crypto if available." It's not, so it's out. If FTMO crypto becomes strategically important, pull Binance public REST API (free, 4h klines back to 2017).
+- **No `USD_DXY` index** → **synthesize** DXY from the 6 constituent pairs (EUR/USD 57.6%, USD/JPY 13.6%, GBP/USD 11.9%, USD/CAD 9.1%, USD/SEK 4.2%, USD/CHF 3.6%). All 6 are on OANDA. Synthetic DXY aligns to our 4h bar grid deterministically, which is actually better than a raw feed. Phase 2 `dxy_correlation.py` will compute this at read time.
+
+### Verdict: **GO** — cleared for Phase 1.
 
 ---
 
@@ -522,9 +526,9 @@ Tests mirror this structure in `src/tests/bh_ftmo/`.
 2. ~~Answer the six Open Questions~~ ✅ Done 2026-04-24
 3. ~~Run `/plan-eng-review` to stress-test the architecture~~ ✅ Done 2026-04-24 — 14 decisions locked, 3 TODOs filed, 2 items elevated to mandatory phase requirements
 4. ~~Run `/plan-ceo-review` for strategic cross-check~~ ✅ Done 2026-04-24 — HOLD SCOPE mode, 6 additional decisions locked (C-1..C-6), no scope changes
-5. **Begin Phase 0** (copy bh_lite → bh_ftmo package; bh_lite stays frozen) ← current step
-6. Then Phase 0.5 (OANDA probe)
-7. Then Phase 1 (data foundation)
+5. ~~Begin Phase 0 (copy bh_lite → bh_ftmo package; bh_lite stays frozen)~~ ✅ Done 2026-04-24 (commit `1bf7f9f`)
+6. ~~Phase 0.5 (OANDA probe)~~ ✅ Done 2026-04-24 — 40/40 OK, synthesize DXY, defer crypto
+7. **Begin Phase 1** (data foundation) ← current step
 
 ---
 
