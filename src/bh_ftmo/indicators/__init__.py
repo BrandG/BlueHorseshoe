@@ -41,6 +41,12 @@ from bh_ftmo.indicators.pivots import (
     daily_ohlc,
     pivots,
 )
+from bh_ftmo.indicators.sessions import (
+    SESSION_HOURS,
+    Session,
+    session_label,
+    session_ranges,
+)
 from bh_ftmo.indicators.dxy_correlation import (
     DXY_BASE_CONSTANT,
     DXY_WEIGHTS,
@@ -112,4 +118,9 @@ __all__ = [
     "synthesize_dxy",
     "dxy_correlation",
     "usd_pair_correlations",
+    # sessions
+    "Session",
+    "SESSION_HOURS",
+    "session_label",
+    "session_ranges",
 ]
