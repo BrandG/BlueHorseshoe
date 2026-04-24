@@ -41,6 +41,13 @@ from bh_ftmo.indicators.pivots import (
     daily_ohlc,
     pivots,
 )
+from bh_ftmo.indicators.dxy_correlation import (
+    DXY_BASE_CONSTANT,
+    DXY_WEIGHTS,
+    dxy_correlation,
+    synthesize_dxy,
+    usd_pair_correlations,
+)
 from bh_ftmo.indicators.strength import (
     MAJORS,
     currency_strength,
@@ -100,4 +107,9 @@ __all__ = [
     "MAJORS",
     "currency_strength",
     "rank_currency_strength",
+    "DXY_WEIGHTS",
+    "DXY_BASE_CONSTANT",
+    "synthesize_dxy",
+    "dxy_correlation",
+    "usd_pair_correlations",
 ]
