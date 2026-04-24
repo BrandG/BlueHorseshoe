@@ -24,6 +24,10 @@ from bh_ftmo.indicators.momentum import (
     stochastic,
     williams_r,
 )
+from bh_ftmo.indicators.pivots import (
+    daily_ohlc,
+    pivots,
+)
 from bh_ftmo.indicators.trend import (
     adx,
     donchian,
@@ -59,4 +63,7 @@ __all__ = [
     "supertrend",
     "donchian",
     "ichimoku",
+    # pivots
+    "daily_ohlc",
+    "pivots",
 ]
