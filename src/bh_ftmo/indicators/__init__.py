@@ -41,6 +41,11 @@ from bh_ftmo.indicators.pivots import (
     daily_ohlc,
     pivots,
 )
+from bh_ftmo.indicators.strength import (
+    MAJORS,
+    currency_strength,
+    rank_currency_strength,
+)
 from bh_ftmo.indicators.trend import (
     adx,
     donchian,
@@ -91,4 +96,8 @@ __all__ = [
     "is_shooting_star",
     "is_bullish_engulfing",
     "is_bearish_engulfing",
+    # multi-pair
+    "MAJORS",
+    "currency_strength",
+    "rank_currency_strength",
 ]
