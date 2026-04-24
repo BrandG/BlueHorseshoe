@@ -9,8 +9,10 @@ import pandas as pd
 
 from bh_lite import (
     LiteTrader,
+    apply_cluster_filter,
     calculate_position_size,
     calculate_t1_t2,
+    compute_occupied_clusters,
     enrich_dataframe,
     fetch_intraday_ohlcv,
     fetch_ohlcv,
@@ -401,3 +403,216 @@ def test_position_pnl_forex():
 
     assert pnl_usd == 500.0
     assert pnl_pct == 0.45
+
+
+CLUSTERS = {
+    "aud_nzd_usd": ["AUDUSD.sim", "NZDUSD.sim"],
+    "euro_majors_usd": ["EURUSD.sim", "GBPUSD.sim"],
+}
+
+
+def _ranked_signal(ftmo: str, score: float, strategy: str = "Baseline") -> dict:
+    return {
+        "instrument": {"ftmo": ftmo, "name": ftmo.replace(".sim", "")},
+        "strategy": strategy,
+        "score": score,
+        "setup": {"is_realistic": True, "rr_ratio": 1.0},
+    }
+
+
+def test_compute_occupied_clusters_maps_positions():
+    positions = [
+        {"ftmo_symbol": "AUDUSD.sim"},
+        {"ftmo_symbol": "CADJPY.sim"},
+    ]
+
+    occupied = compute_occupied_clusters(positions, CLUSTERS)
+
+    assert occupied == {"aud_nzd_usd": "AUDUSD.sim"}
+
+
+def test_compute_occupied_clusters_ignores_uncategorized():
+    positions = [{"ftmo_symbol": "USDZAR.sim"}]
+
+    assert compute_occupied_clusters(positions, CLUSTERS) == {}
+
+
+def test_apply_cluster_filter_keeps_highest_per_cluster():
+    ranked = [
+        _ranked_signal("AUDUSD.sim", score=20.0),
+        _ranked_signal("NZDUSD.sim", score=15.0),
+        _ranked_signal("EURUSD.sim", score=10.0),
+    ]
+
+    kept, suppressed = apply_cluster_filter(ranked, CLUSTERS, occupied_clusters={})
+
+    assert [s["instrument"]["ftmo"] for s in kept] == ["AUDUSD.sim", "EURUSD.sim"]
+    assert [s["instrument"]["ftmo"] for s in suppressed] == ["NZDUSD.sim"]
+    assert "taken by higher-scored AUDUSD.sim" in suppressed[0]["suppression_reason"]
+
+
+def test_apply_cluster_filter_blocks_occupied_cluster():
+    ranked = [_ranked_signal("NZDUSD.sim", score=20.0)]
+    occupied = {"aud_nzd_usd": "AUDUSD.sim"}
+
+    kept, suppressed = apply_cluster_filter(ranked, CLUSTERS, occupied_clusters=occupied)
+
+    assert kept == []
+    assert len(suppressed) == 1
+    assert "held by open position AUDUSD.sim" in suppressed[0]["suppression_reason"]
+
+
+def test_apply_cluster_filter_passes_uncategorized():
+    ranked = [
+        _ranked_signal("USDZAR.sim", score=30.0),
+        _ranked_signal("USDSEK.sim", score=25.0),
+    ]
+
+    kept, suppressed = apply_cluster_filter(ranked, CLUSTERS, occupied_clusters={})
+
+    assert [s["instrument"]["ftmo"] for s in kept] == ["USDZAR.sim", "USDSEK.sim"]
+    assert suppressed == []
+    assert kept[0]["cluster"] is None
+
+
+def test_apply_cluster_filter_annotates_cluster():
+    ranked = [_ranked_signal("AUDUSD.sim", score=20.0)]
+
+    kept, _ = apply_cluster_filter(ranked, CLUSTERS, occupied_clusters={})
+
+    assert kept[0]["cluster"] == "aud_nzd_usd"
+    assert kept[0]["clusters"] == ["aud_nzd_usd"]
+
+
+def test_apply_cluster_filter_multi_cluster_blocks_from_either():
+    """A pair in multiple clusters is suppressed if ANY cluster is taken."""
+    clusters = {
+        "zar":          ["USDZAR.sim"],
+        "nordic":       ["USDSEK.sim"],
+        "emerging_eur": ["USDPLN.sim"],
+        "usd_exotic":   ["USDZAR.sim", "USDSEK.sim", "USDPLN.sim"],
+    }
+    ranked = [
+        _ranked_signal("USDZAR.sim", score=20.0),
+        _ranked_signal("USDSEK.sim", score=15.0),
+        _ranked_signal("USDPLN.sim", score=10.0),
+    ]
+
+    kept, suppressed = apply_cluster_filter(ranked, clusters, occupied_clusters={})
+
+    assert [s["instrument"]["ftmo"] for s in kept] == ["USDZAR.sim"]
+    assert [s["instrument"]["ftmo"] for s in suppressed] == ["USDSEK.sim", "USDPLN.sim"]
+    assert "usd_exotic" in suppressed[0]["suppression_reason"]
+    assert "usd_exotic" in suppressed[1]["suppression_reason"]
+
+
+def test_apply_cluster_filter_multi_cluster_allows_non_overlapping():
+    """A pair sharing one cluster with the kept signal but not the blocking one passes."""
+    clusters = {
+        "usd_exotic": ["USDZAR.sim", "USDSEK.sim"],
+        "nordic":     ["USDSEK.sim", "EURSEK.sim"],
+    }
+    ranked = [
+        _ranked_signal("USDZAR.sim", score=20.0),
+        _ranked_signal("EURSEK.sim", score=15.0),
+    ]
+
+    kept, suppressed = apply_cluster_filter(ranked, clusters, occupied_clusters={})
+
+    assert [s["instrument"]["ftmo"] for s in kept] == ["USDZAR.sim", "EURSEK.sim"]
+    assert suppressed == []
+
+
+def test_compute_occupied_clusters_multi_membership():
+    """An open position occupies every cluster it belongs to."""
+    clusters = {
+        "zar":        ["USDZAR.sim"],
+        "usd_exotic": ["USDZAR.sim", "USDSEK.sim"],
+    }
+    positions = [{"ftmo_symbol": "USDZAR.sim"}]
+
+    occupied = compute_occupied_clusters(positions, clusters)
+
+    assert occupied == {"zar": "USDZAR.sim", "usd_exotic": "USDZAR.sim"}
+
+
+def test_format_output_shows_suppressed_section():
+    suppressed = [
+        {
+            "instrument": {"ftmo": "NZDUSD.sim"},
+            "strategy": "MeanRev",
+            "score": 15.0,
+            "suppression_reason": "cluster 'aud_nzd_usd' held by open position AUDUSD.sim",
+        }
+    ]
+    account = {"size": 100000, "currency": "USD"}
+    risk = {"max_risk_per_trade_pct": 0.01, "max_daily_risk_pct": 0.04, "max_concurrent_positions": 3}
+
+    output = format_output([], account, risk, 0.0, suppressed=suppressed)
+
+    assert "== SUPPRESSED BY CLUSTER ==" in output
+    assert "NZDUSD.sim" in output
+    assert "held by open position AUDUSD.sim" in output
+
+
+def test_format_output_hides_low_score_suppressed():
+    suppressed = [
+        {
+            "instrument": {"ftmo": "NZDUSD.sim"},
+            "strategy": "MeanRev",
+            "score": 15.0,
+            "suppression_reason": "cluster 'aud_nzd_usd' held",
+        },
+        {
+            "instrument": {"ftmo": "USDNOK.sim"},
+            "strategy": "Baseline",
+            "score": 7.26,
+            "suppression_reason": "cluster 'nordic' taken",
+        },
+    ]
+    account = {"size": 100000, "currency": "USD"}
+    risk = {"max_risk_per_trade_pct": 0.01, "max_daily_risk_pct": 0.04, "max_concurrent_positions": 3}
+
+    output = format_output([], account, risk, 0.0, suppressed=suppressed)
+
+    assert "NZDUSD.sim" in output
+    assert "USDNOK.sim" not in output
+
+
+def test_format_output_suppressed_threshold_override():
+    suppressed = [
+        {
+            "instrument": {"ftmo": "USDNOK.sim"},
+            "strategy": "Baseline",
+            "score": 7.26,
+            "suppression_reason": "cluster 'nordic' taken",
+        },
+    ]
+    account = {"size": 100000, "currency": "USD"}
+    risk = {
+        "max_risk_per_trade_pct": 0.01,
+        "max_daily_risk_pct": 0.04,
+        "max_concurrent_positions": 3,
+        "suppressed_min_score": 5.0,
+    }
+
+    output = format_output([], account, risk, 0.0, suppressed=suppressed)
+
+    assert "USDNOK.sim" in output
+
+
+def test_format_output_no_suppressed_section_when_all_filtered():
+    suppressed = [
+        {
+            "instrument": {"ftmo": "USDNOK.sim"},
+            "strategy": "Baseline",
+            "score": 2.0,
+            "suppression_reason": "cluster 'nordic' taken",
+        },
+    ]
+    account = {"size": 100000, "currency": "USD"}
+    risk = {"max_risk_per_trade_pct": 0.01, "max_daily_risk_pct": 0.04, "max_concurrent_positions": 3}
+
+    output = format_output([], account, risk, 0.0, suppressed=suppressed)
+
+    assert "== SUPPRESSED BY CLUSTER ==" not in output

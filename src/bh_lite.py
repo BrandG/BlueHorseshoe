@@ -544,6 +544,92 @@ def rank_signals(signals: Sequence[dict], top_n: Optional[int] = None) -> List[d
     return ranked[:top_n] if top_n is not None else ranked
 
 
+def _symbol_to_clusters_map(clusters: Dict[str, Sequence[str]]) -> Dict[str, List[str]]:
+    """Invert cluster config into ftmo_symbol -> list of cluster_names.
+
+    A symbol can belong to multiple clusters; order preserved from config iteration.
+    """
+    mapping: Dict[str, List[str]] = {}
+    for cluster_name, symbols in clusters.items():
+        for symbol in symbols:
+            mapping.setdefault(symbol, []).append(cluster_name)
+    return mapping
+
+
+def compute_occupied_clusters(
+    positions: Sequence[dict],
+    clusters: Dict[str, Sequence[str]],
+) -> Dict[str, str]:
+    """Return {cluster_name: ftmo_symbol_holding_it} for every cluster touched by an open position.
+
+    A position may occupy multiple clusters (multi-membership). First position to touch a
+    cluster wins the credit for it.
+    """
+    symbol_to_clusters = _symbol_to_clusters_map(clusters)
+    occupied: Dict[str, str] = {}
+    for position in positions:
+        ftmo = position.get("ftmo_symbol", "")
+        for cluster in symbol_to_clusters.get(ftmo, []):
+            if cluster not in occupied:
+                occupied[cluster] = ftmo
+    return occupied
+
+
+def apply_cluster_filter(
+    ranked: Sequence[dict],
+    clusters: Dict[str, Sequence[str]],
+    occupied_clusters: Optional[Dict[str, str]] = None,
+) -> tuple[List[dict], List[dict]]:
+    """Flag-bearer-per-cluster filter with multi-cluster membership.
+
+    Walks ranked signals (highest score first) and keeps only the top signal whose
+    clusters are ALL unoccupied. A signal is suppressed if ANY of its clusters is
+    already held by an open position or taken by a higher-scored kept signal.
+    Signals whose ftmo symbol is not in any cluster pass through unfiltered.
+
+    Returns (kept, suppressed). Each signal gets `clusters` (list) and `cluster`
+    (first cluster or None — kept for display). Suppressed signals also get
+    `suppression_reason` naming the specific blocking cluster.
+    """
+    occupied = dict(occupied_clusters or {})
+    symbol_to_clusters = _symbol_to_clusters_map(clusters)
+    kept: List[dict] = []
+    suppressed: List[dict] = []
+    taken_by_kept: Dict[str, str] = {}
+
+    for signal in ranked:
+        ftmo = signal.get("instrument", {}).get("ftmo", "")
+        signal_clusters = symbol_to_clusters.get(ftmo, [])
+        signal["clusters"] = signal_clusters
+        signal["cluster"] = signal_clusters[0] if signal_clusters else None
+
+        if not signal_clusters:
+            kept.append(signal)
+            continue
+
+        blocking = next((c for c in signal_clusters if c in occupied), None)
+        if blocking is not None:
+            signal["suppression_reason"] = (
+                f"cluster '{blocking}' held by open position {occupied[blocking]}"
+            )
+            suppressed.append(signal)
+            continue
+
+        blocking = next((c for c in signal_clusters if c in taken_by_kept), None)
+        if blocking is not None:
+            signal["suppression_reason"] = (
+                f"cluster '{blocking}' taken by higher-scored {taken_by_kept[blocking]}"
+            )
+            suppressed.append(signal)
+            continue
+
+        for cluster in signal_clusters:
+            taken_by_kept[cluster] = ftmo
+        kept.append(signal)
+
+    return kept, suppressed
+
+
 def format_output(
     signals: Sequence[dict],
     account_config: dict,
@@ -551,10 +637,14 @@ def format_output(
     daily_risk_used: float,
     positions: Optional[Sequence[dict]] = None,
     health_checks: Optional[Sequence[dict]] = None,
+    suppressed: Optional[Sequence[dict]] = None,
 ) -> str:
     """Format ranked signal table for the console."""
     positions = positions or []
     health_checks = health_checks or []
+    suppressed = suppressed or []
+    suppressed_min_score = risk_config.get("suppressed_min_score", 10.0)
+    suppressed = [s for s in suppressed if s.get("score", 0.0) >= suppressed_min_score]
     daily_budget = account_config["size"] * risk_config["max_daily_risk_pct"]
     remaining_budget = max(0.0, daily_budget - daily_risk_used)
     max_positions = risk_config["max_concurrent_positions"]
@@ -566,11 +656,12 @@ def format_output(
     if positions:
         lines.append("Open Positions:")
         for position in positions:
+            cluster_tag = f"  [{position.get('cluster')}]" if position.get("cluster") else ""
             lines.append(
                 f"  {position.get('ftmo_symbol', ''):<14}  {position.get('side', ''):<4}  "
                 f"{position.get('lots', 0):>6.2f} lots  entry {position.get('entry', 0):.2f}  "
                 f"stop {position.get('stop', 0):.2f}  risk ${position.get('risk_usd') or 1000:,.2f}  "
-                f"opened {position.get('opened', '')}"
+                f"opened {position.get('opened', '')}{cluster_tag}"
             )
         lines.extend([
             "",
@@ -597,12 +688,21 @@ def format_output(
             for warning in health["warnings"]:
                 lines.append(f"    -> {warning}")
         lines.append("")
+    if suppressed:
+        lines.extend(["== SUPPRESSED BY CLUSTER ==", ""])
+        for signal in suppressed:
+            ftmo = signal.get("instrument", {}).get("ftmo", signal.get("instrument", {}).get("name", "?"))
+            strategy = signal.get("strategy", "?")
+            score = signal.get("score", 0.0)
+            reason = signal.get("suppression_reason", "")
+            lines.append(f"  {ftmo:<14}  {strategy:<8}  score {score:>6.2f}   {reason}")
+        lines.append("")
     t1_split = risk_config.get("t1_split_pct", 0.5)
     lines.extend([
         "== TOP SIGNALS ==",
         "",
-        "  #  FTMO Symbol     Leg  Strategy  Score   Ctx     Conf  Entry      Stop       Target     Lots    Risk$",
-        "  -  --------------  ---  --------  ------  ------  ----  ---------  ---------  ---------  ------  --------",
+        "  #  FTMO Symbol     Cluster          Leg  Strategy  Score   Ctx     Conf  Entry      Stop       Target     Lots    Risk$",
+        "  -  --------------  ---------------  ---  --------  ------  ------  ----  ---------  ---------  ---------  ------  --------",
     ])
     used = daily_risk_used
     for idx, signal in enumerate(signals, start=1):
@@ -610,6 +710,7 @@ def format_output(
         size = signal["position_size"]
         targets = signal["targets"]
         ftmo = signal["instrument"].get("ftmo", signal["instrument"]["name"])
+        cluster_display = signal.get("cluster") or "-"
         min_lot = signal["instrument"].get("min_lot", 0.01)
         total_lots = size["lots"]
         t1_lots = _round_down_to_lot(total_lots * t1_split, min_lot)
@@ -624,12 +725,12 @@ def format_output(
             budget_note = "  ** OVER DAILY BUDGET **"
         used += size["risk_usd"]
         lines.append(
-            f"  {idx}  {ftmo:<14}  T1   {signal['strategy']:<8}  "
+            f"  {idx}  {ftmo:<14}  {cluster_display:<15}  T1   {signal['strategy']:<8}  "
             f"{signal['score']:>6.2f}  {ctx_display}{fb_flag:<4}  {conf_display}  {setup['entry_price']:>9.5f}  {setup['stop_loss']:>9.5f}  "
             f"{targets['t1']:>9.5f}  {t1_lots:>6.2f}  ${size['risk_usd'] * t1_split:>7.2f}{budget_note}"
         )
         lines.append(
-            f"     {'':<14}  T2   {'':<8}  "
+            f"     {'':<14}  {'':<15}  T2   {'':<8}  "
             f"{'':>6}  {'':>6}  {'':>4}  {'':>9}  {'':>9}  "
             f"{targets['t2']:>9.5f}  {t2_lots:>6.2f}  ${size['risk_usd'] * (1 - t1_split):>7.2f}"
         )
@@ -669,32 +770,6 @@ def _write_csv(signals: Sequence[dict], output_path: str) -> None:
                     "risk_usd": size["risk_usd"],
                 }
             )
-
-
-def _write_orders(signals: Sequence[dict], output_path: str) -> None:
-    """Write ready-to-paste position entries for accepted BH Lite signals."""
-    orders = []
-    for signal in signals:
-        setup = signal["setup"]
-        size = signal["position_size"]
-        instrument = signal["instrument"]
-        orders.append({
-            "ftmo_symbol": instrument.get("ftmo", instrument["name"]),
-            "name": instrument["name"],
-            "symbol": instrument["symbol"],
-            "side": "buy",
-            "strategy": signal["strategy"],
-            "entry": round(setup["entry_price"], 5),
-            "stop": round(setup["stop_loss"], 5),
-            "lots": size["lots"],
-            "risk_usd": size["risk_usd"],
-            "entry_score": round(signal["score"], 2),
-            "opened": date.today().isoformat(),
-        })
-
-    os.makedirs(os.path.dirname(output_path), exist_ok=True)
-    with open(output_path, "w", encoding="utf-8") as f:
-        json.dump(orders, f, indent=2)
 
 
 def _build_signal(instrument: dict, df: pd.DataFrame, config: dict, daily_risk_used: float) -> dict:
@@ -772,7 +847,14 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
     logging.basicConfig(level=logging.INFO, format="%(levelname)s:%(name)s:%(message)s")
     config = load_config(args.config)
+    clusters_config = config.get("clusters", {})
+    symbol_to_clusters = _symbol_to_clusters_map(clusters_config)
     positions = load_positions(args.positions)
+    for position in positions:
+        position_clusters = symbol_to_clusters.get(position.get("ftmo_symbol", ""), [])
+        position["clusters"] = position_clusters
+        position["cluster"] = position_clusters[0] if position_clusters else None
+    occupied_clusters = compute_occupied_clusters(positions, clusters_config)
     pos_summary = summarize_positions(positions)
     health_checks = []
     for position in positions:
@@ -793,7 +875,9 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         if "setup" in signal:
             signals.append(signal)
 
-    ranked = rank_signals(signals, top_n=args.top)
+    ranked_full = rank_signals(signals)
+    kept, suppressed = apply_cluster_filter(ranked_full, clusters_config, occupied_clusters)
+    ranked = kept[: args.top]
     from bluehorseshoe.analysis.intraday_context import compute_intraday_confirmation
     for signal in ranked:
         ctx = signal.get("intraday_context_data", {})
@@ -830,6 +914,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         pos_summary["total_risk_usd"],
         positions,
         health_checks,
+        suppressed,
     )
     if failed:
         output += "\nFailed fetches: " + ", ".join(failed)
@@ -843,11 +928,6 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         path = os.path.join("src", "logs", f"bh_lite_{date.today().isoformat()}.csv")
         _write_csv(ranked, path)
         print(f"CSV written: {path}")
-
-    # Write ready-to-paste orders file for position tracking
-    orders_path = os.path.join(os.path.dirname(__file__), "bh_lite_orders.json")
-    _write_orders(ranked, orders_path)
-    print(f"Orders template: {orders_path}")
 
     return 0
 

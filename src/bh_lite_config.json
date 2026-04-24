@@ -50,5 +50,19 @@
     {"symbol": "EURNOK=X", "name": "EUR/NOK", "ftmo": "EURNOK.sim", "type": "forex", "pip_size": 0.0001, "dollar_per_pip_per_lot": 0.95, "min_lot": 0.01, "tier": 3},
     {"symbol": "USDZAR=X", "name": "USD/ZAR", "ftmo": "USDZAR.sim", "type": "forex", "pip_size": 0.0001, "dollar_per_pip_per_lot": 0.55, "min_lot": 0.01, "tier": 3},
     {"symbol": "USDNOK=X", "name": "USD/NOK", "ftmo": "USDNOK.sim", "type": "forex", "pip_size": 0.0001, "dollar_per_pip_per_lot": 0.95, "min_lot": 0.01, "tier": 3}
-  ]
+  ],
+  "clusters": {
+    "aud_nzd_usd":     ["AUDUSD.sim", "NZDUSD.sim"],
+    "euro_majors_usd": ["EURUSD.sim", "GBPUSD.sim"],
+    "usd_safehaven":   ["USDCHF.sim", "USDJPY.sim"],
+    "commodity_jpy":   ["AUDJPY.sim", "NZDJPY.sim", "CADJPY.sim"],
+    "euro_jpy":        ["EURJPY.sim", "GBPJPY.sim", "CHFJPY.sim"],
+    "aud_crosses":     ["AUDCHF.sim", "AUDNZD.sim", "AUDCAD.sim", "GBPAUD.sim", "EURAUD.sim"],
+    "eur_crosses":     ["EURCHF.sim", "EURNZD.sim", "EURGBP.sim"],
+    "cad_crosses":     ["USDCAD.sim", "NZDCAD.sim", "GBPCAD.sim", "EURCAD.sim", "CADCHF.sim"],
+    "nordic":          ["USDSEK.sim", "EURSEK.sim", "EURNOK.sim", "USDNOK.sim"],
+    "emerging_eur":    ["USDPLN.sim", "EURPLN.sim", "USDHUF.sim", "EURHUF.sim", "USDCZK.sim", "EURCZK.sim"],
+    "zar":             ["USDZAR.sim"],
+    "usd_exotic":      ["USDZAR.sim", "USDSEK.sim", "USDNOK.sim", "USDPLN.sim", "USDHUF.sim", "USDCZK.sim", "USDSGD.sim"]
+  }
 }

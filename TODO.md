@@ -2,6 +2,24 @@
 
 ## Near Term
 
+### 🔥 PRIORITY — BH Lite live-trading correctness (added 2026-04-24)
+
+Discovered during `/plan-ceo-review` of BH FTMO plan: `bh_lite`'s displayed P&L is diverging from FTMO's actual account P&L. Root cause appears to be `dollar_per_pip_per_lot` config values that are off by ~10x for several exotic/low-value pairs. Brand observed a position displayed at +$122 that's actually near +$2,000 on FTMO. This silently misleads every trading decision driven by position health output (take-profit candidates, R-multiple tracking, daily P&L).
+
+**Do these in order, they build on each other:**
+
+1. **Verify `dollar_per_pip_per_lot` values against FTMO's official specification.** Suspect pairs (apparent 10x scale error or quote-convention mismatch): EURHUF (0.27), USDHUF (0.27), EURCZK (0.44), USDCZK (0.44), EURNOK (0.95), USDNOK (0.95), EURSEK (0.97), USDSEK (0.97). Less suspect but worth double-checking: USDZAR (0.55), JPY-quoted pairs at 6.67. File with findings: `src/bh_lite_config.json` (and eventual `src/bh_ftmo_config.json`).
+
+2. **Patch the config** for any pairs that test wrong. Single commit, include a comment or doc entry citing FTMO's spec page so future-us knows where the numbers came from.
+
+3. **Add a P&L reconciliation test** — for each open position, compute P&L from config, compare to a user-entered "FTMO-displayed P&L" value, flag mismatch > 5%. Runs once per daily cron and prints a warning block if any row diverges. This is the v1 version of CEO-review decision C-3 (position/FTMO sync ritual) scoped specifically to P&L accuracy rather than position existence.
+
+4. **Notable-position highlighting** (cosmetic, after math is trusted) — add `NOTABLE WIN` tag to positions > +$500 or > +1R realized, `DANGER` tag to positions < -$500 or within 0.5 ATR of stop. Sort position list by `|P&L|` so the loudest ones are on top. Strictly polish — only ship after items 1-3 are done, otherwise we're decorating wrong numbers.
+
+**Why priority:** Brand is actively trading these positions. Every day the system mis-displays P&L is another day of suboptimal take-profit / stop-adjust decisions. The fix is small (config patch + one test) but the leverage is high.
+
+**Not blocking:** BH FTMO plan work (Phase 0 copy, Phase 0.5 OANDA probe, etc.). Items 1-3 ship on BH Lite directly; item 4 lands post-BH-FTMO-cutover in whichever code path is live at that point. The config fix ports forward into `bh_ftmo_config.json` as part of Phase 0 copy.
+
 ### Reporting
 - ~~Holiday-aware exit warning banner~~ (done 2026-04-12) — Amber/neon banners on all three HTML report types (standard, email, arcade) when an NYSE holiday falls in the current week. Uses existing `pandas.tseries.holiday` via shared `market_calendar.py` module (no new dependency). Banner uses the report's target date, not system clock.
 
@@ -120,3 +138,11 @@
 - Dashboard for live system health (API rate limits, data freshness, model staleness)
 - Alert on prediction pipeline failures or anomalous outputs
 - Backtest regression suite — auto-run on weight or code changes to catch performance degradation
+
+### BH FTMO follow-ups (added 2026-04-24 via /plan-eng-review)
+
+- **Walk-forward optimization backport to BH equities backtest** — teach the equity `Backtester` and `WeightOptimizer` to run walk-forward 18mo-IS / 6mo-OOS / 6mo-roll splits. Why: BH FTMO will prove walk-forward first; the equity side currently runs single-fold grid search and likely overfits. Pros: better equity weight robustness. Cons: requires equity backtest changes + regression testing; decoupled from FTMO scope per BH FTMO plan decision 9A. Context: decision made during `/plan-eng-review` to maintain scope hygiene. Depends on: BH FTMO Phase 3 completion. Start: after BH FTMO Phase 3 passes its entry-edge gate.
+
+- **OANDA demo token health check** — startup probe that hits OANDA's `/v3/accounts` endpoint and fails loud if 401. Why: demo tokens expire after inactivity; mid-backfill 401 is a silent failure mode. Pros: prevents silent data gaps during BH FTMO daily cron runs. Cons: ~30 lines of code. Context: flagged as critical gap during `/plan-eng-review` test review. Depends on: BH FTMO Phase 1 OANDA client exists. Start: during BH FTMO Phase 1.
+
+- **BH FTMO cron outage monitoring** — email alert if Friday NY-afternoon cron run is missing (critical for weekend-flatten feature). Why: if Friday's cron fails silently, open positions stay through weekend gaps — pure operational risk, not a code bug. Pros: protects the whole weekend-flatten risk-exit feature. Cons: needs an alerting mechanism — the existing Brevo SMTP pipeline (used for equity reports) works. Context: during `/plan-eng-review`, this was elevated from TODO to mandatory Phase 6 deliverable. Depends on: BH FTMO Phase 6 cutover. **Note: already listed as mandatory in Phase 6 of `docs/planning/BH_FTMO_PLAN.md` — duplicating here for visibility only.**
