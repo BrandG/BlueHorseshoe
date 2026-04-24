@@ -207,13 +207,15 @@ class FxStore:
         if not rows:
             return 0
 
-        # Normalize timestamp + ingested_at types on a working copy
-        normalized: list[dict[str, Any]] = []
+        # Normalize timestamp + ingested_at types, dedupe (symbol, timestamp)
+        # within the batch (last-write-wins to match upsert semantics).
+        by_key: dict[tuple[str, datetime], dict[str, Any]] = {}
         for r in rows:
             r = dict(r)
             r["timestamp"] = _coerce_naive_utc(r["timestamp"])
             r["ingested_at"] = _coerce_naive_utc(r["ingested_at"])
-            normalized.append(r)
+            by_key[(r["symbol"], r["timestamp"])] = r
+        normalized: list[dict[str, Any]] = list(by_key.values())
 
         df = pd.DataFrame(normalized, columns=list(_ROW_COLUMNS))  # noqa: F841 — used by DuckDB
         cols = ", ".join(_ROW_COLUMNS)

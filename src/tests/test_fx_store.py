@@ -183,6 +183,17 @@ def test_save_candles_upsert_replaces_existing_row(store):
     assert df["close_bid"].iloc[0] == 2.05
 
 
+def test_save_candles_dedupes_within_batch(store):
+    """Two candles with the same timestamp in one call: last-write-wins."""
+    first = _oanda_candle("2020-01-01T22:00:00Z", bid=(1.0, 1.0, 1.0, 1.0))
+    dup = _oanda_candle("2020-01-01T22:00:00Z", bid=(2.0, 2.0, 2.0, 2.05))
+    written = store.save_candles("EUR_USD", [first, dup], granularity="H4")
+    assert written == 1
+    df = store.load("EUR_USD", granularity="H4")
+    assert len(df) == 1
+    assert df["close_bid"].iloc[0] == 2.05
+
+
 def test_save_candles_different_symbols_coexist(store):
     store.save_candles("EUR_USD", [_oanda_candle("2020-01-01T22:00:00Z")], granularity="H4")
     store.save_candles("USD_JPY", [_oanda_candle("2020-01-01T22:00:00Z")], granularity="H4")
