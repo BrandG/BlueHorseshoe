@@ -24,6 +24,19 @@ from bh_ftmo.indicators.momentum import (
     stochastic,
     williams_r,
 )
+from bh_ftmo.indicators.candlestick import (
+    body_size,
+    is_bearish,
+    is_bearish_engulfing,
+    is_bullish,
+    is_bullish_engulfing,
+    is_doji,
+    is_hammer,
+    is_shooting_star,
+    lower_shadow,
+    total_range,
+    upper_shadow,
+)
 from bh_ftmo.indicators.pivots import (
     daily_ohlc,
     pivots,
@@ -66,4 +79,16 @@ __all__ = [
     # pivots
     "daily_ohlc",
     "pivots",
+    # candlestick
+    "body_size",
+    "total_range",
+    "upper_shadow",
+    "lower_shadow",
+    "is_bullish",
+    "is_bearish",
+    "is_doji",
+    "is_hammer",
+    "is_shooting_star",
+    "is_bullish_engulfing",
+    "is_bearish_engulfing",
 ]
