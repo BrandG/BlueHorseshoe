@@ -18,5 +18,23 @@
       "dxy_alignment": 1.0,
       "session_overlap_bonus": 0.5
     }
+  },
+  "mean_reversion": {
+    "description": "Two-sided mean reversion (oversold long / overbought short)",
+    "min_score_threshold": 3.0,
+    "components": {
+      "mr_rsi_oversold": 1.5,
+      "mr_below_bb_lower": 1.5,
+      "mr_williams_oversold": 1.0,
+      "mr_cci_extreme_low": 1.0,
+      "mr_rsi_overbought": 1.5,
+      "mr_above_bb_upper": 1.5,
+      "mr_williams_overbought": 1.0,
+      "mr_cci_extreme_high": 1.0,
+      "mr_bullish_reversal_candle": 1.0,
+      "mr_bearish_reversal_candle": 1.0,
+      "mr_adx_weak": 1.0,
+      "mr_asia_session_bonus": 0.5
+    }
   }
 }
