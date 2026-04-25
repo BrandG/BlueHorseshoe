@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+# pylint: disable=missing-function-docstring,duplicate-code
+
 from datetime import datetime, timedelta
 import json
 import re
@@ -14,7 +16,7 @@ from bh_ftmo.backtest.engine import run_challenge
 from bh_ftmo.backtest.metrics import cohort_metrics
 from bh_ftmo.backtest.reporter import render_html_report, write_csv_ledger
 from bh_ftmo.backtest.swap import SwapRates
-from bh_ftmo.backtest.types import ChallengeResult, PairSpec, Trade
+from bh_ftmo.backtest.types import ChallengeResult, GateCriterion, GateResult, PairSpec, Trade
 
 BASE_TS = datetime(2026, 1, 12, 0, 0)
 BASE_CONFIG = {
@@ -53,6 +55,7 @@ def _trade(
         stop=1.0990,
         target=1.1020,
         lots=1.0,
+        risk_at_open_account_ccy=100.0,
         pnl_account_ccy=pnl,
         swap_account_ccy=-1.0,
         commission_account_ccy=2.0,
@@ -93,6 +96,22 @@ def _result(
         rng_seed=3,
     )
 
+
+
+
+def _gate_result(*, passed: bool, notes: str = 'all clear') -> GateResult:
+    return GateResult(
+        overall_passed=passed,
+        criteria=(
+            GateCriterion(name='sharpe', threshold=1.0, actual=1.2 if passed else 0.8, passed=passed),
+            GateCriterion(name='vs_best_baseline', threshold=10.0, actual=12.0 if passed else 5.0, passed=passed),
+        ),
+        bh_ftmo_pass_rate=0.82,
+        best_baseline_name='random_baseline',
+        best_baseline_pass_rate=0.70,
+        margin_vs_best_baseline_pp=12.0 if passed else 5.0,
+        notes=notes,
+    )
 
 def _signal(ts: datetime, strategy: str = "bh_ftmo") -> Signal:
     return Signal(
@@ -203,6 +222,7 @@ def test_write_csv_ledger_single_strategy_has_expected_columns(tmp_path):
         "stop",
         "target",
         "lots",
+        "risk_at_open_account_ccy",
         "pnl_account_ccy",
         "swap_account_ccy",
         "commission_account_ccy",
@@ -324,3 +344,51 @@ def test_reporter_accepts_multi_strategy_engine_results(tmp_path):
     assert "bh_ftmo" in html
     assert "baseline" in html
     assert "Per-Strategy Breakdown" in html
+
+
+def test_render_html_report_with_gate_result_passed_shows_green_verdict(tmp_path):
+    output_path = tmp_path / 'gate_pass.html'
+    render_html_report(
+        {'bh_ftmo': _result(trades=(_trade(open_ts=BASE_TS, pnl=100.0),))},
+        output_path,
+        gate_result=_gate_result(passed=True),
+    )
+    html = output_path.read_text(encoding='utf-8')
+    assert 'Phase 3 Entry-Edge Gate' in html
+    assert 'VERDICT: PASSED' in html
+    assert 'verdict-passed' in html
+    assert 'pill-pass' in html
+
+
+def test_render_html_report_with_gate_result_failed_shows_red_verdict_and_failed_criteria(tmp_path):
+    output_path = tmp_path / 'gate_fail.html'
+    render_html_report(
+        {'bh_ftmo': _result(trades=(_trade(open_ts=BASE_TS, pnl=100.0),))},
+        output_path,
+        gate_result=_gate_result(passed=False, notes='baseline margin failed'),
+    )
+    html = output_path.read_text(encoding='utf-8')
+    assert 'VERDICT: FAILED' in html
+    assert 'verdict-failed' in html
+    assert 'pill-fail' in html
+    assert 'baseline margin failed' in html
+
+
+def test_render_html_report_with_gate_result_lists_best_baseline_and_margin(tmp_path):
+    output_path = tmp_path / 'gate_margin.html'
+    render_html_report(
+        {'bh_ftmo': _result(trades=(_trade(open_ts=BASE_TS, pnl=100.0),))},
+        output_path,
+        gate_result=_gate_result(passed=True),
+    )
+    html = output_path.read_text(encoding='utf-8')
+    assert 'Best baseline: random_baseline' in html
+    assert 'BH FTMO margin: 12.0pp' in html
+
+
+def test_csv_ledger_includes_risk_at_open_column(tmp_path):
+    output_path = tmp_path / 'risk.csv'
+    write_csv_ledger({'bh_ftmo': _result(trades=(_trade(open_ts=BASE_TS, pnl=10.0),))}, output_path)
+    frame = pd.read_csv(output_path)
+    assert 'risk_at_open_account_ccy' in frame.columns
+    assert frame.loc[0, 'risk_at_open_account_ccy'] == 100.0

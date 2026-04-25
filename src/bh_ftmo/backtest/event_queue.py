@@ -121,6 +121,7 @@ def apply_in_order(
                 stop=position.stop,
                 target=position.target,
                 lots=position.lots,
+                risk_at_open_account_ccy=position.risk_at_open_account_ccy,
                 pnl_account_ccy=net_pnl,
                 swap_account_ccy=0.0,
                 commission_account_ccy=close_commission,

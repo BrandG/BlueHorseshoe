@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-# pylint: disable=missing-function-docstring,too-many-lines,unused-variable
+# pylint: disable=missing-function-docstring,too-many-lines,unused-variable,duplicate-code
 
 from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
@@ -194,6 +194,7 @@ def test_run_challenge_single_trade_passes_with_expected_ledger():
     assert result.failed_by is None
     assert len(result.trades) == 1
     assert result.trades[0].exit_reason == "target"
+    assert result.trades[0].risk_at_open_account_ccy == pytest.approx(600.0)
     assert result.final_equity_account_ccy == pytest.approx(101_000.0)
 
 

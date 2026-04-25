@@ -22,8 +22,8 @@ def _utc_from_ny(year: int, month: int, day: int, hour: int, minute: int = 0) ->
 
 def _positions() -> list[Position]:
     return [
-        Position(1, "EUR_USD", "baseline", 1, datetime(2026, 4, 25, 8, 0), 1.10, 1.09, 1.12, 1.0),
-        Position(2, "USD_JPY", "baseline", -1, datetime(2026, 4, 25, 8, 0), 150.0, 150.5, 149.0, 1.0),
+        Position(1, "EUR_USD", "baseline", 1, datetime(2026, 4, 25, 8, 0), 1.10, 1.09, 1.12, 1.0, 100.0),
+        Position(2, "USD_JPY", "baseline", -1, datetime(2026, 4, 25, 8, 0), 150.0, 150.5, 149.0, 1.0, 100.0),
     ]
 
 

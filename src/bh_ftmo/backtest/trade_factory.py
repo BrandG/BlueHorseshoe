@@ -64,6 +64,7 @@ def derive_position(
     pip_value = pip_value_in_account_ccy(pair_spec, account_currency, quote_to_account)
     risk_amount = current_equity * risk_pct
     lots = risk_amount / (stop_distance_pips * pip_value)
+    risk_at_open = stop_distance_pips * pip_value * lots
 
     return Position(
         id=next_position_id,
@@ -75,6 +76,7 @@ def derive_position(
         stop=stop,
         target=target,
         lots=lots,
+        risk_at_open_account_ccy=risk_at_open,
     )
 
 

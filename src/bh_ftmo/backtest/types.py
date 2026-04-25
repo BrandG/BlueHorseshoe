@@ -40,6 +40,7 @@ class Position:
     stop: float
     target: float
     lots: float
+    risk_at_open_account_ccy: float
 
 
 @dataclass(frozen=True)
@@ -56,6 +57,7 @@ class Trade:
     stop: float
     target: float
     lots: float
+    risk_at_open_account_ccy: float
     pnl_account_ccy: float
     swap_account_ccy: float
     commission_account_ccy: float
@@ -113,3 +115,26 @@ class ChallengeResult:
     equity_curve_daily: pd.Series
     skipped_signals: tuple[tuple[Signal, str], ...]
     rng_seed: int
+
+
+@dataclass(frozen=True)
+class GateCriterion:
+    """One locked Phase 3 gate criterion with threshold and actual value."""
+
+    name: str
+    threshold: float
+    actual: float
+    passed: bool
+
+
+@dataclass(frozen=True)
+class GateResult:
+    """Structured verdict for the Phase 3 entry-edge gate."""
+
+    overall_passed: bool
+    criteria: tuple[GateCriterion, ...]
+    bh_ftmo_pass_rate: float
+    best_baseline_name: Optional[str]
+    best_baseline_pass_rate: float
+    margin_vs_best_baseline_pp: float
+    notes: str

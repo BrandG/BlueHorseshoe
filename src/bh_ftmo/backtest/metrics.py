@@ -13,10 +13,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
-from functools import lru_cache
-import json
-from pathlib import Path
-
 import numpy as np
 import pandas as pd
 
@@ -25,8 +21,6 @@ from bh_ftmo.indicators.sessions import session_label
 
 PERIODS_PER_YEAR_1H = 6240
 BREAKEVEN_EPSILON = 1e-9
-REPO_ROOT = Path(__file__).resolve().parents[3]
-CONFIG_PATH = REPO_ROOT / "src" / "bh_ftmo_config.json"
 
 
 @dataclass(frozen=True)
@@ -275,7 +269,7 @@ def _trade_metrics_for_trades(trades: tuple[Trade, ...] | list[Trade]) -> TradeM
     else:
         payoff_ratio = 0.0
 
-    risk_values = np.array([_estimated_initial_risk_account_ccy(trade) for trade in trades_seq], dtype=float)
+    risk_values = np.array([trade.risk_at_open_account_ccy for trade in trades_seq], dtype=float)
     valid_risk = risk_values > BREAKEVEN_EPSILON
     if valid_risk.any():
         r_expectancy = float((pnl[valid_risk] / risk_values[valid_risk]).mean())
@@ -294,46 +288,3 @@ def _trade_metrics_for_trades(trades: tuple[Trade, ...] | list[Trade]) -> TradeM
         avg_trade_pnl=float(pnl.mean()),
         total_pnl=float(pnl.sum()),
     )
-
-
-def _estimated_initial_risk_account_ccy(trade: Trade) -> float:
-    """Estimate initial risk from configured pip-value metadata.
-
-    TODO(phase-3.4): carry exact ``risk_at_open_account_ccy`` through the trade
-    ledger once the gate and walk-forward layer need a non-estimated R multiple.
-    For 3.3 the estimate uses the configured ``dollar_per_pip_per_lot`` by
-    symbol, which matches the current USD-account challenge configuration.
-    """
-
-    pip_size = _pip_size_for_symbol(trade.symbol)
-    stop_distance_pips = abs(trade.open_price - trade.stop) / pip_size
-    pip_value_per_lot = _dollar_per_pip_per_lot(trade.symbol)
-    return float(stop_distance_pips * trade.lots * pip_value_per_lot)
-
-
-def _pip_size_for_symbol(symbol: str) -> float:
-    quote = _canonical_symbol(symbol)[3:]
-    return 0.01 if quote in {"JPY", "HUF"} else 0.0001
-
-
-def _canonical_symbol(symbol: str) -> str:
-    raw = symbol.strip().upper()
-    raw = raw.replace(".SIM", "").replace("=X", "").replace("_", "").replace("/", "")
-    if len(raw) != 6:
-        raise ValueError(f"unsupported trade symbol for metrics: {symbol}")
-    return raw
-
-
-@lru_cache(maxsize=1)
-def _dollar_per_pip_mapping() -> dict[str, float]:
-    payload = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
-    mapping: dict[str, float] = {}
-    for item in payload.get("instruments", []):
-        canonical = _canonical_symbol(str(item["ftmo"]))
-        mapping[canonical] = float(item["dollar_per_pip_per_lot"])
-    return mapping
-
-
-def _dollar_per_pip_per_lot(symbol: str) -> float:
-    canonical = _canonical_symbol(symbol)
-    return _dollar_per_pip_mapping().get(canonical, 10.0)
