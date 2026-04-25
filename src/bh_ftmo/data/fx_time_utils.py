@@ -261,6 +261,21 @@ def prior_forex_day(d: date) -> date:
     return cur
 
 
+def ftmo_day_boundary(ts: datetime, server_tz: str = "Europe/Prague") -> datetime:
+    """Return the next FTMO server-day boundary at or after ``ts`` in naive UTC.
+
+    FTMO resets at local midnight in CE(S)T. Converting through ``zoneinfo`` keeps
+    the DST mismatch weeks correct without hard-coding UTC offsets.
+    """
+    ts = _as_naive_utc(ts)
+    server_zone = ZoneInfo(server_tz)
+    local_ts = ts.replace(tzinfo=UTC).astimezone(server_zone)
+    boundary_local = local_ts.replace(hour=0, minute=0, second=0, microsecond=0)
+    if local_ts > boundary_local:
+        boundary_local += timedelta(days=1)
+    return boundary_local.astimezone(UTC).replace(tzinfo=None)
+
+
 def is_us_market_holiday(d: date) -> bool:
     """True if XNYS is closed for a regular session on date ``d``."""
     if d.weekday() >= 5:
