@@ -46,6 +46,7 @@ def _position(position_id: int, symbol: str, *, direction: int = 1, open_price: 
         stop=149.0 if symbol == "USD_JPY" else 1.09,
         target=151.0 if symbol == "USD_JPY" else 1.12,
         lots=1.0,
+        risk_at_open_account_ccy=100.0,
     )
 
 
@@ -153,6 +154,7 @@ def test_apply_in_order_processes_two_events_without_breach():
     assert len(trades) == 2
     assert [trade.exit_reason for trade in trades] == ["target", "stop"]
     assert [trade.close_ts for trade in trades] == [datetime(2026, 4, 25, 18, 0), datetime(2026, 4, 25, 19, 0)]
+    assert all(trade.risk_at_open_account_ccy == pytest.approx(100.0) for trade in trades)
     assert rule_engine.trade_events == [datetime(2026, 4, 25, 18, 0), datetime(2026, 4, 25, 19, 0)]
     assert len(curve.to_series()) == 2
     assert cash_after == pytest.approx(100_000.0 + 2000.0 - 1.5 - 900.0 - 1.5)

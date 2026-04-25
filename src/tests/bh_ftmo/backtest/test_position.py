@@ -24,6 +24,7 @@ def _position(direction: int, price: float = 1.1000) -> Position:
         stop=1.0900,
         target=1.1200,
         lots=2.0,
+        risk_at_open_account_ccy=200.0,
     )
 
 

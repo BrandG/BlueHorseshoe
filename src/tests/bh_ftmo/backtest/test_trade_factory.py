@@ -52,6 +52,7 @@ def _open_position(symbol: str, direction: int) -> Position:
         stop=1.09,
         target=1.12,
         lots=1.0,
+        risk_at_open_account_ccy=100.0,
     )
 
 
@@ -74,6 +75,7 @@ def test_derive_position_long_uses_open_ask_and_correct_levels():
     assert position.stop == pytest.approx(1.0972)
     assert position.target == pytest.approx(1.1052)
     assert position.lots == pytest.approx(500.0 / (30.0 * 10.0))
+    assert position.risk_at_open_account_ccy == pytest.approx(500.0)
 
 
 
@@ -94,6 +96,7 @@ def test_derive_position_short_uses_open_bid_and_mirrored_levels():
     assert position.open_price == pytest.approx(150.00)
     assert position.stop == pytest.approx(150.60)
     assert position.target == pytest.approx(149.00)
+    assert position.risk_at_open_account_ccy == pytest.approx(500.0)
 
 
 

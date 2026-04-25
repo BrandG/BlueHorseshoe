@@ -11,7 +11,7 @@ import pandas as pd
 import pytest
 
 from bh_ftmo.analysis.strategy import Signal
-from bh_ftmo.backtest.types import ChallengeResult, ExitEvent, PairSpec, Position, RuleBreach, Trade
+from bh_ftmo.backtest.types import ChallengeResult, ExitEvent, GateCriterion, GateResult, PairSpec, Position, RuleBreach, Trade
 
 
 def _signal() -> Signal:
@@ -44,6 +44,7 @@ def test_position_is_frozen():
         stop=1.0962,
         target=1.1095,
         lots=0.5,
+        risk_at_open_account_ccy=250.0,
     )
     with pytest.raises(FrozenInstanceError):
         position.lots = 1.0  # type: ignore[misc]
@@ -62,6 +63,7 @@ def test_trade_construction_and_equality():
         stop=1.0962,
         target=1.1095,
         lots=0.5,
+        risk_at_open_account_ccy=250.0,
         pnl_account_ccy=300.0,
         swap_account_ccy=-1.5,
         commission_account_ccy=1.5,
@@ -104,6 +106,7 @@ def test_challenge_result_construction_uses_tuples():
         stop=1.0962,
         target=1.1095,
         lots=0.5,
+        risk_at_open_account_ccy=250.0,
         pnl_account_ccy=300.0,
         swap_account_ccy=-1.5,
         commission_account_ccy=1.5,
@@ -155,3 +158,20 @@ def test_challenge_result_is_frozen():
     )
     with pytest.raises(FrozenInstanceError):
         result.outcome = "failed"  # type: ignore[misc]
+
+
+def test_gate_result_construction_and_frozen_behavior():
+    criterion = GateCriterion(name="sharpe", threshold=1.0, actual=1.2, passed=True)
+    result = GateResult(
+        overall_passed=False,
+        criteria=(criterion,),
+        bh_ftmo_pass_rate=0.72,
+        best_baseline_name="random_baseline",
+        best_baseline_pass_rate=0.55,
+        margin_vs_best_baseline_pp=17.0,
+        notes="profit_factor failed",
+    )
+    assert result.criteria[0] == criterion
+    assert result.best_baseline_name == "random_baseline"
+    with pytest.raises(FrozenInstanceError):
+        result.notes = "mutate"  # type: ignore[misc]

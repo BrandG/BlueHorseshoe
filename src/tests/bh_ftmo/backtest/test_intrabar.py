@@ -29,6 +29,7 @@ def _position(direction: int, stop: float, target: float, symbol: str = "EUR_USD
         stop=stop,
         target=target,
         lots=1.0,
+        risk_at_open_account_ccy=100.0,
     )
 
 

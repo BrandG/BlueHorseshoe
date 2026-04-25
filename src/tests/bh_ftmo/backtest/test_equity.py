@@ -25,6 +25,7 @@ def _position(symbol: str, direction: int, open_price: float, lots: float) -> Po
         stop=open_price - 0.01,
         target=open_price + 0.01,
         lots=lots,
+        risk_at_open_account_ccy=100.0 * lots,
     )
 
 

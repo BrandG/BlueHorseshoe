@@ -24,6 +24,7 @@ def _position(direction: int, position_id: int = 1) -> Position:
         stop=1.09,
         target=1.12,
         lots=2.0,
+        risk_at_open_account_ccy=200.0,
     )
 
 

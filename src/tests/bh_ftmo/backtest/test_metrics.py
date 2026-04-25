@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+# pylint: disable=missing-function-docstring,too-many-arguments
+
 from datetime import datetime, timedelta
 import math
 
@@ -31,6 +33,7 @@ def _trade(
     open_price: float = 1.1000,
     stop: float = 1.0990,
     close_ts: datetime | None = None,
+    risk_at_open_account_ccy: float = 100.0,
 ) -> Trade:
     return Trade(
         symbol=symbol,
@@ -43,6 +46,7 @@ def _trade(
         stop=stop,
         target=open_price + 0.0020,
         lots=1.0,
+        risk_at_open_account_ccy=risk_at_open_account_ccy,
         pnl_account_ccy=pnl,
         swap_account_ccy=0.0,
         commission_account_ccy=0.0,
@@ -257,3 +261,25 @@ def test_per_strategy_breakdown_groups_trades_across_results():
     assert breakdown["bh_ftmo"].n_trades == 1
     assert breakdown["baseline_a"].n_trades == 2
     assert breakdown["baseline_a"].profit_factor == pytest.approx(0.5)
+
+
+def test_trade_metrics_r_expectancy_uses_exact_risk_field():
+    result = _result(
+        trades=(
+            _trade(open_ts=BASE_TS, pnl=150.0, risk_at_open_account_ccy=50.0),
+            _trade(open_ts=BASE_TS + timedelta(hours=4), pnl=-60.0, risk_at_open_account_ccy=30.0),
+        )
+    )
+    metrics = trade_metrics(result)
+    assert metrics.r_expectancy == pytest.approx(0.5)
+
+
+def test_trade_metrics_zero_risk_trade_excluded_from_r():
+    result = _result(
+        trades=(
+            _trade(open_ts=BASE_TS, pnl=100.0, risk_at_open_account_ccy=0.0),
+            _trade(open_ts=BASE_TS + timedelta(hours=4), pnl=50.0, risk_at_open_account_ccy=25.0),
+        )
+    )
+    metrics = trade_metrics(result)
+    assert metrics.r_expectancy == pytest.approx(2.0)
