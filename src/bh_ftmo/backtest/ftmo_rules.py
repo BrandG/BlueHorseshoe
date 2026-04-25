@@ -6,8 +6,10 @@ across runs and contains no module-level mutable challenge state.
 
 from __future__ import annotations
 
+# pylint: disable=too-many-instance-attributes
+
 from dataclasses import dataclass
-from datetime import date, datetime, timedelta
+from datetime import date, datetime
 import json
 from pathlib import Path
 from typing import Any, Optional
@@ -112,6 +114,8 @@ class FtmoRuleEngine:
 
     @property
     def state(self) -> ChallengeState:
+        """Expose the mutable per-challenge state for engine integration."""
+
         return self._state
 
     def _boundary_at_or_before(self, ts: datetime) -> datetime:

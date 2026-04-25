@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+# pylint: disable=too-many-arguments,too-many-positional-arguments,too-many-locals,too-many-branches,too-many-statements,cell-var-from-loop
+
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass, replace
 from datetime import date, datetime, timedelta
@@ -163,11 +165,14 @@ def _flush_open_positions(
 
     class _NoOpRuleEngine:
         def on_trade_event(self, event_ts: datetime) -> None:
+            """Ignore trade-event callbacks during breach flushes."""
+
             del event_ts
 
         def on_equity_update(self, event_ts: datetime, equity_value: float) -> None:
+            """Ignore equity callbacks during breach flushes."""
+
             del event_ts, equity_value
-            return None
 
     _, cash_after, raw_trades, _ = apply_in_order(
         events=sorted(events, key=lambda event: (event.ts, event.symbol)),
@@ -182,37 +187,25 @@ def _flush_open_positions(
         ask_at=asks,
     )
 
-    flushed = [
-        replace(
-            _replace_trade_details(
-                trade,
-                swap_totals_by_position.get(trade_close_id, 0.0),
-                components_by_position.get(trade_close_id, {}),
-            ),
-            exit_reason="ftmo_breach",
+    flushed: list[Trade] = []
+    for trade in raw_trades:
+        position_id = next(
+            position_id
+            for position_id, position in open_positions.items()
+            if position.symbol == trade.symbol and position.open_ts == trade.open_ts
         )
-        for trade, trade_close_id in zip(raw_trades, [trade.position_id if False else 0 for trade in []])
-    ]
-    if not flushed:
-        flushed = []
-        for trade in raw_trades:
-            position_id = next(
-                position_id
-                for position_id, position in open_positions.items()
-                if position.symbol == trade.symbol and position.open_ts == trade.open_ts
+        flushed.append(
+            replace(
+                _replace_trade_details(
+                    trade,
+                    swap_totals_by_position.get(position_id, 0.0),
+                    components_by_position.get(position_id, {}),
+                ),
+                exit_reason="ftmo_breach",
             )
-            flushed.append(
-                replace(
-                    _replace_trade_details(
-                        trade,
-                        swap_totals_by_position.get(position_id, 0.0),
-                        components_by_position.get(position_id, {}),
-                    ),
-                    exit_reason="ftmo_breach",
-                )
-            )
-            swap_totals_by_position.pop(position_id, None)
-            components_by_position.pop(position_id, None)
+        )
+        swap_totals_by_position.pop(position_id, None)
+        components_by_position.pop(position_id, None)
     return {}, cash_after, flushed
 
 
@@ -476,11 +469,18 @@ def run_challenge(
                 break
 
         bar_close_ts = bar_ts + timedelta(hours=4)
-        close_symbols = {symbol for symbol, frame in bars_4h_norm.items() if bar_ts in frame.index} | {position.symbol for position in open_positions.values()}
+        close_symbols = (
+            {symbol for symbol, frame in bars_4h_norm.items() if bar_ts in frame.index}
+            | {position.symbol for position in open_positions.values()}
+        )
         bid_at_close, ask_at_close = _bid_ask_snapshot_at(bars_4h_norm, bars_1h_norm, close_symbols, bar_close_ts, bar_ts)
         rates_at_close = _rates_snapshot_at(bars_4h_norm, bars_1h_norm, close_symbols, bar_close_ts, bar_ts)
         close_pip_values = {
-            symbol: pair_specs[symbol].pip_size * pair_specs[symbol].contract_size * quote_to_account_rate(symbol, ftmo_config["account_currency"], rates_at_close)
+            symbol: (
+                pair_specs[symbol].pip_size
+                * pair_specs[symbol].contract_size
+                * quote_to_account_rate(symbol, ftmo_config["account_currency"], rates_at_close)
+            )
             for symbol in {position.symbol for position in open_positions.values()}
         }
         current_equity = equity(cash, list(open_positions.values()), bid_at_close, ask_at_close, close_pip_values)
@@ -529,7 +529,8 @@ def run_challenge(
             if len(next_candidates) == 0:
                 skipped_signals.append((signal, "missing_next_bar"))
                 continue
-            next_bar_ts = next_candidates[0].to_pydatetime() if hasattr(next_candidates[0], "to_pydatetime") else next_candidates[0]
+            next_candidate = next_candidates[0]
+            next_bar_ts = next_candidate.to_pydatetime() if hasattr(next_candidate, "to_pydatetime") else next_candidate
             next_bar = _require_row(bars_4h_norm[signal.symbol], next_bar_ts)
             one_hour_available = not _slice_1h_window(bars_1h_norm[signal.symbol], next_bar_ts).empty
             allowed, reason = can_open(
@@ -550,7 +551,11 @@ def run_challenge(
                 next_bar_ts,
                 next_bar_ts,
             )
-            quote_rate = quote_to_account_rate(signal.symbol, ftmo_config["account_currency"], rate_snapshot)
+            quote_rate = quote_to_account_rate(
+                signal.symbol,
+                ftmo_config["account_currency"],
+                rate_snapshot,
+            )
             atr_series = atr_by_symbol[signal.symbol]
             atr_value = float(atr_series.loc[bar_ts])
             position = derive_position(
@@ -571,7 +576,10 @@ def run_challenge(
             swap_totals_by_position[position.id] = 0.0
             components_by_position[position.id] = dict(signal.components)
             next_position_id += 1
-            cash -= commission_at_open(position.lots, float(ftmo_config["commission_per_lot_round_turn"]))
+            cash -= commission_at_open(
+                position.lots,
+                float(ftmo_config["commission_per_lot_round_turn"]),
+            )
             rule_engine.on_trade_event(position.open_ts)
 
     else:
@@ -587,12 +595,32 @@ def run_challenge(
     elif outcome == "in_progress" and actual_end_ts >= challenge_deadline_ts:
         outcome = "push"
 
-    final_symbols = {position.symbol for position in open_positions.values()} | {symbol for symbol in bars_4h_norm if actual_end_ts in bars_4h_norm[symbol].index}
+    final_symbols = (
+        {position.symbol for position in open_positions.values()}
+        | {symbol for symbol in bars_4h_norm if actual_end_ts in bars_4h_norm[symbol].index}
+    )
     if final_symbols:
-        final_bid, final_ask = _bid_ask_snapshot_at(bars_4h_norm, bars_1h_norm, final_symbols, actual_end_ts, actual_end_ts if actual_end_ts in timeline else timeline[-1])
-        final_rates = _rates_snapshot_at(bars_4h_norm, bars_1h_norm, final_symbols, actual_end_ts, actual_end_ts if actual_end_ts in timeline else timeline[-1])
+        final_bar_ts = actual_end_ts if actual_end_ts in timeline else timeline[-1]
+        final_bid, final_ask = _bid_ask_snapshot_at(
+            bars_4h_norm,
+            bars_1h_norm,
+            final_symbols,
+            actual_end_ts,
+            final_bar_ts,
+        )
+        final_rates = _rates_snapshot_at(
+            bars_4h_norm,
+            bars_1h_norm,
+            final_symbols,
+            actual_end_ts,
+            final_bar_ts,
+        )
         final_pip_values = {
-            symbol: pair_specs[symbol].pip_size * pair_specs[symbol].contract_size * quote_to_account_rate(symbol, ftmo_config["account_currency"], final_rates)
+            symbol: (
+                pair_specs[symbol].pip_size
+                * pair_specs[symbol].contract_size
+                * quote_to_account_rate(symbol, ftmo_config["account_currency"], final_rates)
+            )
             for symbol in {position.symbol for position in open_positions.values()}
         }
         final_equity = equity(cash, list(open_positions.values()), final_bid, final_ask, final_pip_values)

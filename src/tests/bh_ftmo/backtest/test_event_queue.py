@@ -15,6 +15,8 @@ from bh_ftmo.backtest.types import ExitEvent, PairSpec, Position, RuleBreach
 
 
 class StubRuleEngine:
+    """Small FTMO rule stub for ordered event tests."""
+
     def __init__(self, breach_at: datetime | None = None, rule: str = "daily_loss") -> None:
         self.breach_at = breach_at
         self.rule = rule
@@ -147,7 +149,7 @@ def test_apply_in_order_processes_two_events_without_breach():
     )
 
     assert breach is None
-    assert open_positions_after == {}
+    assert not open_positions_after
     assert len(trades) == 2
     assert [trade.exit_reason for trade in trades] == ["target", "stop"]
     assert [trade.close_ts for trade in trades] == [datetime(2026, 4, 25, 18, 0), datetime(2026, 4, 25, 19, 0)]

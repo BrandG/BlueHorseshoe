@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-# pylint: disable=missing-function-docstring
+# pylint: disable=missing-function-docstring,line-too-long
 
 from datetime import datetime, timedelta
 

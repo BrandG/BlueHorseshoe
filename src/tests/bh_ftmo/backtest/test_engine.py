@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-# pylint: disable=missing-function-docstring,too-many-lines
+# pylint: disable=missing-function-docstring,too-many-lines,unused-variable
 
 from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
@@ -249,7 +249,12 @@ def test_run_challenge_refuses_to_open_after_breach():
         bars_4h=bars_4h,
         bars_1h=bars_1h,
         signals=signals + [_signal("EUR_USD", later_signal_ts)],
-        atr_by_symbol={"EUR_USD": pd.Series([0.0040, 0.0040, 0.0040], index=[signals[0].timestamp, signals[0].timestamp + timedelta(hours=4), later_signal_ts])},
+        atr_by_symbol={
+            "EUR_USD": pd.Series(
+                [0.0040, 0.0040, 0.0040],
+                index=[signals[0].timestamp, signals[0].timestamp + timedelta(hours=4), later_signal_ts],
+            )
+        },
         pair_specs={"EUR_USD": PAIR_SPECS["EUR_USD"]},
         ftmo_config=config,
         sizing_config=sizing,
