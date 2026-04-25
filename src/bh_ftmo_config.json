@@ -3,6 +3,21 @@
     "size": 100000,
     "currency": "USD"
   },
+  "ftmo": {
+    "_comment": "FTMO challenge rule parameters. Schema: docs/planning/FTMO_RULES.md §2. Engine refuses to load if any unfilled scaffold marker remains or if max_loss_type is unset (decision P3-3 hard-block). Underscore-prefixed keys are metadata and are skipped by load_ftmo_config.",
+    "initial_balance": 100000,
+    "account_currency": "USD",
+    "phase": "challenge",
+    "profit_target_pct": 0.10,
+    "daily_loss_pct": 0.05,
+    "max_loss_pct": 0.10,
+    "max_loss_type": "static",
+    "min_trading_days": 4,
+    "max_trading_days": 14,
+    "server_timezone": "Europe/Prague",
+    "commission_per_lot_round_turn": 0,
+    "swap_model": "standard"
+  },
   "risk": {
     "max_risk_per_trade_pct": 0.01,
     "max_daily_risk_pct": 0.04,

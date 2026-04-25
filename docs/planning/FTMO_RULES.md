@@ -18,12 +18,13 @@ This spec codifies every FTMO rule that affects whether a simulated trade sequen
 
 | Parameter | Source of truth | Current value (TBD) |
 | --- | --- | --- |
-| Initial balance | FTMO account dashboard | `$TBD` (e.g., $100,000) |
+| Initial balance | FTMO account dashboard | `TBD` (e.g., 100,000) |
 | Account currency | FTMO account dashboard | `TBD` (likely USD) |
 | Challenge phase | FTMO account dashboard | `TBD` (Challenge / Verification / Funded) |
 | Profit target | FTMO rules page | `TBD %` (Challenge typically 10%; Verification 5%; Funded 0%) |
 | Daily loss limit | FTMO rules page | `TBD %` (typically 5%) |
 | Max loss (overall drawdown) | FTMO rules page | `TBD %` (typically 10%) |
+| **Max loss type** (static vs trailing) | FTMO account dashboard → Rules tab | `TBD` (`static` typical for Challenge/Verification; `trailing` typical for Funded). **Required, no default.** Phase 3 engine has separate code paths per branch (decision P3-13). |
 | Min trading days | FTMO rules page | `TBD` (typically 4; Funded typically 0) |
 | Max trading days | FTMO rules page | `TBD` (Challenge 30, Verification 60, Funded unlimited) |
 | Commission model | FTMO trading conditions | `TBD` (e.g., ~$3/lot round-turn on FTMO Standard) |
@@ -34,20 +35,26 @@ Persist these once verified to `src/bh_ftmo_config.json` under a new `ftmo` bloc
 
 ```json
 "ftmo": {
-  "initial_balance_usd": 100000,
+  "initial_balance": 100000,
+  "account_currency": "USD",
   "phase": "challenge",
   "profit_target_pct": 0.10,
   "daily_loss_pct": 0.05,
   "max_loss_pct": 0.10,
+  "max_loss_type": "static",
   "min_trading_days": 4,
   "max_trading_days": 30,
   "server_timezone": "Europe/Prague",
-  "commission_per_lot_round_turn_usd": 3.0,
+  "commission_per_lot_round_turn": 3.0,
   "swap_model": "standard"
 }
 ```
 
 Phase 3 loads this block and runs the simulation from it — no hard-coded values in engine code.
+
+**Hard-block on placeholders (decision P3-3).** Phase 3 engine raises `FtmoConfigUnverifiedError` on load if any field equals a literal containing `"PLACEHOLDER"` or if `max_loss_type` is unset. There is no `--allow-placeholders` flag. Sub-phase 3.0 cannot exit until Brand fills every field from the FTMO dashboard. Static vs trailing DD is an architectural fork (different code paths in `ftmo_rules.py`), not a tunable constant — it must be set explicitly.
+
+**Naming convention.** All monetary fields are denominated in `account_currency`; field names dropped the `_usd` suffix in the 2026-04-25 revision so the schema stays correct if the account currency is not USD.
 
 ## 3. Hard Rules (Fail-on-Breach)
 
@@ -70,7 +77,9 @@ Any one of these breaching ends the simulation as **FAIL** for the current chall
 
 - This is an absolute floor, not relative to a daily baseline.
 - Same instantaneous-breach semantics as §3.1.
-- FTMO refers to this as "Maximum Loss" or "Trailing Drawdown"; confirm which variant applies to Brand's account. Static max-loss uses `initial_balance` as the anchor; trailing variant (less common on Challenge/Verification, standard on Funded) uses running peak equity — **check FTMO dashboard for Brand's account**.
+- **Static** (`max_loss_type: "static"`) — threshold is fixed at `initial_balance × (1 − max_loss_pct)`. Typical for Challenge / Verification accounts.
+- **Trailing** (`max_loss_type: "trailing"`) — threshold tracks running peak equity: `peak_equity × (1 − max_loss_pct)`. Recomputed on every equity update. Typical for Funded accounts.
+- The two variants run **different code paths** in `ftmo_rules.py` (Phase 3 decision P3-13). Per §2 the value must be set explicitly — no default. Verify against Brand's FTMO dashboard before Phase 3 backtest runs.
 
 ### 3.3 Profit Target (Pass Condition, Not a Fail)
 
@@ -117,14 +126,16 @@ For simulation:
 - Apply `position_lots × rate × bar_duration` each day.
 - Triple Wednesday: 3× the usual amount.
 
+**Ordering** (Phase 3 decision P3-16): the rollover swap is applied **before** the new daily-loss baseline (§3.1 `reference_equity`) is captured for the new FTMO day. The new day's anchor is post-swap equity. This matches FTMO's live behavior and ensures the simulation does not "give back" the swap hit when computing daily-loss headroom for the day that follows it.
+
 ### 5.3 Commission
 
 Commission is charged per-lot per round-turn. Modeled per trade:
 ```
-commission_per_trade = position_lots × commission_per_lot_round_turn_usd
+commission_per_trade = position_lots × commission_per_lot_round_turn
 ```
 
-Applied at position open (half) and close (half), or entirely at close — backtest can simplify to full charge at close as long as total is correct.
+**Apply half at open, half at close** (Phase 3 decision P3-15). FTMO debits commission as the trade is opened, so the live account's headroom is reduced immediately at entry. Charging the full amount only at close gives the simulation back headroom that the live account would not have, which biases pass-rate metrics upward. Half-at-open / half-at-close keeps total commission identical and makes intrabar equity faithful.
 
 ## 6. Rule-Interaction Precedence
 
@@ -186,6 +197,7 @@ FTMO periodically updates their rules (profit target %, daily loss %, max days).
 | Date | Change | Source |
 | --- | --- | --- |
 | 2026-04-24 | Initial draft | Plan Phase 1 deliverable |
+| 2026-04-25 | Added `max_loss_type` (static/trailing) field, dropped `_usd` suffix from monetary fields, added `account_currency` field, hard-block on placeholder load, half-at-open/half-at-close commission, swap-then-reset ordering | Phase 3 `/plan-eng-review` decisions P3-3, P3-4, P3-13, P3-15, P3-16 |
 
 ## 10. Sources to Cross-Check Before Phase 3
 
