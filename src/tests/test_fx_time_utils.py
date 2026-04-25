@@ -14,6 +14,7 @@ from bh_ftmo.data.fx_time_utils import (
     expected_h1_bar_opens,
     expected_h4_bar_opens,
     floor_to_h4,
+    ftmo_day_boundary,
     is_forex_open,
     is_uk_market_holiday,
     is_us_market_holiday,
@@ -261,3 +262,16 @@ def test_classify_gaps_granularity_rejects_unknown():
     end = _ny(2025, 3, 10, 18, 0)
     with pytest.raises(ValueError, match="granularity"):
         classify_gaps([], start_utc=start, end_utc=end, granularity="H8")  # type: ignore[arg-type]
+
+
+# ---- ftmo_day_boundary -------------------------------------------------
+
+
+def test_ftmo_day_boundary_spring_forward_week():
+    ts = _utc(2025, 3, 29, 22, 30)
+    assert ftmo_day_boundary(ts) == _utc(2025, 3, 29, 23, 0)
+
+
+def test_ftmo_day_boundary_fall_back_week():
+    ts = _utc(2025, 10, 26, 22, 30)
+    assert ftmo_day_boundary(ts) == _utc(2025, 10, 26, 23, 0)
