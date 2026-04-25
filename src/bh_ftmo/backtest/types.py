@@ -11,7 +11,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Literal
+from typing import Literal, Optional
+
+import pandas as pd
+
+from bh_ftmo.analysis.strategy import Signal
 
 
 @dataclass(frozen=True)
@@ -85,3 +89,27 @@ class RuleBreach:
     timestamp: datetime
     equity_at_breach: float
     threshold: float
+
+
+@dataclass(frozen=True)
+class ChallengeResult:
+    """Full outcome of a single FTMO challenge simulation.
+
+    Per P3-17, equity_curve is the 1h-resampled canonical series — the basis
+    for Sharpe/Sortino/MaxDD. equity_curve_daily is FTMO-day-end samples for
+    reporter charts.
+    """
+
+    start_ts: datetime
+    end_ts: datetime
+    outcome: Literal["passed", "failed", "push", "in_progress"]
+    failed_by: Optional[str]
+    target_hit_at: Optional[datetime]
+    trading_days: int
+    final_equity_account_ccy: float
+    trades: tuple[Trade, ...]
+    breaches: tuple[RuleBreach, ...]
+    equity_curve: pd.Series
+    equity_curve_daily: pd.Series
+    skipped_signals: tuple[tuple[Signal, str], ...]
+    rng_seed: int
