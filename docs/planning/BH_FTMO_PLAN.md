@@ -1,6 +1,6 @@
 # BH FTMO Plan
 
-**Status:** Phases 0 → 2b ✅ complete (2026-04-24). Phase 3 (Backtesting Framework) is next.
+**Status:** Phases 0 → 3 ✅ complete (2026-04-25). Entry-edge gate evaluation against locked Phase 2b weights pending — that verdict gates Phase 4 (edge-exits) and Phase 2c (indicator tuning) unblock.
 **Drafted:** 2026-04-24
 **Owner:** Brand
 **Strategic goal:** INCOME — BH FTMO generates transferable profit that feeds the BH equity IBKR account. Once FTMO is profitable, additional prop firms (MyForexFunds, FundedNext, etc.) will be added as parallel capital-generation tributaries. BH equity is the long-term alpha engine; BH FTMO is capital-generation for it. Framework-generalization is not the goal, but the architecture should remain cohesive enough to accept a second prop firm later without a rewrite.
@@ -14,10 +14,10 @@
 | Phase 1 — Data Foundation | ✅ done | 9 commits; 10y backfill clean (3.2M bars, zero gaps) |
 | Phase 2a — Indicator Port | ✅ done | 8 commits; decision 15D (full isolation) |
 | Phase 2b — Scoring Layer | ✅ done | `8f2338a`, `d18b9c8`, `a1f131e`, `17983c2` |
-| Phase 3 — Backtesting Framework | ⏳ next | bid/ask sim + FTMO rules + walk-forward harness |
-| Phase 2c — Indicator Tuning | blocked on 3 | walk-forward grid search needs the backtest |
-| Phase 4 — Edge-Exit Scoring | blocked on 3 entry-edge gate | only if Phase 3 passes Sharpe ≥1.0, PF ≥1.3, etc. |
-| Phase 5 — Economic Calendar | blocked on 3 | calendar-driven blackouts |
+| Phase 3 — Backtesting Framework | ✅ done (gate not yet run) | 11 commits `02d3234` → `e842d9a`; engine + rules + baselines + metrics + reporter + walk-forward + gate + CLI driver. See `docs/planning/PHASE_3_BACKTEST_ARCH.md` for as-shipped architecture (20 P3-* decisions). |
+| Phase 2c — Indicator Tuning | blocked on Phase 3 gate verdict | walk-forward grid search uses the now-built backtest; unblocks if gate passes |
+| Phase 4 — Edge-Exit Scoring | blocked on Phase 3 gate verdict | only if gate passes (Sharpe ≥1.0, PF ≥1.3, WR ≥45%, MaxDD ≤10%, FTMO pass-rate lower-CI ≥70%, ≥10pp better than best baseline) |
+| Phase 5 — Economic Calendar | blocked on Phase 4 | calendar-driven blackouts; `NullCalendarProvider` seam shipped in Phase 3 (P3-8) |
 | Phase 6 — Live Cutover | blocked on 4-5 | 2+ weeks parallel paper trading |
 | Phase 7 — Dashboard | post-cutover | polish layer |
 
@@ -262,13 +262,19 @@ Four commits land the multi-pair scoring pipeline (`8f2338a`, `d18b9c8`, `a1f131
 
 ---
 
-## Phase 2c: Indicator Tuning (~3 days, runs after Phase 3)
+## Phase 2c: Indicator Tuning (~3 days, blocked on Phase 3 gate verdict)
 
-**Runs after Phase 3 backtest exists.** Walk-forward grid search over per-indicator lookback periods, finds the 4h-optimal value for each. Weights produced here become `bh_ftmo_weights.json` v1.
+**Backtest now exists** (Phase 3 shipped 2026-04-25). Walk-forward grid search over per-indicator lookback periods, finds the 4h-optimal value for each. Weights produced here become `bh_ftmo_weights.json` v1. Unblocks once the Phase 3 entry-edge gate passes against locked Phase 2b weights — if the gate fails, Phase 2c is moot until entry-side debugging concludes.
 
 ---
 
-## Phase 3: Backtesting Framework (~1–2 weeks)
+## Phase 3: Backtesting Framework ✅ COMPLETED 2026-04-25
+
+Eleven commits (`02d3234`, `68a169c`, `e7e1503`, `7541516`, `c49ab49`, `418d214`, `d2052bd`, `1d93201`, `9844244`, `5b50d57`, `e3af17a`, `e842d9a`) ship the full Phase 3 backtest framework end-to-end across sub-phases 3.0 → 3.5: bid/ask-aware simulator, FTMO rule enforcement (static + trailing DD), three null baselines, walk-forward fold harness (18mo IS / 6mo OOS / 6mo roll), metrics + reporter, entry-edge gate, CLI driver. `./run.sh python -m bh_ftmo.backtest.cli` runs the full gate evaluation on live 10y data and emits a pass/fail verdict (exit codes 0/1/2 = pass/fail/error).
+
+**As-shipped architecture is canonical at `docs/planning/PHASE_3_BACKTEST_ARCH.md`** — 575 lines, 20 P3-* locked decisions including 6 cross-model decisions with Codex via `/plan-eng-review`. The forward-looking spec preserved below this paragraph is kept for historical context; for current implementation reference, use the architecture doc.
+
+**Phase 3 exit criterion (§10 #3 in `PHASE_3_BACKTEST_ARCH.md`) NOT YET MET:** the first gate evaluation against locked Phase 2b weights has not been run. Phase 4 (edge-exits) and Phase 2c (indicator tuning) remain blocked until the verdict is produced.
 
 ### Extensions Over Existing `Backtester`
 
