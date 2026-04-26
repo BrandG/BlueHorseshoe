@@ -12,26 +12,26 @@ The backtest simulates FTMO rule outcomes (challenge passed / failed / in-progre
 
 This spec codifies every FTMO rule that affects whether a simulated trade sequence passes or fails.
 
-## 2. Account-Specific Parameters (FILL IN BEFORE PHASE 3)
+## 2. Account-Specific Parameters (verified 2026-04-25)
 
-**These must be verified against Brand's FTMO dashboard before Phase 3 backtest code runs.** Placeholder values below are TYPICAL for a $100k FTMO Standard Challenge; they are NOT Brand's actuals.
+**Values below are verified from Brand's FTMO Free Trial dashboard and mirror `src/bh_ftmo_config.json` `ftmo` block.** Phase 3 engine loads from the JSON config, not from this doc — this table is the human-readable cache of that truth. If FTMO drifts thresholds or Brand switches account variant (Free Trial → Challenge → Verification → Funded), update both this table and the JSON config together (see §8.2).
 
-| Parameter | Source of truth | Current value (TBD) |
+| Parameter | Source of truth | Verified value (2026-04-25) |
 | --- | --- | --- |
-| Initial balance | FTMO account dashboard | `TBD` (e.g., 100,000) |
-| Account currency | FTMO account dashboard | `TBD` (likely USD) |
-| Challenge phase | FTMO account dashboard | `TBD` (Challenge / Verification / Funded) |
-| Profit target | FTMO rules page | `TBD %` (Challenge typically 10%; Verification 5%; Funded 0%) |
-| Daily loss limit | FTMO rules page | `TBD %` (typically 5%) |
-| Max loss (overall drawdown) | FTMO rules page | `TBD %` (typically 10%) |
-| **Max loss type** (static vs trailing) | FTMO account dashboard → Rules tab | `TBD` (`static` typical for Challenge/Verification; `trailing` typical for Funded). **Required, no default.** Phase 3 engine has separate code paths per branch (decision P3-13). |
-| Min trading days | FTMO rules page | `TBD` (typically 4; Funded typically 0) |
-| Max trading days | FTMO rules page | `TBD` (Challenge 30, Verification 60, Funded unlimited) |
-| Commission model | FTMO trading conditions | `TBD` (e.g., ~$3/lot round-turn on FTMO Standard) |
-| Swap model | FTMO trading conditions | `TBD` (Standard vs Swap-Free) |
-| Server time zone | FTMO rules page | `TBD` (typically CE(S)T) |
+| Initial balance | FTMO account dashboard | `100,000` |
+| Account currency | FTMO account dashboard | `USD` |
+| Challenge phase | FTMO account dashboard | `Challenge` (Free Trial variant) |
+| Profit target | FTMO rules page | `10%` |
+| Daily loss limit | FTMO rules page | `5%` |
+| Max loss (overall drawdown) | FTMO rules page | `10%` |
+| **Max loss type** (static vs trailing) | FTMO account dashboard → Rules tab | `static`. Phase 3 engine has separate code paths per branch (decision P3-13). If Brand later moves to a Funded account this likely flips to `trailing` — verify before re-running the backtest. |
+| Min trading days | FTMO rules page | `4` |
+| Max trading days | FTMO rules page | `14` (Free Trial; Standard Challenge would be 30, Verification 60, Funded unlimited) |
+| Commission model | FTMO trading conditions | `$0/lot round-turn` (Free Trial; Standard would be ~$3/lot round-turn) |
+| Swap model | FTMO trading conditions | `Standard` (positions held overnight pay/earn the OANDA-published swap rate; triple-swap on Wednesdays per §5.2) |
+| Server time zone | FTMO rules page | `Europe/Prague` (CE(S)T, DST-aware) |
 
-Persist these once verified to `src/bh_ftmo_config.json` under a new `ftmo` block:
+The verified values above live in `src/bh_ftmo_config.json` under the `ftmo` block:
 
 ```json
 "ftmo": {
@@ -43,14 +43,14 @@ Persist these once verified to `src/bh_ftmo_config.json` under a new `ftmo` bloc
   "max_loss_pct": 0.10,
   "max_loss_type": "static",
   "min_trading_days": 4,
-  "max_trading_days": 30,
+  "max_trading_days": 14,
   "server_timezone": "Europe/Prague",
-  "commission_per_lot_round_turn": 3.0,
+  "commission_per_lot_round_turn": 0,
   "swap_model": "standard"
 }
 ```
 
-Phase 3 loads this block and runs the simulation from it — no hard-coded values in engine code.
+Phase 3 loads this block and runs the simulation from it — no hard-coded values in engine code. The `bh_ftmo_config.json` file is authoritative; this code block is a documentation copy and must be kept in sync (see §8.2).
 
 **Hard-block on placeholders (decision P3-3).** Phase 3 engine raises `FtmoConfigUnverifiedError` on load if any field equals a literal containing `"PLACEHOLDER"` or if `max_loss_type` is unset. There is no `--allow-placeholders` flag. Sub-phase 3.0 cannot exit until Brand fills every field from the FTMO dashboard. Static vs trailing DD is an architectural fork (different code paths in `ftmo_rules.py`), not a tunable constant — it must be set explicitly.
 
@@ -198,6 +198,7 @@ FTMO periodically updates their rules (profit target %, daily loss %, max days).
 | --- | --- | --- |
 | 2026-04-24 | Initial draft | Plan Phase 1 deliverable |
 | 2026-04-25 | Added `max_loss_type` (static/trailing) field, dropped `_usd` suffix from monetary fields, added `account_currency` field, hard-block on placeholder load, half-at-open/half-at-close commission, swap-then-reset ordering | Phase 3 `/plan-eng-review` decisions P3-3, P3-4, P3-13, P3-15, P3-16 |
+| 2026-04-25 | §2 TBD placeholders replaced with verified Free Trial values from `bh_ftmo_config.json` `ftmo` block; intro paragraph + JSON example block synced; doc no longer claims values are aspirational | Phase 3 doc-refresh sweep, Action 3 |
 
 ## 10. Sources to Cross-Check Before Phase 3
 
