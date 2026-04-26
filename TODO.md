@@ -18,6 +18,8 @@ Discovered during `/plan-ceo-review` of BH FTMO plan: `bh_lite`'s displayed P&L 
 
 **Why priority:** Brand is actively trading these positions. Every day the system mis-displays P&L is another day of suboptimal take-profit / stop-adjust decisions. The fix is small (config patch + one test) but the leverage is high.
 
+**Upstream reference (added 2026-04-25):** Phase 3 shipped `src/bh_ftmo/backtest/pip_value.py` with property tests against FTMO's spec page for 8 sample pairs (majors, JPY-quoted, exotic, cross). When you port the BH Lite fix, derive the verified `dollar_per_pip_per_lot` values from that module's logic rather than computing fresh — the FTMO spec property test is the cross-check that catches the original 10x error. Note: `bh_ftmo_config.json instruments` block carries the same suspect values copied from BH Lite during Phase 0; reconciling that file is a separate (related) follow-up — see the new BH FTMO follow-ups section.
+
 **Not blocking:** BH FTMO plan work (Phase 0 copy, Phase 0.5 OANDA probe, etc.). Items 1-3 ship on BH Lite directly; item 4 lands post-BH-FTMO-cutover in whichever code path is live at that point. The config fix ports forward into `bh_ftmo_config.json` as part of Phase 0 copy.
 
 ### Reporting
@@ -141,29 +143,27 @@ Discovered during `/plan-ceo-review` of BH FTMO plan: `bh_lite`'s displayed P&L 
 
 ### BH FTMO
 
-**Phases 0 → 2b complete (2026-04-24).** Full multi-pair signal pipeline running on real OANDA data. 24 BH FTMO commits land Phase 0 → 2b. See `docs/planning/BH_FTMO_PLAN.md` for the locked plan.
+**Phases 0 → 3 complete (2026-04-25).** Full backtest framework shipped end-to-end across sub-phases 3.0 → 3.5 (11 commits `02d3234` → `e842d9a`). See `docs/planning/BH_FTMO_PLAN.md` for the locked plan and `docs/planning/PHASE_3_BACKTEST_ARCH.md` for as-shipped architecture (20 P3-* decisions).
 
-**Phase 3 — Backtesting Framework — NEXT (~1–2 weeks):**
-- `src/bh_ftmo/backtest/engine.py` — bid/ask-aware bar-by-bar simulator
-- Spread modeling: entry at ask (buy) / bid (sell), inverse on exit; stop-loss triggers at unfavorable side of spread
-- Swap/rollover: daily carry charge per open position, configurable per-symbol
-- FTMO rule enforcement: daily 5% loss cap (CE(S)T reset), max 10% drawdown, 10% profit target, trailing-DD tracker
-- Walk-forward harness: 18mo IS / 6mo OOS / 6mo roll over the 10y backfill
-- OOS-contamination assertion: shuffling OOS data must not change IS scores
-- Three baselines for comparison (decision 17B): random-entry+ATR-exit, Mon-in/Fri-out fixed-schedule, simple RSI(14)
-- Entry-edge gate (decision 16A): Sharpe ≥1.0, PF ≥1.3, win-rate ≥45%, MaxDD ≤10%, FTMO pass-rate ≥70% — must pass before Phase 4
-- Reporting: HTML + CSV with per-cluster, per-session, per-strategy breakdowns + worst-DD trade chain
-- Tests: known-outcome sample trades, walk-forward fold correctness, FTMO rule trigger cases
+**Phase 3 ✅ COMPLETED 2026-04-25** — bid/ask-aware simulator, FTMO rule enforcement (static + trailing DD per P3-13), three null baselines (random+ATR / Mon-Fri / RSI(14)), walk-forward fold harness (18mo IS / 6mo OOS / 6mo roll), metrics + reporter (Sharpe / Sortino / PF / WR / MaxDD / FTMO pass-rate w/ bootstrap CI), entry-edge gate evaluator, CLI driver (`./run.sh python -m bh_ftmo.backtest.cli`).
 
-**Brand action items (not blocking Phase 3 development):**
-- Fill in `docs/planning/FTMO_RULES.md` §2 TBD values from FTMO live dashboard → `bh_ftmo_config.json` `ftmo` block. Gates Phase 6 cutover.
-- Run `bash /tmp/humanaction.sh` to install the every-4h incremental-update cron.
+**🚧 Phase 3 exit criterion NOT YET MET:** the first gate evaluation against locked Phase 2b weights has not been run. Run `./run.sh python -m bh_ftmo.backtest.cli` to produce the verdict. Exit codes: 0 pass / 1 fail / 2 error.
+- **If gate passes** → unblock Phase 4 (edge-exit scoring) AND Phase 2c (indicator lookback tuning + walk-forward optimizer per P3-20).
+- **If gate fails** → halt, debug entry side, do NOT enter Phase 4 (per `PHASE_3_BACKTEST_ARCH.md` §10 #6).
+
+**Brand action items (still open):**
+- ~~Fill in `docs/planning/FTMO_RULES.md` §2 TBD values from FTMO live dashboard → `bh_ftmo_config.json` `ftmo` block~~ ✅ done 2026-04-25 (Free Trial variant: 14-day, $100k, static DD, $0 commission, Europe/Prague server tz).
+- Run `bash /tmp/humanaction.sh` to install the every-4h incremental-update cron. (Note: `/tmp/humanaction.sh` was repurposed for worktree cleanup on 2026-04-25; the cron-install variant needs to be re-emitted when ready.)
 - Install GitHub App before May 8 so the scheduled BH FTMO check-in routine (`trig_01RfvYoMo6V7bETCRBLn5WNT`) can run.
 
-### BH FTMO follow-ups (added 2026-04-24 via /plan-eng-review)
+### BH FTMO follow-ups (added 2026-04-24 via /plan-eng-review; updated 2026-04-25)
 
-- **Walk-forward optimization backport to BH equities backtest** — teach the equity `Backtester` and `WeightOptimizer` to run walk-forward 18mo-IS / 6mo-OOS / 6mo-roll splits. Why: BH FTMO will prove walk-forward first; the equity side currently runs single-fold grid search and likely overfits. Pros: better equity weight robustness. Cons: requires equity backtest changes + regression testing; decoupled from FTMO scope per BH FTMO plan decision 9A. Context: decision made during `/plan-eng-review` to maintain scope hygiene. Depends on: BH FTMO Phase 3 completion. Start: after BH FTMO Phase 3 passes its entry-edge gate.
+- **Walk-forward optimization backport to BH equities backtest** — teach the equity `Backtester` and `WeightOptimizer` to run walk-forward 18mo-IS / 6mo-OOS / 6mo-roll splits. Why: BH FTMO proves walk-forward first; the equity side currently runs single-fold grid search and likely overfits. Pros: better equity weight robustness. Cons: requires equity backtest changes + regression testing; decoupled from FTMO scope per BH FTMO plan decision 9A. Context: decision made during `/plan-eng-review` to maintain scope hygiene. Depends on: BH FTMO Phase 3 entry-edge gate passing. **Status update 2026-04-25: Phase 3 framework ships, gate not yet run — start when gate verdict is produced and is a pass.**
 
 - ~~**OANDA demo token health check**~~ (done 2026-04-24) — `OandaClient.health_check()` hits `/v3/accounts` and returns rich diagnostic; CLI via `python -m bh_ftmo.data.oanda_client`. Backfill installs the secret scrubber so 401 traces never leak token bytes.
 
 - **BH FTMO cron outage monitoring** — email alert if Friday NY-afternoon cron run is missing (critical for weekend-flatten feature). Why: if Friday's cron fails silently, open positions stay through weekend gaps — pure operational risk, not a code bug. Pros: protects the whole weekend-flatten risk-exit feature. Cons: needs an alerting mechanism — the existing Brevo SMTP pipeline (used for equity reports) works. Context: during `/plan-eng-review`, this was elevated from TODO to mandatory Phase 6 deliverable. Depends on: BH FTMO Phase 6 cutover. **Note: already listed as mandatory in Phase 6 of `docs/planning/BH_FTMO_PLAN.md` — duplicating here for visibility only.**
+
+- **`bh_ftmo_config.json instruments` pip-value reconciliation** (added 2026-04-25) — the `dollar_per_pip_per_lot` values inside the `instruments` block were copied wholesale from BH Lite during Phase 0, including the suspect exotic values (USDHUF 0.27, EURCZK 0.44, EURNOK 0.95, EURSEK 0.97, USDZAR 0.55, JPY-quoted 6.67) flagged in the 🔥 PRIORITY block above. Phase 3's `pip_value.py` is the new verified source of truth (property tests against FTMO spec for 8 sample pairs). Investigate whether the JSON `dollar_per_pip_per_lot` field is dead/legacy or actively read by `trade_factory.py` / sizing code. If actively read, port `pip_value.py`'s verified values into the JSON; if dead, delete the field. Either way, BH FTMO must not silently rely on the same values that mis-displayed BH Lite P&L by 10×.
+
+- **Codex sandbox: design test-validation workaround** (added 2026-04-25) — Codex's command sandbox uses `--unshare-net` / `network_access:false`, blocking Docker network access. MongoDB at `127.0.0.1:27017` is unreachable from inside Codex, so any pytest run that hits MongoDB fixtures (e.g., the equity-side `SwingTrader()` fixture in `test_dynamic_entry.py`) fails deterministically with `[Errno 1] Operation not permitted`. Three options for future Codex Next Actions that need test validation: **(a)** Brand runs pytest from his shell (which has Docker access) and supplies the count to the Next Action — already used as the workaround for the 2026-04-25 doc-refresh sweep; **(b)** add pytest markers (e.g., `@pytest.mark.requires_mongo`) to MongoDB-dependent tests so Codex can run a Codex-runnable subset via `pytest -m "not requires_mongo"`; **(c)** reconfigure Codex's sandbox to allow Docker network access (out of scope for code changes — would need Codex setup work). Pick one before the next Next Action that needs a test gate.
