@@ -36,3 +36,4 @@ src/bh_lite_orders.json
 src/bh_ftmo_positions.json
 src/bh_ftmo_orders.json
 data/fx_backfill_checkpoint.json
+data/swap_rates_*.json
