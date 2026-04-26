@@ -1,55 +1,67 @@
 # Session Handoff
 
-**Date:** April 24, 2026
-**Status:** BH FTMO Phases 1, 2a, 2b complete — full multi-pair signal pipeline running on real OANDA data. 1211 tests passing.
+**Date:** April 25, 2026
+**Status:** BH FTMO Phase 3 (Backtesting Framework) sub-phases 3.0 → 3.5 complete. Engine + rules + baselines + metrics + reporter + walk-forward + gate + CLI driver shipped. Gate verdict on locked Phase 2b weights not yet produced. 1396 tests passing, 3 skipped (Claude-verified; Codex sandbox can't run pytest because Docker network access is blocked, so MongoDB-backed equity tests fail spuriously there).
 
 ---
 
-## What Was Done This Session (April 24)
+## What Was Done This Session (April 25)
 
-Twenty-four BH FTMO commits land Phases 1 → 2b. The system now ingests 10 years of OANDA bid/ask 4h forex bars for the 40 FTMO instruments, computes a full forex indicator suite, and emits cluster-filtered Baseline + MeanReversion signals across the universe.
+Eleven commits land BH FTMO Phase 3 end-to-end (sub-phases 3.0 → 3.5). The full backtest framework is now functional: bid/ask-aware simulator, FTMO rule enforcement (static + trailing DD), three null baselines, walk-forward fold harness, metrics + reporter, entry-edge gate, CLI driver. `./run.sh python -m bh_ftmo.backtest.cli` runs the full Phase 3 gate evaluation on live 10y data and emits a pass/fail verdict.
 
-### Phase 0.5 — OANDA Validation Probe ✅
-- `src/bh_ftmo/data/oanda_probe.py` ran against the live OANDA account
-- 40/40 FTMO instruments pass: bid+ask, 10y history, 5000-bar pages, zero rate-limit hits
-- Verdict GO; commits `7d8c8f1`
+Companion design doc `docs/planning/PHASE_3_BACKTEST_ARCH.md` (575 lines) drafted with `/plan-eng-review` + Codex cross-model review; 20 P3-* decisions locked.
 
-### Phase 1 — Data Foundation ✅
-- `src/bh_ftmo/data/oanda_client.py` — OANDA v20 REST client with rate limiter, paginated candle iterator, `Retry-After` honoring exponential backoff (`5570fef`)
-- `src/bh_ftmo/data/fx_time_utils.py` + `docs/planning/FX_TIME_SPEC.md` — DST-aware NY 5pm session anchor, UK/US holiday handling, gap classifier with `BarGapKind {WEEKEND, US_HOLIDAY, UK_HOLIDAY, DATA_GAP}` (`8fed8bd`)
-- `src/bh_ftmo/data/fx_store.py` — DuckDB wrapper for `ohlcv_4h` + `ohlcv_1h` (PK `(symbol, timestamp)`, bid+ask + `provider`/`ingested_at`/`is_complete`). `save_rows` dedupes within batch to handle pagination overlap. (`5f93a80`)
-- `src/bh_ftmo/data/validate.py` — pre-ingestion candle validator + post-storage audit using `classify_gaps` (`889ace7`)
-- `src/bh_ftmo/logging/scrubber.py` — `SecretScrubber` logging filter redacting OANDA tokens + account IDs (decision C-2) (`94a4f24`)
-- `src/bh_ftmo/data/backfill.py` — year-chunked, resumable 10y backfill with `CheckpointStore` (`7975ecf`)
-- `docs/planning/FTMO_RULES.md` — policy spec for daily-loss / max-drawdown / profit-target / weekend-flatten rules (decision 5A) (`d105cdb`)
-- `data/fx_4h.duckdb` added to `backup.sh` pipeline (`8d7808a`)
-- `src/bh_ftmo/data/incremental_update.py` — every-4h cron entry point with SMTP failure email (`0edb681`)
-- **Live backfill ran cleanly: 3,207,322 bars across 40 symbols × H4+H1 in ~14 min, zero gaps.**
+### Pre-work — Architecture + config (`02d3234`, `68a169c`)
+- `PHASE_3_BACKTEST_ARCH.md` drafted; full eng review and Codex cross-model review (6 cross-model decisions)
+- `FTMO_RULES.md` updated for `max_loss_type` static/trailing fork (P3-13), account-currency-agnostic naming (P3-14), half-at-open/half-at-close commission (P3-15), swap-then-reset ordering (P3-16), hard-block on placeholder load (P3-3)
+- `bh_ftmo_config.json` `ftmo` block filled with verified FTMO Free Trial values: 14-day, $100k, static DD, 10% target / 5% daily / 10% max, Europe/Prague server tz
 
-### Phase 2a — Indicator Port (decision 15D, fully independent) ✅
-Decision 15D reversed the original "share-with-equity" plan after investigation showed deep coupling to `weights_config`/`reporting`/`curves`/`constants`. BH FTMO indicators are now wholly independent at `src/bh_ftmo/indicators/`. Equity code untouched.
+### Phase 3.0 — Primitives + sizing (`e7e1503`)
+- `types.py` — `Trade`, `Position`, `FillEvent`, `RuleBreach`, `ChallengeResult`, `ExitEvent` dataclasses (account-currency-agnostic, no `_usd` suffixes)
+- `pip_value.py` — FX pip mechanics + quote-currency conversion (P3-14). Property tests against FTMO spec for 8 sample pairs
+- `position.py`, `equity.py`, `swap.py`, `commission.py` — bookkeeping primitives (commission is half-at-open / half-at-close per P3-15)
+- `intrabar.py` — 1h-path event extraction per position
+- `event_queue.py` — portfolio-level chronological applier (P3-11)
+- `trade_factory.py` — `Signal` → entry / stop / target / lots derivation; refuses to open if 1h data missing (P3-12)
+- `calendar_provider.py` — `Protocol` + `NullCalendarProvider` (P3-8 Phase-5 seam)
+- `risk_exits.py` — weekend-flatten + deadline awareness (P3-18 / locked decision 14)
 
-- `momentum.py` — RSI (Wilder's), MACD, Stochastic, CCI, Williams %R (`7ed29f6`)
-- `volatility.py` — true_range, ATR (Wilder's), atr_percent, Bollinger Bands (`bfac46c`)
-- `trend.py` — SMA, EMA, ADX (with +DI/-DI), SuperTrend (iterative), Donchian, Ichimoku (`c57a757`)
-- `pivots.py` — vectorized NY-calendar-day aggregation + classic pivot formulas; Monday uses Friday via `prior_forex_day` (`ca8c67b`)
-- `candlestick.py` — hand-rolled (no talib): doji, hammer, shooting star, bullish/bearish engulfing (`279ef0c`)
-- `strength.py` — currency strength meter via log-return aggregation across all pairs each currency appears in (`5d7550d`)
-- `dxy_correlation.py` — synthesized DXY using ICE formula `50.14348112 × EURUSD^-0.576 × USDJPY^0.136 × ...` + per-pair rolling correlation (`25998e2`)
-- `sessions.py` — `Session` enum (ASIA/LONDON/OVERLAP/NY/CLOSED) with NY-local hour boundaries; `session_label`, `session_ranges` (`a2a8b97`)
+### Phase 3.1 — Engine + rules (`7541516`, `c49ab49`, `418d214`, `d2052bd`, `1d93201`)
+- `event_queue.apply_in_order` — applies portfolio events chronologically; deterministic tie-break by `(symbol_alphabetical, kind_priority)` with `stop > target`
+- `ftmo_rules.FtmoRuleEngine` — daily loss / max DD (static OR trailing per P3-13) / profit target / min&max trading days / DST-aware CE(S)T resets via `fx_time_utils.ftmo_day_boundary`
+- `ftmo_rules.load_ftmo_config` — raises `FtmoConfigUnverifiedError` on placeholder values (P3-3 hard-block, no `--allow-placeholders` flag)
+- `engine.run_challenge` — process-safe main simulator (P3-9)
+- `engine.run_n_randomized` — `ProcessPoolExecutor` fan-out for the gate's pass-rate metric; deterministic per-seed
+- Golden frozen run + integration tests + lint cleanup
 
-### Phase 2b — Scoring Layer ✅
-- `src/bh_ftmo/analysis/strategy.py` + `bh_ftmo_weights.json` — `Signal` dataclass, `BaselineStrategy` (12 rule components: trend / momentum / candlestick / context). Each Signal carries `components: dict[str, float]` for explainability. (`8f2338a`)
-- `src/bh_ftmo/analysis/signal_generator.py` — `SignalGenerator` builds shared DXY + currency-strength context once, fans strategies across pairs. Best-effort context: DXY needs all 6 ICE constituents; strengths needs ≥4 pairs. Default 20-pair strength universe ensures every G8 currency appears in ≥3 pairs. (`d18b9c8`)
-- `src/bh_ftmo/analysis/cluster_filter.py` — currency flag-bearer dedup. Each long signal on `BASE_QUOTE` expresses long-BASE + short-QUOTE; per `(timestamp, currency, direction)`, the highest-scoring signal wins. A signal survives if it's the flag-bearer for ≥1 of its 2 exposures. `explain_cluster_filter()` returns per-candidate diagnostics. (`a1f131e`)
-- `src/bh_ftmo/analysis/mean_reversion.py` — two-sided MR. Per-bar direction: oversold conditions (RSI<30, BB-lower, Williams<-80, CCI<-100) fire long; overbought conditions fire short; neither fires direction=0. Direction-neutral bonuses (ADX<20, ASIA session) attach to whichever side anchored. (`17983c2`)
+### Phase 3.2 — Baselines (`9844244`)
+- `RandomEntryAtrExitStrategy` — uniform-random entry at configurable density, seeded
+- `MondayInFridayOutStrategy` — long EUR_USD at Monday Asia open; exit handled by engine's weekend flatten
+- `SimpleRsi14Strategy` — RSI(14)<30 long / >70 short; reuses `bh_ftmo.indicators.momentum.rsi`
+- All three picklable for `ProcessPoolExecutor`; each produces `list[Signal]` consumable by `engine.run_challenge`
+- 18 tests: 5 per baseline + 3 engine-integration
 
-**Live multi-strategy smoke (Apr 15-23, 2026)**: 1440 baseline + 1440 MR signals → 565 above-threshold (395 baseline-long, 117 MR-long, 53 MR-short) → 361 after cluster filter.
+### Phase 3.3 — Metrics + reporter (`5b50d57`)
+- `metrics.py` — Sharpe, Sortino (annualized from 1h-resampled equity per P3-17), profit factor, win rate, max DD, R-expectancy, payoff ratio, worst-DD trade chain
+- `metrics.py` — FTMO pass rate with bootstrap 95% CI (Codex #9, P3-19 input)
+- `reporter.py` — HTML + CSV: equity curve, per-cluster / per-session / per-strategy breakdowns, baselines side-by-side, gate verdict, worst-DD chain, pass-rate bootstrap-CI histogram
+
+### Phase 3.4 — Walk-forward + gate (`e3af17a`)
+- `walk_forward.py` — 18mo IS / 6mo OOS / 6mo roll fold splitter (decision 8); fold edges snap to trading days via `fx_time_utils.prior_forex_day`; OOS-contamination assertion property test
+- `gate.py` — entry-edge gate evaluator (P3-19 + decision 16A): Sharpe ≥ 1.0, PF ≥ 1.3, WR ≥ 45%, MaxDD ≤ 10%, FTMO pass-rate lower-95%-CI ≥ 70%, AND ≥10pp better than best baseline pass-rate
+- Exact trade risk added (per-trade account-currency dollar amount tracking)
+
+### Phase 3.5 — CLI driver (`e842d9a`)
+- `cli.py` — argparse-driven entry point: signal generation → walk-forward fold enumeration → `runner.run_full_comparison` → `gate.evaluate_gate` → reporter HTML/CSV. Exit codes: 0 pass, 1 fail, 2 error. stdout = verdict only; stderr = progress logs. Hard-block on placeholder ftmo config surfaces as exit 2.
+- `swap_rates.py` — OANDA `/v3/accounts/{id}/instruments` financing fetcher with date-versioned cache at `data/swap_rates_<date>.json`. `--no-swap` fallback for offline / CI runs.
+- `runner.py` — orchestration layer between `engine.run_n_randomized` and the CLI (added during 3.5; not in original arch doc)
+- One-line bug fix in `_compute_atr_by_symbol`: ATR series index must be timestamps (`engine.py:560` looks up via `series.loc[bar_ts]`); pre-fix integration smoke test crashed with `KeyError`
 
 ---
 
 ## Previous Sessions Summary
 
+- **April 24:** BH FTMO Phases 1, 2a, 2b complete — 24 commits land OANDA data foundation (10y/40 instruments/3.2M bars/zero gaps), full forex indicator suite (independent per decision 15D), and scoring layer (BaselineStrategy + MeanReversionStrategy + multi-pair `SignalGenerator` + currency flag-bearer cluster filter). Tests 792 → 1211.
 - **April 19–23:** Intraday context weight tuning (504-combo grid search), unclamped context score, deployed CSW=2.0/IW=6.0; BH Lite health check fixes (entry-strategy stickiness + TAKE PROFIT status); research droplet destroyed
 - **April 17–19:** Intraday context layer (Phase 1 + Phase 2) shipped, BH Lite cron automated, research droplet spun up
 - **April 15–17:** BH Lite FTMO signal generator built and iterated
@@ -66,16 +78,21 @@ Decision 15D reversed the original "share-with-equity" plan after investigation 
 
 ## In Progress
 
-- Nothing actively in progress. All Phase 2b items committed and tests green.
+- Phase 3 build complete. **First gate evaluation on locked Phase 2b weights has NOT been run yet** — this is the Phase 3 exit criterion (§10 #3 in `PHASE_3_BACKTEST_ARCH.md`). Until the verdict is in, we don't know whether Phase 4 (edge-exits) unblocks or whether we halt to debug entries.
 
 ## Next Steps
 
-1. **Phase 3 — Backtesting Framework** (~1–2 weeks): bid/ask-aware simulator, FTMO rule enforcement (daily 5%, max 10%, profit target, CE(S)T reset), walk-forward harness over 10y backfill, Phase-3 entry-edge gate (Sharpe ≥1.0, PF ≥1.3, win-rate ≥45%, MaxDD ≤10%, FTMO pass-rate ≥70%).
-2. **Brand fills FTMO_RULES.md §2 TBD values** from FTMO live dashboard → `bh_ftmo_config.json` `ftmo` block. Doesn't block Phase 3 simulator development; it gates the Phase 6 cutover.
-3. **Brand installs GitHub App** before May 8 so the scheduled BH FTMO check-in routine (`trig_01RfvYoMo6V7bETCRBLn5WNT`) can run.
-4. **Brand runs `bash /tmp/humanaction.sh`** to install the every-4h incremental-update cron when ready.
-5. **Phase 2c — Indicator Tuning** runs after Phase 3 exists (walk-forward grid search for forex-appropriate lookback periods).
-6. See `TODO.md` for full backlog and `docs/planning/BH_FTMO_PLAN.md` for the locked plan.
+1. **Run the Phase 3 gate against locked Phase 2b weights** to produce the first verdict. Command: `./run.sh python -m bh_ftmo.backtest.cli`. Capture verdict + reporter HTML output. Exit codes: 0 pass / 1 fail / 2 error.
+2. **If gate passes** → unblock Phase 4 (edge-exit scoring) AND Phase 2c (indicator lookback tuning + walk-forward optimizer per P3-20).
+3. **If gate fails** → halt, debug entry side, do NOT enter Phase 4 (per `PHASE_3_BACKTEST_ARCH.md` §10 #6).
+4. **Investigate `bh_ftmo_config.json instruments` block pip values** vs. the verified `pip_value.py` module. The legacy `dollar_per_pip_per_lot` values copied from BH Lite (USDHUF 0.27, EURCZK 0.44, EURNOK 0.95, EURSEK 0.97, USDZAR 0.55, JPY-quoted 6.67) are still in the JSON. Determine whether these are dead/legacy or actively read by `trade_factory.py` — if read, port `pip_value.py`'s verified values into the JSON or delete the field.
+5. **Codex sandbox limitation** — Codex's session blocks Docker network access, so MongoDB at `127.0.0.1:27017` is unreachable. Equity-side tests that depend on MongoDB (~13 fixtures, ~31 cascading failures) fail spuriously in Codex's environment. Pick one workaround for future Codex Next Actions that need test validation: (a) Brand runs pytest from his shell and supplies the count, (b) add pytest markers to skip MongoDB-dependent tests so Codex can run a Codex-runnable subset, or (c) reconfigure Codex sandbox to allow Docker network access.
+6. **Brand action items still open from prior sessions:**
+   - Run `bash /tmp/humanaction.sh` to install every-4h incremental-update cron
+   - Install GitHub App before May 8 so `trig_01RfvYoMo6V7bETCRBLn5WNT` (BH FTMO check-in routine) can run
+   - SMTP from Claude Code sandbox is blocked — Brand runs `send_report_email.py` manually for equity reports
+7. **Phase 2c — Indicator Tuning** kicks off after Phase 3 gate passes (walk-forward grid search for forex-appropriate lookback periods).
+8. See `TODO.md` for full backlog and `docs/planning/BH_FTMO_PLAN.md` for the locked plan.
 
 ## Blockers / Open Questions
 
@@ -162,11 +179,11 @@ doctl compute droplet delete bh-research --force
 ## Git Status
 
 **Branch:** master
-**Working tree:** clean (post-Phase-2b commits)
-**Active feature branches:** none
-**Phase 2b commits:** `8f2338a`, `d18b9c8`, `a1f131e`, `17983c2`
-**Tests:** 1211 passing, 3 skipped
+**Working tree:** clean
+**Active feature branches:** `docs-refresh-handoff-phase3` (this branch, awaiting merge)
+**Phase 3 commits:** `02d3234`, `68a169c`, `e7e1503`, `7541516`, `c49ab49`, `418d214`, `d2052bd`, `1d93201`, `9844244`, `5b50d57`, `e3af17a`, `e842d9a`
+**Tests:** 1396 passing, 3 skipped (verified by Claude in a Docker-accessible session; see Status note above)
 
 ---
 
-**Last Updated:** April 24, 2026
+**Last Updated:** April 25, 2026
