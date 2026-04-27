@@ -277,7 +277,13 @@ def run_challenge(
 
         actual_end_ts = bar_ts
         open_symbols = {position.symbol for position in open_positions.values()}
-        observed_symbols = symbols_now | open_symbols
+        open_symbols_with_data = {
+            symbol for symbol in open_symbols if bar_ts in bars_4h_norm[symbol].index
+        }
+        open_positions_with_data = [
+            position for position in open_positions.values() if position.symbol in open_symbols_with_data
+        ]
+        observed_symbols = symbols_now | open_symbols_with_data
         bid_at_bar, ask_at_bar = _bid_ask_snapshot_at(bars_4h_norm, bars_1h_norm, observed_symbols, bar_ts, bar_ts)
         rates_at_bar = _rates_snapshot_at(bars_4h_norm, bars_1h_norm, rates_universe, bar_ts, bar_ts)
 
@@ -289,7 +295,7 @@ def run_challenge(
         bar_close_ts = bar_ts + timedelta(hours=4)
         reset_ts = ftmo_day_boundary(bar_ts, server_tz=ftmo_config["server_timezone"])
         if bar_ts <= reset_ts <= bar_close_ts and rule_engine.is_session_reset_due(reset_ts):
-            reset_symbols = symbols_now | {position.symbol for position in open_positions.values()}
+            reset_symbols = symbols_now | open_symbols_with_data
             bid_at_reset, ask_at_reset = _bid_ask_snapshot_at(bars_4h_norm, bars_1h_norm, reset_symbols, reset_ts, bar_ts)
             rates_at_reset = _rates_snapshot_at(bars_4h_norm, bars_1h_norm, rates_universe, reset_ts, bar_ts)
 
@@ -306,10 +312,13 @@ def run_challenge(
                     swap_totals_by_position[position_id] = swap_totals_by_position.get(position_id, 0.0) + cashflow
             current_equity = equity(
                 cash,
-                list(open_positions.values()),
+                open_positions_with_data,
                 bid_at_reset,
                 ask_at_reset,
-                {position.symbol: pip_value_at_reset(reset_ts, position.symbol) for position in open_positions.values()},
+                {
+                    position.symbol: pip_value_at_reset(reset_ts, position.symbol)
+                    for position in open_positions_with_data
+                },
             )
             rule_engine.on_session_reset(reset_ts, current_equity)
             equity_curve.record(reset_ts, current_equity)
@@ -339,7 +348,7 @@ def run_challenge(
 
         deadline_state = deadline_check(bar_ts, deadline, sizing_config)
         forced_events = weekend_flatten_events(
-            list(open_positions.values()),
+            open_positions_with_data,
             bar_ts,
             bid_at_bar,
             ask_at_bar,
@@ -354,11 +363,11 @@ def run_challenge(
                     price=bid_at_bar[position.symbol] if position.direction > 0 else ask_at_bar[position.symbol],
                     position_id=position.id,
                 )
-                for position in open_positions.values()
+                for position in open_positions_with_data
             )
 
         if forced_events:
-            event_symbols = {position.symbol for position in open_positions.values()} | {event.symbol for event in forced_events}
+            event_symbols = open_symbols_with_data | {event.symbol for event in forced_events}
             bid_snapshot, ask_snapshot = _bid_ask_snapshot_at(bars_4h_norm, bars_1h_norm, event_symbols, bar_ts, bar_ts)
             raw_open_positions, cash, new_trades, breach = apply_in_order(
                 events=sorted(forced_events, key=lambda event: (event.ts, event.symbol, event.kind)),
@@ -409,17 +418,33 @@ def run_challenge(
                 break
 
         if open_positions:
-            bar_rows = {symbol: _require_row(bars_4h_norm[symbol], bar_ts) for symbol in open_symbols}
-            one_hour_windows = {symbol: _slice_1h_window(bars_1h_norm[symbol], bar_ts) for symbol in open_symbols}
+            open_symbols = {position.symbol for position in open_positions.values()}
+            open_symbols_with_data = {
+                symbol for symbol in open_symbols if bar_ts in bars_4h_norm[symbol].index
+            }
+            open_positions_with_data = [
+                position for position in open_positions.values() if position.symbol in open_symbols_with_data
+            ]
+            bar_rows = {symbol: _require_row(bars_4h_norm[symbol], bar_ts) for symbol in open_symbols_with_data}
+            one_hour_windows = {
+                symbol: _slice_1h_window(bars_1h_norm[symbol], bar_ts)
+                for symbol in open_symbols_with_data
+            }
             events = collect_and_sort(
-                list(open_positions.values()),
+                open_positions_with_data,
                 bar_4h_by_symbol=bar_rows,
                 bars_1h_by_symbol=one_hour_windows,
-                pip_sizes={symbol: pair_specs[symbol].pip_size for symbol in open_symbols},
+                pip_sizes={symbol: pair_specs[symbol].pip_size for symbol in open_symbols_with_data},
             )
             for event in events:
-                event_symbols = {position.symbol for position in open_positions.values()} | {event.symbol}
-                bid_snapshot, ask_snapshot = _bid_ask_snapshot_at(bars_4h_norm, bars_1h_norm, event_symbols, event.ts, bar_ts)
+                event_symbols = open_symbols_with_data | {event.symbol}
+                bid_snapshot, ask_snapshot = _bid_ask_snapshot_at(
+                    bars_4h_norm,
+                    bars_1h_norm,
+                    event_symbols,
+                    event.ts,
+                    bar_ts,
+                )
                 raw_open_positions, cash, new_trades, breach = apply_in_order(
                     events=[event],
                     open_positions=open_positions,
@@ -471,11 +496,24 @@ def run_challenge(
                 break
 
         bar_close_ts = bar_ts + timedelta(hours=4)
+        open_symbols = {position.symbol for position in open_positions.values()}
+        open_symbols_with_data = {
+            symbol for symbol in open_symbols if bar_ts in bars_4h_norm[symbol].index
+        }
+        open_positions_with_data = [
+            position for position in open_positions.values() if position.symbol in open_symbols_with_data
+        ]
         close_symbols = (
             {symbol for symbol, frame in bars_4h_norm.items() if bar_ts in frame.index}
-            | {position.symbol for position in open_positions.values()}
+            | open_symbols_with_data
         )
-        bid_at_close, ask_at_close = _bid_ask_snapshot_at(bars_4h_norm, bars_1h_norm, close_symbols, bar_close_ts, bar_ts)
+        bid_at_close, ask_at_close = _bid_ask_snapshot_at(
+            bars_4h_norm,
+            bars_1h_norm,
+            close_symbols,
+            bar_close_ts,
+            bar_ts,
+        )
         rates_at_close = _rates_snapshot_at(bars_4h_norm, bars_1h_norm, rates_universe, bar_close_ts, bar_ts)
         close_pip_values = {
             symbol: (
@@ -483,9 +521,9 @@ def run_challenge(
                 * pair_specs[symbol].contract_size
                 * quote_to_account_rate(symbol, ftmo_config["account_currency"], rates_at_close)
             )
-            for symbol in {position.symbol for position in open_positions.values()}
+            for symbol in open_symbols_with_data
         }
-        current_equity = equity(cash, list(open_positions.values()), bid_at_close, ask_at_close, close_pip_values)
+        current_equity = equity(cash, open_positions_with_data, bid_at_close, ask_at_close, close_pip_values)
         equity_curve.record(bar_close_ts, current_equity)
         breach = rule_engine.on_equity_update(bar_close_ts, current_equity)
         if breach is not None:
@@ -597,12 +635,19 @@ def run_challenge(
     elif outcome == "in_progress" and actual_end_ts >= challenge_deadline_ts:
         outcome = "push"
 
-    final_symbols = (
-        {position.symbol for position in open_positions.values()}
-        | {symbol for symbol in bars_4h_norm if actual_end_ts in bars_4h_norm[symbol].index}
-    )
+    final_bar_ts = actual_end_ts if actual_end_ts in timeline or not timeline else timeline[-1]
+    final_open_symbols_with_data = {
+        position.symbol
+        for position in open_positions.values()
+        if final_bar_ts in bars_4h_norm[position.symbol].index
+    }
+    final_open_positions_with_data = [
+        position for position in open_positions.values() if position.symbol in final_open_symbols_with_data
+    ]
+    final_symbols = final_open_symbols_with_data | {
+        symbol for symbol in bars_4h_norm if final_bar_ts in bars_4h_norm[symbol].index
+    }
     if final_symbols:
-        final_bar_ts = actual_end_ts if actual_end_ts in timeline else timeline[-1]
         final_bid, final_ask = _bid_ask_snapshot_at(
             bars_4h_norm,
             bars_1h_norm,
@@ -623,9 +668,9 @@ def run_challenge(
                 * pair_specs[symbol].contract_size
                 * quote_to_account_rate(symbol, ftmo_config["account_currency"], final_rates)
             )
-            for symbol in {position.symbol for position in open_positions.values()}
+            for symbol in final_open_symbols_with_data
         }
-        final_equity = equity(cash, list(open_positions.values()), final_bid, final_ask, final_pip_values)
+        final_equity = equity(cash, final_open_positions_with_data, final_bid, final_ask, final_pip_values)
     else:
         final_equity = cash
 
