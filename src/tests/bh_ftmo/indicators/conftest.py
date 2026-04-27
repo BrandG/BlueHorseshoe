@@ -7,6 +7,43 @@ import pandas as pd
 import pytest
 
 
+def _last_n_compare(
+    bh_series: pd.Series,
+    ta_array: np.ndarray,
+    n_warmup: int,
+    *,
+    rtol: float,
+    atol: float,
+) -> None:
+    """Compare bh_ftmo output to TA-Lib after the documented warmup window."""
+    bh = bh_series.iloc[n_warmup:].to_numpy(dtype=float)
+    ta = np.asarray(ta_array, dtype=float)[n_warmup:]
+
+    bh_nan = np.isnan(bh)
+    ta_nan = np.isnan(ta)
+    if not (bh_nan == ta_nan).all():
+        mismatch = np.flatnonzero(bh_nan != ta_nan)[:10] + n_warmup
+        raise AssertionError(
+            "NaN positions differ post-warmup: "
+            f"bh has {bh_nan.sum()}, ta has {ta_nan.sum()}, "
+            f"first mismatches at positions {mismatch.tolist()}"
+        )
+
+    mask = ~bh_nan
+    if not mask.any():
+        raise AssertionError("No finite values available after warmup")
+
+    diff = np.abs(bh[mask] - ta[mask])
+    max_diff = float(diff.max())
+    np.testing.assert_allclose(
+        bh[mask],
+        ta[mask],
+        rtol=rtol,
+        atol=atol,
+        err_msg=f"max_abs_diff={max_diff:.12g} after warmup={n_warmup}",
+    )
+
+
 @pytest.fixture(scope="session")
 def ohlc_fixture() -> pd.DataFrame:
     """500 deterministic 4h OHLC bars for indicator parity tests."""
