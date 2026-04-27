@@ -138,10 +138,41 @@ def test_cli_help_lists_all_options(capsys):
         "--rng-seed",
         "--limit-folds",
         "--limit-starts",
+        "--strategies",
         "--config",
         "--weights",
     ]:
         assert flag in out
+
+
+def test_cli_parser_strategy_default_is_all():
+    args = cli.build_parser().parse_args([])
+    assert args.strategies is None
+
+
+def test_cli_parser_strategy_single_value():
+    args = cli.build_parser().parse_args(["--strategies", "baseline"])
+    assert args.strategies == ["baseline"]
+
+
+def test_cli_parser_strategy_comma_list():
+    args = cli.build_parser().parse_args(["--strategies", "baseline,mean_reversion"])
+    assert args.strategies == ["baseline", "mean_reversion"]
+
+
+def test_cli_parser_strategy_whitespace_tolerant():
+    args = cli.build_parser().parse_args(["--strategies", "  baseline , mean_reversion  "])
+    assert args.strategies == ["baseline", "mean_reversion"]
+
+
+def test_cli_parser_strategy_dedupes_order_preserving():
+    args = cli.build_parser().parse_args(["--strategies", "baseline,baseline"])
+    assert args.strategies == ["baseline"]
+
+
+def test_cli_parser_strategy_rejects_invalid_value():
+    with pytest.raises(SystemExit):
+        cli.build_parser().parse_args(["--strategies", "xyz"])
 
 
 def test_cli_exits_2_on_placeholder_config(tmp_path, monkeypatch):
@@ -165,7 +196,11 @@ def test_cli_smoke_run_on_synthetic_fixture(tmp_path, monkeypatch):
     bars_1h = {symbol: _bars_1h(frame) for symbol, frame in bars_4h.items()}
 
     monkeypatch.setattr(cli, "_load_bars", lambda symbols, start, end, store=None: (bars_4h, bars_1h))
-    monkeypatch.setattr(cli, "_generate_bh_ftmo_signals", lambda bars, weights, symbols: _synthetic_signals(bars, symbols))
+    monkeypatch.setattr(
+        cli,
+        "_generate_bh_ftmo_signals",
+        lambda bars, weights, symbols, strategy_names: _synthetic_signals(bars, symbols),
+    )
     monkeypatch.setattr(cli, "_default_window", lambda today=None: (date(2024, 1, 1), date(2026, 12, 31)))
 
     exit_code, stdout, stderr = _run_main(
@@ -205,6 +240,57 @@ def test_cli_run_id_changes_per_invocation(tmp_path):
     assert first != second
 
 
+def test_cli_run_id_changes_with_strategy_selection(tmp_path):
+    baseline_args = cli.build_parser().parse_args(
+        ["--config", str(tmp_path / "config.json"), "--weights", str(tmp_path / "weights.json"), "--strategies", "baseline"]
+    )
+    mr_args = cli.build_parser().parse_args(
+        ["--config", str(tmp_path / "config.json"), "--weights", str(tmp_path / "weights.json"), "--strategies", "mean_reversion"]
+    )
+    for args in (baseline_args, mr_args):
+        args.start_date = date(2026, 1, 1)
+        args.end_date = date(2026, 12, 31)
+        args.symbols = ["EUR_USD"]
+
+    baseline_run_id = cli._compute_run_id(baseline_args, now_utc=datetime(2026, 4, 25, 15, 30, 12))
+    mr_run_id = cli._compute_run_id(mr_args, now_utc=datetime(2026, 4, 25, 15, 30, 12))
+    assert baseline_run_id != mr_run_id
+
+
+def test_generate_bh_ftmo_signals_honors_strategy_selection(tmp_path, monkeypatch):
+    calls: list[str] = []
+
+    class FakeBaselineStrategy:
+        name = "baseline"
+
+        def __init__(self, weights: dict) -> None:
+            calls.append(self.name)
+
+    class FakeMeanReversionStrategy:
+        name = "mean_reversion"
+
+        def __init__(self, weights: dict) -> None:
+            calls.append(self.name)
+
+    class FakeSignalGenerator:
+        def __init__(self, strategies: list) -> None:
+            self.strategies = strategies
+
+        def generate(self, bars_4h: dict[str, pd.DataFrame], symbols: list[str]) -> list[Signal]:
+            return []
+
+    monkeypatch.setattr(cli, "load_weights", lambda weights_path: {"baseline": {}, "mean_reversion": {}})
+    monkeypatch.setattr(cli, "BaselineStrategy", FakeBaselineStrategy)
+    monkeypatch.setattr(cli, "MeanReversionStrategy", FakeMeanReversionStrategy)
+    monkeypatch.setattr(cli, "SignalGenerator", FakeSignalGenerator)
+    monkeypatch.setattr(cli, "cluster_filter", lambda signals: signals)
+
+    result = cli._generate_bh_ftmo_signals({}, tmp_path / "weights.json", ["EUR_USD"], strategy_names=["baseline"])
+
+    assert result == []
+    assert calls == ["baseline"]
+
+
 def test_cli_passes_seed_into_gate_for_determinism(tmp_path, monkeypatch):
     config_path = _write_config(tmp_path / "config.json")
     weights_path = _write_weights(tmp_path / "weights.json")
@@ -215,7 +301,11 @@ def test_cli_passes_seed_into_gate_for_determinism(tmp_path, monkeypatch):
     bars_1h = {symbol: _bars_1h(frame) for symbol, frame in bars_4h.items()}
 
     monkeypatch.setattr(cli, "_load_bars", lambda symbols, start, end, store=None: (bars_4h, bars_1h))
-    monkeypatch.setattr(cli, "_generate_bh_ftmo_signals", lambda bars, weights, symbols: _synthetic_signals(bars, symbols))
+    monkeypatch.setattr(
+        cli,
+        "_generate_bh_ftmo_signals",
+        lambda bars, weights, symbols, strategy_names: _synthetic_signals(bars, symbols),
+    )
     monkeypatch.setattr(cli, "_default_window", lambda today=None: (date(2024, 1, 1), date(2026, 12, 31)))
 
     shared_args = [
