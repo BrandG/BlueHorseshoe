@@ -7,6 +7,7 @@ import hashlib
 import json
 import logging
 import sys
+import traceback
 from datetime import UTC, date, datetime, time, timedelta
 from pathlib import Path
 from typing import Optional
@@ -437,8 +438,12 @@ def main(argv: Optional[list[str]] = None) -> int:
         sys.stdout.write(_render_verdict_block(run_id, gate_result, output_html, output_csv))
         sys.stdout.write("\n")
         return 0 if gate_result.overall_passed else 1
-    except (FtmoConfigUnverifiedError, OandaError, FileNotFoundError, ValueError, KeyError) as exc:
+    except (FtmoConfigUnverifiedError, OandaError) as exc:
         print(str(exc), file=sys.stderr)
+        return 2
+    except (FileNotFoundError, ValueError, KeyError) as exc:
+        print(f"ERROR: {type(exc).__name__}: {exc}", file=sys.stderr)
+        traceback.print_exc(file=sys.stderr)
         return 2
 
 
