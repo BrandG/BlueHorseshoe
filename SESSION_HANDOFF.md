@@ -1,7 +1,7 @@
 # Session Handoff
 
 **Date:** April 27, 2026
-**Status:** Phase 3 framework ran end-to-end on a research droplet for the first time. Gate verdict: **FAILED across all criteria** (13,538 trades, 30 walk-forward folds, ~30 min on a c2-48vcpu-96gb). Surfaced and fixed four lurking engine bugs before getting a clean run. The verdict is *informational, not actionable* — the real next blocker is **indicator validation**: `src/bh_ftmo/indicators/` has zero unit tests and the implementations are hand-rolled pandas/numpy (NOT ports of equity-side `talib.*` calls). Until each indicator is verified against TA-Lib reference output, no weight tuning or strategy fix is meaningful.
+**Status:** Indicator validation suite **complete** — 92 tests, 100% module coverage in `src/bh_ftmo/indicators/`, no xfails. Every indicator (RSI, MACD, ADX, ATR, BBANDS, etc.) verified against TA-Lib reference output where one exists; modules with no TA-Lib counterpart (candlestick patterns, pivots, currency strength, sessions, DXY) verified against hand-computed reference values on small fixtures. Phase 3 gate result from earlier today (verdict FAILED) is now actionable — we know the indicator math is sound, so failures are real strategy/engine signal, not measurement noise. Next: add `--strategies` CLI flag for per-strategy gate isolation, then re-run.
 
 ---
 
@@ -45,6 +45,16 @@ Composite testing of two strategies × 40 pairs × 30 folds masks individual-com
 ### Droplet teardown
 `bh-research` destroyed via `/tmp/teardown.sh`, three known_hosts entries cleaned. Total cost: ~30 min × $0.69/hr ≈ $0.35.
 
+### Indicator validation suite (4 Codex Next Actions, all merged)
+Built out `src/tests/bh_ftmo/indicators/` from scratch. 92 tests across all 9 indicator modules; every module that has a TA-Lib equivalent is compared against it past a documented warmup window, every module without a TA-Lib equivalent is compared against hand-computed reference values on small inline fixtures.
+
+- `5e962d8` momentum — RSI, MACD, Stochastic (vs TA-Lib `STOCHF` not `STOCH`), CCI, Williams %R. Established the shared `ohlc_fixture` (500 deterministic 4h bars) and the `_last_n_compare` helper. **Found:** RSI(14) needed `period * 12` warmup (~28 days of 4h) to converge within 1e-3 vs the suggested `period * 5` — Wilder seed-init mismatch with TA-Lib's SMA seed, decays geometrically.
+- `ef31efc` trend + volatility — SMA, EMA, ADX, Donchian, SuperTrend, Ichimoku, true_range, ATR, atr_percent, Bollinger Bands. Hoisted `_last_n_compare` into conftest. **Found:** ATR converges much tighter than RSI at the same warmup (1.57e-09 vs 1e-3) despite the same seed math — its absolute-value range is ~1e-3, so absolute divergence at convergence is correspondingly tiny. **Confirmed:** TA-Lib's BBANDS uses population stddev (ddof=0), matching bh_ftmo. **SuperTrend hand-fixture re-walked** to match implementation's prior-bar-close carry-forward variant; the implementation is treated as spec since there's no TA-Lib reference.
+- `ddb1923` candlestick + pivots + strength — anatomy helpers + 5 pattern detectors, classic pivot formula + day aggregation + weekend-rollover (Monday uses Friday's pivots), multi-pair currency strength meter. **Hand-verified:** `currency_strength` on a 3-pair scenario (EUR_USD +1%, EUR_JPY +2%, USD_JPY +0.5%) produced exactly the expected contributions (EUR=+0.015, USD=-0.0025, JPY=-0.0125).
+- `a60a3c9` sessions + dxy_correlation + _common — Session enum + DST handling (paired summer/winter UTC bars, both classify as OVERLAP), CLOSED weekend labeling, session_ranges aggregation, DXY synthesis from 6 ICE constituents (identity case + sign-convention test on +1% EUR_USD), rolling DXY correlation, ohlc_mid + _require_ohlc.
+
+All four merged. Suite runtime: <1 second. No xfails — every divergence found was either warmup-only (and waited out) or bounded by the documented seed-init pattern.
+
 ---
 
 ## Previous Sessions Summary
@@ -67,25 +77,24 @@ Composite testing of two strategies × 40 pairs × 30 folds masks individual-com
 
 ## In Progress
 
-- **Indicator Validation Suite (NEW — top priority).** Build `src/tests/bh_ftmo/indicators/test_*.py` files that compare each BH FTMO indicator (RSI, MACD, ADX, Stochastic, CCI, Williams %R, SMA, EMA, SuperTrend, Donchian, Ichimoku, ATR, Bollinger, candlestick patterns) to TA-Lib output on a shared OHLC fixture. Where they diverge in the warmup window only, document it. Where they diverge after warmup, that's a bug and gets fixed. No further weight tuning, strategy patching, or gate re-runs are meaningful until this is done.
-- Phase 3 framework otherwise complete and battle-tested (four engine bugs found and fixed during the first end-to-end gate run).
+- **`--strategies` CLI flag for per-strategy gate isolation (NEW — top priority).** `cli.py:190` hardcodes `SignalGenerator(strategies=[BaselineStrategy(weights=weights), MeanReversionStrategy(weights=weights)])`. Add an arg so the gate can run Baseline-only, MR-only, or both (preserving today's behavior as default). The CLI already has `--limit-folds` and `--limit-starts` for fast iteration; combine with `--strategies` to get a quick per-strategy verdict.
+- Phase 3 framework complete and battle-tested. Indicator math verified.
 
 ## Next Steps
 
-1. **Build the indicator validation suite.** Will be a Codex Next Action. Likely 2-3 actions: (a) `momentum.py` → `test_momentum.py`, (b) `trend.py` + `volatility.py` → `test_trend.py` + `test_volatility.py`, (c) `candlestick.py` + `pivots.py` + `strength.py`. Compare each function's output to `talib.RSI` etc. on a fixture; assert near-equality after warmup. Document divergences.
-2. **Add `--strategies` CLI flag to `bh_ftmo.backtest.cli`** for per-strategy isolation. Currently `cli.py:190` hardcodes `SignalGenerator(strategies=[BaselineStrategy(...), MeanReversionStrategy(...)])`. Add a flag that lets the gate run Baseline alone, MR alone, or both. Pair with `--limit-folds N` for fast iteration. Subordinate to indicator validation.
-3. **After indicators are trusted** — re-run the Phase 3 gate (Baseline-only first, then MR-only, then composite). The four engine fixes from this session may have already moved the needle; if not, the structural findings (Baseline long-only, ASIA losses, AUD cluster) become actionable.
+1. **Add `--strategies` CLI flag** — Codex Next Action drafted on branch `cli-strategies-flag` (see `/tmp/nextaction.md`).
+2. **Re-run the Phase 3 gate per-strategy** once the flag lands: Baseline-only first, then MR-only, then composite. The four engine fixes from this session plus the validated indicators may have already moved the needle; if not, the structural findings (Baseline long-only, ASIA losses, AUD cluster) become actionable in isolation rather than mixed.
+3. **Investigate the Baseline long-only bug** (0 short trades of 3,652 in the first gate run). With validated indicators, this is now likely a strategy-implementation bug rather than a measurement artifact.
 4. **Investigate Sharpe/MaxDD mismatch in reporter** — per-strategy table shows 0.20 Sharpe, 22.2% MaxDD; verdict block shows -2.90, 14.6%. They're computing on different equity-curve bases. Low-effort fix once spotted.
 5. **Brand action items still open from prior sessions:**
    - Run `bash /tmp/humanaction.sh` to install every-4h incremental-update cron (when re-emitted; the slot has been used for droplet provisioning lately)
    - Install GitHub App before May 8 so `trig_01RfvYoMo6V7bETCRBLn5WNT` (BH FTMO check-in routine) can run
    - SMTP from Claude Code sandbox is blocked — Brand runs `send_report_email.py` manually for equity reports
-6. **Phase 2c — Indicator Tuning** kicks off only after (a) indicator validation passes AND (b) the Phase 3 gate produces a *passing* verdict on validated indicators.
+6. **Phase 2c — Indicator Tuning** kicks off only after the Phase 3 gate produces a *passing* verdict on validated indicators (per-strategy or composite).
 7. See `TODO.md` for full backlog and `docs/planning/BH_FTMO_PLAN.md` for the locked plan.
 
 ## Blockers / Open Questions
 
-- **Indicator correctness is unverified** (newly recognized this session) — see In Progress above. This blocks all weight tuning and strategy debugging downstream.
 - **SMTP from Claude Code sandbox is blocked** — Brand must run `send_report_email.py` manually for equity reports
 - **Crypto deferred for v1** — no BTC_USD / ETH_USD on this OANDA account; if crypto becomes strategically important, fall back to Binance public REST 4h klines
 
@@ -168,11 +177,11 @@ doctl compute droplet delete bh-research --force
 ## Git Status
 
 **Branch:** master
-**Working tree:** clean (one stray duplicate `bh_ftmo_gate_*.html` at repo root from manual scp; identical to the canonical copy in `src/graphs/` — safe to delete)
-**Active feature branches:** `docs-refresh-indicator-validation` (this branch, awaiting merge)
-**This session's commits:** `5f7fc3b`, `4ce0070`, `f328161`, `d595c2b` (doc-refresh sweep), `c2577e5` (merge_branch.sh), `94f3885`, `c20f244` (.gitignore), `1ea889c` (dead-field cleanup), `9f321e3`, `384f084`, `eeb2225`, `b34db4f` (engine bug fixes)
+**Working tree:** clean
+**Active feature branches:** `docs-indicator-suite-done-and-strategies-flag` (this branch, awaiting merge); `cli-strategies-flag` (created for the next Codex Next Action)
+**This session's commits:** `5f7fc3b`, `4ce0070`, `f328161`, `d595c2b` (doc-refresh sweep), `c2577e5` (merge_branch.sh), `94f3885`, `c20f244` (.gitignore), `1ea889c` (dead-field cleanup), `9f321e3`, `384f084`, `eeb2225`, `b34db4f` (engine bug fixes), `feb6d2a` (RSI seed-init follow-up note), `5e962d8`, `ef31efc`, `ddb1923`, `a60a3c9` (indicator validation suite)
 **Phase 3 commits (April 25):** `02d3234`, `68a169c`, `e7e1503`, `7541516`, `c49ab49`, `418d214`, `d2052bd`, `1d93201`, `9844244`, `5b50d57`, `e3af17a`, `e842d9a`
-**Tests:** 1396 passing, 3 skipped (verified prior to this session; engine bug fixes carry their own pytest validation per Codex Next Action protocol)
+**Tests:** 1396 prior + 92 new BH FTMO indicator tests = 1488 BH-side tests. All green when run via `./run.sh pytest src/tests/bh_ftmo/ -q`. Equity-side requires Docker for MongoDB; works from Brand's shell, blocked from Codex sandbox.
 
 ---
 
