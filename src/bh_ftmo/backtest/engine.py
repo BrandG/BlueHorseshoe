@@ -129,6 +129,23 @@ def _replace_trade_details(trade: Trade, swap_total: float, components: dict[str
     )
 
 
+def _split_positions_by_conversion(
+    open_positions: dict[int, Position],
+    account_ccy: str,
+    rates_snapshot: dict[str, float],
+) -> tuple[dict[int, Position], dict[int, Position]]:
+    convertible: dict[int, Position] = {}
+    deferred: dict[int, Position] = {}
+    for position_id, position in open_positions.items():
+        try:
+            quote_to_account_rate(position.symbol, account_ccy, rates_snapshot)
+        except ValueError:
+            deferred[position_id] = position
+        else:
+            convertible[position_id] = position
+    return convertible, deferred
+
+
 
 def _flush_open_positions(
     open_positions: dict[int, Position],
@@ -141,14 +158,21 @@ def _flush_open_positions(
     cash: float,
     swap_totals_by_position: dict[int, float],
     components_by_position: dict[int, dict[str, float]],
-) -> tuple[dict[int, Position], float, list[Trade]]:
+) -> tuple[dict[int, Position], float, list[Trade], int]:
     if not open_positions:
-        return {}, cash, []
+        return {}, cash, [], 0
 
     symbols = {position.symbol for position in open_positions.values()}
     rates_universe = set(bars_4h.keys())
     bids, asks = _bid_ask_snapshot_at(bars_4h, bars_1h, symbols, ts, bar_ts)
     rates_at_ts = _rates_snapshot_at(bars_4h, bars_1h, rates_universe, ts, bar_ts)
+    convertible_positions, deferred_positions = _split_positions_by_conversion(
+        open_positions,
+        ftmo_config["account_currency"],
+        rates_at_ts,
+    )
+    if not convertible_positions:
+        return dict(deferred_positions), cash, [], len(deferred_positions)
 
     def pip_value_at(event_ts: datetime, symbol: str) -> float:
         del event_ts
@@ -163,7 +187,7 @@ def _flush_open_positions(
             price=bids[position.symbol] if position.direction > 0 else asks[position.symbol],
             position_id=position.id,
         )
-        for position in open_positions.values()
+        for position in convertible_positions.values()
     ]
 
     class _NoOpRuleEngine:
@@ -179,7 +203,7 @@ def _flush_open_positions(
 
     _, cash_after, raw_trades, _ = apply_in_order(
         events=sorted(events, key=lambda event: (event.ts, event.symbol)),
-        open_positions=open_positions,
+        open_positions=convertible_positions,
         cash=cash,
         pip_specs=pair_specs,
         pip_values_at=pip_value_at,
@@ -209,7 +233,7 @@ def _flush_open_positions(
         )
         swap_totals_by_position.pop(position_id, None)
         components_by_position.pop(position_id, None)
-    return {}, cash_after, flushed
+    return dict(deferred_positions), cash_after, flushed, len(deferred_positions)
 
 
 
@@ -261,6 +285,7 @@ def run_challenge(
     trades: list[Trade] = []
     breaches: list[RuleBreach] = []
     skipped_signals: list[tuple[Signal, str]] = []
+    non_convertible_position_events = 0
     cash = float(start_equity)
     next_position_id = 1
     outcome = "in_progress"
@@ -312,14 +337,22 @@ def run_challenge(
                 cash += total_swap
                 for position_id, cashflow in swap_cashflows.items():
                     swap_totals_by_position[position_id] = swap_totals_by_position.get(position_id, 0.0) + cashflow
+            reset_positions_by_id = {position.id: position for position in open_positions_with_data}
+            reset_convertible_by_id, reset_deferred_by_id = _split_positions_by_conversion(
+                reset_positions_by_id,
+                ftmo_config["account_currency"],
+                rates_at_reset,
+            )
+            non_convertible_position_events += len(reset_deferred_by_id)
+            reset_convertible_positions = list(reset_convertible_by_id.values())
             current_equity = equity(
                 cash,
-                open_positions_with_data,
+                reset_convertible_positions,
                 bid_at_reset,
                 ask_at_reset,
                 {
                     position.symbol: pip_value_at_reset(reset_ts, position.symbol)
-                    for position in open_positions_with_data
+                    for position in reset_convertible_positions
                 },
             )
             rule_engine.on_session_reset(reset_ts, current_equity)
@@ -329,7 +362,7 @@ def run_challenge(
             if breach is not None:
                 breaches.append(breach)
                 failed_by = breach.rule
-                flushed_positions, cash, flushed_trades = _flush_open_positions(
+                flushed_positions, cash, flushed_trades, deferred_count = _flush_open_positions(
                     open_positions,
                     breach.timestamp,
                     bar_ts,
@@ -341,6 +374,7 @@ def run_challenge(
                     swap_totals_by_position,
                     components_by_position,
                 )
+                non_convertible_position_events += deferred_count
                 open_positions = flushed_positions
                 trades.extend(flushed_trades)
                 outcome = "failed"
@@ -349,8 +383,16 @@ def run_challenge(
                 break
 
         deadline_state = deadline_check(bar_ts, deadline, sizing_config)
+        open_positions_with_data_by_id = {position.id: position for position in open_positions_with_data}
+        open_positions_convertible_by_id, deferred_positions_by_id = _split_positions_by_conversion(
+            open_positions_with_data_by_id,
+            ftmo_config["account_currency"],
+            rates_at_bar,
+        )
+        open_positions_convertible = list(open_positions_convertible_by_id.values())
+        open_symbols_convertible = {position.symbol for position in open_positions_convertible}
         forced_events = weekend_flatten_events(
-            open_positions_with_data,
+            open_positions_convertible,
             bar_ts,
             bid_at_bar,
             ask_at_bar,
@@ -365,15 +407,16 @@ def run_challenge(
                     price=bid_at_bar[position.symbol] if position.direction > 0 else ask_at_bar[position.symbol],
                     position_id=position.id,
                 )
-                for position in open_positions_with_data
+                for position in open_positions_convertible
             )
 
         if forced_events:
-            event_symbols = open_symbols_with_data | {event.symbol for event in forced_events}
+            non_convertible_position_events += len(deferred_positions_by_id)
+            event_symbols = open_symbols_convertible | {event.symbol for event in forced_events}
             bid_snapshot, ask_snapshot = _bid_ask_snapshot_at(bars_4h_norm, bars_1h_norm, event_symbols, bar_ts, bar_ts)
             raw_open_positions, cash, new_trades, breach = apply_in_order(
                 events=sorted(forced_events, key=lambda event: (event.ts, event.symbol, event.kind)),
-                open_positions=open_positions,
+                open_positions=open_positions_convertible_by_id,
                 cash=cash,
                 pip_specs=pair_specs,
                 pip_values_at=pip_value_at,
@@ -396,11 +439,14 @@ def run_challenge(
                         components_by_position.pop(position_id, {}),
                     )
                 )
-            open_positions = raw_open_positions
+            open_positions = {
+                **{position_id: position for position_id, position in open_positions.items() if position_id not in open_positions_convertible_by_id},
+                **raw_open_positions,
+            }
             if breach is not None:
                 breaches.append(breach)
                 failed_by = breach.rule
-                flushed_positions, cash, flushed_trades = _flush_open_positions(
+                flushed_positions, cash, flushed_trades, deferred_count = _flush_open_positions(
                     open_positions,
                     breach.timestamp,
                     bar_ts,
@@ -412,6 +458,7 @@ def run_challenge(
                     swap_totals_by_position,
                     components_by_position,
                 )
+                non_convertible_position_events += deferred_count
                 open_positions = flushed_positions
                 trades.extend(flushed_trades)
                 outcome = "failed"
@@ -427,19 +474,28 @@ def run_challenge(
             open_positions_with_data = [
                 position for position in open_positions.values() if position.symbol in open_symbols_with_data
             ]
-            bar_rows = {symbol: _require_row(bars_4h_norm[symbol], bar_ts) for symbol in open_symbols_with_data}
+            open_positions_with_data_by_id = {position.id: position for position in open_positions_with_data}
+            open_positions_convertible_by_id, deferred_positions_by_id = _split_positions_by_conversion(
+                open_positions_with_data_by_id,
+                ftmo_config["account_currency"],
+                rates_at_bar,
+            )
+            non_convertible_position_events += len(deferred_positions_by_id)
+            open_positions_convertible = list(open_positions_convertible_by_id.values())
+            open_symbols_convertible = {position.symbol for position in open_positions_convertible}
+            bar_rows = {symbol: _require_row(bars_4h_norm[symbol], bar_ts) for symbol in open_symbols_convertible}
             one_hour_windows = {
                 symbol: _slice_1h_window(bars_1h_norm[symbol], bar_ts)
-                for symbol in open_symbols_with_data
+                for symbol in open_symbols_convertible
             }
             events = collect_and_sort(
-                open_positions_with_data,
+                open_positions_convertible,
                 bar_4h_by_symbol=bar_rows,
                 bars_1h_by_symbol=one_hour_windows,
-                pip_sizes={symbol: pair_specs[symbol].pip_size for symbol in open_symbols_with_data},
+                pip_sizes={symbol: pair_specs[symbol].pip_size for symbol in open_symbols_convertible},
             )
             for event in events:
-                event_symbols = open_symbols_with_data | {event.symbol}
+                event_symbols = open_symbols_convertible | {event.symbol}
                 bid_snapshot, ask_snapshot = _bid_ask_snapshot_at(
                     bars_4h_norm,
                     bars_1h_norm,
@@ -449,7 +505,11 @@ def run_challenge(
                 )
                 raw_open_positions, cash, new_trades, breach = apply_in_order(
                     events=[event],
-                    open_positions=open_positions,
+                    open_positions={
+                        position_id: position
+                        for position_id, position in open_positions.items()
+                        if position_id in open_positions_convertible_by_id
+                    },
                     cash=cash,
                     pip_specs=pair_specs,
                     pip_values_at=pip_value_at,
@@ -472,11 +532,14 @@ def run_challenge(
                             components_by_position.pop(position_id, {}),
                         )
                     )
-                open_positions = raw_open_positions
+                open_positions = {
+                    **{position_id: position for position_id, position in open_positions.items() if position_id not in open_positions_convertible_by_id},
+                    **raw_open_positions,
+                }
                 if breach is not None:
                     breaches.append(breach)
                     failed_by = breach.rule
-                    flushed_positions, cash, flushed_trades = _flush_open_positions(
+                    flushed_positions, cash, flushed_trades, deferred_count = _flush_open_positions(
                         open_positions,
                         breach.timestamp,
                         bar_ts,
@@ -488,6 +551,7 @@ def run_challenge(
                         swap_totals_by_position,
                         components_by_position,
                     )
+                    non_convertible_position_events += deferred_count
                     open_positions = flushed_positions
                     trades.extend(flushed_trades)
                     outcome = "failed"
@@ -517,21 +581,29 @@ def run_challenge(
             bar_ts,
         )
         rates_at_close = _rates_snapshot_at(bars_4h_norm, bars_1h_norm, rates_universe, bar_close_ts, bar_ts)
+        close_positions_by_id = {position.id: position for position in open_positions_with_data}
+        close_convertible_by_id, close_deferred_by_id = _split_positions_by_conversion(
+            close_positions_by_id,
+            ftmo_config["account_currency"],
+            rates_at_close,
+        )
+        non_convertible_position_events += len(close_deferred_by_id)
+        close_convertible_positions = list(close_convertible_by_id.values())
         close_pip_values = {
             symbol: (
                 pair_specs[symbol].pip_size
                 * pair_specs[symbol].contract_size
                 * quote_to_account_rate(symbol, ftmo_config["account_currency"], rates_at_close)
             )
-            for symbol in open_symbols_with_data
+            for symbol in {position.symbol for position in close_convertible_positions}
         }
-        current_equity = equity(cash, open_positions_with_data, bid_at_close, ask_at_close, close_pip_values)
+        current_equity = equity(cash, close_convertible_positions, bid_at_close, ask_at_close, close_pip_values)
         equity_curve.record(bar_close_ts, current_equity)
         breach = rule_engine.on_equity_update(bar_close_ts, current_equity)
         if breach is not None:
             breaches.append(breach)
             failed_by = breach.rule
-            flushed_positions, cash, flushed_trades = _flush_open_positions(
+            flushed_positions, cash, flushed_trades, deferred_count = _flush_open_positions(
                 open_positions,
                 breach.timestamp,
                 bar_ts,
@@ -543,6 +615,7 @@ def run_challenge(
                 swap_totals_by_position,
                 components_by_position,
             )
+            non_convertible_position_events += deferred_count
             open_positions = flushed_positions
             trades.extend(flushed_trades)
             outcome = "failed"
@@ -593,11 +666,15 @@ def run_challenge(
                 next_bar_ts,
                 next_bar_ts,
             )
-            quote_rate = quote_to_account_rate(
-                signal.symbol,
-                ftmo_config["account_currency"],
-                rate_snapshot,
-            )
+            try:
+                quote_rate = quote_to_account_rate(
+                    signal.symbol,
+                    ftmo_config["account_currency"],
+                    rate_snapshot,
+                )
+            except ValueError:
+                skipped_signals.append((signal, "no_conversion_path"))
+                continue
             atr_series = atr_by_symbol[signal.symbol]
             atr_value = float(atr_series.loc[bar_ts])
             position = derive_position(
@@ -664,15 +741,23 @@ def run_challenge(
             actual_end_ts,
             final_bar_ts,
         )
+        final_positions_by_id = {position.id: position for position in final_open_positions_with_data}
+        final_convertible_by_id, final_deferred_by_id = _split_positions_by_conversion(
+            final_positions_by_id,
+            ftmo_config["account_currency"],
+            final_rates,
+        )
+        non_convertible_position_events += len(final_deferred_by_id)
+        final_convertible_positions = list(final_convertible_by_id.values())
         final_pip_values = {
             symbol: (
                 pair_specs[symbol].pip_size
                 * pair_specs[symbol].contract_size
                 * quote_to_account_rate(symbol, ftmo_config["account_currency"], final_rates)
             )
-            for symbol in final_open_symbols_with_data
+            for symbol in {position.symbol for position in final_convertible_positions}
         }
-        final_equity = equity(cash, final_open_positions_with_data, final_bid, final_ask, final_pip_values)
+        final_equity = equity(cash, final_convertible_positions, final_bid, final_ask, final_pip_values)
     else:
         final_equity = cash
 
@@ -697,6 +782,7 @@ def run_challenge(
         equity_curve_daily=equity_curve_daily,
         skipped_signals=tuple(skipped_signals),
         rng_seed=rng_seed,
+        non_convertible_position_events=non_convertible_position_events,
     )
 
 

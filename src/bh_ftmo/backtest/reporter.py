@@ -204,6 +204,7 @@ def _summary_card_html(
         ("Max DD", _format_pct(equity_summary.max_drawdown_pct)),
         ("Max DD (ccy)", _format_ccy(equity_summary.max_drawdown_account_ccy)),
         ("Final Equity", _format_ccy(result.final_equity_account_ccy)),
+        ("Deferred Conv. Events", str(result.non_convertible_position_events)),
     ]
     if cohort_summary is not None:
         rows.extend(

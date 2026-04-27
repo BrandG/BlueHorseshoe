@@ -115,6 +115,7 @@ class ChallengeResult:
     equity_curve_daily: pd.Series
     skipped_signals: tuple[tuple[Signal, str], ...]
     rng_seed: int
+    non_convertible_position_events: int = 0
 
 
 @dataclass(frozen=True)

@@ -276,6 +276,7 @@ def _combine_results_for_reporting(results: list[ChallengeResult]) -> ChallengeR
         equity_curve_daily=combined_daily,
         skipped_signals=tuple(item for result in results for item in result.skipped_signals),
         rng_seed=template.rng_seed,
+        non_convertible_position_events=sum(result.non_convertible_position_events for result in results),
     )
 
 
