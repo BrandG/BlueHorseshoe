@@ -43,10 +43,19 @@ VPC_IP=$(echo "$RESULT" | awk '{print $3}')
 
 echo "Droplet created: ID=$DROPLET_ID  Public=$PUBLIC_IP  VPC=$VPC_IP"
 
+# DigitalOcean recycles VPC IPs in nyc3, so a fresh droplet may collide with a
+# stale known_hosts entry. StrictHostKeyChecking=no alone won't bypass a key
+# MISMATCH in modern OpenSSH — must purge the entry or skip the file.
+for ip in "$VPC_IP" "$PUBLIC_IP"; do
+    ssh-keygen -f /root/.ssh/known_hosts -R "$ip" >/dev/null 2>&1 || true
+done
+
+SSH_OPTS="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
+
 # Wait for SSH to be ready
 echo "=== Waiting for SSH to be ready ==="
 for i in $(seq 1 30); do
-    if ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 -o BatchMode=yes "root@${VPC_IP}" "echo ok" &>/dev/null; then
+    if ssh $SSH_OPTS -o ConnectTimeout=5 -o BatchMode=yes "root@${VPC_IP}" "echo ok" &>/dev/null; then
         break
     fi
     if [ "$i" -eq 30 ]; then
@@ -59,8 +68,8 @@ done
 
 # Copy and run setup script
 echo "=== Running setup script ==="
-scp -o StrictHostKeyChecking=no "${SCRIPT_DIR}/setup-research.sh" "root@${VPC_IP}:/root/setup-research.sh"
-ssh "root@${VPC_IP}" "bash /root/setup-research.sh"
+scp $SSH_OPTS "${SCRIPT_DIR}/setup-research.sh" "root@${VPC_IP}:/root/setup-research.sh"
+ssh $SSH_OPTS "root@${VPC_IP}" "bash /root/setup-research.sh"
 
 echo ""
 echo "============================================"
