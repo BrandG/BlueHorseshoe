@@ -44,6 +44,7 @@ SWAP_APPROXIMATION_NOTE = (
     "Swap approximation: today's OANDA financing snapshot is applied uniformly across the full historical window "
     "because OANDA does not expose historical financing archives via REST."
 )
+STRATEGY_NAMES = (BaselineStrategy.name, MeanReversionStrategy.name)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -59,6 +60,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--rng-seed", type=int, default=42, help="Bootstrap/cohort RNG seed")
     parser.add_argument("--limit-folds", type=int, help="Only evaluate the first N walk-forward folds")
     parser.add_argument("--limit-starts", type=int, help="Only evaluate the first N starts per fold")
+    parser.add_argument(
+        "--strategies",
+        type=_parse_strategies,
+        default=None,
+        help="Comma-separated subset of strategies to run. Choices: baseline, mean_reversion. Default: all.",
+    )
     parser.add_argument("--config", type=Path, default=DEFAULT_CONFIG_PATH, help="Config JSON path")
     parser.add_argument("--weights", type=Path, default=DEFAULT_WEIGHTS_PATH, help="Weights JSON path")
     return parser
@@ -69,6 +76,20 @@ def _parse_date(value: str) -> date:
         return date.fromisoformat(value)
     except ValueError as exc:
         raise argparse.ArgumentTypeError(f"invalid ISO date: {value!r}") from exc
+
+
+def _parse_strategies(value: str) -> list[str]:
+    choices = set(STRATEGY_NAMES)
+    selected: list[str] = []
+    for raw_name in value.split(","):
+        name = raw_name.strip().lower()
+        if name not in choices:
+            raise argparse.ArgumentTypeError(
+                f"invalid strategy: {name!r}. Choices: {', '.join(STRATEGY_NAMES)}"
+            )
+        if name not in selected:
+            selected.append(name)
+    return selected
 
 
 def _compute_run_id(args: argparse.Namespace, now_utc: Optional[datetime] = None) -> str:
@@ -84,6 +105,7 @@ def _compute_run_id(args: argparse.Namespace, now_utc: Optional[datetime] = None
         "rng_seed": args.rng_seed,
         "limit_folds": args.limit_folds,
         "limit_starts": args.limit_starts,
+        "strategies": list(args.strategies) if args.strategies else list(STRATEGY_NAMES),
     }
     digest = hashlib.sha256(json.dumps(material, sort_keys=True).encode("utf-8")).hexdigest()[:7]
     return f"{moment:%Y%m%d_%H%M%S}_{digest}"
@@ -185,9 +207,15 @@ def _generate_bh_ftmo_signals(
     bars_4h: dict[str, pd.DataFrame],
     weights_path: Path,
     symbols: list[str],
+    strategy_names: list[str],
 ) -> list[Signal]:
     weights = load_weights(weights_path)
-    generator = SignalGenerator(strategies=[BaselineStrategy(weights=weights), MeanReversionStrategy(weights=weights)])
+    available = {
+        BaselineStrategy.name: lambda: BaselineStrategy(weights=weights),
+        MeanReversionStrategy.name: lambda: MeanReversionStrategy(weights=weights),
+    }
+    strategies = [available[name]() for name in strategy_names]
+    generator = SignalGenerator(strategies=strategies)
     return cluster_filter(generator.generate(bars_4h, symbols=symbols))
 
 
@@ -348,6 +376,7 @@ def main(argv: Optional[list[str]] = None) -> int:
         ftmo_config = load_ftmo_config(args.config)
         pair_specs = _build_pair_specs(config)
         args.symbols = _select_symbols(config, args.symbols)
+        strategy_names = args.strategies or list(STRATEGY_NAMES)
         run_id = _compute_run_id(args)
         output_html, output_csv = _resolve_outputs(args, run_id)
 
@@ -373,7 +402,12 @@ def main(argv: Optional[list[str]] = None) -> int:
         atr_by_symbol = _compute_atr_by_symbol({symbol: bars_4h[symbol] for symbol in args.symbols})
 
         LOG.info("generating Phase 2b signals")
-        bh_ftmo_signals = _generate_bh_ftmo_signals({symbol: bars_4h[symbol] for symbol in args.symbols}, args.weights, args.symbols)
+        bh_ftmo_signals = _generate_bh_ftmo_signals(
+            {symbol: bars_4h[symbol] for symbol in args.symbols},
+            args.weights,
+            args.symbols,
+            strategy_names,
+        )
 
         folds = fold_windows(args.start_date, args.end_date)
         starts = _enumerate_starts(
