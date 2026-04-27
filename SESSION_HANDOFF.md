@@ -1,66 +1,55 @@
 # Session Handoff
 
-**Date:** April 25, 2026
-**Status:** BH FTMO Phase 3 (Backtesting Framework) sub-phases 3.0 → 3.5 complete. Engine + rules + baselines + metrics + reporter + walk-forward + gate + CLI driver shipped. Gate verdict on locked Phase 2b weights not yet produced. 1396 tests passing, 3 skipped (Claude-verified; Codex sandbox can't run pytest because Docker network access is blocked, so MongoDB-backed equity tests fail spuriously there).
+**Date:** April 27, 2026
+**Status:** Phase 3 framework ran end-to-end on a research droplet for the first time. Gate verdict: **FAILED across all criteria** (13,538 trades, 30 walk-forward folds, ~30 min on a c2-48vcpu-96gb). Surfaced and fixed four lurking engine bugs before getting a clean run. The verdict is *informational, not actionable* — the real next blocker is **indicator validation**: `src/bh_ftmo/indicators/` has zero unit tests and the implementations are hand-rolled pandas/numpy (NOT ports of equity-side `talib.*` calls). Until each indicator is verified against TA-Lib reference output, no weight tuning or strategy fix is meaningful.
 
 ---
 
-## What Was Done This Session (April 25)
+## What Was Done This Session (April 27)
 
-Eleven commits land BH FTMO Phase 3 end-to-end (sub-phases 3.0 → 3.5). The full backtest framework is now functional: bid/ask-aware simulator, FTMO rule enforcement (static + trailing DD), three null baselines, walk-forward fold harness, metrics + reporter, entry-edge gate, CLI driver. `./run.sh python -m bh_ftmo.backtest.cli` runs the full Phase 3 gate evaluation on live 10y data and emits a pass/fail verdict.
+### Doc-refresh sweep (Codex Next Actions, all merged)
+Four sequential Next Actions refreshed all the planning docs against shipped Phase 3 reality:
+- `5f7fc3b` SESSION_HANDOFF refresh for Phase 3 completion
+- `4ce0070` BH_FTMO_PLAN — Phase 3 marked complete
+- `f328161` FTMO_RULES §2 filled with verified Free Trial values (14-day, $100k, static DD, $0 commission, Europe/Prague tz)
+- `d595c2b` TODO refresh for Phase 3 completion + new follow-ups
 
-Companion design doc `docs/planning/PHASE_3_BACKTEST_ARCH.md` (575 lines) drafted with `/plan-eng-review` + Codex cross-model review; 20 P3-* decisions locked.
+### Repo housekeeping
+- Stale worktrees + feature branches pruned
+- `.gitignore` extended (`94f3885`, `c20f244`) for `data/swap_rates_*.json`, `src/.codex`, `src/temp.txt`
+- `merge_branch.sh` helper added (`c2577e5`) — `--no-ff` merge + safe (`-d`, lowercase) branch delete + optional push
 
-### Pre-work — Architecture + config (`02d3234`, `68a169c`)
-- `PHASE_3_BACKTEST_ARCH.md` drafted; full eng review and Codex cross-model review (6 cross-model decisions)
-- `FTMO_RULES.md` updated for `max_loss_type` static/trailing fork (P3-13), account-currency-agnostic naming (P3-14), half-at-open/half-at-close commission (P3-15), swap-then-reset ordering (P3-16), hard-block on placeholder load (P3-3)
-- `bh_ftmo_config.json` `ftmo` block filled with verified FTMO Free Trial values: 14-day, $100k, static DD, 10% target / 5% daily / 10% max, Europe/Prague server tz
+### Dead-code removal (`1ea889c`)
+- Removed `dollar_per_pip_per_lot` field from all 40 instrument entries in `bh_ftmo_config.json`. Investigation confirmed nothing reads it; `pip_value.py` (Phase 3) is the verified source of truth, and the JSON values were dead copies of the BH Lite suspect 10× values. **Closes the 🔥 PRIORITY block** that's been sitting at the top of TODO.md since April 24.
 
-### Phase 3.0 — Primitives + sizing (`e7e1503`)
-- `types.py` — `Trade`, `Position`, `FillEvent`, `RuleBreach`, `ChallengeResult`, `ExitEvent` dataclasses (account-currency-agnostic, no `_usd` suffixes)
-- `pip_value.py` — FX pip mechanics + quote-currency conversion (P3-14). Property tests against FTMO spec for 8 sample pairs
-- `position.py`, `equity.py`, `swap.py`, `commission.py` — bookkeeping primitives (commission is half-at-open / half-at-close per P3-15)
-- `intrabar.py` — 1h-path event extraction per position
-- `event_queue.py` — portfolio-level chronological applier (P3-11)
-- `trade_factory.py` — `Signal` → entry / stop / target / lots derivation; refuses to open if 1h data missing (P3-12)
-- `calendar_provider.py` — `Protocol` + `NullCalendarProvider` (P3-8 Phase-5 seam)
-- `risk_exits.py` — weekend-flatten + deadline awareness (P3-18 / locked decision 14)
+### First end-to-end Phase 3 gate run
+Provisioned a c2-48vcpu-96gb DigitalOcean droplet (`bh-research`) at NYC3, rsynced repo + DuckDB store, kicked off `./run.sh python -m bh_ftmo.backtest.cli` inside a tmux session. Took five attempts to get a clean run because each attempt surfaced a different lurking engine bug:
 
-### Phase 3.1 — Engine + rules (`7541516`, `c49ab49`, `418d214`, `d2052bd`, `1d93201`)
-- `event_queue.apply_in_order` — applies portfolio events chronologically; deterministic tie-break by `(symbol_alphabetical, kind_priority)` with `stop > target`
-- `ftmo_rules.FtmoRuleEngine` — daily loss / max DD (static OR trailing per P3-13) / profit target / min&max trading days / DST-aware CE(S)T resets via `fx_time_utils.ftmo_day_boundary`
-- `ftmo_rules.load_ftmo_config` — raises `FtmoConfigUnverifiedError` on placeholder values (P3-3 hard-block, no `--allow-placeholders` flag)
-- `engine.run_challenge` — process-safe main simulator (P3-9)
-- `engine.run_n_randomized` — `ProcessPoolExecutor` fan-out for the gate's pass-rate metric; deterministic per-seed
-- Golden frozen run + integration tests + lint cleanup
+1. `9f321e3` **rates-snapshot-bridge** — `_rates_snapshot_at` was being called with only the open-position symbols, leaving BFS in `quote_to_account_rate` unable to find currency bridges. Widened to `bars_4h.keys()` at all call sites.
+2. `384f084` **cli-print-traceback** — `cli.py:440` was catching `FileNotFoundError`/`ValueError`/`KeyError` with a friendly handler that swallowed tracebacks. Split the catch so diagnostic exceptions print full tracebacks via `traceback.print_exc()`.
+3. `eeb2225` **data-gap-filter** — `_bid_ask_snapshot_at` is strict (callers shouldn't act on unobservable positions). Added `open_symbols_with_data` / `open_positions_with_data` filtering at all callers in `engine.run_challenge` for the FX week-end Friday-21:00 UTC data gap.
+4. `b34db4f` **rates-snapshot-tolerant** — `_rates_snapshot_at` is the rates *graph*, not a "specific symbol" lookup; it should silently skip symbols whose `bar_ts` isn't in their frame index. BFS walks whatever graph is present; if a critical bridge is missing, `quote_to_account_rate` raises a clear `ValueError`. Internal-skip fix; semantically distinct from the strict bid/ask-snapshot fix above.
 
-### Phase 3.2 — Baselines (`9844244`)
-- `RandomEntryAtrExitStrategy` — uniform-random entry at configurable density, seeded
-- `MondayInFridayOutStrategy` — long EUR_USD at Monday Asia open; exit handled by engine's weekend flatten
-- `SimpleRsi14Strategy` — RSI(14)<30 long / >70 short; reuses `bh_ftmo.indicators.momentum.rsi`
-- All three picklable for `ProcessPoolExecutor`; each produces `list[Signal]` consumable by `engine.run_challenge`
-- 18 tests: 5 per baseline + 3 engine-integration
+Also fixed `/tmp/run_gate.sh` in place (set `-o pipefail` + `${PIPESTATUS[0]}`) to capture the actual gate exit code instead of `tee`'s.
 
-### Phase 3.3 — Metrics + reporter (`5b50d57`)
-- `metrics.py` — Sharpe, Sortino (annualized from 1h-resampled equity per P3-17), profit factor, win rate, max DD, R-expectancy, payoff ratio, worst-DD trade chain
-- `metrics.py` — FTMO pass rate with bootstrap 95% CI (Codex #9, P3-19 input)
-- `reporter.py` — HTML + CSV: equity curve, per-cluster / per-session / per-strategy breakdowns, baselines side-by-side, gate verdict, worst-DD chain, pass-rate bootstrap-CI histogram
+### Gate verdict: FAILED
+Run `bh_ftmo_gate_20260427_104629_5883064` — 13,538 trades over 30 walk-forward folds, all five gate criteria failed (Sharpe, PF, WR, MaxDD, pass-rate). HTML + CSV pulled to `src/graphs/` and `src/logs/`. Three structural findings on inspection:
+- **Baseline appears long-only** — 0 short trades of 3,652 baseline trades. Likely a strategy-implementation bug, not weights.
+- **ASIA session = 65% of losses** across all strategies (every strategy is structurally bleeding during low-liquidity hours).
+- **AUD cluster concentration** — 41% of trades touch AUD; AUD trades are 59% of losses. Cluster filter may be under-suppressing.
+- **Sharpe and Max DD mismatched** between per-strategy table (0.20 / 22.2%) and verdict block (-2.90 / 14.6%) — suggests reporter is computing on different equity-curve bases.
 
-### Phase 3.4 — Walk-forward + gate (`e3af17a`)
-- `walk_forward.py` — 18mo IS / 6mo OOS / 6mo roll fold splitter (decision 8); fold edges snap to trading days via `fx_time_utils.prior_forex_day`; OOS-contamination assertion property test
-- `gate.py` — entry-edge gate evaluator (P3-19 + decision 16A): Sharpe ≥ 1.0, PF ≥ 1.3, WR ≥ 45%, MaxDD ≤ 10%, FTMO pass-rate lower-95%-CI ≥ 70%, AND ≥10pp better than best baseline pass-rate
-- Exact trade risk added (per-trade account-currency dollar amount tracking)
+### Methodological pivot (Brand's call)
+Composite testing of two strategies × 40 pairs × 30 folds masks individual-component bugs. Brand pushed back on patching the symptoms (filter ASIA, tighten cluster) and instead asked: **can we even guarantee that RSI / EMA / ADX are calculating correctly?** Answer: no — `src/bh_ftmo/indicators/` has zero unit tests in `src/tests/bh_ftmo/`, and the indicators are hand-rolled pandas/numpy implementations, not ports of equity-side `talib.RSI` / `talib.MACD` / `talib.ADX` calls. The math *looks* correct on inspection but several functions have known footguns (RSI/MACD/ADX seed-init differs from TA-Lib; SuperTrend's stateful loop is bespoke).
 
-### Phase 3.5 — CLI driver (`e842d9a`)
-- `cli.py` — argparse-driven entry point: signal generation → walk-forward fold enumeration → `runner.run_full_comparison` → `gate.evaluate_gate` → reporter HTML/CSV. Exit codes: 0 pass, 1 fail, 2 error. stdout = verdict only; stderr = progress logs. Hard-block on placeholder ftmo config surfaces as exit 2.
-- `swap_rates.py` — OANDA `/v3/accounts/{id}/instruments` financing fetcher with date-versioned cache at `data/swap_rates_<date>.json`. `--no-swap` fallback for offline / CI runs.
-- `runner.py` — orchestration layer between `engine.run_n_randomized` and the CLI (added during 3.5; not in original arch doc)
-- One-line bug fix in `_compute_atr_by_symbol`: ATR series index must be timestamps (`engine.py:560` looks up via `series.loc[bar_ts]`); pre-fix integration smoke test crashed with `KeyError`
+### Droplet teardown
+`bh-research` destroyed via `/tmp/teardown.sh`, three known_hosts entries cleaned. Total cost: ~30 min × $0.69/hr ≈ $0.35.
 
 ---
 
 ## Previous Sessions Summary
 
+- **April 25:** BH FTMO Phase 3 (Backtesting Framework) sub-phases 3.0 → 3.5 shipped — 11 commits (`02d3234` → `e842d9a`). Bid/ask-aware simulator, FTMO rule enforcement (static + trailing DD), three null baselines, walk-forward fold harness, metrics + reporter, entry-edge gate, CLI driver. Companion design doc `docs/planning/PHASE_3_BACKTEST_ARCH.md` (20 P3-* decisions). Tests 1211 → 1396.
 - **April 24:** BH FTMO Phases 1, 2a, 2b complete — 24 commits land OANDA data foundation (10y/40 instruments/3.2M bars/zero gaps), full forex indicator suite (independent per decision 15D), and scoring layer (BaselineStrategy + MeanReversionStrategy + multi-pair `SignalGenerator` + currency flag-bearer cluster filter). Tests 792 → 1211.
 - **April 19–23:** Intraday context weight tuning (504-combo grid search), unclamped context score, deployed CSW=2.0/IW=6.0; BH Lite health check fixes (entry-strategy stickiness + TAKE PROFIT status); research droplet destroyed
 - **April 17–19:** Intraday context layer (Phase 1 + Phase 2) shipped, BH Lite cron automated, research droplet spun up
@@ -78,26 +67,26 @@ Companion design doc `docs/planning/PHASE_3_BACKTEST_ARCH.md` (575 lines) drafte
 
 ## In Progress
 
-- Phase 3 build complete. **First gate evaluation on locked Phase 2b weights has NOT been run yet** — this is the Phase 3 exit criterion (§10 #3 in `PHASE_3_BACKTEST_ARCH.md`). Until the verdict is in, we don't know whether Phase 4 (edge-exits) unblocks or whether we halt to debug entries.
+- **Indicator Validation Suite (NEW — top priority).** Build `src/tests/bh_ftmo/indicators/test_*.py` files that compare each BH FTMO indicator (RSI, MACD, ADX, Stochastic, CCI, Williams %R, SMA, EMA, SuperTrend, Donchian, Ichimoku, ATR, Bollinger, candlestick patterns) to TA-Lib output on a shared OHLC fixture. Where they diverge in the warmup window only, document it. Where they diverge after warmup, that's a bug and gets fixed. No further weight tuning, strategy patching, or gate re-runs are meaningful until this is done.
+- Phase 3 framework otherwise complete and battle-tested (four engine bugs found and fixed during the first end-to-end gate run).
 
 ## Next Steps
 
-1. **Run the Phase 3 gate against locked Phase 2b weights** to produce the first verdict. Command: `./run.sh python -m bh_ftmo.backtest.cli`. Capture verdict + reporter HTML output. Exit codes: 0 pass / 1 fail / 2 error.
-2. **If gate passes** → unblock Phase 4 (edge-exit scoring) AND Phase 2c (indicator lookback tuning + walk-forward optimizer per P3-20).
-3. **If gate fails** → halt, debug entry side, do NOT enter Phase 4 (per `PHASE_3_BACKTEST_ARCH.md` §10 #6).
-4. **Investigate `bh_ftmo_config.json instruments` block pip values** vs. the verified `pip_value.py` module. The legacy `dollar_per_pip_per_lot` values copied from BH Lite (USDHUF 0.27, EURCZK 0.44, EURNOK 0.95, EURSEK 0.97, USDZAR 0.55, JPY-quoted 6.67) are still in the JSON. Determine whether these are dead/legacy or actively read by `trade_factory.py` — if read, port `pip_value.py`'s verified values into the JSON or delete the field.
-5. **Codex sandbox limitation** — Codex's session blocks Docker network access, so MongoDB at `127.0.0.1:27017` is unreachable. Equity-side tests that depend on MongoDB (~13 fixtures, ~31 cascading failures) fail spuriously in Codex's environment. Pick one workaround for future Codex Next Actions that need test validation: (a) Brand runs pytest from his shell and supplies the count, (b) add pytest markers to skip MongoDB-dependent tests so Codex can run a Codex-runnable subset, or (c) reconfigure Codex sandbox to allow Docker network access.
-6. **Brand action items still open from prior sessions:**
-   - Run `bash /tmp/humanaction.sh` to install every-4h incremental-update cron
+1. **Build the indicator validation suite.** Will be a Codex Next Action. Likely 2-3 actions: (a) `momentum.py` → `test_momentum.py`, (b) `trend.py` + `volatility.py` → `test_trend.py` + `test_volatility.py`, (c) `candlestick.py` + `pivots.py` + `strength.py`. Compare each function's output to `talib.RSI` etc. on a fixture; assert near-equality after warmup. Document divergences.
+2. **Add `--strategies` CLI flag to `bh_ftmo.backtest.cli`** for per-strategy isolation. Currently `cli.py:190` hardcodes `SignalGenerator(strategies=[BaselineStrategy(...), MeanReversionStrategy(...)])`. Add a flag that lets the gate run Baseline alone, MR alone, or both. Pair with `--limit-folds N` for fast iteration. Subordinate to indicator validation.
+3. **After indicators are trusted** — re-run the Phase 3 gate (Baseline-only first, then MR-only, then composite). The four engine fixes from this session may have already moved the needle; if not, the structural findings (Baseline long-only, ASIA losses, AUD cluster) become actionable.
+4. **Investigate Sharpe/MaxDD mismatch in reporter** — per-strategy table shows 0.20 Sharpe, 22.2% MaxDD; verdict block shows -2.90, 14.6%. They're computing on different equity-curve bases. Low-effort fix once spotted.
+5. **Brand action items still open from prior sessions:**
+   - Run `bash /tmp/humanaction.sh` to install every-4h incremental-update cron (when re-emitted; the slot has been used for droplet provisioning lately)
    - Install GitHub App before May 8 so `trig_01RfvYoMo6V7bETCRBLn5WNT` (BH FTMO check-in routine) can run
    - SMTP from Claude Code sandbox is blocked — Brand runs `send_report_email.py` manually for equity reports
-7. **Phase 2c — Indicator Tuning** kicks off after Phase 3 gate passes (walk-forward grid search for forex-appropriate lookback periods).
-8. See `TODO.md` for full backlog and `docs/planning/BH_FTMO_PLAN.md` for the locked plan.
+6. **Phase 2c — Indicator Tuning** kicks off only after (a) indicator validation passes AND (b) the Phase 3 gate produces a *passing* verdict on validated indicators.
+7. See `TODO.md` for full backlog and `docs/planning/BH_FTMO_PLAN.md` for the locked plan.
 
 ## Blockers / Open Questions
 
+- **Indicator correctness is unverified** (newly recognized this session) — see In Progress above. This blocks all weight tuning and strategy debugging downstream.
 - **SMTP from Claude Code sandbox is blocked** — Brand must run `send_report_email.py` manually for equity reports
-- **Phase 3 baseline implementations** (decision 17B): random-entry+ATR-exit, Mon-in/Fri-out fixed-schedule, simple RSI(14) — needed for entry-edge-gate comparison
 - **Crypto deferred for v1** — no BTC_USD / ETH_USD on this OANDA account; if crypto becomes strategically important, fall back to Binance public REST 4h klines
 
 ---
@@ -179,11 +168,12 @@ doctl compute droplet delete bh-research --force
 ## Git Status
 
 **Branch:** master
-**Working tree:** clean
-**Active feature branches:** `docs-refresh-handoff-phase3` (this branch, awaiting merge)
-**Phase 3 commits:** `02d3234`, `68a169c`, `e7e1503`, `7541516`, `c49ab49`, `418d214`, `d2052bd`, `1d93201`, `9844244`, `5b50d57`, `e3af17a`, `e842d9a`
-**Tests:** 1396 passing, 3 skipped (verified by Claude in a Docker-accessible session; see Status note above)
+**Working tree:** clean (one stray duplicate `bh_ftmo_gate_*.html` at repo root from manual scp; identical to the canonical copy in `src/graphs/` — safe to delete)
+**Active feature branches:** `docs-refresh-indicator-validation` (this branch, awaiting merge)
+**This session's commits:** `5f7fc3b`, `4ce0070`, `f328161`, `d595c2b` (doc-refresh sweep), `c2577e5` (merge_branch.sh), `94f3885`, `c20f244` (.gitignore), `1ea889c` (dead-field cleanup), `9f321e3`, `384f084`, `eeb2225`, `b34db4f` (engine bug fixes)
+**Phase 3 commits (April 25):** `02d3234`, `68a169c`, `e7e1503`, `7541516`, `c49ab49`, `418d214`, `d2052bd`, `1d93201`, `9844244`, `5b50d57`, `e3af17a`, `e842d9a`
+**Tests:** 1396 passing, 3 skipped (verified prior to this session; engine bug fixes carry their own pytest validation per Codex Next Action protocol)
 
 ---
 
-**Last Updated:** April 25, 2026
+**Last Updated:** April 27, 2026

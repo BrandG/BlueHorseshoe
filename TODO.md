@@ -2,7 +2,20 @@
 
 ## Near Term
 
-### 🔥 PRIORITY — BH Lite live-trading correctness (added 2026-04-24)
+### 🔥 PRIORITY — BH FTMO Indicator Validation Suite (added 2026-04-27)
+
+The first end-to-end Phase 3 gate run (2026-04-27, run id `bh_ftmo_gate_20260427_104629`) failed across all five criteria after surfacing four lurking engine bugs (each fixed: `9f321e3`, `384f084`, `eeb2225`, `b34db4f`). On post-mortem, Brand asked the methodologically correct question: **can we even guarantee that RSI / EMA / ADX are calculating correctly?** Answer: no. `src/bh_ftmo/indicators/` has zero unit tests in `src/tests/bh_ftmo/`, and the implementations are hand-rolled pandas/numpy — *not* ports of equity-side `talib.RSI` / `talib.MACD` / `talib.ADX` calls. Math looks correct on inspection but several functions have known footguns (RSI/MACD/ADX seed-init differs from TA-Lib; SuperTrend's stateful loop is bespoke).
+
+**Until each indicator is verified against TA-Lib reference output, no weight tuning, no strategy patching, and no gate re-run is meaningful.** Whatever signal the failed gate produced is unsafe to interpret — we don't know if the strategies are bad, the weights are bad, the indicators are bad, or all three.
+
+**Plan (likely 2-3 Codex Next Actions):**
+1. **`test_momentum.py`** — RSI, MACD, Stochastic, CCI, Williams %R compared to `talib.RSI` / `talib.MACD` / `talib.STOCH` / `talib.CCI` / `talib.WILLR` on a shared OHLC fixture. Assert near-equality after the warmup window. Document divergences.
+2. **`test_trend.py` + `test_volatility.py`** — SMA, EMA, ADX, SuperTrend, Donchian, Ichimoku, ATR, Bollinger. SMA / EMA-with-`adjust=False` should be exact; ADX may need warmup tolerance (Wilder's seed); SuperTrend has no TA-Lib equivalent so test against a hand-computed reference on a tiny fixture instead.
+3. **`test_candlestick.py` + `test_pivots.py` + `test_strength.py`** — candlestick patterns can compare to `talib.CDL*`; pivots and currency-strength have no TA-Lib equivalent, so test against hand-computed values from a small known dataset.
+
+**After this lands:** add a `--strategies` CLI flag to `bh_ftmo.backtest.cli` (currently hardcoded at `cli.py:190` to use both Baseline + MR), then re-run the gate per-strategy in isolation to see if the four engine fixes already moved the needle.
+
+### ~~🔥 PRIORITY — BH Lite live-trading correctness~~ (added 2026-04-24, BH FTMO half resolved 2026-04-27)
 
 Discovered during `/plan-ceo-review` of BH FTMO plan: `bh_lite`'s displayed P&L is diverging from FTMO's actual account P&L. Root cause appears to be `dollar_per_pip_per_lot` config values that are off by ~10x for several exotic/low-value pairs. Brand observed a position displayed at +$122 that's actually near +$2,000 on FTMO. This silently misleads every trading decision driven by position health output (take-profit candidates, R-multiple tracking, daily P&L).
 
@@ -18,9 +31,11 @@ Discovered during `/plan-ceo-review` of BH FTMO plan: `bh_lite`'s displayed P&L 
 
 **Why priority:** Brand is actively trading these positions. Every day the system mis-displays P&L is another day of suboptimal take-profit / stop-adjust decisions. The fix is small (config patch + one test) but the leverage is high.
 
-**Upstream reference (added 2026-04-25):** Phase 3 shipped `src/bh_ftmo/backtest/pip_value.py` with property tests against FTMO's spec page for 8 sample pairs (majors, JPY-quoted, exotic, cross). When you port the BH Lite fix, derive the verified `dollar_per_pip_per_lot` values from that module's logic rather than computing fresh — the FTMO spec property test is the cross-check that catches the original 10x error. Note: `bh_ftmo_config.json instruments` block carries the same suspect values copied from BH Lite during Phase 0; reconciling that file is a separate (related) follow-up — see the new BH FTMO follow-ups section.
+**Upstream reference (added 2026-04-25):** Phase 3 shipped `src/bh_ftmo/backtest/pip_value.py` with property tests against FTMO's spec page for 8 sample pairs (majors, JPY-quoted, exotic, cross). When you port the BH Lite fix, derive the verified `dollar_per_pip_per_lot` values from that module's logic rather than computing fresh — the FTMO spec property test is the cross-check that catches the original 10x error.
 
-**Not blocking:** BH FTMO plan work (Phase 0 copy, Phase 0.5 OANDA probe, etc.). Items 1-3 ship on BH Lite directly; item 4 lands post-BH-FTMO-cutover in whichever code path is live at that point. The config fix ports forward into `bh_ftmo_config.json` as part of Phase 0 copy.
+**BH FTMO half resolved (2026-04-27, commit `1ea889c`):** investigation confirmed nothing reads `dollar_per_pip_per_lot` in the BH FTMO code path — `pip_value.py` is the sole pip-mechanics source. Field deleted from all 40 `bh_ftmo_config.json` instrument entries as dead code. **The BH Lite half (items 1-3 above) is still open** if BH Lite is still being used for live position tracking; if BH Lite has been fully retired in favor of MT5-direct trading, this whole block can be closed.
+
+**Not blocking:** BH FTMO plan work. Items 1-3 ship on BH Lite directly; item 4 lands post-BH-FTMO-cutover in whichever code path is live at that point.
 
 ### Reporting
 - ~~Holiday-aware exit warning banner~~ (done 2026-04-12) — Amber/neon banners on all three HTML report types (standard, email, arcade) when an NYSE holiday falls in the current week. Uses existing `pandas.tseries.holiday` via shared `market_calendar.py` module (no new dependency). Banner uses the report's target date, not system clock.
@@ -147,13 +162,17 @@ Discovered during `/plan-ceo-review` of BH FTMO plan: `bh_lite`'s displayed P&L 
 
 **Phase 3 ✅ COMPLETED 2026-04-25** — bid/ask-aware simulator, FTMO rule enforcement (static + trailing DD per P3-13), three null baselines (random+ATR / Mon-Fri / RSI(14)), walk-forward fold harness (18mo IS / 6mo OOS / 6mo roll), metrics + reporter (Sharpe / Sortino / PF / WR / MaxDD / FTMO pass-rate w/ bootstrap CI), entry-edge gate evaluator, CLI driver (`./run.sh python -m bh_ftmo.backtest.cli`).
 
-**🚧 Phase 3 exit criterion NOT YET MET:** the first gate evaluation against locked Phase 2b weights has not been run. Run `./run.sh python -m bh_ftmo.backtest.cli` to produce the verdict. Exit codes: 0 pass / 1 fail / 2 error.
-- **If gate passes** → unblock Phase 4 (edge-exit scoring) AND Phase 2c (indicator lookback tuning + walk-forward optimizer per P3-20).
-- **If gate fails** → halt, debug entry side, do NOT enter Phase 4 (per `PHASE_3_BACKTEST_ARCH.md` §10 #6).
+**🚧 First gate run completed 2026-04-27 — verdict FAILED.** Run id `bh_ftmo_gate_20260427_104629_5883064`. 13,538 trades over 30 walk-forward folds on a c2-48vcpu-96gb droplet, ~30 min wall time. Five attempts were needed before getting a clean run; each attempt surfaced and fixed a lurking engine bug (`9f321e3` rates-snapshot-bridge, `384f084` cli-print-traceback, `eeb2225` data-gap-filter, `b34db4f` rates-snapshot-tolerant). Gate failed all five criteria (Sharpe / PF / WR / MaxDD / pass-rate) plus structural findings: Baseline appears long-only (0/3,652 short), ASIA session = 65% of losses, AUD cluster = 41% of trades.
+
+**The verdict is informational, not actionable until indicators are validated.** See the new top-of-file 🔥 PRIORITY block — `src/bh_ftmo/indicators/` has zero unit tests, the implementations are hand-rolled (not `talib` ports), and any further weight tuning or strategy debugging is meaningless until each indicator is verified against TA-Lib reference output.
+
+**Decision tree (deferred until indicator validation lands):**
+- If gate passes after validation → unblock Phase 4 (edge-exit scoring) AND Phase 2c (indicator lookback tuning + walk-forward optimizer per P3-20).
+- If gate still fails → debug per-strategy in isolation (need `--strategies` CLI flag added first), do NOT enter Phase 4.
 
 **Brand action items (still open):**
 - ~~Fill in `docs/planning/FTMO_RULES.md` §2 TBD values from FTMO live dashboard → `bh_ftmo_config.json` `ftmo` block~~ ✅ done 2026-04-25 (Free Trial variant: 14-day, $100k, static DD, $0 commission, Europe/Prague server tz).
-- Run `bash /tmp/humanaction.sh` to install the every-4h incremental-update cron. (Note: `/tmp/humanaction.sh` was repurposed for worktree cleanup on 2026-04-25; the cron-install variant needs to be re-emitted when ready.)
+- Run `bash /tmp/humanaction.sh` to install the every-4h incremental-update cron. (Note: the file has been repurposed several times for droplet provisioning / cleanup; the cron-install variant needs to be re-emitted when ready.)
 - Install GitHub App before May 8 so the scheduled BH FTMO check-in routine (`trig_01RfvYoMo6V7bETCRBLn5WNT`) can run.
 
 ### BH FTMO follow-ups (added 2026-04-24 via /plan-eng-review; updated 2026-04-25)
@@ -164,6 +183,14 @@ Discovered during `/plan-ceo-review` of BH FTMO plan: `bh_lite`'s displayed P&L 
 
 - **BH FTMO cron outage monitoring** — email alert if Friday NY-afternoon cron run is missing (critical for weekend-flatten feature). Why: if Friday's cron fails silently, open positions stay through weekend gaps — pure operational risk, not a code bug. Pros: protects the whole weekend-flatten risk-exit feature. Cons: needs an alerting mechanism — the existing Brevo SMTP pipeline (used for equity reports) works. Context: during `/plan-eng-review`, this was elevated from TODO to mandatory Phase 6 deliverable. Depends on: BH FTMO Phase 6 cutover. **Note: already listed as mandatory in Phase 6 of `docs/planning/BH_FTMO_PLAN.md` — duplicating here for visibility only.**
 
-- **`bh_ftmo_config.json instruments` pip-value reconciliation** (added 2026-04-25) — the `dollar_per_pip_per_lot` values inside the `instruments` block were copied wholesale from BH Lite during Phase 0, including the suspect exotic values (USDHUF 0.27, EURCZK 0.44, EURNOK 0.95, EURSEK 0.97, USDZAR 0.55, JPY-quoted 6.67) flagged in the 🔥 PRIORITY block above. Phase 3's `pip_value.py` is the new verified source of truth (property tests against FTMO spec for 8 sample pairs). Investigate whether the JSON `dollar_per_pip_per_lot` field is dead/legacy or actively read by `trade_factory.py` / sizing code. If actively read, port `pip_value.py`'s verified values into the JSON; if dead, delete the field. Either way, BH FTMO must not silently rely on the same values that mis-displayed BH Lite P&L by 10×.
+- ~~**`bh_ftmo_config.json instruments` pip-value reconciliation**~~ (added 2026-04-25, done 2026-04-27 commit `1ea889c`) — investigation confirmed the field was never read; `pip_value.py` is the sole pip-mechanics source. Field deleted from all 40 instrument entries.
+
+- **Reporter Sharpe/MaxDD mismatch** (added 2026-04-27) — in `bh_ftmo_gate_20260427_104629_5883064.html`, the per-strategy table shows Sharpe=0.20 / MaxDD=22.2%, while the verdict block shows Sharpe=-2.90 / MaxDD=14.6%. They're computing on different equity-curve bases (per-strategy vs. portfolio-aggregate, or per-fold vs. concatenated). Audit `metrics.py` and `reporter.py` to reconcile. Low-effort once spotted; high-value because the two views currently disagree about whether the gate even *should* fail.
+
+- **`--strategies` CLI flag for per-strategy isolation** (added 2026-04-27) — `cli.py:190` hardcodes `SignalGenerator(strategies=[BaselineStrategy(...), MeanReversionStrategy(...)])`. Add a flag so the gate can run Baseline-only, MR-only, or both (preserving today's behavior as default). Pair with `--limit-folds N` for fast iteration. Subordinate to indicator validation — there's no point isolating strategies whose indicators we don't trust.
+
+- **Baseline appears long-only** (added 2026-04-27) — first gate CSV shows 0 short trades out of 3,652 baseline trades. Likely a strategy-implementation bug, not weights. Investigate after indicator validation passes (so we know it's not e.g. an inverted RSI).
+
+- **Engine: weekend-flatten architecture** (added 2026-04-27, deferred) — the four engine fixes this session all worked around the same root cause: FX week-end (Friday 21:00 UTC) creates data gaps that callers must handle. A proper architectural fix would be to flatten *all* open positions at the Friday-close bar before the gap rather than carrying them across. Out of scope for the bug-fix sweep, but should land before Phase 4.
 
 - **Codex sandbox: design test-validation workaround** (added 2026-04-25) — Codex's command sandbox uses `--unshare-net` / `network_access:false`, blocking Docker network access. MongoDB at `127.0.0.1:27017` is unreachable from inside Codex, so any pytest run that hits MongoDB fixtures (e.g., the equity-side `SwingTrader()` fixture in `test_dynamic_entry.py`) fails deterministically with `[Errno 1] Operation not permitted`. Three options for future Codex Next Actions that need test validation: **(a)** Brand runs pytest from his shell (which has Docker access) and supplies the count to the Next Action — already used as the workaround for the 2026-04-25 doc-refresh sweep; **(b)** add pytest markers (e.g., `@pytest.mark.requires_mongo`) to MongoDB-dependent tests so Codex can run a Codex-runnable subset via `pytest -m "not requires_mongo"`; **(c)** reconfigure Codex's sandbox to allow Docker network access (out of scope for code changes — would need Codex setup work). Pick one before the next Next Action that needs a test gate.
