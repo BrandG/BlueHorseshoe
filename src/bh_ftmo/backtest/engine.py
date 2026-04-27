@@ -144,8 +144,9 @@ def _flush_open_positions(
         return {}, cash, []
 
     symbols = {position.symbol for position in open_positions.values()}
+    rates_universe = set(bars_4h.keys())
     bids, asks = _bid_ask_snapshot_at(bars_4h, bars_1h, symbols, ts, bar_ts)
-    rates_at_ts = _rates_snapshot_at(bars_4h, bars_1h, symbols, ts, bar_ts)
+    rates_at_ts = _rates_snapshot_at(bars_4h, bars_1h, rates_universe, ts, bar_ts)
 
     def pip_value_at(event_ts: datetime, symbol: str) -> float:
         del event_ts
@@ -240,6 +241,7 @@ def run_challenge(
 
     bars_4h_norm = {symbol: _normalize_bars(frame) for symbol, frame in bars_4h.items()}
     bars_1h_norm = {symbol: _normalize_bars(frame) for symbol, frame in bars_1h.items()}
+    rates_universe = set(bars_4h_norm.keys())
     signals_sorted = sorted(signals, key=lambda signal: (signal.timestamp, signal.symbol, signal.strategy))
     signals_by_ts: dict[datetime, list[Signal]] = {}
     for signal in signals_sorted:
@@ -277,7 +279,7 @@ def run_challenge(
         open_symbols = {position.symbol for position in open_positions.values()}
         observed_symbols = symbols_now | open_symbols
         bid_at_bar, ask_at_bar = _bid_ask_snapshot_at(bars_4h_norm, bars_1h_norm, observed_symbols, bar_ts, bar_ts)
-        rates_at_bar = _rates_snapshot_at(bars_4h_norm, bars_1h_norm, observed_symbols, bar_ts, bar_ts)
+        rates_at_bar = _rates_snapshot_at(bars_4h_norm, bars_1h_norm, rates_universe, bar_ts, bar_ts)
 
         def pip_value_at(event_ts: datetime, symbol: str) -> float:
             del event_ts
@@ -289,7 +291,7 @@ def run_challenge(
         if bar_ts <= reset_ts <= bar_close_ts and rule_engine.is_session_reset_due(reset_ts):
             reset_symbols = symbols_now | {position.symbol for position in open_positions.values()}
             bid_at_reset, ask_at_reset = _bid_ask_snapshot_at(bars_4h_norm, bars_1h_norm, reset_symbols, reset_ts, bar_ts)
-            rates_at_reset = _rates_snapshot_at(bars_4h_norm, bars_1h_norm, reset_symbols, reset_ts, bar_ts)
+            rates_at_reset = _rates_snapshot_at(bars_4h_norm, bars_1h_norm, rates_universe, reset_ts, bar_ts)
 
             def pip_value_at_reset(event_ts: datetime, symbol: str) -> float:
                 del event_ts
@@ -474,7 +476,7 @@ def run_challenge(
             | {position.symbol for position in open_positions.values()}
         )
         bid_at_close, ask_at_close = _bid_ask_snapshot_at(bars_4h_norm, bars_1h_norm, close_symbols, bar_close_ts, bar_ts)
-        rates_at_close = _rates_snapshot_at(bars_4h_norm, bars_1h_norm, close_symbols, bar_close_ts, bar_ts)
+        rates_at_close = _rates_snapshot_at(bars_4h_norm, bars_1h_norm, rates_universe, bar_close_ts, bar_ts)
         close_pip_values = {
             symbol: (
                 pair_specs[symbol].pip_size
@@ -547,7 +549,7 @@ def run_challenge(
             rate_snapshot = _rates_snapshot_at(
                 bars_4h_norm,
                 bars_1h_norm,
-                {signal.symbol},
+                rates_universe,
                 next_bar_ts,
                 next_bar_ts,
             )
@@ -611,7 +613,7 @@ def run_challenge(
         final_rates = _rates_snapshot_at(
             bars_4h_norm,
             bars_1h_norm,
-            final_symbols,
+            rates_universe,
             actual_end_ts,
             final_bar_ts,
         )
