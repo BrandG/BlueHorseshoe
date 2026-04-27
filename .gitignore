@@ -38,3 +38,4 @@ src/bh_ftmo_orders.json
 data/fx_backfill_checkpoint.json
 data/swap_rates_*.json
 .codex
+.claude/*.lock
