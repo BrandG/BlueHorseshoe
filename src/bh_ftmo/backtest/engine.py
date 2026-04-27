@@ -91,6 +91,8 @@ def _rates_snapshot_at(
 ) -> dict[str, float]:
     snapshot: dict[str, float] = {}
     for symbol in symbols:
+        if bar_ts not in bars_4h[symbol].index:
+            continue
         bar_row = _require_row(bars_4h[symbol], bar_ts)
         one_hour_rows = _slice_1h_window(bars_1h[symbol], bar_ts)
         bid, ask = _snapshot_from_rows(bar_row, one_hour_rows, ts, bar_ts)
