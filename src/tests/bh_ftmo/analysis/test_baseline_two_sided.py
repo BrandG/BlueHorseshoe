@@ -43,7 +43,11 @@ def _weights_with_components(components: dict[str, float], threshold: float = 3.
 
 def test_baseline_emits_long_on_clearly_bullish_fixture() -> None:
     closes = np.linspace(1.1000, 1.1700, 220)
-    sigs = BaselineStrategy().score_pair(_pair_df_from_closes(closes), symbol="EUR_USD")
+    weights = _weights_with_components({"trend_above_ema_50": 4.0})
+    sigs = BaselineStrategy(weights=weights).score_pair(
+        _pair_df_from_closes(closes),
+        symbol="EUR_USD",
+    )
 
     assert any(s.direction == +1 and s.above_threshold for s in sigs)
     assert not any(s.direction == -1 for s in sigs)
@@ -51,7 +55,11 @@ def test_baseline_emits_long_on_clearly_bullish_fixture() -> None:
 
 def test_baseline_emits_short_on_clearly_bearish_fixture() -> None:
     closes = np.linspace(1.2000, 1.1300, 220)
-    sigs = BaselineStrategy().score_pair(_pair_df_from_closes(closes), symbol="EUR_USD")
+    weights = _weights_with_components({"trend_below_ema_50": 4.0})
+    sigs = BaselineStrategy(weights=weights).score_pair(
+        _pair_df_from_closes(closes),
+        symbol="EUR_USD",
+    )
 
     assert any(s.direction == -1 and s.above_threshold for s in sigs)
     assert not any(s.direction == +1 for s in sigs)
