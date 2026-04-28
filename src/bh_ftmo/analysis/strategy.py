@@ -119,6 +119,12 @@ class BaselineStrategy:
         - ``session_overlap_bonus``:       current bar is in the London/NY
           OVERLAP session
 
+    Thresholds are configured per direction with ``min_score_threshold_long``
+    and ``min_score_threshold_short``. The legacy single-value
+    ``min_score_threshold`` key remains a fallback for either direction when
+    the direction-specific key is absent. Setting a direction-specific
+    threshold to ``null`` disables that direction.
+
     All rules are configured via the "baseline.components" dict in
     ``bh_ftmo_weights.json``. Setting a weight to 0 disables a rule.
     """
@@ -142,7 +148,20 @@ class BaselineStrategy:
         if strat_cfg is None:
             raise ValueError(f"weights file has no '{self.name}' strategy block")
         self._component_weights: dict[str, float] = dict(strat_cfg.get("components", {}))
-        self.min_score_threshold: float = float(strat_cfg.get("min_score_threshold", 0.0))
+
+        def _resolve_threshold(key: str) -> float:
+            """Resolve a threshold from config. ``None``/``null`` means disabled."""
+            raw = strat_cfg.get(key, strat_cfg.get("min_score_threshold", 0.0))
+            return float("inf") if raw is None else float(raw)
+
+        self.min_score_threshold_long: float = _resolve_threshold("min_score_threshold_long")
+        self.min_score_threshold_short: float = _resolve_threshold("min_score_threshold_short")
+        candidates = [
+            threshold
+            for threshold in (self.min_score_threshold_long, self.min_score_threshold_short)
+            if threshold != float("inf")
+        ]
+        self.min_score_threshold: float = min(candidates) if candidates else 0.0
         self.ema_period = ema_period
         self.adx_period = adx_period
         self.rsi_period = rsi_period
@@ -345,8 +364,8 @@ class BaselineStrategy:
             long_score = sum(long_components.values())
             short_score = sum(short_components.values())
 
-            long_passes = long_score > self.min_score_threshold
-            short_passes = short_score > self.min_score_threshold
+            long_passes = long_score > self.min_score_threshold_long
+            short_passes = short_score > self.min_score_threshold_short
             if not long_passes and not short_passes:
                 direction = 0
                 score = 0.0

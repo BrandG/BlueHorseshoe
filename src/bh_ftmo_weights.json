@@ -1,8 +1,9 @@
 {
   "_comment": "BH FTMO indicator weights. Phase 2b placeholder; Phase 2c will tune via walk-forward backtest. Loaded by bh_ftmo.analysis.strategy.",
   "baseline": {
-    "description": "Two-sided trend-following signal",
-    "min_score_threshold": 6.0,
+    "description": "Long-only at high confluence (score >= 8). Short side disabled -- empirically caps near 39% WR.",
+    "min_score_threshold_long": 8.0,
+    "min_score_threshold_short": null,
     "components": {
       "trend_above_ema_50": 0.0,
       "trend_below_ema_50": 0.0,
