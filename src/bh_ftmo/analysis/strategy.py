@@ -30,9 +30,11 @@ from bh_ftmo.indicators import (
     Session,
     adx,
     ema,
+    is_bearish_engulfing,
     ichimoku,
     is_bullish_engulfing,
     is_hammer,
+    is_shooting_star,
     macd as macd_fn,
     ohlc_mid,
     rsi,
@@ -70,32 +72,50 @@ def load_weights(path: Optional[Path] = None) -> dict:
 
 
 class BaselineStrategy:
-    """Long-only trend-following baseline.
+    """Two-sided trend-following baseline.
+
+    Signal direction is per-bar, not per-strategy. A bar yields ``direction=+1``
+    when the long-side score is highest above threshold, ``direction=-1`` when
+    the short-side score is highest above threshold, and ``direction=0`` when
+    neither side reaches threshold. Ties resolve to long, matching the
+    MeanReversionStrategy convention.
 
     Scoring rules (each fires a boolean → adds its weight):
 
       Trend:
         - ``trend_above_ema_50``:          close > EMA(50)
+        - ``trend_below_ema_50``:          close < EMA(50)
         - ``trend_adx_strong_bullish``:    ADX >= 20 AND +DI > -DI
+        - ``trend_adx_strong_bearish``:    ADX >= 20 AND -DI > +DI
         - ``trend_supertrend_up``:         supertrend direction == +1
+        - ``trend_supertrend_down``:       supertrend direction == -1
         - ``trend_ichimoku_above_cloud``:  close > max(senkou_a, senkou_b)
+        - ``trend_ichimoku_below_cloud``:  close < min(senkou_a, senkou_b)
         - ``trend_macd_bullish``:          MACD histogram > 0
+        - ``trend_macd_bearish``:          MACD histogram < 0
 
       Momentum:
         - ``momentum_rsi_healthy``:        40 <= RSI <= 70
+        - ``momentum_rsi_healthy_short``:  30 <= RSI <= 60
         - ``momentum_rsi_not_overbought``: RSI < 70
+        - ``momentum_rsi_not_oversold``:   RSI > 30
 
       Candlestick:
         - ``candlestick_bullish_reversal``: hammer OR bullish_engulfing fires
           on the current bar
+        - ``candlestick_bearish_reversal``: shooting_star OR bearish_engulfing
+          fires on the current bar
 
       Context (optional — contribute only if the relevant context is provided):
         - ``strength_base_strong``:        base currency is in the top 3 of
           the 8-major strength rank
+        - ``strength_base_weak``:          base currency is in the bottom 3
         - ``strength_quote_weak``:         quote currency is in the bottom 3
+        - ``strength_quote_strong``:       quote currency is in the top 3
         - ``dxy_alignment``:               DXY direction supports the setup.
           For USD-quote pairs (*/USD): DXY has been falling over the past
-          20 bars. For USD-base pairs: DXY has been rising.
+          20 bars for longs and rising for shorts. For USD-base pairs: DXY has
+          been rising for longs and falling for shorts.
         - ``session_overlap_bonus``:       current bar is in the London/NY
           OVERLAP session
 
@@ -122,7 +142,6 @@ class BaselineStrategy:
         if strat_cfg is None:
             raise ValueError(f"weights file has no '{self.name}' strategy block")
         self._component_weights: dict[str, float] = dict(strat_cfg.get("components", {}))
-        self.direction: int = int(strat_cfg.get("direction", 1))
         self.min_score_threshold: float = float(strat_cfg.get("min_score_threshold", 0.0))
         self.ema_period = ema_period
         self.adx_period = adx_period
@@ -163,7 +182,9 @@ class BaselineStrategy:
         ich_df = ichimoku(ohlc)
         macd_df = macd_fn(ohlc)
         hammer_flags = is_hammer(ohlc)
-        engulf_flags = is_bullish_engulfing(ohlc)
+        bull_engulf_flags = is_bullish_engulfing(ohlc)
+        star_flags = is_shooting_star(ohlc)
+        bear_engulf_flags = is_bearish_engulfing(ohlc)
 
         labels = session_label(pair_df["timestamp"])
 
@@ -193,43 +214,76 @@ class BaselineStrategy:
         n = len(ohlc)
         for i in range(n):
             ts = timestamps[i]
-            components: dict[str, float] = {}
+            long_components: dict[str, float] = {}
+            short_components: dict[str, float] = {}
 
             close_i = ohlc["close"].iloc[i]
             ema_i = ema_fast.iloc[i]
             if pd.notna(ema_i) and close_i > ema_i:
-                components["trend_above_ema_50"] = w.get("trend_above_ema_50", 0.0)
+                long_components["trend_above_ema_50"] = w.get("trend_above_ema_50", 0.0)
+            if pd.notna(ema_i) and close_i < ema_i:
+                short_components["trend_below_ema_50"] = w.get("trend_below_ema_50", 0.0)
 
             adx_i = adx_df["adx"].iloc[i]
             pdi = adx_df["plus_di"].iloc[i]
             mdi = adx_df["minus_di"].iloc[i]
             if pd.notna(adx_i) and adx_i >= self.adx_threshold and pdi > mdi:
-                components["trend_adx_strong_bullish"] = w.get("trend_adx_strong_bullish", 0.0)
+                long_components["trend_adx_strong_bullish"] = w.get(
+                    "trend_adx_strong_bullish", 0.0
+                )
+            if pd.notna(adx_i) and adx_i >= self.adx_threshold and mdi > pdi:
+                short_components["trend_adx_strong_bearish"] = w.get(
+                    "trend_adx_strong_bearish", 0.0
+                )
 
             if int(st_df["direction"].iloc[i]) == 1:
-                components["trend_supertrend_up"] = w.get("trend_supertrend_up", 0.0)
+                long_components["trend_supertrend_up"] = w.get("trend_supertrend_up", 0.0)
+            if int(st_df["direction"].iloc[i]) == -1:
+                short_components["trend_supertrend_down"] = w.get("trend_supertrend_down", 0.0)
 
             senk_a = ich_df["senkou_a"].iloc[i]
             senk_b = ich_df["senkou_b"].iloc[i]
             if pd.notna(senk_a) and pd.notna(senk_b) and close_i > max(senk_a, senk_b):
-                components["trend_ichimoku_above_cloud"] = w.get("trend_ichimoku_above_cloud", 0.0)
+                long_components["trend_ichimoku_above_cloud"] = w.get(
+                    "trend_ichimoku_above_cloud", 0.0
+                )
+            if pd.notna(senk_a) and pd.notna(senk_b) and close_i < min(senk_a, senk_b):
+                short_components["trend_ichimoku_below_cloud"] = w.get(
+                    "trend_ichimoku_below_cloud", 0.0
+                )
 
             hist_i = macd_df["histogram"].iloc[i]
             if pd.notna(hist_i) and hist_i > 0:
-                components["trend_macd_bullish"] = w.get("trend_macd_bullish", 0.0)
+                long_components["trend_macd_bullish"] = w.get("trend_macd_bullish", 0.0)
+            if pd.notna(hist_i) and hist_i < 0:
+                short_components["trend_macd_bearish"] = w.get("trend_macd_bearish", 0.0)
 
             rsi_i = rsi_series.iloc[i]
             if pd.notna(rsi_i):
                 if 40 <= rsi_i <= 70:
-                    components["momentum_rsi_healthy"] = w.get("momentum_rsi_healthy", 0.0)
+                    long_components["momentum_rsi_healthy"] = w.get(
+                        "momentum_rsi_healthy", 0.0
+                    )
+                if 30 <= rsi_i <= 60:
+                    short_components["momentum_rsi_healthy_short"] = w.get(
+                        "momentum_rsi_healthy_short", 0.0
+                    )
                 if rsi_i < 70:
-                    components["momentum_rsi_not_overbought"] = w.get(
+                    long_components["momentum_rsi_not_overbought"] = w.get(
                         "momentum_rsi_not_overbought", 0.0
                     )
+                if rsi_i > 30:
+                    short_components["momentum_rsi_not_oversold"] = w.get(
+                        "momentum_rsi_not_oversold", 0.0
+                    )
 
-            if bool(hammer_flags.iloc[i]) or bool(engulf_flags.iloc[i]):
-                components["candlestick_bullish_reversal"] = w.get(
+            if bool(hammer_flags.iloc[i]) or bool(bull_engulf_flags.iloc[i]):
+                long_components["candlestick_bullish_reversal"] = w.get(
                     "candlestick_bullish_reversal", 0.0
+                )
+            if bool(star_flags.iloc[i]) or bool(bear_engulf_flags.iloc[i]):
+                short_components["candlestick_bearish_reversal"] = w.get(
+                    "candlestick_bearish_reversal", 0.0
                 )
 
             if strength_rank is not None and base_ccy is not None:
@@ -238,14 +292,27 @@ class BaselineStrategy:
                         base_rank = strength_rank[base_ccy].loc[ts]
                         n_ccy = len(strength_rank.columns)
                         if pd.notna(base_rank) and base_rank >= n_ccy - self.strength_top_k + 1:
-                            components["strength_base_strong"] = w.get("strength_base_strong", 0.0)
+                            long_components["strength_base_strong"] = w.get(
+                                "strength_base_strong", 0.0
+                            )
+                        if pd.notna(base_rank) and base_rank <= self.strength_top_k:
+                            short_components["strength_base_weak"] = w.get(
+                                "strength_base_weak", 0.0
+                            )
                     except KeyError:
                         pass
                 if quote_ccy in strength_rank.columns:
                     try:
                         quote_rank = strength_rank[quote_ccy].loc[ts]
                         if pd.notna(quote_rank) and quote_rank <= self.strength_top_k:
-                            components["strength_quote_weak"] = w.get("strength_quote_weak", 0.0)
+                            long_components["strength_quote_weak"] = w.get(
+                                "strength_quote_weak", 0.0
+                            )
+                        n_ccy = len(strength_rank.columns)
+                        if pd.notna(quote_rank) and quote_rank >= n_ccy - self.strength_top_k + 1:
+                            short_components["strength_quote_strong"] = w.get(
+                                "strength_quote_strong", 0.0
+                            )
                     except KeyError:
                         pass
 
@@ -256,25 +323,52 @@ class BaselineStrategy:
                     # USD-base pair (USD/*): we want DXY rising
                     # Non-USD cross: skip
                     if quote_ccy == "USD" and slope_i < 0:
-                        components["dxy_alignment"] = w.get("dxy_alignment", 0.0)
+                        long_components["dxy_alignment"] = w.get("dxy_alignment", 0.0)
+                    elif quote_ccy == "USD" and slope_i > 0:
+                        short_components["dxy_alignment"] = w.get("dxy_alignment", 0.0)
                     elif base_ccy == "USD" and slope_i > 0:
-                        components["dxy_alignment"] = w.get("dxy_alignment", 0.0)
+                        long_components["dxy_alignment"] = w.get("dxy_alignment", 0.0)
+                    elif base_ccy == "USD" and slope_i < 0:
+                        short_components["dxy_alignment"] = w.get("dxy_alignment", 0.0)
 
             if labels.iloc[i] == Session.OVERLAP:
-                components["session_overlap_bonus"] = w.get("session_overlap_bonus", 0.0)
+                if long_components:
+                    long_components["session_overlap_bonus"] = w.get("session_overlap_bonus", 0.0)
+                if short_components:
+                    short_components["session_overlap_bonus"] = w.get(
+                        "session_overlap_bonus", 0.0
+                    )
 
             # Remove zero-weight (disabled) contributions from the report
-            components = {k: v for k, v in components.items() if v != 0.0}
-            score = sum(components.values())
+            long_components = {k: v for k, v in long_components.items() if v != 0.0}
+            short_components = {k: v for k, v in short_components.items() if v != 0.0}
+            long_score = sum(long_components.values())
+            short_score = sum(short_components.values())
+
+            long_passes = long_score > self.min_score_threshold
+            short_passes = short_score > self.min_score_threshold
+            if not long_passes and not short_passes:
+                direction = 0
+                score = 0.0
+                components: dict[str, float] = {}
+            elif long_passes and not short_passes:
+                direction, score, components = +1, long_score, long_components
+            elif short_passes and not long_passes:
+                direction, score, components = -1, short_score, short_components
+            elif long_score >= short_score:
+                direction, score, components = +1, long_score, long_components
+            else:
+                direction, score, components = -1, short_score, short_components
+
             signals.append(
                 Signal(
                     symbol=symbol,
                     strategy=self.name,
                     timestamp=ts,
-                    direction=self.direction,
+                    direction=direction,
                     score=score,
                     components=components,
-                    above_threshold=score >= self.min_score_threshold,
+                    above_threshold=direction != 0,
                 )
             )
 

@@ -128,9 +128,8 @@ def test_baseline_exposes_component_weights():
     assert strat.component_weights["trend_supertrend_up"] == 1.5
 
 
-def test_baseline_picks_up_threshold_and_direction():
+def test_baseline_picks_up_threshold():
     strat = BaselineStrategy()
-    assert strat.direction == 1
     assert strat.min_score_threshold == 3.0
 
 
@@ -182,7 +181,7 @@ def test_uptrend_fires_trend_rules_on_late_bars():
     assert all(s.direction == 1 for s in late)
 
 
-def test_downtrend_does_not_fire_trend_rules():
+def test_downtrend_fires_bearish_trend_rules():
     df = _downtrend_pair_df(n=200)
     sigs = BaselineStrategy().score_pair(df, symbol="EUR_USD")
     late = sigs[-5:]
@@ -190,8 +189,10 @@ def test_downtrend_does_not_fire_trend_rules():
         assert "trend_above_ema_50" not in s.components
         assert "trend_supertrend_up" not in s.components
         assert "trend_ichimoku_above_cloud" not in s.components
-    # And nothing should cross the 3.0 threshold
-    assert not any(s.above_threshold for s in late)
+        assert "trend_below_ema_50" in s.components
+        assert "trend_supertrend_down" in s.components
+        assert "trend_ichimoku_below_cloud" in s.components
+    assert any(s.direction == -1 and s.above_threshold for s in late)
 
 
 # ---- Weight overrides: zero disables a rule ----------------------------
@@ -299,7 +300,7 @@ def test_above_threshold_matches_score():
     strat = BaselineStrategy()
     sigs = strat.score_pair(df, symbol="EUR_USD")
     for s in sigs:
-        assert s.above_threshold == (s.score >= strat.min_score_threshold)
+        assert s.above_threshold == (s.score > strat.min_score_threshold)
 
 
 # ---- Smoke: real EUR_USD data from FxStore ---------------------------
