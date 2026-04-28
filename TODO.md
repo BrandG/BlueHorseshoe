@@ -2,6 +2,42 @@
 
 ## Near Term
 
+### 🔥 PRIORITY — Sandbox-track signal validation outcome (added 2026-04-28)
+
+**Day-of-pivot output.** Built a parallel ground-up signal-validation track in `/tmp/sandbox_*.py` after the 2026-04-27 Phase 3 gate failed. The track produced a viable 2-signal long-only forex portfolio with active risk management. Best v2 sweep config (`relax_10`): 15.7% pass / 9.5% total-fail / 61.2% decisive ratio / +0.81% mean per challenge. Daily-fail rate dropped from 30.5% (no risk mgmt) to 0.9% (with intraday liquidation + entry restraint).
+
+**Validated portfolio recipe (current):**
+- Signals: `stoch_oversold_cross` (long) + `sma_cross_long` (long) at H4
+- RR: 0.5% stop / 0.75% target = 1.5R
+- Universe: 18 pairs after filtering pairs where spread > 5% of stop distance (drops HUF/CZK/TRY/ZAR/most exotic crosses)
+- Sizing: 1% equity per trade, max 5 concurrent, max 1 per pair
+- Active risk mgmt:
+  - Entry restraint: block opens that push (today_realized + open_risks + new_risk) past `daily_buffer × 1.10`
+  - Intraday liquidation: at -4% intraday, close largest losing position; repeat until back above -4%
+
+**Proven-not-to-help levers:**
+- Half-risk sizing (0.5%/trade) — kills strategy via 99.7% timeout, can't hit +10% in 14 days
+- 2R RR shapes (1%/2%, 0.75%/1.5%) — high decisive ratio (89-91%) but trade frequency falls to 7-10/challenge so most attempts time out
+- Signal-set additions tested in `sandbox_combinations.py` — pair/triple combos rarely beat their best constituent singleton at the right RR shape
+- Bleeders (`rsi_overbought_cross`, `bb_upper_fade` shorts) — both go negative on filtered universe; dropping them lifted returns dramatically
+
+**Open questions (require user decision):**
+1. **Port-back vs. continue-iterating.** Do we (a) port the validated 2-signal portfolio + active-risk-mgmt overlay back into `bh_ftmo` production code, or (b) keep iterating in `/tmp/` until we find a third signal (likely a real short) that lifts pass rate above the FTMO breakeven economic line? Brand to call.
+2. **Find a cost-survivable short signal.** All 4 shorts tested in `sandbox_combinations.py` failed. Need to widen search: divergence patterns, regime-conditional shorts, short-only filtered universes.
+3. **Audit the 9.5% total-fail rate in `relax_10`.** 88 of 925 challenges still hit -10% even with active risk mgmt. Worth investigating whether tighter buffer (1.05) or different liquidation trigger reduces this without crushing pass rate.
+
+**Followup TODO once port-back is approved:**
+- Add `bh_ftmo.analysis.sandbox_strategy.SandboxStrategy` (or similar) implementing the 2-signal long-only logic via the existing `TradingStrategy` ABC
+- Add `bh_ftmo.backtest.risk_overlay.py` for the active-risk-mgmt logic (entry restraint + intraday liquidation), parameterized by `buffer_mult` and `soft_limit_pct`
+- Add unit tests for the universe-filter cutoff (spread/stop_distance ≤ 5%)
+- Add a backtest CLI option `--strategy sandbox_v1` and re-run the gate
+- Document the sandbox-validated config in a new `docs/planning/SANDBOX_FINDINGS.md` so the methodology + numbers don't only live in scratch files
+
+**Sandbox artifacts (preserved at /tmp/, do not delete until port-back decision):**
+- `sandbox_indicators.py`, `sandbox_combinations.py`, `sandbox_rr_sweep.py`, `sandbox_1d_sweep.py`, `sandbox_deepdive.py`, `sandbox_portfolio.py`, `sandbox_ftmo_challenge.py`, `sandbox_ftmo_v2.py`, `sandbox_ftmo_sweep.py`
+- `h1_validate.py`, `h1b_components.py` (BH Lite edge validation)
+- Trade ledgers: `/tmp/sandbox_*_trades.csv`, equity curves: `/tmp/sandbox_*_equity.csv`, challenge results: `/tmp/sandbox_ftmo*_challenges.csv`
+
 ### ~~🔥 PRIORITY — BH FTMO Indicator Validation Suite~~ (added 2026-04-27, completed 2026-04-27)
 
 ✅ **Done.** Built out `src/tests/bh_ftmo/indicators/` from scratch across four Codex Next Actions: `5e962d8` (momentum), `ef31efc` (trend + volatility), `ddb1923` (candlestick + pivots + strength), `a60a3c9` (sessions + dxy + common). 92 tests, 100% module coverage, 0 xfails. Suite runtime <1 second.
@@ -188,7 +224,13 @@ Discovered during `/plan-ceo-review` of BH FTMO plan: `bh_lite`'s displayed P&L 
 
 - **Reporter Sharpe/MaxDD mismatch** (added 2026-04-27) — in `bh_ftmo_gate_20260427_104629_5883064.html`, the per-strategy table shows Sharpe=0.20 / MaxDD=22.2%, while the verdict block shows Sharpe=-2.90 / MaxDD=14.6%. They're computing on different equity-curve bases (per-strategy vs. portfolio-aggregate, or per-fold vs. concatenated). Audit `metrics.py` and `reporter.py` to reconcile. Low-effort once spotted; high-value because the two views currently disagree about whether the gate even *should* fail.
 
-- **`--strategies` CLI flag for per-strategy isolation** (added 2026-04-27, **promoted to top of next-up queue 2026-04-27**) — `cli.py:190` hardcodes `SignalGenerator(strategies=[BaselineStrategy(weights=weights), MeanReversionStrategy(weights=weights)])`. Add a flag so the gate can run Baseline-only, MR-only, or both (preserving today's behavior as default). The CLI already has `--limit-folds` and `--limit-starts`, so combining them gives a quick per-strategy verdict. Codex Next Action drafted on branch `cli-strategies-flag`.
+- **`--strategies` CLI flag for per-strategy isolation** (added 2026-04-27, **deprioritized 2026-04-28** in light of the sandbox-track pivot — see "Sandbox-track signal validation outcome" priority block at top of file) — `cli.py:190` hardcodes `SignalGenerator(strategies=[BaselineStrategy(weights=weights), MeanReversionStrategy(weights=weights)])`. Add a flag so the gate can run Baseline-only, MR-only, or both (preserving today's behavior as default). Codex Next Action still drafted on branch `cli-strategies-flag`. Cheap to land for completeness but the per-strategy isolation question is largely moot — the sandbox track has already shown that both production strategies as composed are likely chasing wrong components.
+
+- **Port sandbox-validated 2-signal portfolio into `bh_ftmo`** (added 2026-04-28, **pending user port-back decision**) — see top-of-file priority block for full detail. New `SandboxStrategy` class + active-risk-mgmt overlay + universe filter cutoff + new `--strategy sandbox_v1` gate option. Estimated ~3 Codex Next Actions to land cleanly.
+
+- **Find a cost-survivable short signal** (added 2026-04-28) — all 4 shorts tested in `sandbox_combinations.py` failed the 18-pair filtered universe cost test (`rsi_overbought_cross`, `bb_upper_fade`, `shooting_star`, `bearish_engulfing`). Without a real short, the validated long-only portfolio is structurally exposed during USD-strength regimes. Worth testing: RSI/MACD divergence patterns, regime-conditional shorts (only when DXY trending up), short-only filtered universes (different cost economics for bearish trades).
+
+- **Audit `relax_10` -10% total-fail tail** (added 2026-04-28) — 88 of 925 challenges (9.5%) still hit the hard -10% limit despite active risk management. Scan those specific challenges to see whether they share a regime/pair/timing pattern. If they're concentrated, a regime filter may be addable cheaply; if they're distributed, the buffer multiplier needs tightening (try 1.05 instead of 1.10).
 
 - **Baseline appears long-only** (added 2026-04-27) — first gate CSV shows 0 short trades out of 3,652 baseline trades. Likely a strategy-implementation bug, not weights. Investigate after indicator validation passes (so we know it's not e.g. an inverted RSI).
 
