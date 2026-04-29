@@ -28,6 +28,7 @@ from bh_ftmo.backtest.runner import run_full_comparison
 from bh_ftmo.backtest.swap_rates import fetch_or_load_cached
 from bh_ftmo.backtest.swap import SwapRates
 from bh_ftmo.backtest.types import ChallengeResult, PairSpec
+from bh_ftmo.backtest.universe_filter import UniverseFilterConfig, apply_universe_filter
 from bh_ftmo.backtest.walk_forward import fold_windows, non_overlapping_starts
 from bh_ftmo.data.fx_store import FxStore
 from bh_ftmo.data.oanda_client import OandaClient, OandaConfig, OandaError
@@ -234,6 +235,32 @@ def _generate_bh_ftmo_signals(
     return cluster_filter(generator.generate(bars_4h, symbols=symbols))
 
 
+def _load_universe_filter_config(weights_path: Path, strategy_names: list[str]) -> UniverseFilterConfig:
+    if SandboxStrategy.name not in strategy_names:
+        return UniverseFilterConfig()
+    weights = load_weights(weights_path)
+    sandbox_weights = weights.get(SandboxStrategy.name, {})
+    if not isinstance(sandbox_weights, dict):
+        return UniverseFilterConfig()
+    payload = sandbox_weights.get("universe_filter")
+    return UniverseFilterConfig.from_mapping(payload if isinstance(payload, dict) else None)
+
+
+def _apply_configured_universe_filter(
+    symbols: list[str],
+    bars_4h: dict[str, pd.DataFrame],
+    config: UniverseFilterConfig,
+) -> list[str]:
+    passing = apply_universe_filter({symbol: bars_4h[symbol] for symbol in symbols}, config)
+    filtered_symbols = [symbol for symbol in symbols if symbol in passing]
+    if config.enabled:
+        dropped = [symbol for symbol in symbols if symbol not in passing]
+        LOG.info("universe filter dropped %d/%d pairs: %s", len(dropped), len(symbols), dropped)
+        if not filtered_symbols:
+            raise ValueError("universe filter dropped all pairs")
+    return filtered_symbols
+
+
 def _enumerate_starts(
     fold_iter: list,
     challenge_window_days: int,
@@ -415,6 +442,9 @@ def main(argv: Optional[list[str]] = None) -> int:
 
         LOG.info("loading bars for %d symbols", len(args.symbols))
         bars_4h, bars_1h = _load_bars(args.symbols, start_dt, end_dt)
+        universe_filter_config = _load_universe_filter_config(args.weights, strategy_names)
+        args.symbols = _apply_configured_universe_filter(args.symbols, bars_4h, universe_filter_config)
+        swap_rates = {symbol: swap_rates[symbol] for symbol in args.symbols}
         atr_by_symbol = _compute_atr_by_symbol({symbol: bars_4h[symbol] for symbol in args.symbols})
 
         LOG.info("generating Phase 2b signals")
