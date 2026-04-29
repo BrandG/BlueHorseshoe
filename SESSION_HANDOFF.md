@@ -1,7 +1,108 @@
 # Session Handoff
 
+**Date:** April 29, 2026
+**Status:** Sandbox-track validation complete and walk-forward stable. **Now porting the validated strategy back into `bh_ftmo` production code via Codex Next Action on branch `port-sandbox-v1-strategy`.** The validated strategy is event-based: `stoch_oversold_cross` (long, all pairs) + `sma_cross_long` (long, all pairs) + `rsi_overbought_cross` (short, restricted to 4 ultra-validated pairs: CAD_JPY, EUR_NOK, USD_CAD, USD_CHF). Honest forward expectations after walk-forward: ~12-14% pass rate, ~+0.5-1.0% mean per challenge, 60-65% decisive ratio. Two follow-ups deferred: active risk-management overlay (entry restraint + intraday liquidation) and universe filter (spread/stop ≤ 5%) — both engine-touching and warrant their own NAs. The first Codex NA is drafted at `/tmp/nextaction.md`.
+
+---
+
+## What Was Done This Session (April 29)
+
+### Walk-forward (G), short-hunt (F), buffer sweep (H) — all complete
+After committing the April 28 doc updates (commit `e21bc95`), executed Brand's G→F→H plan from yesterday:
+
+**(G) Long-signal pair-restriction test — REJECTED.** Applied the same 3-way temporal pair-validation methodology to `stoch_oversold` and `sma_cross_long` that worked for `rsi_overbought`. Both longs failed the test:
+- `stoch_oversold`: train +0.145 → test -0.016 (only 41% of train-selected pairs persisted)
+- `sma_cross_long`: train +0.234 → test -0.009 (54% persisted)
+- All-pairs version is BETTER than train-selected version for both longs
+
+Interpretation: the longs are broad-regime signals (work everywhere, modulated by global regime), not pair-specific. Pair restriction is overfitting noise. **Conclusion: longs stay on all 18 pairs.**
+
+**(F) Hunt for additional cost-survivable shorts.** Tested 6 short candidates (4 originals re-tested on filtered universe + 2sigma_above, ma20_rejection, failed_breakout, strong_bear_bar, macd_hist_rollover, double_top) using the singleton sandbox harness, then 3-way temporal validation on the survivors:
+
+| Candidate | All-pair avg_R | 3-way validated pairs |
+|---|---|---|
+| `rsi_overbought_cross` | +0.032 | **4 pairs** (CAD_JPY, EUR_NOK, USD_CAD, USD_CHF) — held in test |
+| `bb_upper_fade` | +0.006 | 3 pairs (EUR_AUD, USD_NOK, USD_ZAR) — held in test |
+| `2sigma_above` | -0.007 | 1 pair only |
+| `ma20_rejection` | -0.028 | 1 ultra-pair, but failed test |
+| `macd_hist_rollover` | -0.008 | 1 pair only |
+| `failed_breakout` | -0.027 | 0 validated pairs |
+| `shooting_star`, `bearish_engulfing` | < 0 | <2 stable pairs |
+
+Then ran a 4-signal portfolio test (longs + rsi_overbought + bb_upper_fade) at FTMO challenge mode. **The two shorts are correlated** — both fire on overbought conditions, both lose if overbought extends. Adding bb_upper_fade dropped decisive ratio from 66.9% → 63.6% (worse) and lifted total-fail from 8.2% → 9.4%. **Verdict: rsi_overbought is the only second signal that adds value.**
+
+**(H) Buffer multiplier sweep — buf 1.10 confirmed.** Swept buffer_mult ∈ {1.00, 1.10, 1.20, 1.30, 1.50}:
+
+| buffer | pass | fail_t | P/(P+F) | meanR% |
+|---|---|---|---|---|
+| 1.00 | 14.6% | 5.3% | 71.8% | +1.13% |
+| **1.10** (current) | 17.3% | 8.2% | 66.9% | **+1.19%** |
+| 1.20 | 18.2% | 8.0% | 67.2% | +1.04% |
+| 1.30 | 19.5% | 10.3% | 64.7% | +1.08% |
+| 1.50 | 19.6% | 10.1% | 61.1% | +0.97% |
+
+Three different "best" depending on what you optimize: buf 1.00 maximizes decisive ratio (71.8%); buf 1.10 maximizes mean return per attempt; buf 1.30+ maximizes raw pass rate. **Buf 1.10 wins on $-EV per attempt** — keep it.
+
+### Walk-forward stability test — PASSED with shrinkage
+Two non-overlapping 12-month walk-forward windows on the 3-year data:
+
+| Window | Config | Pass | Fail_t | Decisive | meanR% |
+|---|---|---|---|---|---|
+| WF1 (test 2024-05→2025-05) | baseline_2sig | 14.0% | 9.3% | 60.0% | +0.69% |
+| | 3sig_train_selected (dynamic) | 14.6% | 14.0% | 51.2% | +0.44% |
+| | **3sig_IS_champion (4 hardcoded pairs)** | **14.3%** | **7.6%** | **65.2%** | **+1.15%** |
+| WF2 (test 2025-05→2026-05) | baseline_2sig | 11.4% | 7.7% | 59.6% | +0.24% |
+| | 3sig_train_selected (dynamic) | 9.7% | 7.0% | 58.0% | +0.47% |
+| | **3sig_IS_champion (4 hardcoded pairs)** | **12.0%** | **7.7%** | **61.0%** | **+0.46%** |
+
+**Three findings:**
+1. **Strategy holds OOS with expected ~30% shrinkage** — pass rate goes from 17.3% IS to 14.3% (WF1) and 12.0% (WF2). True forward expectation: 12-14% pass.
+2. **The 4-pair "ultra-validated" set is the most robust selection** — beats dynamically re-selecting pairs each window on both walk-forward periods. The dynamic train-selected set in WF1 included EUR_USD, EUR_SEK, USD_HUF that turned out to be noise (hurt fail_t from 7.6% → 14.0%). **Conclusion: keep CAD_JPY, EUR_NOK, USD_CAD, USD_CHF as a fixed selection.**
+3. **The short's lift holds OOS** — IS-champion mean return beats baseline by +0.34pp average across windows, very close to the in-sample +0.38pp (1.19 - 0.81). The short signal is structurally additive, not period-specific.
+
+Honest forward-expectations for production (post-walk-forward):
+- Pass rate ~12-14%
+- Mean return per challenge ~+0.5% to +1.0%
+- Decisive ratio ~60-65%
+- Daily-fail rate ~0.3%, total-fail rate ~8-10%
+
+Still positive-EV per attempt, just not as juicy as the in-sample +1.19% headline.
+
+### Codex Next Action drafted: port SandboxStrategy back to bh_ftmo
+Branch `port-sandbox-v1-strategy` created from master (not checked out, per the one-worktree-per-branch rule). Next Action at `/tmp/nextaction.md` covers **just the strategy class** (a Codex-sized piece):
+
+- New `src/bh_ftmo/analysis/sandbox_strategy.py` — `SandboxStrategy` class with the 3 event-based rules
+- New `src/tests/bh_ftmo/test_sandbox_strategy.py` — 7 unit tests
+- New `sandbox_v1` block in `src/bh_ftmo_weights.json` — defaults + 4-pair whitelist
+- New `--strategy sandbox_v1` CLI flag in `src/bh_ftmo/backtest/cli.py`
+- Export from `src/bh_ftmo/analysis/__init__.py`
+
+Two things explicitly **deferred to a follow-up Next Action**:
+- **Active risk management overlay** (entry restraint + intraday liquidation at -4%) — engine-touching, warrants its own scoped change
+- **Universe filter** (drop pairs where spread > 5% of stop distance) — also engine-level, will land with the risk overlay
+
+The split is deliberate: landing the strategy first lets us run the gate with `--strategy sandbox_v1` and see how much of the in-sample edge comes from the strategy itself vs. the active risk management. That's a useful diagnostic for the second NA.
+
+### Sandbox track final state
+All artifacts preserved at `/tmp/sandbox_*.py` (do not delete until the port-back lands). Final validated portfolio:
+
+| | |
+|---|---|
+| Signals | `stoch_oversold` (long, 18 pairs) + `sma_cross_long` (long, 18 pairs) + `rsi_overbought` (short, **4 ultra-validated pairs**: CAD_JPY, EUR_NOK, USD_CAD, USD_CHF) |
+| Timeframe | H4 |
+| RR | 0.5% stop / 0.75% target = 1.5R |
+| Sizing | 1% equity per trade, max 5 concurrent, 1 per pair |
+| Active risk mgmt | Entry restraint (buffer × 1.10), intraday liquidation at -4% |
+| Universe | 18 pairs (spread/stop_distance ≤ 5%) |
+| In-sample pass | 17.3% / OOS 12-14% |
+| In-sample meanR | +1.19% / OOS +0.5-1.0% |
+
+---
+
+## What Was Done This Session (April 28)
+
 **Date:** April 28, 2026
-**Status:** Methodological pivot day — paused integrated Phase 3 gate work and built a parallel ground-up sandbox validation track in `/tmp/sandbox_*.py`. Outcome of the day: a 2-signal long-only forex portfolio (`stoch_oversold_cross` + `sma_cross_long` at 4h, 0.5%/0.75% RR, 18-pair filtered universe) that's clearly net-positive in challenge expectation when paired with active intraday risk management. **Best config so far:** `relax_10` — pass rate 15.7%, total fail 9.5%, decisive-outcome ratio 61.2%, mean +0.81% per challenge attempt. **The single biggest mechanical lever was active risk management** — adding intraday liquidation + entry restraint converted the 30% daily-fail rate to 0.9% with only a 1.8pp drop in pass rate. The `--strategies` CLI flag from yesterday's queue is no longer the next step — see "Next Steps" below for the revised order.
+**Summary:** Methodological pivot day — paused integrated Phase 3 gate work and built a parallel ground-up sandbox validation track in `/tmp/sandbox_*.py`. Outcome of the day: a 2-signal long-only forex portfolio (`stoch_oversold_cross` + `sma_cross_long` at 4h, 0.5%/0.75% RR, 18-pair filtered universe) that's clearly net-positive in challenge expectation when paired with active intraday risk management. **Best config:** `relax_10` — pass rate 15.7%, total fail 9.5%, decisive-outcome ratio 61.2%, mean +0.81% per challenge attempt. **The single biggest mechanical lever was active risk management** — adding intraday liquidation + entry restraint converted the 30% daily-fail rate to 0.9% with only a 1.8pp drop in pass rate.
 
 ---
 
@@ -124,23 +225,23 @@ All four merged. Suite runtime: <1 second. No xfails — every divergence found 
 
 ## In Progress
 
-- **Sandbox-track validation of the 2-signal long-only forex portfolio.** Latest config (`relax_10`): 15.7% pass / 9.5% total-fail / 61.2% decisive ratio / +0.81% mean per challenge. All sandbox scripts in `/tmp/sandbox_*.py` and `/tmp/h1*.py`. Trade ledgers + equity curves preserved at `/tmp/sandbox_*_trades.csv`, `/tmp/sandbox_*_equity.csv`, `/tmp/sandbox_ftmo*_challenges.csv`.
-- **`--strategies` CLI flag** previously top-of-queue is **deprioritized** — the per-strategy isolation question is largely moot because the sandbox track has shown both `BaselineStrategy` and `MeanReversionStrategy` as composed are likely chasing the wrong components. The flag is still cheap to land for future investigation but is no longer the next high-leverage move.
-- BH FTMO Phase 3 framework + indicator validation suite remain shipped and useful; the *signal layer* is what's being rebuilt in the sandbox.
+- **Codex Next Action: port `SandboxStrategy` to `bh_ftmo`** — branch `port-sandbox-v1-strategy` created (not checked out per the one-worktree-per-branch rule), Next Action drafted at `/tmp/nextaction.md`. Adds `SandboxStrategy` class + tests + `sandbox_v1` weights config + `--strategy sandbox_v1` CLI flag. Awaiting send to Codex.
+- **Two follow-up Next Actions queued (post-strategy-class):**
+  - Active risk-management overlay (entry restraint + intraday liquidation at -4%) — engine-touching, will require modifications to `engine.py`, `position.py`, `ftmo_rules.py`
+  - Universe filter (drop pairs where spread > 5% of stop distance at the configured RR shape) — engine-level decision, will land with the risk overlay
+- BH FTMO Phase 3 framework + indicator validation suite remain shipped and useful; the *signal layer* is what's being rebuilt via the sandbox.
 
 ## Next Steps
 
-**Immediate research-track work (highest leverage):**
-1. **Pick a port-target for the sandbox findings.** Decision needed: do we (a) port the validated 2-signal portfolio + active-risk-mgmt overlay back into `bh_ftmo` production code as a new strategy class, or (b) keep iterating in `/tmp/` until we find a third signal (likely a real short) that lifts pass rate above the FTMO breakeven economic line? Brand to call.
-2. **Find a cost-survivable short signal.** All 4 shorts tested in `sandbox_combinations.py` failed the universe-filter cost test. Need to widen the search: divergence patterns, regime-conditional shorts, short-only filtered universes, etc.
-3. **Investigate `relax_10`'s 9.5% total-fail rate.** That's 88 challenges out of 925 hitting -10% even with active risk management. Audit those specific challenges to see whether they're salvageable with a tighter buffer multiplier (1.05 instead of 1.10) or signal a deeper structural problem.
+**Immediate (this session's port-back):**
+1. **Send Next Action to Codex.** Branch `port-sandbox-v1-strategy` and prompt at `/tmp/nextaction.md`. Awaiting Brand's go-ahead.
+2. **Once landed: smoke-test gate with `--strategy sandbox_v1`** (no risk overlay yet). Useful diagnostic for how much of the in-sample edge comes from the strategy itself vs. the active risk management.
+3. **Draft NA #2: active risk-management overlay.** New `src/bh_ftmo/backtest/risk_overlay.py`, plus integration hooks in `engine.py`. After this lands, run a full per-strategy gate (`--strategy sandbox_v1` + active risk overlay) to compare against the `/tmp/` sandbox numbers.
+4. **Draft NA #3: universe filter at the engine level.** Drop pairs where `spread / (stop_pct × median_price) > 0.05` from the runnable universe. Modifies `runner.py` or `cli.py` and adds a config option in `bh_ftmo_weights.json`.
 
-**Pending Brand decision before any code lands in `bh_ftmo`:**
-4. **Port-back vs. continue-iterating decision.** The sandbox track has produced a viable enough candidate that "ship something" is now a reasonable option. But it's still long-only and the daily-fail cliff is barely 1pp away from hard-limit failures. Both options are defensible.
-
-**Lower priority / inherited from yesterday:**
-5. **`--strategies` CLI flag** — Codex Next Action drafted on branch `cli-strategies-flag` (see `/tmp/nextaction.md`). Cheap to land but no longer urgent.
-6. **Investigate Baseline long-only bug** (0 short trades of 3,652 in the 2026-04-27 gate run). Less urgent now that the sandbox track has identified that the production strategy composition itself is suspect.
+**Lower priority / inherited:**
+5. **`--strategies` (plural) CLI flag** — Codex NA drafted on branch `cli-strategies-flag` (different from `port-sandbox-v1-strategy`). Deprioritized; cheap to land if multi-strategy investigation becomes useful again.
+6. **Investigate Baseline long-only bug** (0 short trades of 3,652 in the 2026-04-27 gate run). The sandbox track suggests the prod baseline composition itself is suspect; once `sandbox_v1` is producing clean numbers we can decide whether to fix the prod baseline or retire it.
 7. **Investigate Sharpe/MaxDD mismatch in reporter** — per-strategy table 0.20/22.2% vs verdict block -2.90/14.6%. Low-effort fix once spotted.
 
 **Brand action items (still open from prior sessions):**
@@ -149,7 +250,7 @@ All four merged. Suite runtime: <1 second. No xfails — every divergence found 
 - SMTP from Claude Code sandbox is blocked — Brand runs `send_report_email.py` manually for equity reports
 
 **Deferred:**
-- **Phase 2c — Indicator Tuning** stays deferred. The sandbox track is producing better signal-validation feedback than walk-forward weight optimization on the existing strategy classes would.
+- **Phase 2c — Indicator Tuning** stays deferred until the `sandbox_v1` gate produces a passing verdict.
 - See `TODO.md` for full backlog and `docs/planning/BH_FTMO_PLAN.md` for the locked plan.
 
 ## Blockers / Open Questions
@@ -236,13 +337,15 @@ doctl compute droplet delete bh-research --force
 ## Git Status
 
 **Branch:** master
-**Working tree:** docs updated this session (SESSION_HANDOFF.md, TODO.md). All sandbox/ research scripts live in `/tmp/` and are not committed — they are deliberately disposable; only the methodology + findings should land back in `bh_ftmo`.
-**Active feature branches:** `cli-strategies-flag` (deprioritized per pivot above)
-**This session's commits:** None — all research output is in `/tmp/` artifacts. Doc updates pending Brand commit approval.
+**Working tree:** docs updated this session (SESSION_HANDOFF.md, TODO.md). All sandbox/ research scripts live in `/tmp/` and are not committed — they are deliberately disposable; only the methodology + findings should land back in `bh_ftmo` via the queued Next Actions.
+**Active feature branches:**
+- `port-sandbox-v1-strategy` — created today (April 29), Codex Next Action drafted at `/tmp/nextaction.md`, awaiting send
+- `cli-strategies-flag` — deprioritized; from prior session
+**Prior session's commits (April 28):** `e21bc95` (docs: capture sandbox-track signal validation pivot)
 **Prior session's commits (April 27):** `5f7fc3b`, `4ce0070`, `f328161`, `d595c2b` (doc-refresh sweep), `c2577e5` (merge_branch.sh), `94f3885`, `c20f244` (.gitignore), `1ea889c` (dead-field cleanup), `9f321e3`, `384f084`, `eeb2225`, `b34db4f` (engine bug fixes), `feb6d2a` (RSI seed-init follow-up note), `5e962d8`, `ef31efc`, `ddb1923`, `a60a3c9` (indicator validation suite)
 **Phase 3 commits (April 25):** `02d3234`, `68a169c`, `e7e1503`, `7541516`, `c49ab49`, `418d214`, `d2052bd`, `1d93201`, `9844244`, `5b50d57`, `e3af17a`, `e842d9a`
 **Tests:** 1396 prior + 92 new BH FTMO indicator tests = 1488 BH-side tests. All green when run via `./run.sh pytest src/tests/bh_ftmo/ -q`. Equity-side requires Docker for MongoDB; works from Brand's shell, blocked from Codex sandbox.
 
 ---
 
-**Last Updated:** April 28, 2026
+**Last Updated:** April 29, 2026
