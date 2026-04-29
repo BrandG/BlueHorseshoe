@@ -1,11 +1,52 @@
 # Session Handoff
 
 **Date:** April 29, 2026
-**Status:** Sandbox-track validation complete and walk-forward stable. **Now porting the validated strategy back into `bh_ftmo` production code via Codex Next Action on branch `port-sandbox-v1-strategy`.** The validated strategy is event-based: `stoch_oversold_cross` (long, all pairs) + `sma_cross_long` (long, all pairs) + `rsi_overbought_cross` (short, restricted to 4 ultra-validated pairs: CAD_JPY, EUR_NOK, USD_CAD, USD_CHF). Honest forward expectations after walk-forward: ~12-14% pass rate, ~+0.5-1.0% mean per challenge, 60-65% decisive ratio. Two follow-ups deferred: active risk-management overlay (entry restraint + intraday liquidation) and universe filter (spread/stop ≤ 5%) — both engine-touching and warrant their own NAs. The first Codex NA is drafted at `/tmp/nextaction.md`.
+**Status:** **Sandbox-validated package landed in production code.** Four commits across three PRs today: `535a598` SandboxStrategy port (merged via `deac0b5`), `a0a930c` worker-cap fix, `a65d1ba` universe filter (merged via `6c7ef1c`), `3be9463` active risk overlay (merged via `ed49ef1` after held WIP). The active risk overlay was held as a WIP commit on its branch for half a day after a smoke on the unfiltered universe showed it regressing every metric — that confirmed the sandbox-track thesis that the overlay only earns its keep paired with the filter. Package smoke (filter ON + overlay ON, 37 challenges, same RNG seed) shows **zero FTMO breaches** (down from 15 with both off, 7 with filter only), Sharpe -0.40 (up from -2.87), win rate 36.5%, profit factor 0.88. Pass rate on this 37-challenge sample is 0% vs sandbox's 12-14% forecast — possibly small-sample noise, possibly real expected-value loss in translation. Brand purchased the $99 unlimited-time 2-Step Swing 10k FTMO challenge and chose to wait until the system is fully ready before activating. **Next gating piece:** production signal-emission CLI (`src/bh_ftmo/main.py` is currently a Phase-0 stub still importing equity code).
 
 ---
 
 ## What Was Done This Session (April 29)
+
+### Production port: 4 commits, package validated end-to-end (afternoon-evening)
+
+After the morning's sandbox validation finalized, executed the porting sequence to land the validated package in production code.
+
+**Commits, in landing order:**
+
+1. `535a598` **SandboxStrategy port** (merged via `deac0b5`) — `src/bh_ftmo/analysis/sandbox_strategy.py` with the 3 event-based rules + 4-pair short whitelist; 7 unit tests; `sandbox_v1` block in `bh_ftmo_weights.json`; `--strategies sandbox_v1` CLI flag. Codex's first attempt at this NA crashed mid-run when the user got disconnected; second attempt reran from a fresh nextaction.md and committed cleanly.
+
+2. `a0a930c` **Worker-cap fix** — cap sandbox_v1 default workers at 2 to avoid OOM on this 7.8 GB host. Diagnosed via kernel OOM trace after a prior session lost a Codex tab to a self-inflicted OOM (concurrent `--max-workers 2` and `--max-workers 4` runs exceeded RAM and systemd SIGKILLed the entire tmux-spawn cgroup, taking out bash, node, and codex). Fix: `_resolve_max_workers` in `cli.py` defaults sandbox_v1 to `max_workers=2` when no `--max-workers` is passed.
+
+3. `a65d1ba` **Universe filter** (merged via `6c7ef1c`) — new `src/bh_ftmo/backtest/universe_filter.py`, opt-in per strategy via `universe_filter` config block, applied at cli.py before signal generation. 7 unit tests + 1 real-data integration test (skips when DuckDB unavailable). On current OANDA data, 21/40 pairs dropped (sandbox said 22; 1-pair drift is current-data variance in the 30-day lookback). Filter solo-edge confirmed: win rate 31.7% → 35.0%, profit factor 0.70 → 0.81, FTMO breaches 15 → 7 across 37 challenges.
+
+4. `3be9463` **Active risk overlay** (merged via `ed49ef1`) — `src/bh_ftmo/backtest/risk_overlay.py` with entry restraint + intraday liquidation cascade, opt-in via `risk_overlay` weights block, integrated into `engine.run_challenge`. 8 unit tests + 2 engine integration tests including the regression test (overlay-disabled bit-identical to pre-overlay). The first smoke test on the unfiltered universe showed the overlay regressing every metric (Sharpe -3.30 vs -2.87, MaxDD 11.8% vs 10.8%, FTMO breaches 20 vs 15) — likely cause: on cost-killer pairs the overlay turns probabilistic recoveries into deterministic spread-cost realized losses. Held as WIP commit on branch (`fdf5576`, then rebased to `3be9463` after filter merge) per `feedback_validate_incrementally.md`. Package smoke (filter + overlay) on filtered universe confirmed zero FTMO breaches across 37 challenges.
+
+**Package smoke comparison summary (same 37 challenges, same RNG seed):**
+
+| Config | FTMO breaches | Win rate | Profit factor | MaxDD | Sharpe |
+|--------|--------------:|---------:|--------------:|------:|-------:|
+| Both off | 15 | 31.7% | 0.70 | 10.8% | -2.87 |
+| Filter only | 7 | 35.0% | 0.81 | 12.1% | n/a |
+| **Package** | **0** | **36.5%** | **0.88** | 11.3% | **-0.40** |
+
+### Reporter MaxDD vs FTMO breach discrepancy (worth noting, already on TODO)
+
+Package smoke shows MaxDD 11.3% in the verdict block but **zero** FTMO breach exits in the trade ledger. These metrics measure different things — `ftmo_breach` is the engine's check against per-day buffer / total balance limits in real time, while reporter MaxDD is peak-to-trough on the equity curve which captures intraday lows the overlay later liquidates out of. The TODO item about reporter Sharpe/MaxDD computing on different bases (line 231) is the same family of issue. Worth investigating but does NOT invalidate the breach-count finding — for FTMO survival, breach count is the operative metric.
+
+### Open question: 0% pass rate on 37 challenges
+
+Sandbox forecast was 12-14% pass rate on full walk-forward (925 challenges). At that rate, 37 challenges expects 4-5 passes. We got 0. Three possibilities: small-sample bad luck (P(0 passes | p=0.13, n=37) ≈ 0.6%, improbable but not impossible), tough-regime sample (these specific 37 windows happen to be hostile), or production code has lower expected value than sandbox (some real edge lost in translation). Path to certainty: full-fold gate on the c2-48vcpu-96gb droplet (~$0.35) AND/OR forward-test on OANDA demo. Both already on the plan; queued after NA #3 (production CLI) so we have everything in place when we measure.
+
+### FTMO challenge purchased — 2-Step Swing 10k
+
+Brand purchased the $99 unlimited-time 2-Step Swing 10k challenge. Swing exempts funded-stage weekend/news restrictions, downgrading the "Engine: weekend-flatten architecture" TODO from "should land before Phase 4" to "nice to have" for FTMO compliance (still useful for general gap-risk management). Memory saved at `project_ftmo_challenge.md`.
+
+### Paper-derived TODO additions
+
+After Brand shared a research paper on FTMO pass strategies, three items added to BH FTMO follow-ups:
+- **Backward-looking risk circuit breakers** — daily realized-loss cutoff + N-consecutive-losses circuit breaker. Paper's strongest tactical insight ("stop after 2 bad trades / 1.5% realized loss") is genuinely absent from our overlay (which is purely forward-looking). Sandbox-validate first per validate-incrementally rule.
+- **Risk-per-trade tightening sweep** (1% → 0.5% with tighter targets) — paper recommends 0.25-0.5%, we use 1%. Lower priority; only run if 1% feels too aggressive in live.
+- **OANDA demo forward-test rehearsal** — ≥5 trading days on demo before activating paid challenge. Paper's most-repeated cheap-edge.
 
 ### Walk-forward (G), short-hunt (F), buffer sweep (H) — all complete
 After committing the April 28 doc updates (commit `e21bc95`), executed Brand's G→F→H plan from yesterday:

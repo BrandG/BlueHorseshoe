@@ -2,9 +2,35 @@
 
 ## Near Term
 
-### 🔥 PRIORITY — Sandbox `SandboxStrategy` port-back to `bh_ftmo` (updated 2026-04-29)
+### ~~🔥 PRIORITY — Sandbox `SandboxStrategy` port-back to `bh_ftmo`~~ (started 2026-04-24, completed 2026-04-29 evening)
 
-**Status:** Validation complete + walk-forward stable. Codex Next Action drafted on branch `port-sandbox-v1-strategy` at `/tmp/nextaction.md`. Awaiting send to Codex.
+✅ **Done.** All three sub-NAs landed in master via four commits across three PRs:
+- `535a598` SandboxStrategy port (merged via `deac0b5`)
+- `a0a930c` worker-cap fix for sandbox_v1 (avoids OOM on 7.8 GB host)
+- `a65d1ba` cost-survivability universe filter (merged via `6c7ef1c`)
+- `3be9463` active risk overlay, held as WIP on branch for half a day until package validated, then rebased onto post-filter master and merged via `ed49ef1`
+
+**Package smoke result (overlay ON + filter ON, 37 challenges, same RNG seed throughout):**
+
+| Config | FTMO breaches | Win rate | Profit factor | MaxDD | Sharpe |
+|--------|--------------:|---------:|--------------:|------:|-------:|
+| Both off (baseline) | 15 | 31.7% | 0.70 | 10.8% | -2.87 |
+| Filter only | 7 | 35.0% | 0.81 | 12.1% | n/a |
+| **Package** | **0** | **36.5%** | **0.88** | 11.3% | **-0.40** |
+
+Zero FTMO breaches across 37 challenges is the operative survival metric. 0% pass rate on this small sample is concerning vs the sandbox's 12-14% forecast — pending full walk-forward validation on the on-demand `c2-48vcpu-96gb` droplet to confirm.
+
+**Reference (kept as institutional knowledge for tuning work):** Validated portfolio recipe — 3 signals (`stoch_oversold_cross` long, `sma_cross_long` long, `rsi_overbought_cross` short with 4-pair whitelist `CAD_JPY/EUR_NOK/USD_CAD/USD_CHF`), H4, 0.5%/0.75% RR (1.5R), 18-pair filtered universe, 1% equity per trade, max 5 concurrent, max 1 per pair. Active-risk-mgmt parameters: `relax_10` config (`buffer_mult=1.10`, `soft_daily_limit=-0.04`).
+
+**Proven-not-to-help levers (kept for future reference, do not re-test without new evidence):**
+- Half-risk sizing (0.5%/trade) at current RR — kills strategy via 99.7% timeout
+- 2R RR shapes — high decisive ratio but most challenges time out
+- Long-side pair restriction — longs are broad-regime signals, train-selected pairs go negative OOS
+- Adding `bb_upper_fade` as 2nd short — correlated with `rsi_overbought`, drops decisive ratio
+- 4-signal portfolios — competing for position-cap slots increases total-fail risk
+- Re-deriving pairs each walk-forward window — UNDERPERFORMS the hardcoded 4-pair selection
+
+**Original status note (preserved for context — pre-merge):** Validation complete + walk-forward stable. Codex Next Action drafted on branch `port-sandbox-v1-strategy` at `/tmp/nextaction.md`. Awaiting send to Codex.
 
 **Validated portfolio recipe (final, post-walk-forward):**
 - Signals: `stoch_oversold_cross` (long, all 18 pairs) + `sma_cross_long` (long, all 18 pairs) + `rsi_overbought_cross` (short, **4 ultra-validated pairs only**: CAD_JPY, EUR_NOK, USD_CAD, USD_CHF)
@@ -31,12 +57,12 @@
 - 4-signal portfolios — the two shorts compete for position-cap slots, increasing total-fail risk
 - Re-deriving pairs each walk-forward window — UNDERPERFORMS the hardcoded 4-pair selection (dynamic re-selection just adds noise)
 
-**Active Codex Next Actions:**
-1. **NA #1 (drafted, awaiting send):** Port `SandboxStrategy` class — branch `port-sandbox-v1-strategy`, prompt at `/tmp/nextaction.md`. New `src/bh_ftmo/analysis/sandbox_strategy.py` with the 3 event-based rules + 4-pair short whitelist; tests; `sandbox_v1` block in `bh_ftmo_weights.json`; `--strategy sandbox_v1` CLI flag. **Does NOT include risk overlay or universe filter.**
-2. **NA #2 (queued, draft pending):** Active risk-management overlay — new `src/bh_ftmo/backtest/risk_overlay.py` with entry restraint + intraday liquidation, plus integration hooks in `engine.py`. Engine-touching, requires careful threading through `position.py` and `ftmo_rules.py`.
-3. **NA #3 (queued, draft pending):** Universe filter at engine level — drop pairs where `spread / (stop_pct × median_price) > 0.05` from the runnable universe. Modifies `runner.py` or `cli.py`.
+**Active Codex Next Actions:** ~~all three landed 2026-04-29~~
+1. ✅ ~~**NA #1:** Port `SandboxStrategy` class~~ — landed `535a598`
+2. ✅ ~~**NA #2:** Active risk-management overlay~~ — landed `3be9463` after package validation
+3. ✅ ~~**NA #3:** Universe filter at engine level~~ — landed `a65d1ba`
 
-**Follow-up:** Once NA #1 lands, run `--strategy sandbox_v1` against the gate WITHOUT the risk overlay. That tells us how much of the in-sample edge comes from the strategy vs. the active risk management — useful diagnostic for NA #2.
+**Follow-up diagnostic (still useful):** the package smoke confirmed the sandbox-track thesis that overlay alone (without filter) regresses every metric. The filter is the operative cost-survivability gate; the overlay only earns its keep on the filtered universe. This is documented in the WIP commit `3be9463`'s message and in this session's SESSION_HANDOFF entry.
 
 **Sandbox artifacts (preserved at /tmp/, do not delete until NA #2 + NA #3 land):**
 - `sandbox_indicators.py`, `sandbox_combinations.py`, `sandbox_rr_sweep.py`, `sandbox_1d_sweep.py`, `sandbox_deepdive.py`, `sandbox_portfolio.py`, `sandbox_ftmo_challenge.py`, `sandbox_ftmo_v2.py`, `sandbox_ftmo_sweep.py`, `sandbox_ftmo_3sig.py`, `sandbox_buffer_sweep.py`, `sandbox_walkforward.py`, `sandbox_shorts_hunt.py`
