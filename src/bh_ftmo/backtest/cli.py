@@ -39,6 +39,7 @@ DEFAULT_OUTPUT_HTML_DIR = REPO_ROOT / "src" / "graphs"
 DEFAULT_OUTPUT_CSV_DIR = REPO_ROOT / "src" / "logs"
 DEFAULT_CONFIG_PATH = REPO_ROOT / "src" / "bh_ftmo_config.json"
 DEFAULT_WEIGHTS_PATH = REPO_ROOT / "src" / "bh_ftmo_weights.json"
+DEFAULT_SANDBOX_MAX_WORKERS = 2
 
 LOG = logging.getLogger("bh_ftmo.backtest.cli")
 SWAP_APPROXIMATION_NOTE = (
@@ -95,6 +96,14 @@ def _parse_strategies(value: str) -> list[str]:
         if name not in selected:
             selected.append(name)
     return selected
+
+
+def _resolve_max_workers(strategy_names: list[str], requested_max_workers: Optional[int]) -> Optional[int]:
+    if requested_max_workers is not None:
+        return requested_max_workers
+    if SandboxStrategy.name in strategy_names:
+        return DEFAULT_SANDBOX_MAX_WORKERS
+    return None
 
 
 def _compute_run_id(args: argparse.Namespace, now_utc: Optional[datetime] = None) -> str:
@@ -435,6 +444,7 @@ def main(argv: Optional[list[str]] = None) -> int:
         }
 
         LOG.info("running cohort across %d starts", len(starts))
+        max_workers = _resolve_max_workers(strategy_names, args.max_workers)
         cohort_results_by_strategy = run_full_comparison(
             bars_4h={symbol: bars_4h[symbol] for symbol in args.symbols},
             bars_1h={symbol: bars_1h[symbol] for symbol in args.symbols},
@@ -446,7 +456,7 @@ def main(argv: Optional[list[str]] = None) -> int:
             bh_ftmo_signals=bh_ftmo_signals,
             starts=starts,
             rng_seed=args.rng_seed,
-            max_workers=args.max_workers,
+            max_workers=max_workers,
         )
 
         cohort_metrics_by_strategy = {

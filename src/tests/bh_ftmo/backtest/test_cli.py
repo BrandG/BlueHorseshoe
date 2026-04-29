@@ -175,6 +175,18 @@ def test_cli_parser_strategy_rejects_invalid_value():
         cli.build_parser().parse_args(["--strategies", "xyz"])
 
 
+def test_resolve_max_workers_caps_sandbox_default():
+    assert cli._resolve_max_workers(["sandbox_v1"], None) == 2
+
+
+def test_resolve_max_workers_preserves_explicit_request_for_sandbox():
+    assert cli._resolve_max_workers(["sandbox_v1"], 4) == 4
+
+
+def test_resolve_max_workers_leaves_non_sandbox_default_unset():
+    assert cli._resolve_max_workers(["baseline", "mean_reversion"], None) is None
+
+
 def test_cli_exits_2_on_placeholder_config(tmp_path, monkeypatch):
     config_path = _write_config(tmp_path / "config.json", placeholder=True)
     weights_path = _write_weights(tmp_path / "weights.json")
