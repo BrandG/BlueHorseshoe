@@ -65,6 +65,7 @@ class Trade:
         "target",
         "stop",
         "ftmo_breach",
+        "risk_liquidation",
         "session_close",
         "weekend_flatten",
         "deadline_flatten",
@@ -78,7 +79,7 @@ class ExitEvent:
 
     ts: datetime
     symbol: str
-    kind: Literal["stop", "target", "swap", "weekend_flatten", "deadline", "session_close"]
+    kind: Literal["stop", "target", "swap", "weekend_flatten", "deadline", "session_close", "risk_liquidation"]
     price: float
     position_id: int
 
@@ -116,6 +117,8 @@ class ChallengeResult:
     skipped_signals: tuple[tuple[Signal, str], ...]
     rng_seed: int
     non_convertible_position_events: int = 0
+    n_blocked_entries: int = 0
+    n_liquidations: int = 0
 
 
 @dataclass(frozen=True)

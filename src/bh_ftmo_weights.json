@@ -55,12 +55,17 @@
       "sma_cross_long": 1.0,
       "rsi_overbought_cross_short": 1.0
     },
+    "short_pair_whitelist": ["CAD_JPY", "EUR_NOK", "USD_CAD", "USD_CHF"],
     "universe_filter": {
       "enabled": true,
       "stop_pct": 0.005,
       "max_spread_to_stop_ratio": 0.05,
       "lookback_days": 30
     },
-    "short_pair_whitelist": ["CAD_JPY", "EUR_NOK", "USD_CAD", "USD_CHF"]
+    "risk_overlay": {
+      "enabled": true,
+      "buffer_mult": 1.10,
+      "soft_daily_limit": -0.04
+    }
   }
 }

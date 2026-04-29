@@ -31,6 +31,7 @@ _KIND_PRIORITY = {
     "weekend_flatten": 3,
     "deadline": 4,
     "session_close": 5,
+    "risk_liquidation": 6,
 }
 
 
@@ -66,6 +67,8 @@ def _exit_reason_for(kind: str) -> str:
         return "deadline_flatten"
     if kind == "session_close":
         return "session_close"
+    if kind == "risk_liquidation":
+        return "risk_liquidation"
     raise ValueError(f"unsupported exit event kind: {kind}")
 
 
