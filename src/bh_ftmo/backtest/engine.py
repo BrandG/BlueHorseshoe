@@ -19,7 +19,9 @@ from bh_ftmo.backtest.event_queue import apply_in_order, collect_and_sort
 from bh_ftmo.backtest.ftmo_rules import FtmoRuleEngine
 from bh_ftmo.data.fx_time_utils import ftmo_day_boundary
 from bh_ftmo.backtest.pip_value import quote_to_account_rate
+from bh_ftmo.backtest.position import floating_pnl_account_ccy
 from bh_ftmo.backtest.risk_exits import DeadlineState, deadline_check, weekend_flatten_events
+from bh_ftmo.backtest.risk_overlay import RiskOverlay, RiskOverlayConfig
 from bh_ftmo.backtest.swap import SwapRates, apply_swap_to_positions
 from bh_ftmo.backtest.trade_factory import can_open, derive_position
 from bh_ftmo.backtest.types import ChallengeResult, ExitEvent, PairSpec, Position, RuleBreach, Trade
@@ -258,6 +260,7 @@ def run_challenge(
     start_equity: float,
     rng_seed: int,
     deadline: Optional[date] = None,
+    risk_overlay_config: Optional[dict[str, dict]] = None,
 ) -> ChallengeResult:
     """Run one pure FTMO challenge simulation over preloaded market data."""
 
@@ -278,6 +281,15 @@ def run_challenge(
 
     rule_engine = FtmoRuleEngine(ftmo_config, start_equity=start_equity, start_ts=start_ts, server_tz=ftmo_config["server_timezone"])
     equity_curve = EquityCurve()
+    overlay_by_strategy = {
+        strategy_name: RiskOverlay(
+            RiskOverlayConfig.from_mapping(config),
+            ftmo_config,
+            start_equity=start_equity,
+        )
+        for strategy_name, config in (risk_overlay_config or {}).items()
+    }
+    noop_overlay = RiskOverlay(RiskOverlayConfig(), ftmo_config, start_equity=start_equity)
     daily_samples: dict[datetime, float] = {}
     open_positions: dict[int, Position] = {}
     swap_totals_by_position: dict[int, float] = {}
@@ -286,6 +298,8 @@ def run_challenge(
     breaches: list[RuleBreach] = []
     skipped_signals: list[tuple[Signal, str]] = []
     non_convertible_position_events = 0
+    n_blocked_entries = 0
+    n_liquidations = 0
     cash = float(start_equity)
     next_position_id = 1
     outcome = "in_progress"
@@ -356,6 +370,8 @@ def run_challenge(
                 },
             )
             rule_engine.on_session_reset(reset_ts, current_equity)
+            for overlay in overlay_by_strategy.values():
+                overlay.on_session_reset(reset_ts, current_equity)
             equity_curve.record(reset_ts, current_equity)
             daily_samples[reset_ts] = current_equity
             breach = rule_engine.on_equity_update(reset_ts, current_equity)
@@ -432,12 +448,14 @@ def run_challenge(
                     for pos_id, position in open_positions.items()
                     if position.symbol == trade.symbol and position.open_ts == trade.open_ts
                 )
-                trades.append(
-                    _replace_trade_details(
-                        trade,
-                        swap_totals_by_position.pop(position_id, 0.0),
-                        components_by_position.pop(position_id, {}),
-                    )
+                enriched_trade = _replace_trade_details(
+                    trade,
+                    swap_totals_by_position.pop(position_id, 0.0),
+                    components_by_position.pop(position_id, {}),
+                )
+                trades.append(enriched_trade)
+                overlay_by_strategy.get(enriched_trade.strategy, noop_overlay).on_position_closed(
+                    enriched_trade.pnl_account_ccy
                 )
             open_positions = {
                 **{position_id: position for position_id, position in open_positions.items() if position_id not in open_positions_convertible_by_id},
@@ -525,12 +543,14 @@ def run_challenge(
                         for pos_id, position in open_positions.items()
                         if position.symbol == trade.symbol and position.open_ts == trade.open_ts
                     )
-                    trades.append(
-                        _replace_trade_details(
-                            trade,
-                            swap_totals_by_position.pop(position_id, 0.0),
-                            components_by_position.pop(position_id, {}),
-                        )
+                    enriched_trade = _replace_trade_details(
+                        trade,
+                        swap_totals_by_position.pop(position_id, 0.0),
+                        components_by_position.pop(position_id, {}),
+                    )
+                    trades.append(enriched_trade)
+                    overlay_by_strategy.get(enriched_trade.strategy, noop_overlay).on_position_closed(
+                        enriched_trade.pnl_account_ccy
                     )
                 open_positions = {
                     **{position_id: position for position_id, position in open_positions.items() if position_id not in open_positions_convertible_by_id},
@@ -599,6 +619,117 @@ def run_challenge(
         }
         current_equity = equity(cash, close_convertible_positions, bid_at_close, ask_at_close, close_pip_values)
         equity_curve.record(bar_close_ts, current_equity)
+
+        enabled_overlays = [
+            overlay_by_strategy[position.strategy]
+            for position in close_convertible_positions
+            if position.strategy in overlay_by_strategy and overlay_by_strategy[position.strategy].enabled
+        ]
+        if enabled_overlays:
+            active_overlay = enabled_overlays[0]
+            mtm_per_position = {
+                position.id: floating_pnl_account_ccy(
+                    position,
+                    bid=bid_at_close[position.symbol],
+                    ask=ask_at_close[position.symbol],
+                    pip_value=close_pip_values[position.symbol],
+                )
+                for position in close_convertible_positions
+            }
+            low_pnl_per_position = {
+                position.id: floating_pnl_account_ccy(
+                    position,
+                    bid=float(_require_row(bars_4h_norm[position.symbol], bar_ts)["low_bid"]),
+                    ask=float(_require_row(bars_4h_norm[position.symbol], bar_ts)["high_ask"]),
+                    pip_value=close_pip_values[position.symbol],
+                )
+                for position in close_convertible_positions
+            }
+            equity_low_now = cash + sum(low_pnl_per_position.values())
+            liquidation_ids = active_overlay.positions_to_liquidate(
+                close_convertible_by_id,
+                mtm_per_position,
+                equity_low_now,
+                low_pnl_per_position,
+            )
+            if liquidation_ids:
+                liquidation_events = [
+                    ExitEvent(
+                        ts=bar_close_ts,
+                        symbol=close_convertible_by_id[position_id].symbol,
+                        kind="risk_liquidation",
+                        price=(
+                            bid_at_close[close_convertible_by_id[position_id].symbol]
+                            if close_convertible_by_id[position_id].direction > 0
+                            else ask_at_close[close_convertible_by_id[position_id].symbol]
+                        ),
+                        position_id=position_id,
+                    )
+                    for position_id in liquidation_ids
+                ]
+
+                def pip_value_at_close(event_ts: datetime, symbol: str) -> float:
+                    del event_ts
+                    rate = quote_to_account_rate(symbol, ftmo_config["account_currency"], rates_at_close)
+                    return pair_specs[symbol].pip_size * pair_specs[symbol].contract_size * rate
+
+                raw_open_positions, cash, new_trades, breach = apply_in_order(
+                    events=liquidation_events,
+                    open_positions=close_convertible_by_id,
+                    cash=cash,
+                    pip_specs=pair_specs,
+                    pip_values_at=pip_value_at_close,
+                    commission_per_lot_round_turn=float(ftmo_config["commission_per_lot_round_turn"]),
+                    equity_curve=equity_curve,
+                    rule_engine=rule_engine,
+                    bid_at=bid_at_close,
+                    ask_at=ask_at_close,
+                )
+                for trade in new_trades:
+                    position_id = next(
+                        pos_id
+                        for pos_id, position in open_positions.items()
+                        if position.symbol == trade.symbol and position.open_ts == trade.open_ts
+                    )
+                    enriched_trade = _replace_trade_details(
+                        trade,
+                        swap_totals_by_position.pop(position_id, 0.0),
+                        components_by_position.pop(position_id, {}),
+                    )
+                    trades.append(enriched_trade)
+                    overlay_by_strategy.get(enriched_trade.strategy, noop_overlay).on_position_closed(
+                        enriched_trade.pnl_account_ccy
+                    )
+                n_liquidations += len(new_trades)
+                open_positions = {
+                    **{position_id: position for position_id, position in open_positions.items() if position_id not in close_convertible_by_id},
+                    **raw_open_positions,
+                }
+                close_positions_after_liquidation = list(raw_open_positions.values())
+                current_equity = equity(cash, close_positions_after_liquidation, bid_at_close, ask_at_close, close_pip_values)
+                if breach is not None:
+                    breaches.append(breach)
+                    failed_by = breach.rule
+                    flushed_positions, cash, flushed_trades, deferred_count = _flush_open_positions(
+                        open_positions,
+                        breach.timestamp,
+                        bar_ts,
+                        bars_4h_norm,
+                        bars_1h_norm,
+                        pair_specs,
+                        ftmo_config,
+                        cash,
+                        swap_totals_by_position,
+                        components_by_position,
+                    )
+                    non_convertible_position_events += deferred_count
+                    open_positions = flushed_positions
+                    trades.extend(flushed_trades)
+                    outcome = "failed"
+                    _append_future_skips(signals_sorted, breach.timestamp, "rule_blocked", skipped_signals)
+                    actual_end_ts = breach.timestamp
+                    break
+
         breach = rule_engine.on_equity_update(bar_close_ts, current_equity)
         if breach is not None:
             breaches.append(breach)
@@ -690,6 +821,11 @@ def run_challenge(
             )
             if position is None:
                 skipped_signals.append((signal, "invalid_position"))
+                continue
+            overlay = overlay_by_strategy.get(signal.strategy, noop_overlay)
+            if overlay.should_block_entry(open_positions, position.risk_at_open_account_ccy):
+                n_blocked_entries += 1
+                skipped_signals.append((signal, "risk_overlay_blocked"))
                 continue
             open_positions[position.id] = position
             swap_totals_by_position[position.id] = 0.0
@@ -783,6 +919,8 @@ def run_challenge(
         skipped_signals=tuple(skipped_signals),
         rng_seed=rng_seed,
         non_convertible_position_events=non_convertible_position_events,
+        n_blocked_entries=n_blocked_entries,
+        n_liquidations=n_liquidations,
     )
 
 
@@ -799,6 +937,7 @@ def _run_single_start(args: tuple) -> ChallengeResult:
         swap_rates_by_symbol,
         calendar_provider,
         start_config,
+        risk_overlay_config,
     ) = args
     normalized_4h = {symbol: _normalize_bars(frame) for symbol, frame in bars_4h.items()}
     normalized_1h = {symbol: _normalize_bars(frame) for symbol, frame in bars_1h.items()}
@@ -818,6 +957,7 @@ def _run_single_start(args: tuple) -> ChallengeResult:
         start_ts=start_config.start_ts,
         start_equity=float(ftmo_config["initial_balance"]),
         rng_seed=start_config.rng_seed,
+        risk_overlay_config=risk_overlay_config,
     )
 
 
@@ -835,6 +975,7 @@ def run_n_randomized(
     starts: list[StartConfig],
     *,
     max_workers: Optional[int] = None,
+    risk_overlay_config: Optional[dict[str, dict]] = None,
 ) -> list[ChallengeResult]:
     """Run multiple start configurations in a process pool without shared state."""
 
@@ -852,6 +993,7 @@ def run_n_randomized(
                     swap_rates_by_symbol,
                     calendar_provider,
                     start_config,
+                    risk_overlay_config,
                 )
             )
             for start_config in starts
@@ -873,6 +1015,7 @@ def run_n_randomized(
                         swap_rates_by_symbol,
                         calendar_provider,
                         start_config,
+                        risk_overlay_config,
                     )
                     for start_config in starts
                 ],

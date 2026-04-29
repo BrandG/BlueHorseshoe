@@ -261,6 +261,15 @@ def _apply_configured_universe_filter(
     return filtered_symbols
 
 
+def _risk_overlay_config(weights_path: Path, strategy_names: list[str]) -> dict[str, dict]:
+    weights = load_weights(weights_path)
+    return {
+        strategy_name: dict(weights[strategy_name]["risk_overlay"])
+        for strategy_name in strategy_names
+        if isinstance(weights.get(strategy_name, {}).get("risk_overlay"), dict)
+    }
+
+
 def _enumerate_starts(
     fold_iter: list,
     challenge_window_days: int,
@@ -319,6 +328,8 @@ def _combine_results_for_reporting(results: list[ChallengeResult]) -> ChallengeR
         skipped_signals=tuple(item for result in results for item in result.skipped_signals),
         rng_seed=template.rng_seed,
         non_convertible_position_events=sum(result.non_convertible_position_events for result in results),
+        n_blocked_entries=sum(result.n_blocked_entries for result in results),
+        n_liquidations=sum(result.n_liquidations for result in results),
     )
 
 
@@ -487,6 +498,7 @@ def main(argv: Optional[list[str]] = None) -> int:
             starts=starts,
             rng_seed=args.rng_seed,
             max_workers=max_workers,
+            risk_overlay_config=_risk_overlay_config(args.weights, strategy_names),
         )
 
         cohort_metrics_by_strategy = {

@@ -220,6 +220,122 @@ def test_run_challenge_fails_by_daily_loss_with_expected_equity():
     assert result.final_equity_account_ccy == pytest.approx(99_400.0)
 
 
+def _overlay_daily_fail_fixture():
+    t0 = datetime(2026, 1, 12, 10, 0)
+    t1 = t0 + timedelta(hours=4)
+    t2 = t1 + timedelta(hours=4)
+    t3 = t2 + timedelta(hours=4)
+    bars_4h = {
+        "EUR_USD": _frame_4h(
+            [
+                (t0, 1.0998, 1.1000, 1.1000, 1.1002),
+                (t1, 1.0998, 1.1000, 1.0760, 1.0762),
+                (t2, 1.0760, 1.0762, 1.0550, 1.0552),
+                (t3, 1.0550, 1.0552, 1.0550, 1.0552),
+            ]
+        )
+    }
+    bars_4h["EUR_USD"].loc[1, "low_bid"] = 1.0600
+    bars_4h["EUR_USD"].loc[1, "low_ask"] = 1.0602
+    bars_1h = {
+        "EUR_USD": _frame_1h(
+            [
+                (t1 + timedelta(hours=1), 1.0950, 1.0952, 1.1005, 1.0900),
+                (t1 + timedelta(hours=2), 1.0850, 1.0852, 1.0900, 1.0800),
+                (t1 + timedelta(hours=3), 1.0800, 1.0802, 1.0850, 1.0750),
+                (t1 + timedelta(hours=4), 1.0760, 1.0762, 1.0800, 1.0600),
+                (t2 + timedelta(hours=1), 1.0700, 1.0702, 1.0760, 1.0680),
+                (t2 + timedelta(hours=2), 1.0650, 1.0652, 1.0700, 1.0630),
+                (t2 + timedelta(hours=3), 1.0600, 1.0602, 1.0650, 1.0580),
+                (t2 + timedelta(hours=4), 1.0550, 1.0552, 1.0600, 1.0550),
+            ]
+        )
+    }
+    atr = {"EUR_USD": pd.Series([0.0040, 0.0040, 0.0040, 0.0040], index=[t0, t1, t2, t3])}
+    config = dict(BASE_CONFIG)
+    config["profit_target_pct"] = 0.50
+    sizing = {"risk_pct_per_trade": 0.50, "k_stop": 100.0, "k_target": 250.0}
+    return bars_4h, bars_1h, atr, config, sizing, [_signal("EUR_USD", t0)]
+
+
+def test_run_challenge_with_overlay_enabled_reduces_daily_fails() -> None:
+    bars_4h, bars_1h, atr, config, sizing, signals = _overlay_daily_fail_fixture()
+    no_overlay = run_challenge(
+        bars_4h=bars_4h,
+        bars_1h=bars_1h,
+        signals=signals,
+        atr_by_symbol=atr,
+        pair_specs={"EUR_USD": PAIR_SPECS["EUR_USD"]},
+        ftmo_config=config,
+        sizing_config=sizing,
+        swap_rates_by_symbol={"EUR_USD": SwapRates(0.0, 0.0)},
+        calendar_provider=NullCalendarProvider(),
+        start_ts=signals[0].timestamp,
+        start_equity=100_000.0,
+        rng_seed=18,
+    )
+    with_overlay = run_challenge(
+        bars_4h=bars_4h,
+        bars_1h=bars_1h,
+        signals=signals,
+        atr_by_symbol=atr,
+        pair_specs={"EUR_USD": PAIR_SPECS["EUR_USD"]},
+        ftmo_config=config,
+        sizing_config=sizing,
+        swap_rates_by_symbol={"EUR_USD": SwapRates(0.0, 0.0)},
+        calendar_provider=NullCalendarProvider(),
+        start_ts=signals[0].timestamp,
+        start_equity=100_000.0,
+        rng_seed=18,
+        risk_overlay_config={"baseline": {"enabled": True, "buffer_mult": 10.0, "soft_daily_limit": -0.04}},
+    )
+
+    assert no_overlay.failed_by == "daily_loss"
+    assert with_overlay.failed_by != "daily_loss"
+    assert with_overlay.n_liquidations >= 1
+
+
+def test_run_challenge_overlay_disabled_unchanged() -> None:
+    bars_4h, bars_1h, atr, config, sizing, signals = _overlay_daily_fail_fixture()
+    no_overlay = run_challenge(
+        bars_4h=bars_4h,
+        bars_1h=bars_1h,
+        signals=signals,
+        atr_by_symbol=atr,
+        pair_specs={"EUR_USD": PAIR_SPECS["EUR_USD"]},
+        ftmo_config=config,
+        sizing_config=sizing,
+        swap_rates_by_symbol={"EUR_USD": SwapRates(0.0, 0.0)},
+        calendar_provider=NullCalendarProvider(),
+        start_ts=signals[0].timestamp,
+        start_equity=100_000.0,
+        rng_seed=19,
+    )
+    disabled = run_challenge(
+        bars_4h=bars_4h,
+        bars_1h=bars_1h,
+        signals=signals,
+        atr_by_symbol=atr,
+        pair_specs={"EUR_USD": PAIR_SPECS["EUR_USD"]},
+        ftmo_config=config,
+        sizing_config=sizing,
+        swap_rates_by_symbol={"EUR_USD": SwapRates(0.0, 0.0)},
+        calendar_provider=NullCalendarProvider(),
+        start_ts=signals[0].timestamp,
+        start_equity=100_000.0,
+        rng_seed=19,
+        risk_overlay_config={"baseline": {"enabled": False}},
+    )
+
+    assert disabled.outcome == no_overlay.outcome
+    assert disabled.failed_by == no_overlay.failed_by
+    assert disabled.final_equity_account_ccy == pytest.approx(no_overlay.final_equity_account_ccy)
+    assert disabled.trades == no_overlay.trades
+    assert disabled.breaches == no_overlay.breaches
+    assert disabled.n_blocked_entries == no_overlay.n_blocked_entries == 0
+    assert disabled.n_liquidations == no_overlay.n_liquidations == 0
+
+
 
 def test_run_challenge_reasserts_invalid_max_loss_type():
     bars_4h, bars_1h, atr, config, sizing, signals = _pass_fixture()

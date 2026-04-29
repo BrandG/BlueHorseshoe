@@ -34,6 +34,7 @@ def run_strategy_cohort(
     starts: list[StartConfig],
     *,
     max_workers: Optional[int] = None,
+    risk_overlay_config: Optional[dict[str, dict]] = None,
 ) -> list[ChallengeResult]:
     """Run one strategy's signals over a shared randomized-start cohort."""
 
@@ -50,6 +51,7 @@ def run_strategy_cohort(
         calendar_provider=calendar_provider,
         starts=starts,
         max_workers=max_workers,
+        risk_overlay_config=risk_overlay_config,
     )
 
 
@@ -66,6 +68,7 @@ def run_full_comparison(
     *,
     rng_seed: int = 0,
     max_workers: Optional[int] = None,
+    risk_overlay_config: Optional[dict[str, dict]] = None,
 ) -> dict[str, list[ChallengeResult]]:
     """Run BH FTMO plus the three locked baselines over identical starts."""
 
@@ -95,6 +98,7 @@ def run_full_comparison(
             calendar_provider,
             starts,
             max_workers=max_workers,
+            risk_overlay_config=risk_overlay_config if strategy_name == "bh_ftmo" else None,
         )
         for strategy_name, signals in strategy_inputs.items()
     }
