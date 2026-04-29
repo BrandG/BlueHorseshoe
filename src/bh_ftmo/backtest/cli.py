@@ -16,6 +16,7 @@ import pandas as pd
 
 from bh_ftmo.analysis.cluster_filter import cluster_filter
 from bh_ftmo.analysis.mean_reversion import MeanReversionStrategy
+from bh_ftmo.analysis.sandbox_strategy import SandboxStrategy
 from bh_ftmo.analysis.signal_generator import SignalGenerator
 from bh_ftmo.analysis.strategy import BaselineStrategy, Signal, load_weights
 from bh_ftmo.backtest.engine import StartConfig
@@ -38,13 +39,15 @@ DEFAULT_OUTPUT_HTML_DIR = REPO_ROOT / "src" / "graphs"
 DEFAULT_OUTPUT_CSV_DIR = REPO_ROOT / "src" / "logs"
 DEFAULT_CONFIG_PATH = REPO_ROOT / "src" / "bh_ftmo_config.json"
 DEFAULT_WEIGHTS_PATH = REPO_ROOT / "src" / "bh_ftmo_weights.json"
+DEFAULT_SANDBOX_MAX_WORKERS = 2
 
 LOG = logging.getLogger("bh_ftmo.backtest.cli")
 SWAP_APPROXIMATION_NOTE = (
     "Swap approximation: today's OANDA financing snapshot is applied uniformly across the full historical window "
     "because OANDA does not expose historical financing archives via REST."
 )
-STRATEGY_NAMES = (BaselineStrategy.name, MeanReversionStrategy.name)
+DEFAULT_STRATEGY_NAMES = (BaselineStrategy.name, MeanReversionStrategy.name)
+STRATEGY_NAMES = (*DEFAULT_STRATEGY_NAMES, SandboxStrategy.name)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -64,7 +67,10 @@ def build_parser() -> argparse.ArgumentParser:
         "--strategies",
         type=_parse_strategies,
         default=None,
-        help="Comma-separated subset of strategies to run. Choices: baseline, mean_reversion. Default: all.",
+        help=(
+            "Comma-separated subset of strategies to run. Choices: "
+            "baseline, mean_reversion, sandbox_v1. Default: baseline,mean_reversion."
+        ),
     )
     parser.add_argument("--config", type=Path, default=DEFAULT_CONFIG_PATH, help="Config JSON path")
     parser.add_argument("--weights", type=Path, default=DEFAULT_WEIGHTS_PATH, help="Weights JSON path")
@@ -92,6 +98,14 @@ def _parse_strategies(value: str) -> list[str]:
     return selected
 
 
+def _resolve_max_workers(strategy_names: list[str], requested_max_workers: Optional[int]) -> Optional[int]:
+    if requested_max_workers is not None:
+        return requested_max_workers
+    if SandboxStrategy.name in strategy_names:
+        return DEFAULT_SANDBOX_MAX_WORKERS
+    return None
+
+
 def _compute_run_id(args: argparse.Namespace, now_utc: Optional[datetime] = None) -> str:
     moment = now_utc or datetime.now(UTC).replace(tzinfo=None)
     material = {
@@ -105,7 +119,7 @@ def _compute_run_id(args: argparse.Namespace, now_utc: Optional[datetime] = None
         "rng_seed": args.rng_seed,
         "limit_folds": args.limit_folds,
         "limit_starts": args.limit_starts,
-        "strategies": list(args.strategies) if args.strategies else list(STRATEGY_NAMES),
+        "strategies": list(args.strategies) if args.strategies else list(DEFAULT_STRATEGY_NAMES),
     }
     digest = hashlib.sha256(json.dumps(material, sort_keys=True).encode("utf-8")).hexdigest()[:7]
     return f"{moment:%Y%m%d_%H%M%S}_{digest}"
@@ -213,6 +227,7 @@ def _generate_bh_ftmo_signals(
     available = {
         BaselineStrategy.name: lambda: BaselineStrategy(weights=weights),
         MeanReversionStrategy.name: lambda: MeanReversionStrategy(weights=weights),
+        SandboxStrategy.name: lambda: SandboxStrategy(weights=weights),
     }
     strategies = [available[name]() for name in strategy_names]
     generator = SignalGenerator(strategies=strategies)
@@ -377,7 +392,7 @@ def main(argv: Optional[list[str]] = None) -> int:
         ftmo_config = load_ftmo_config(args.config)
         pair_specs = _build_pair_specs(config)
         args.symbols = _select_symbols(config, args.symbols)
-        strategy_names = args.strategies or list(STRATEGY_NAMES)
+        strategy_names = args.strategies or list(DEFAULT_STRATEGY_NAMES)
         run_id = _compute_run_id(args)
         output_html, output_csv = _resolve_outputs(args, run_id)
 
@@ -429,6 +444,7 @@ def main(argv: Optional[list[str]] = None) -> int:
         }
 
         LOG.info("running cohort across %d starts", len(starts))
+        max_workers = _resolve_max_workers(strategy_names, args.max_workers)
         cohort_results_by_strategy = run_full_comparison(
             bars_4h={symbol: bars_4h[symbol] for symbol in args.symbols},
             bars_1h={symbol: bars_1h[symbol] for symbol in args.symbols},
@@ -440,7 +456,7 @@ def main(argv: Optional[list[str]] = None) -> int:
             bh_ftmo_signals=bh_ftmo_signals,
             starts=starts,
             rng_seed=args.rng_seed,
-            max_workers=args.max_workers,
+            max_workers=max_workers,
         )
 
         cohort_metrics_by_strategy = {
