@@ -74,14 +74,14 @@ Branch `port-sandbox-v1-strategy` created from master (not checked out, per the 
 - New `src/bh_ftmo/analysis/sandbox_strategy.py` — `SandboxStrategy` class with the 3 event-based rules
 - New `src/tests/bh_ftmo/test_sandbox_strategy.py` — 7 unit tests
 - New `sandbox_v1` block in `src/bh_ftmo_weights.json` — defaults + 4-pair whitelist
-- New `--strategy sandbox_v1` CLI flag in `src/bh_ftmo/backtest/cli.py`
+- Extend the existing plural `--strategies` flag in `src/bh_ftmo/backtest/cli.py` to accept `sandbox_v1` (NA originally proposed a competing singular `--strategy` flag; revised after Codex flagged that the plural list-style flag was already merged via `d25f276`)
 - Export from `src/bh_ftmo/analysis/__init__.py`
 
 Two things explicitly **deferred to a follow-up Next Action**:
 - **Active risk management overlay** (entry restraint + intraday liquidation at -4%) — engine-touching, warrants its own scoped change
 - **Universe filter** (drop pairs where spread > 5% of stop distance) — also engine-level, will land with the risk overlay
 
-The split is deliberate: landing the strategy first lets us run the gate with `--strategy sandbox_v1` and see how much of the in-sample edge comes from the strategy itself vs. the active risk management. That's a useful diagnostic for the second NA.
+The split is deliberate: landing the strategy first lets us run the gate with `--strategies sandbox_v1` and see how much of the in-sample edge comes from the strategy itself vs. the active risk management. That's a useful diagnostic for the second NA.
 
 ### Sandbox track final state
 All artifacts preserved at `/tmp/sandbox_*.py` (do not delete until the port-back lands). Final validated portfolio:
@@ -225,7 +225,7 @@ All four merged. Suite runtime: <1 second. No xfails — every divergence found 
 
 ## In Progress
 
-- **Codex Next Action: port `SandboxStrategy` to `bh_ftmo`** — branch `port-sandbox-v1-strategy` created (not checked out per the one-worktree-per-branch rule), Next Action drafted at `/tmp/nextaction.md`. Adds `SandboxStrategy` class + tests + `sandbox_v1` weights config + `--strategy sandbox_v1` CLI flag. Awaiting send to Codex.
+- **Codex Next Action: port `SandboxStrategy` to `bh_ftmo`** — branch `port-sandbox-v1-strategy` created (not checked out per the one-worktree-per-branch rule), Next Action drafted at `/tmp/nextaction.md` and revised after Codex flagged a CLI-flag scope conflict. Adds `SandboxStrategy` class + tests + `sandbox_v1` weights config; extends the existing plural `--strategies` flag to accept `sandbox_v1` (no new singular flag). Awaiting send to Codex.
 - **Two follow-up Next Actions queued (post-strategy-class):**
   - Active risk-management overlay (entry restraint + intraday liquidation at -4%) — engine-touching, will require modifications to `engine.py`, `position.py`, `ftmo_rules.py`
   - Universe filter (drop pairs where spread > 5% of stop distance at the configured RR shape) — engine-level decision, will land with the risk overlay
@@ -235,14 +235,13 @@ All four merged. Suite runtime: <1 second. No xfails — every divergence found 
 
 **Immediate (this session's port-back):**
 1. **Send Next Action to Codex.** Branch `port-sandbox-v1-strategy` and prompt at `/tmp/nextaction.md`. Awaiting Brand's go-ahead.
-2. **Once landed: smoke-test gate with `--strategy sandbox_v1`** (no risk overlay yet). Useful diagnostic for how much of the in-sample edge comes from the strategy itself vs. the active risk management.
-3. **Draft NA #2: active risk-management overlay.** New `src/bh_ftmo/backtest/risk_overlay.py`, plus integration hooks in `engine.py`. After this lands, run a full per-strategy gate (`--strategy sandbox_v1` + active risk overlay) to compare against the `/tmp/` sandbox numbers.
+2. **Once landed: smoke-test gate with `--strategies sandbox_v1`** (no risk overlay yet). Useful diagnostic for how much of the in-sample edge comes from the strategy itself vs. the active risk management.
+3. **Draft NA #2: active risk-management overlay.** New `src/bh_ftmo/backtest/risk_overlay.py`, plus integration hooks in `engine.py`. After this lands, run a full per-strategy gate (`--strategies sandbox_v1` + active risk overlay) to compare against the `/tmp/` sandbox numbers.
 4. **Draft NA #3: universe filter at the engine level.** Drop pairs where `spread / (stop_pct × median_price) > 0.05` from the runnable universe. Modifies `runner.py` or `cli.py` and adds a config option in `bh_ftmo_weights.json`.
 
 **Lower priority / inherited:**
-5. **`--strategies` (plural) CLI flag** — Codex NA drafted on branch `cli-strategies-flag` (different from `port-sandbox-v1-strategy`). Deprioritized; cheap to land if multi-strategy investigation becomes useful again.
-6. **Investigate Baseline long-only bug** (0 short trades of 3,652 in the 2026-04-27 gate run). The sandbox track suggests the prod baseline composition itself is suspect; once `sandbox_v1` is producing clean numbers we can decide whether to fix the prod baseline or retire it.
-7. **Investigate Sharpe/MaxDD mismatch in reporter** — per-strategy table 0.20/22.2% vs verdict block -2.90/14.6%. Low-effort fix once spotted.
+5. **Investigate Baseline long-only bug** (0 short trades of 3,652 in the 2026-04-27 gate run). The sandbox track suggests the prod baseline composition itself is suspect; once `sandbox_v1` is producing clean numbers we can decide whether to fix the prod baseline or retire it.
+6. **Investigate Sharpe/MaxDD mismatch in reporter** — per-strategy table 0.20/22.2% vs verdict block -2.90/14.6%. Low-effort fix once spotted.
 
 **Brand action items (still open from prior sessions):**
 - Run `bash /tmp/humanaction.sh` to install every-4h incremental-update cron (when re-emitted; the slot has been used for sandbox-track work this session)
@@ -340,7 +339,7 @@ doctl compute droplet delete bh-research --force
 **Working tree:** docs updated this session (SESSION_HANDOFF.md, TODO.md). All sandbox/ research scripts live in `/tmp/` and are not committed — they are deliberately disposable; only the methodology + findings should land back in `bh_ftmo` via the queued Next Actions.
 **Active feature branches:**
 - `port-sandbox-v1-strategy` — created today (April 29), Codex Next Action drafted at `/tmp/nextaction.md`, awaiting send
-- `cli-strategies-flag` — deprioritized; from prior session
+- `cli-strategies-flag` — already merged (commit `d25f276` on April 27); branch deleted. Note added here because earlier handoff entries listed it as deprioritized/queued, which was stale.
 **Prior session's commits (April 28):** `e21bc95` (docs: capture sandbox-track signal validation pivot)
 **Prior session's commits (April 27):** `5f7fc3b`, `4ce0070`, `f328161`, `d595c2b` (doc-refresh sweep), `c2577e5` (merge_branch.sh), `94f3885`, `c20f244` (.gitignore), `1ea889c` (dead-field cleanup), `9f321e3`, `384f084`, `eeb2225`, `b34db4f` (engine bug fixes), `feb6d2a` (RSI seed-init follow-up note), `5e962d8`, `ef31efc`, `ddb1923`, `a60a3c9` (indicator validation suite)
 **Phase 3 commits (April 25):** `02d3234`, `68a169c`, `e7e1503`, `7541516`, `c49ab49`, `418d214`, `d2052bd`, `1d93201`, `9844244`, `5b50d57`, `e3af17a`, `e842d9a`
