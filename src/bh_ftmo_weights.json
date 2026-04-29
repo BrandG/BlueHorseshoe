@@ -46,5 +46,15 @@
       "mr_adx_weak": 1.0,
       "mr_asia_session_bonus": 0.5
     }
+  },
+  "sandbox_v1": {
+    "description": "Event-based 3-signal portfolio. stoch_oversold + sma_cross_long (longs, all pairs); rsi_overbought_cross (short, restricted to CAD_JPY/EUR_NOK/USD_CAD/USD_CHF). Pair whitelist derived from 3-way temporal validation of 3y H4 OANDA data, walk-forward stable.",
+    "min_score_threshold": 0.5,
+    "components": {
+      "stoch_oversold_cross_long": 1.0,
+      "sma_cross_long": 1.0,
+      "rsi_overbought_cross_short": 1.0
+    },
+    "short_pair_whitelist": ["CAD_JPY", "EUR_NOK", "USD_CAD", "USD_CHF"]
   }
 }
