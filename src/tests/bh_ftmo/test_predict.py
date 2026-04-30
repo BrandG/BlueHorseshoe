@@ -249,13 +249,15 @@ def test_predict_cluster_filter_dedups_correlated_signals(tmp_path, monkeypatch)
 
 
 def test_predict_html_report_has_expected_columns(tmp_path, monkeypatch):
+    import re
+
     frames = {"EUR_USD": _bar_frame("EUR_USD")}
 
     _, html_path, *_ = _run(tmp_path, monkeypatch, frames, [])
     html = html_path.read_text(encoding="utf-8")
 
     for header in ["Pair", "Strategy", "Direction", "Score", "Entry", "Stop", "Target", "Lots", "Risk$"]:
-        assert f"<th>{header}</th>" in html
+        assert re.search(rf"<th[^>]*>{re.escape(header)}</th>", html), f"missing header: {header}"
 
 
 def test_predict_email_disabled_with_flag(tmp_path, monkeypatch):

@@ -375,8 +375,49 @@ def render_html(
     symbols_filtered: int,
 ) -> str:
     headers = ["Pair", "Strategy", "Direction", "Score", "Entry", "Stop", "Target", "Lots", "Risk$"]
+
+    # Inline styles — Gmail and most clients strip <style> blocks and pseudo-
+    # selectors like :nth-child, so each cell carries its own style attribute.
+    text_cell_style = (
+        "padding:12px 22px; border:1px solid #d8e0e8; "
+        "font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; "
+        "white-space:nowrap; text-align:left;"
+    )
+    direction_cell_style = (
+        "padding:12px 22px; border:1px solid #d8e0e8; "
+        "font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; "
+        "white-space:nowrap; text-align:center; text-transform:uppercase; "
+        "font-size:12px; letter-spacing:0.04em;"
+    )
+    num_cell_style = (
+        "padding:12px 28px 12px 22px; border:1px solid #d8e0e8; "
+        "font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; "
+        "white-space:nowrap; text-align:right; "
+        "font-variant-numeric:tabular-nums;"
+    )
+
+    th_base = (
+        "padding:12px 22px; border:1px solid #2c4258; "
+        "background:#24364b; color:#ffffff; font-weight:600; "
+        "font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; "
+        "white-space:nowrap;"
+    )
+    th_styles = []
+    for idx, header in enumerate(headers):
+        if idx == 2:  # Direction
+            th_styles.append(th_base + " text-align:center;")
+        elif idx >= 3:  # numeric columns
+            th_styles.append(th_base + " text-align:right; padding-right:28px;")
+        else:
+            th_styles.append(th_base + " text-align:left;")
+
+    header_row = "".join(
+        f'<th style="{th_styles[idx]}">{header}</th>'
+        for idx, header in enumerate(headers)
+    )
+
     row_html = []
-    for item in live_signals:
+    for row_idx, item in enumerate(live_signals):
         sig = item.signal
         pos = item.position
         cells = [
@@ -390,36 +431,57 @@ def render_html(
             f"{pos.lots:.2f}",
             f"$ {pos.risk_at_open_account_ccy:,.2f}",
         ]
-        row_html.append("<tr>" + "".join(f"<td>{html.escape(value)}</td>" for value in cells) + "</tr>")
+        zebra = "#f9fafb" if row_idx % 2 else "#ffffff"
+        td_html = []
+        for col_idx, value in enumerate(cells):
+            if col_idx == 2:
+                style = direction_cell_style
+            elif col_idx >= 3:
+                style = num_cell_style
+            else:
+                style = text_cell_style
+            td_html.append(
+                f'<td style="{style} background:{zebra};">{html.escape(value)}</td>'
+            )
+        row_html.append("<tr>" + "".join(td_html) + "</tr>")
+
     if not row_html:
-        row_html.append('<tr><td colspan="9" class="empty">No signals fired this bar.</td></tr>')
+        empty_style = (
+            "padding:24px; border:1px solid #d8e0e8; text-align:center; "
+            "color:#51606f; "
+            "font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;"
+        )
+        row_html.append(
+            f'<tr><td colspan="{len(headers)}" style="{empty_style}">'
+            f'No signals fired this bar.</td></tr>'
+        )
+
+    table_style = (
+        "border-collapse:collapse; background:#ffffff; "
+        "border:1px solid #d8e0e8; margin-top:24px;"
+    )
+
+    body_style = (
+        "font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; "
+        "color:#17202a; margin:32px; background:#f7f9fb;"
+    )
+    h1_style = "font-size:28px; margin:0 0 8px;"
+    meta_style = "color:#51606f; margin:4px 0;"
+
     return f"""<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <title>BH FTMO Signals - {signal_ts.date().isoformat()}</title>
-  <style>
-    body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #17202a; margin: 32px; background: #f7f9fb; }}
-    main {{ max-width: 1120px; margin: 0 auto; }}
-    h1 {{ font-size: 28px; margin: 0 0 8px; }}
-    .meta {{ color: #51606f; margin: 4px 0; }}
-    table {{ width: 100%; border-collapse: collapse; margin-top: 24px; background: white; }}
-    th, td {{ border: 1px solid #d8e0e8; padding: 10px 12px; text-align: left; }}
-    th {{ background: #24364b; color: white; font-weight: 600; }}
-    td:nth-child(4), td:nth-child(8), td:nth-child(9) {{ text-align: right; }}
-    .empty {{ text-align: center; color: #51606f; }}
-  </style>
 </head>
-<body>
-  <main>
-    <h1>BH FTMO Signals</h1>
-    <p class="meta">Signal bar: {signal_ts:%Y-%m-%d %H:%M} UTC | Entry bar: {entry_ts:%Y-%m-%d %H:%M} UTC</p>
-    <p class="meta">Account equity: ${equity:,.2f} | Risk per trade: {risk_pct * 100:.1f}% | Filter: {symbols_filtered} of {symbols_total} pairs</p>
-    <table>
-      <thead><tr>{"".join(f"<th>{header}</th>" for header in headers)}</tr></thead>
-      <tbody>{"".join(row_html)}</tbody>
-    </table>
-  </main>
+<body style="{body_style}">
+  <h1 style="{h1_style}">BH FTMO Signals</h1>
+  <p style="{meta_style}">Signal bar: {signal_ts:%Y-%m-%d %H:%M} UTC | Entry bar: {entry_ts:%Y-%m-%d %H:%M} UTC</p>
+  <p style="{meta_style}">Account equity: ${equity:,.2f} | Risk per trade: {risk_pct * 100:.1f}% | Filter: {symbols_filtered} of {symbols_total} pairs</p>
+  <table border="0" cellspacing="0" cellpadding="0" style="{table_style}">
+    <thead><tr>{header_row}</tr></thead>
+    <tbody>{"".join(row_html)}</tbody>
+  </table>
 </body>
 </html>
 """
