@@ -1,7 +1,92 @@
 # Session Handoff
 
+**Date:** April 30, 2026 (continued)
+**Status:** **`rising_3bar` strategy deployed in paper trading.** First BH FTMO strategy with clean walk-forward evidence of edge over random. Trigger: stochastic %K rises 3 consecutive bars from below 20 (multi-bar confirmation, no threshold cross). Validated against per-pair spread cost, 70/30 walk-forward (selection-on-train fully held out from test), bootstrap FTMO challenge sim, and today's OANDA swap rates: **52.8% pass rate vs 34.4% random baseline (+18.5pp lift, CIs cleanly separated)** on held-out 2023-2026 data. RR is 1.5% / 1.5% even-RR, all 40 pairs, 1% NAV risk. RSI(14)<30 also validated as a *modest* amplifier (sign stable across train/test, ~+0.029 R lift in test, P=81% borderline) — wired into paper trader as 1.5× tiered sizing for confirmed trades. Two amplifiers tested and rejected today via the same train/test sign-stability test: V-bottom stoch pattern (sign flipped train→test) and RSI rising direction (wrong direction in both periods). Paper trader live on OANDA practice account `101-001-39154243-001` ($100k notional NAV) every 4h via cron at `:20 UTC`. Journal CSV captures every signal with RSI value + sizing tier; live data over 2-3 weeks will tell us whether the borderline RSI<30 amplifier signal materializes. Next step: hunt more amplifier candidates (Bollinger Bands, ADX, MACD, higher-timeframe trend) using the same train/test test that retired v_bottom and validated RSI<30.
+
+---
+
 **Date:** April 29-30, 2026
 **Status:** **Sandbox_v1 doesn't have measurable edge over random_baseline.** Multi-stage diagnosis: (1) Methodology bug in sandbox harness was inflating headline pass rates by ~5pp; patched and re-validated — every prior conclusion (4-pair short whitelist optimal, buf 1.10 optimal, 0.5%/0.75% RR optimal) holds in *relative* ranking, but absolute pass rate dropped from 13.2% avg to 8.1% avg under fixed methodology. (2) Bumped `max_trading_days` from 14 to 120 to mirror Brand's actual unlimited-time 2-Step Swing — and the picture inverted: sandbox_v1 came in at **25.0%** pass rate (CI 6.2-43.8) but random_baseline beat it at **31.2%** (CI 12.5-56.2). Profit factor 0.84, R-expectancy -0.085 confirm sandbox_v1 actually loses money per trade in expectation. The +3pp margin over random observed at 14-day cap was a window-boundary artifact — the cap was terminating challenges before sandbox_v1's negative drag could compound. **Sandbox_v1 should not be deployed in any form.** BH Lite remains the only strategy with live evidence. Pivoted to simplification: deleted `/tmp/sandbox_*` (65 abandoned files), bumped production config `max_trading_days: 14 → 180` to match Brand's actual challenge type, added new lightweight research module `bh_ftmo/research/test_signal.py` (~250 lines) that lets you measure per-trade R-expectancy of a single signal idea in seconds without invoking the full FTMO challenge sim — the right tool for early hypothesis testing that the system was missing. All 328 production tests still pass. Production signal-emission CLI continues running on cron; treat its emails as research-data placeholders until a signal with measurable positive R is found. Total spend on the night's investigation: ~$0.30 droplet, ~30 min local CPU, plus the sobering finding that the strategy edge work to date doesn't survive proper window construction.
+
+---
+
+## What Was Done This Session (April 30, continued)
+
+### Trigger discovery: `rising_3bar_from_oversold` validated end-to-end
+
+After the morning's pivot to lightweight `test_signal()` harness, spent the day systematically searching for a stochastic-based trigger with real edge. Path:
+
+1. **Stop sweep on `stoch_oversold_cross_long`** (the original sandbox trigger): MAE analysis showed +1.5% target needs at least 1% stop room; 0.5% stop kills 60% of winners. Wider stops (3%/3%) maximized R-per-trade in raw harness (+0.045 R) but Brand flagged 3% stop as too risky.
+2. **Trigger variant comparison at 1.5%/1.5%**: tested 7 stochastic trigger shapes. Multi-bar confirmation variants (`classic_20_sustained`, `rising_3bar_from_oversold`) had ~60% better R-per-trade than the original 1-bar cross. `rising_3bar` (K rising 3 bars from below 20, no threshold crossing required) emerged as best balance of edge magnitude + trade volume.
+3. **Stop sweep on `rising_3bar`**: curve flattens at 1.5% stop (vs classic continuing to improve to 3%) — the multi-bar confirmation removes the noise that wider stops were paying for. **1%/1.5% RR now has clear edge** where classic was at zero. Practical sweet-spot: 1.5%/1.5% even-RR.
+4. **Realistic spread costs**: applied per-pair median spread to each trade. Aggregate edge collapsed from +0.024 R to +0.003 R — spread eats ~90% of gross edge across the 40-pair universe at 1.5% stop. 16 of 40 pairs net positive after spread. **Apparent dead-end.**
+5. **D1 timeframe**: not the right lever. Spread cost in R units is `spread_pct / stop_pct`, both unchanged across timeframes. D1 didn't help.
+6. **Walk-forward pair selection (50/50 split)**: pair selection from old data does generalize *some* — Top 5 by train_R got +0.151 R on test (vs +0.029 with all pairs). But:
+7. **Strict 3-way split (33/33/33)**: revealed the catch — sign agreement P1↔P3 (4-year gap) is **40%, below chance**. Selection from a single old window doesn't generalize. The "Top 5" picks from P1 actually FAIL on P3.
+8. **Insight from step 7**: surprisingly, **all 40 pairs (no selection) had positive edge on the held-out P3 period** (+0.064 R, CI [+0.046, +0.083] excludes 0). The trigger itself has the edge; selection is icing.
+9. **Bootstrap FTMO challenge simulator**: rather than wrestle the production gate (which uses ATR-multiple stops, not our fixed 1.5%/1.5%), wrote a small custom simulator that uses the actual research per-trade dynamics. Result on held-out P3: **52.8% pass rate vs 34.4% random** (+18.5pp lift, CIs cleanly separated, +0.066 R per trade, 8,938 trades over 3 years).
+10. **Strict walk-forward FTMO sim** (selection on first 70%, FTMO sim on last 30%): all selection rules cleanly beat random by +15-20pp. **Even no-selection beats random by 18.5pp.** The trigger alone is the edge.
+11. **Swap costs added**: pulled today's OANDA financing rates from the cached daily snapshot (`data/swap_rates_2026-04-30.json`); per-pair daily swap × hold-days × Wednesday-triple. Impact: <0.001 R per trade on average. Pass rate unchanged. Edge intact.
+
+### RSI(14)<30 validated as borderline-positive amplifier (the only one that survived)
+
+Built train/test cohort-comparison + sign-stability framework. Tested four candidate amplifiers on rising_3bar trades:
+
+| Candidate | Frac of trades | Train diff | Test diff | Verdict |
+|---|---|---|---|---|
+| V-bottom stoch (2 down + 2 up) | varies | +0.013 (P=88%) | -0.035 (P=6%) | ✗ Sign flipped — overfit |
+| **RSI < 30 at trigger** | 11% | +0.015 (P=81%) | +0.029 (P=81%) | ★ Stable POSITIVE (suggestive) |
+| RSI < 40 at trigger | 45% | +0.001 (P=52%) | -0.014 (P=26%) | ✗ Sign flipped, no signal |
+| RSI rising at trigger | 88% | -0.003 (P=42%) | -0.008 (P=40%) | ✗ Wrong direction (small) |
+
+Only RSI<30 survived. Magnitude is modest (+0.029 R, ~$2.90 per $100 risked) and statistical significance is borderline (P=81% in both periods, not 95%). But the stability across train and test, plus the amplified cohort having clearly positive standalone edge in test (+0.092 R, CI [+0.032, +0.158]), makes it the first credible amplifier candidate.
+
+### Continuous score combination tested → didn't beat binary
+
+Brand asked about combining stoch + RSI into a continuous "relative strength score." Tested `stoch_strength + rsi_strength` (each clipped to [0,1] from their oversold thresholds, summed). Result: Spearman ρ between score and R is essentially zero AND flips sign train→test for all three formulations (stoch alone, RSI alone, sum). **The information is in the threshold crossings, not in how-far-past-threshold.** Going *more* oversold doesn't help past a point. Conclusion: keep using binary thresholds with empirical weights, don't waste cycles on continuous scoring.
+
+### Filter vs OR vs tiered sizing — comparison in FTMO sim
+
+Tested three ways to "use both indicators" in the held-out FTMO sim:
+
+| Strategy | Trades | Pass rate | Lift |
+|---|---|---|---|
+| All rising_3bar (1% risk) | 8,938 | 52.8% | +21pp |
+| Only RSI<30 confirmed (1% risk) | 988 | **63.8%** | +24pp |
+| All trades, RSI<30 sized 1.5× | 8,938 | 53.2% | +21pp |
+| RSI cross-up alone | 1,618 | 57.0% | +15pp |
+| Union: rising_3bar OR rsi_x_up | 9,841 | 52.9% | +21pp |
+
+Filter mode wins on pass rate but cuts trade volume 9× (slow paper validation). Tiered sizing barely moves aggregate (confirmed cohort is 11% of trades — sizing changes don't reach the aggregate). UNION mode dilutes — RSI alone has near-zero R, adding it just adds noise.
+
+**Decision:** keep all trades, apply tiered sizing (1.5× risk for RSI<30 confirmed). Captures whatever amplifier exists proportionally; reversibility is cheap. Filter mode held in reserve until 2-3 weeks of live data validates the amplifier.
+
+### Paper trader deployed end-to-end
+
+New module: `src/bh_ftmo/trading/oanda_trader.py` — OANDA v20 order-placement client, demo-account-only (refuses to operate against live env). Practice account credentials separate from data credentials (`OANDA_DEMO_TOKEN` + `OANDA_DEMO_ACCOUNT_ID`).
+
+New script: `src/bh_ftmo_paper.py` — cron-driven trader. Every 4 hours at `:20 UTC` (after the data update at `:00`):
+1. Pulls current account NAV from OANDA
+2. Loads latest H4 bars from FxStore for all 40 pairs
+3. For each pair: checks if `rising_3bar` fired on the most-recently-closed bar AND captures RSI(14) value
+4. Tiered sizing: standard 1% NAV risk, or 1.5% if RSI<30 (`RSI_OVERSOLD_THRESHOLD` = 30, `RSI_AMPLIFIER_RISK_MULTIPLIER` = 1.5)
+5. Submits market order with bracket (stop -1.5%, target +1.5%) via OandaTrader
+6. Skips pairs already with open positions; safety cap of 5 new orders per run
+7. Logs every signal/order/skip/error to `src/logs/bh_ftmo_paper_journal.csv` with new columns: `rsi_at_entry`, `rsi_oversold`, `risk_multiplier`
+
+Cron entry installed:
+```
+20 */4 * * * cd /root/BlueHorseshoe && ./run.sh python src/bh_ftmo_paper.py >> /root/BlueHorseshoe/src/logs/bh_ftmo_paper.log 2>&1
+```
+
+Verified live: account summary fetch works, dry-run executes cleanly, 18-column journal schema captures all required fields. Schema-migration helper auto-archives older journals (`.bak` suffix) when columns change.
+
+### Memories saved (2 new + 2 updated)
+
+- **NEW** `project_rising_3bar_paper.md` — deployed strategy snapshot, validation summary, file pointers, open caveats
+- **NEW** `feedback_smaller_systems.md` — "build smaller systems that fit the strategy, not the other way around"; lesson from Brand's frustration when production-gate machinery (with ATR-multiple sizing) didn't match research-tested 1.5%/1.5% RR
+- **UPDATED** `reference_oanda_demo.md` — practice token now generated, OandaTrader class location
+- **UPDATED** `MEMORY.md` — index entries point to new strategy; sandbox_v1 marked superseded
 
 ---
 

@@ -2,7 +2,52 @@
 
 ## Near Term
 
-### 🔥 PRIORITY — Find a signal with measurable positive R-expectancy under realistic windows (added 2026-04-30, supersedes commercial-EV question)
+### 🔥 PRIORITY — Validate `rising_3bar` paper performance + grow the amplifier list (added 2026-04-30)
+
+**State of the case:** The "find a signal with measurable edge" search succeeded. `rising_3bar_from_oversold` (stochastic %K rising 3 consecutive bars from below 20) at 1.5%/1.5% RR survives all friction layers we know how to test:
+
+| Layer | Result |
+|---|---|
+| Per-trade R (held-out 2023-2026) | +0.066 R, CI [+0.046, +0.083] excludes 0 |
+| Per-pair spread costs | edge intact |
+| Strict 70/30 walk-forward | sign stable, all selection rules beat random by +15-20pp |
+| Today's OANDA swap rates | <0.001 R/trade impact, pass rate unchanged |
+| Bootstrap FTMO 2-Step Swing 10k sim | **52.8% pass rate vs 34.4% random (+18.5pp lift)** |
+
+Now deployed in paper trading: `src/bh_ftmo_paper.py`, every 4h via cron at `:20 UTC`, OANDA practice account `101-001-39154243-001`, all 40 pairs, 1% NAV per trade. RSI(14)<30 amplifier wired in as 1.5× tiered sizing (borderline P=81% — capture lift if real, lose little if illusory).
+
+**The two priorities now:**
+
+1. **Validate amplifier signal in live paper data.** RSI<30 amplifier shows ~+0.029 R lift in held-out backtest but P(positive)=81%, not 95%. After 2-3 weeks of paper fills (~50-100 trades), split the journal by `rsi_oversold` flag and compare avg R between cohorts. If differential matches backtest (+0.029 R), graduate from tiered sizing to filter mode (only trade confirmed). If not, revert to flat 1% risk and retire the amplifier.
+
+2. **Grow the amplifier candidate list.** RSI<30 alone is modest. Real edge-stacking comes from several validated amplifiers combining. Test queue using same train/test sign-stability framework that retired v_bottom and validated RSI<30:
+   - **Bollinger Bands** — price below lower BB(20,2) at trigger time
+   - **ADX** — ADX(14) low (weak trend) = better mean reversion bounce
+   - **MACD** — bullish histogram, MACD>signal, divergence
+   - **Higher-timeframe trend** — D1 SMA(50) rising when H4 trigger fires
+   - **Volatility regime** — ATR(14) elevated vs rolling median = stronger moves
+
+   Each ~10 minutes to test using `/tmp/score_rsi_amplifier.py` template. Expect 1-in-3 hit rate (RSI<30 was the only one of 3 RSI variants that passed). Goal: 3-4 confirmed amplifiers we can stack into a composite score.
+
+**Tooling in place:**
+- `src/bh_ftmo/research/test_signal.py` — per-trade R harness
+- `/tmp/score_rsi_amplifier.py` — train/test cohort + sign-stability framework (copy-paste for next amplifier)
+- `/tmp/ftmo_clean_walkforward.py` — strict walk-forward FTMO sim
+- `src/bh_ftmo/trading/oanda_trader.py` — practice account order client
+- `src/bh_ftmo_paper.py` — cron-driven paper trader with tiered sizing
+- `src/logs/bh_ftmo_paper_journal.csv` — every signal logged with RSI value + sizing tier
+
+**Proven-not-to-help (do not re-test without new evidence):**
+- V-bottom stochastic pattern (sign flipped train→test — overfitting)
+- RSI < 40 (looser threshold dilutes the signal — sign flipped)
+- RSI rising direction (small wrong-direction effect both periods)
+- Continuous strength scores (Spearman ρ ≈ 0 between score and R; threshold-crossings carry signal, not magnitudes)
+- Union ("OR") combination — RSI alone has near-zero R, adding to rising_3bar dilutes edge
+- D1 timeframe at fixed 1.5%/1.5% — spread cost in R is timeframe-invariant
+- Linear sum of `stoch_strength + rsi_strength` — no usable rank ordering
+- Sandbox_v1 portfolio (3-signal stack) — failed walk-forward, underperformed random
+
+### ~~🔥 PRIORITY — Find a signal with measurable positive R-expectancy under realistic windows~~ (done 2026-04-30 — see new top priority above)
 
 **State of the case:** Sandbox_v1 doesn't have measurable edge. After fixing the sandbox-harness methodology bug AND running with `max_trading_days: 120` (vs the 14 the original gate used), sandbox_v1 came in at **25.0%** pass rate vs random_baseline's **31.2%**. PF 0.84 and R-expectancy -0.085 confirm it loses money per trade in expectation. The +3pp margin observed at the 14-day cap was a window-boundary artifact — the cap was terminating challenges before the strategy's negative drag could compound. **Sandbox_v1 should not be deployed in any form.** No commercial-EV calculation makes sense when the strategy doesn't beat random.
 
