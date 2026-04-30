@@ -2,24 +2,37 @@
 
 ## Near Term
 
-### 🔥 PRIORITY — Investigate forecast-vs-gate gap on sandbox_v1 (added 2026-04-29 evening)
+### 🔥 PRIORITY — Find a signal with measurable positive R-expectancy under realistic windows (added 2026-04-30, supersedes commercial-EV question)
 
-**Why this leads now:** The sandbox-track validation predicted 12-14% pass rate on full walk-forward. The production gate on `s-8vcpu-16gb` droplet (16 folds, 202 starts) returned 2.5% pass rate — statistically tied with random_baseline at 2.5%. Until we understand WHY they disagree, sandbox_v1 is **not deployable**, and any new strategy work risks repeating the same flaw.
+**State of the case:** Sandbox_v1 doesn't have measurable edge. After fixing the sandbox-harness methodology bug AND running with `max_trading_days: 120` (vs the 14 the original gate used), sandbox_v1 came in at **25.0%** pass rate vs random_baseline's **31.2%**. PF 0.84 and R-expectancy -0.085 confirm it loses money per trade in expectation. The +3pp margin observed at the 14-day cap was a window-boundary artifact — the cap was terminating challenges before the strategy's negative drag could compound. **Sandbox_v1 should not be deployed in any form.** No commercial-EV calculation makes sense when the strategy doesn't beat random.
 
-**Hypotheses to test, cheap-to-expensive:**
-1. **Methodology mismatch** — does the production gate's pass-rate calculator use the same definition as the sandbox notebook? (Daily-fail vs total-fail vs profit-target threshold semantics; bootstrap CI vs point estimate; cohort sampling vs all starts.) Diff the two scoring code paths first; could be a 1-line definition mismatch that explains everything.
-2. **Lookahead leakage in sandbox notebook** — does the sandbox harness use any future information for entry timing, signal eligibility, or pair selection? Look at `/tmp/sandbox_*.py` for `shift(0)` / `iloc[:i+1]` patterns that subtly include the current bar's data in the previous bar's decision.
-3. **Port introduced subtle differences** — diff `SandboxStrategy.score_pair` against the sandbox harness's signal generation. Particular focus: %K crossing semantics (cross-up THIS bar vs SETUP-on-previous-and-FILL-on-this), ATR window, RSI seed (Wilder vs simple), bar boundary rounding.
-4. **Pair whitelist drift** — sandbox said 22 dropped, production drops 21. Confirm the 4-pair short whitelist actually applies in production runs.
-5. **Active overlay misbehavior** — sandbox didn't have a production overlay to compare against; the `relax_10` config could be killing strategy edge in ways the sandbox harness wouldn't catch.
+**The actual open question now:** Is there a signal — any signal — that shows positive R-expectancy with the bootstrap CI excluding zero, after realistic spread cost, under windows long enough that boundary effects don't dominate?
 
-**Smoking-gun candidates to eyeball in the gate HTML/CSV first:**
-- Per-pair P&L distribution — is one symbol responsible for most of the deficit?
-- Trade duration histogram — many timeouts vs many stop-outs hint at different problems
-- Win/loss clustering — long losing streaks could indicate regime-specific failure
-- Compare gate trade ledger to a sandbox harness run on the same windows
+**Tooling now in place to answer this fast:** `src/bh_ftmo/research/test_signal.py` exports `test_signal(signal_fn, pairs, ...)` returning per-trade R distribution + bootstrap CI in seconds, *without* invoking the FTMO challenge sim. Run it with the example `sma_cross_long` signal to see the shape; replace with your own signal callable for new ideas. Output explicitly tells you "POSITIVE EDGE / NEGATIVE EDGE / NO CLEAR EDGE" based on whether the avg-R 95% CI includes zero.
 
-Artifacts: `src/graphs/sandbox_v1_full_2026-04-29_2311.html`, `src/logs/sandbox_v1_full_2026-04-29_2311.csv`. Sandbox-side at `/tmp/sandbox_*.py` and `/tmp/sandbox_*.csv`.
+**Workflow for any new signal idea:**
+1. Define a `signal_fn(bars) -> pd.Series` of -1/0/+1 values.
+2. `test_signal(signal_fn, pairs=...)` — measures per-trade R-expectancy. If 95% CI excludes zero on the positive side, signal has edge.
+3. *Only if* step 2 shows positive edge: wire into a strategy class and run the production gate (`bh_ftmo.backtest.cli --strategies <name>`) for FTMO survival validation.
+
+The ordering is the discipline: edge-discovery first, survival-simulation second. The original sandbox_v1 work conflated these and the survival sim was masking lack of edge.
+
+**Hypotheses to test (signal candidates worth a `test_signal` smoke):**
+- SMA crosses at different periods (20/50, 50/200, 9/21)
+- RSI mean reversion (long when RSI < 25 with reversal candle, short when RSI > 75 with reversal)
+- Range breakouts (Donchian-style) with various lookbacks
+- Session-specific signals (Asia open breakouts, London close fades)
+- Pair-specific signals (some pairs may have idiosyncratic edge that doesn't average across the universe)
+- ATR-volatility-conditional entries (only fire when ATR is elevated/depressed)
+
+**What got retired in this pivot:**
+- `/tmp/sandbox_*` (65 files): deleted. The methodology bug in that track is the reason the prior validation was misleading; the track's conclusions are no longer trusted as anything more than directional history.
+- The "buffer sweep / RR sweep / portfolio sim" sandbox harness work: the relative rankings (buf 1.10, 4-pair whitelist, 0.5%/0.75% RR) are still informative *if* a future signal actually has edge, but they're configured-on-no-edge and shouldn't be cargo-culted into new strategies without re-validation.
+- `max_trading_days: 14`: gone. Production config is now 180, matching unlimited-time Swing.
+
+**Artifacts (kept for institutional knowledge):**
+- 14-day gate (sandbox_v1 vs baselines): `src/graphs/sandbox_v1_full_2026-04-29_2311.html`, `src/logs/sandbox_v1_full_2026-04-29_2311.csv`
+- 120-day gate (sandbox_v1 vs baselines, unlimited-time analog): `src/graphs/sandbox_120d_2026-04-30.html`, `src/logs/sandbox_120d_2026-04-30.csv`
 
 ### ~~🔥 PRIORITY — Sandbox `SandboxStrategy` port-back to `bh_ftmo`~~ (ported 2026-04-29; ⚠️ FAILED production gate 2026-04-29)
 

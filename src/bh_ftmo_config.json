@@ -13,7 +13,7 @@
     "max_loss_pct": 0.10,
     "max_loss_type": "static",
     "min_trading_days": 4,
-    "max_trading_days": 14,
+    "max_trading_days": 180,
     "server_timezone": "Europe/Prague",
     "commission_per_lot_round_turn": 0,
     "swap_model": "standard"

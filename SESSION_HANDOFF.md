@@ -1,11 +1,84 @@
 # Session Handoff
 
 **Date:** April 29-30, 2026
-**Status:** **Sandbox-validated package landed in production, then FAILED the full walk-forward gate at 2.5% pass rate.** The 0/37 package-smoke result was NOT small-sample noise — full-fold gate (16 folds, 202 starts) on a clean droplet returned a verdict of FAILED across all six metrics: Sharpe -1.33, profit factor 0.84, win rate 36.6%, MaxDD 12.4%, FTMO pass-rate (lower 95% CI) **2.5%** (statistically tied with random_baseline at 2.5%), margin vs best baseline only +3.0pp. **Sandbox_v1 deployment is blocked** until the forecast-vs-gate gap is understood (lookahead leakage in the sandbox notebook? port introduced subtle differences? methodology mismatch?). BH Lite remains the only strategy with live evidence. Production signal-emission CLI was completed earlier in the day (4 commits across the day landed the port: `535a598` SandboxStrategy, `a0a930c` worker-cap fix, `a65d1ba` universe filter, `3be9463` active risk overlay; predict CLI `4797a57`). Predict cron is installed and emailing every 4 hours, so the live signal feed flows — but until the forecast-gap investigation gives a reason to trust those signals, treat the emails as research data, not actionable. Brand purchased the $99 unlimited-time 2-Step Swing 10k FTMO challenge earlier in the day and is now on hold from activating it. Total validation-run cost: ~$0.30 in droplet time — caught the issue before paying any FTMO challenge fee.
+**Status:** **Sandbox_v1 doesn't have measurable edge over random_baseline.** Multi-stage diagnosis: (1) Methodology bug in sandbox harness was inflating headline pass rates by ~5pp; patched and re-validated — every prior conclusion (4-pair short whitelist optimal, buf 1.10 optimal, 0.5%/0.75% RR optimal) holds in *relative* ranking, but absolute pass rate dropped from 13.2% avg to 8.1% avg under fixed methodology. (2) Bumped `max_trading_days` from 14 to 120 to mirror Brand's actual unlimited-time 2-Step Swing — and the picture inverted: sandbox_v1 came in at **25.0%** pass rate (CI 6.2-43.8) but random_baseline beat it at **31.2%** (CI 12.5-56.2). Profit factor 0.84, R-expectancy -0.085 confirm sandbox_v1 actually loses money per trade in expectation. The +3pp margin over random observed at 14-day cap was a window-boundary artifact — the cap was terminating challenges before sandbox_v1's negative drag could compound. **Sandbox_v1 should not be deployed in any form.** BH Lite remains the only strategy with live evidence. Pivoted to simplification: deleted `/tmp/sandbox_*` (65 abandoned files), bumped production config `max_trading_days: 14 → 180` to match Brand's actual challenge type, added new lightweight research module `bh_ftmo/research/test_signal.py` (~250 lines) that lets you measure per-trade R-expectancy of a single signal idea in seconds without invoking the full FTMO challenge sim — the right tool for early hypothesis testing that the system was missing. All 328 production tests still pass. Production signal-emission CLI continues running on cron; treat its emails as research-data placeholders until a signal with measurable positive R is found. Total spend on the night's investigation: ~$0.30 droplet, ~30 min local CPU, plus the sobering finding that the strategy edge work to date doesn't survive proper window construction.
 
 ---
 
 ## What Was Done This Session (April 29-30)
+
+### Unlimited-time gate test → sandbox_v1 doesn't beat random; pivot to simplification (overnight, post-methodology fix)
+
+After confirming the methodology fix held all prior conclusions in *relative* ranking, the question shifted to: under Brand's actual unlimited-time 2-Step Swing (which the production gate's `max_trading_days: 14` config doesn't model), does sandbox_v1 actually have edge?
+
+Wrote a config override (`/tmp/bh_ftmo_config_unlimited.json` with `max_trading_days: 120`) and re-ran the gate locally. 16 starts (1 per fold; OOS windows are ~6 months so 120 is the most that fits without losing folds), 2 workers, ~28 min runtime. Result:
+
+| Strategy | Pass Rate | 95% CI | Trades | Win% | PF | R Exp | MaxDD |
+|---|---|---|---|---|---|---|---|
+| **bh_ftmo (sandbox_v1)** | **25.0%** | 6.2-43.8 | 1,100 | 35.8% | **0.84** | -0.085 | 20.6% |
+| random_baseline | **31.2%** | 12.5-56.2 | 1,302 | 39.2% | **0.95** | -0.023 | 21.3% |
+| monday_friday | 6.2% | 0.0-18.9 | 270 | 38.5% | 1.00 | -0.001 | 17.8% |
+| rsi_14 | 31.2% | 12.5-56.2 | 550 | 35.3% | 0.87 | -0.072 | 21.3% |
+
+**Headline:** sandbox_v1 lost the +3pp margin over random_baseline that it had in the 14-day cap. With unlimited-ish time, **random_baseline outperforms sandbox_v1 by ~6pp** (point estimates 31.2% vs 25.0%, CIs overlap heavily). PF 0.84 and R-expectancy -0.085 confirm sandbox_v1 loses money per trade in expectation. The 14-day cap was effectively *protecting* sandbox_v1 by terminating challenges before its slow drag could play out. Sample-size honest: 16 starts is small; CIs overlap, so we can't claim 95% confidence that random *beats* sandbox. But the directional finding is clear — sandbox is not visibly better than random, which is the only direction that matters for deployment.
+
+Artifacts preserved at `src/graphs/sandbox_120d_2026-04-30.html`, `src/logs/sandbox_120d_2026-04-30.csv`, `src/logs/sandbox_120d_test.log`.
+
+### Simplification: delete sandbox /tmp track, retune config, add lightweight signal-test harness
+
+After the unlimited-time finding, Brand flagged that the system has accumulated too much complexity for him to test new signal ideas — "I don't know how to say, test an SMA-based indicator, because we have to worry about target and loss positions, hold duration, weekends, clusters, filtering, and a dozen other things." He asked whether rebuilding for the new $99 unlimited-time 10k Swing would simplify. Pushed back on full rebuild — the validated production pieces (DuckDB store, signal generator, FTMO rule engine, predict CLI, cron, email) work. The complexity came from elsewhere:
+
+1. **Sandbox /tmp track was parallel and confusing** — its own equity logic, its own pass/fail rules, its own envelope() function. It was the source of the methodology bug we just diagnosed. Now that we know its bias was masking a deeper issue, no reason to keep it.
+2. **Walk-forward was conflated with edge-discovery** — testing a single signal idea required wiring it into the strategy registry and running a 30+ min walk-forward with a verdict block to parse. Wildly overpowered for "does an SMA cross have positive R?"
+3. **`max_trading_days: 14` was a config mismatch, not a code mismatch** — Brand's actual challenge is unlimited Swing. Bumping the production config to a Swing-realistic value makes the entire stack reflect what he actually trades.
+
+Three changes landed:
+- **Deleted `/tmp/sandbox_*`** (65 abandoned files). The most recent valuable artifacts (today's 120d gate test outputs) moved to `src/graphs/` and `src/logs/`.
+- **Bumped `bh_ftmo_config.json` `max_trading_days: 14 → 180`** as the canonical default. (180 is at the edge of fit-in-OOS-window; if it ever causes 0-start folds we can drop to 150.) All 328 bh_ftmo tests still pass — they use their own fixtures, not the production config.
+- **Added `src/bh_ftmo/research/test_signal.py`** (~250 lines, focused). Takes a signal callable (bars → Series of -1/0/+1), opens a position at the bar's close, exits at first of stop/target/timeout, reports per-trade R distribution + win rate + profit factor + bootstrap CI. **No challenge simulation, no overlay, no DD cap, no cohort logic.** Just "does this signal have positive R after spread cost?" Demo run on SMA(20) > SMA(50) cross across 6 majors: 1,113 trades, 40.6% WR, +0.024 avg R (95% CI -0.047 to +0.096 — straddles zero, no clear edge), 1.04 PF. Results render in ~2 sec per run, easy to iterate.
+
+The intended workflow now: use `test_signal()` for early hypothesis testing; if a signal shows positive R-expectancy with CI excluding zero, *then* wire it into a strategy class and run the production gate as the final-validation step.
+
+### Methodology gap diagnosed + sandbox harness re-verified (overnight cont.)
+
+After the gate run came back FAILED, dug into Hypothesis #1 (methodology mismatch). Production's `pass_rate_lower_ci_95 ≥ 0.70` threshold is structurally unreachable for any retail strategy, but that's a separate framing issue — the *point estimate* from the run was 5.4% (CI 2.5%-8.9%), not the 2.5% lower-bound headline I'd initially quoted. Sandbox's 12-14% claim was the smoking-gun discrepancy.
+
+Found the bug in `/tmp/sandbox_ftmo_3sig.py:269-278`. The sandbox computed three equity values per bar (best/worst/midpoint) from `envelope()`, which returned best_unreal at bar-high, worst_unreal at bar-low, and `mtm_per` at bar-close. The pass check then used `equity_high = INITIAL_EQUITY + closed_pnl + best_unreal` (best-case intra-bar) and the fail checks used `equity_low = ... + worst_unreal` (worst-case intra-bar). Asymmetric optimism for both directions: sandbox marked challenges "passed" the moment any open position's intra-bar high *could have* pushed equity to +10%, even if equity closed below target.
+
+**Fix:** added `equity_close = INITIAL_EQUITY + closed_pnl + sum(mtm_per)` and pointed all three checks (pass, fail_total, fail_daily) at it. Audited all sandbox files; only `sandbox_ftmo_3sig.py` is on the active import chain (buffer_sweep, rr_sweep, 1d_sweep, shorts_hunt, portfolio, walkforward all import from it). Single patch fixes everything. Three abandoned files (`sandbox_ftmo_sweep.py`, `sandbox_ftmo_v2.py`, `sandbox_ftmo_challenge.py`) had their own copies; flagged as DEPRECATED at the top of each. Pre-patch backup kept at `/tmp/sandbox_ftmo_3sig.py.preclose-mtm-patch`.
+
+**Walk-forward re-run, before vs after patch:**
+
+| Window | Config | Before | After | Drop |
+|---|---|---|---|---|
+| WF1 | 3sig_IS_champion | 14.3% | **8.3%** | -6.0pp |
+| WF2 | 3sig_IS_champion | 12.0% | **8.0%** | -4.0pp |
+| Avg | | 13.2% | **8.1%** | -5.1pp |
+
+Mean R% slightly *improved* under fixed methodology (WF1 +1.15% → +1.23%, WF2 +0.46% → +0.52%), confirming the per-challenge $-EV is preserved by the fix; only the over-counted passes were lost. Decisive ratio also improved (fewer fails too).
+
+**Buffer sweep re-run (926 challenges, 3y full data):**
+
+| buffer | Before pass | **After pass** | Before meanR% | **After meanR%** | Decisive (after) |
+|---|---:|---:|---:|---:|---:|
+| 1.00 | 14.6% | 9.6% | +1.13% | +1.17% | 73.0% |
+| **1.10** | **17.3%** | **12.6%** | **+1.19%** | **+1.28%** | 70.5% |
+| 1.20 | 18.2% | 12.9% | +1.04% | +1.13% | 68.8% |
+| 1.30 | 19.5% | 14.1% | +1.08% | +1.20% | 67.9% |
+| 1.50 | 19.6% | 14.3% | +0.97% | +1.10% | 63.2% |
+
+Buf 1.10 still wins on meanR%; ranking preserved across all buffers.
+
+**Other sweeps re-run (signal-level — methodology patch n/a, but ranking checked):**
+- Portfolio sim (1523 trades, 14d windows): 9.1% pass / 11.1% breach — consistent with 8-10% range
+- RR sweep: 4h 0.5%/0.75% still the regime where most signals show positive lift; 1d/2R degrade
+- Shorts hunt: only `rsi_overbought` survives 3-way validation (same as before); `bb_upper_fade` passes cost but fails 3-way
+
+**Reasoned-not-re-run (would be even worse under patched methodology, conclusion strengthened):**
+- Half-risk sizing (was 99.7% timeout — patched methodology can only INCREASE timeouts)
+- 2R RR shapes (same — more timeouts under fix)
+
+**Side-finding flagged for follow-up:** `bh_ftmo_config.json` has `max_trading_days: 14` but Brand's actual FTMO challenge is unlimited 2-Step Swing. The production gate's 5.4% pass rate is therefore an *underestimate* of the deployable strategy's pass rate — most of the 80%+ "timeouts" in 14-day bounded simulation would, under unlimited time, eventually convert to either pass or breach. With the strategy's positive mean R drift, the unlimited-time pass rate is plausibly much higher than 5-10%. This is a Hypothesis #1 sub-finding worth its own re-run with `max_trading_days` set very high.
 
 ### Late-evening / overnight: full walk-forward gate on droplet — VERDICT: FAILED
 
