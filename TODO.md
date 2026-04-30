@@ -2,9 +2,28 @@
 
 ## Near Term
 
-### ~~🔥 PRIORITY — Sandbox `SandboxStrategy` port-back to `bh_ftmo`~~ (started 2026-04-24, completed 2026-04-29 evening)
+### 🔥 PRIORITY — Investigate forecast-vs-gate gap on sandbox_v1 (added 2026-04-29 evening)
 
-✅ **Done.** All three sub-NAs landed in master via four commits across three PRs:
+**Why this leads now:** The sandbox-track validation predicted 12-14% pass rate on full walk-forward. The production gate on `s-8vcpu-16gb` droplet (16 folds, 202 starts) returned 2.5% pass rate — statistically tied with random_baseline at 2.5%. Until we understand WHY they disagree, sandbox_v1 is **not deployable**, and any new strategy work risks repeating the same flaw.
+
+**Hypotheses to test, cheap-to-expensive:**
+1. **Methodology mismatch** — does the production gate's pass-rate calculator use the same definition as the sandbox notebook? (Daily-fail vs total-fail vs profit-target threshold semantics; bootstrap CI vs point estimate; cohort sampling vs all starts.) Diff the two scoring code paths first; could be a 1-line definition mismatch that explains everything.
+2. **Lookahead leakage in sandbox notebook** — does the sandbox harness use any future information for entry timing, signal eligibility, or pair selection? Look at `/tmp/sandbox_*.py` for `shift(0)` / `iloc[:i+1]` patterns that subtly include the current bar's data in the previous bar's decision.
+3. **Port introduced subtle differences** — diff `SandboxStrategy.score_pair` against the sandbox harness's signal generation. Particular focus: %K crossing semantics (cross-up THIS bar vs SETUP-on-previous-and-FILL-on-this), ATR window, RSI seed (Wilder vs simple), bar boundary rounding.
+4. **Pair whitelist drift** — sandbox said 22 dropped, production drops 21. Confirm the 4-pair short whitelist actually applies in production runs.
+5. **Active overlay misbehavior** — sandbox didn't have a production overlay to compare against; the `relax_10` config could be killing strategy edge in ways the sandbox harness wouldn't catch.
+
+**Smoking-gun candidates to eyeball in the gate HTML/CSV first:**
+- Per-pair P&L distribution — is one symbol responsible for most of the deficit?
+- Trade duration histogram — many timeouts vs many stop-outs hint at different problems
+- Win/loss clustering — long losing streaks could indicate regime-specific failure
+- Compare gate trade ledger to a sandbox harness run on the same windows
+
+Artifacts: `src/graphs/sandbox_v1_full_2026-04-29_2311.html`, `src/logs/sandbox_v1_full_2026-04-29_2311.csv`. Sandbox-side at `/tmp/sandbox_*.py` and `/tmp/sandbox_*.csv`.
+
+### ~~🔥 PRIORITY — Sandbox `SandboxStrategy` port-back to `bh_ftmo`~~ (ported 2026-04-29; ⚠️ FAILED production gate 2026-04-29)
+
+✅ **Code shipped, but BLOCKED from deployment.** All three sub-NAs landed in master via four commits across three PRs:
 - `535a598` SandboxStrategy port (merged via `deac0b5`)
 - `a0a930c` worker-cap fix for sandbox_v1 (avoids OOM on 7.8 GB host)
 - `a65d1ba` cost-survivability universe filter (merged via `6c7ef1c`)
@@ -18,7 +37,18 @@
 | Filter only | 7 | 35.0% | 0.81 | 12.1% | n/a |
 | **Package** | **0** | **36.5%** | **0.88** | 11.3% | **-0.40** |
 
-Zero FTMO breaches across 37 challenges is the operative survival metric. 0% pass rate on this small sample is concerning vs the sandbox's 12-14% forecast — pending full walk-forward validation on the on-demand `c2-48vcpu-96gb` droplet to confirm.
+**Full walk-forward gate result (2026-04-29 evening, 202 starts on `s-8vcpu-16gb` droplet) — VERDICT: FAILED:**
+
+| Metric | Result | Threshold | Verdict |
+|---|---|---|---|
+| Sharpe (annualized, 1h basis) | -1.33 | ≥ 1.00 | FAIL |
+| Profit factor | 0.84 | ≥ 1.30 | FAIL |
+| Win rate | 36.6% | ≥ 45.0% | FAIL |
+| Max drawdown | 12.4% | ≤ 10.0% | FAIL |
+| FTMO pass-rate (lower 95% CI) | **2.5%** | ≥ 70.0% | FAIL |
+| Margin vs best baseline | +3.0pp vs random_baseline @ 2.5% | ≥ 10pp | FAIL |
+
+2.5% is statistically tied with random_baseline at 2.5%. So 0/37 in the package smoke wasn't small-sample noise — it was the real signal. Material gap from the sandbox's 12-14% forecast — see the new top-priority investigation block above.
 
 **Reference (kept as institutional knowledge for tuning work):** Validated portfolio recipe — 3 signals (`stoch_oversold_cross` long, `sma_cross_long` long, `rsi_overbought_cross` short with 4-pair whitelist `CAD_JPY/EUR_NOK/USD_CAD/USD_CHF`), H4, 0.5%/0.75% RR (1.5R), 18-pair filtered universe, 1% equity per trade, max 5 concurrent, max 1 per pair. Active-risk-mgmt parameters: `relax_10` config (`buffer_mult=1.10`, `soft_daily_limit=-0.04`).
 

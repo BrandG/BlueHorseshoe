@@ -1,11 +1,42 @@
 # Session Handoff
 
-**Date:** April 29, 2026
-**Status:** **Sandbox-validated package landed in production code.** Four commits across three PRs today: `535a598` SandboxStrategy port (merged via `deac0b5`), `a0a930c` worker-cap fix, `a65d1ba` universe filter (merged via `6c7ef1c`), `3be9463` active risk overlay (merged via `ed49ef1` after held WIP). The active risk overlay was held as a WIP commit on its branch for half a day after a smoke on the unfiltered universe showed it regressing every metric — that confirmed the sandbox-track thesis that the overlay only earns its keep paired with the filter. Package smoke (filter ON + overlay ON, 37 challenges, same RNG seed) shows **zero FTMO breaches** (down from 15 with both off, 7 with filter only), Sharpe -0.40 (up from -2.87), win rate 36.5%, profit factor 0.88. Pass rate on this 37-challenge sample is 0% vs sandbox's 12-14% forecast — possibly small-sample noise, possibly real expected-value loss in translation. Brand purchased the $99 unlimited-time 2-Step Swing 10k FTMO challenge and chose to wait until the system is fully ready before activating. **Next gating piece:** production signal-emission CLI (`src/bh_ftmo/main.py` is currently a Phase-0 stub still importing equity code).
+**Date:** April 29-30, 2026
+**Status:** **Sandbox-validated package landed in production, then FAILED the full walk-forward gate at 2.5% pass rate.** The 0/37 package-smoke result was NOT small-sample noise — full-fold gate (16 folds, 202 starts) on a clean droplet returned a verdict of FAILED across all six metrics: Sharpe -1.33, profit factor 0.84, win rate 36.6%, MaxDD 12.4%, FTMO pass-rate (lower 95% CI) **2.5%** (statistically tied with random_baseline at 2.5%), margin vs best baseline only +3.0pp. **Sandbox_v1 deployment is blocked** until the forecast-vs-gate gap is understood (lookahead leakage in the sandbox notebook? port introduced subtle differences? methodology mismatch?). BH Lite remains the only strategy with live evidence. Production signal-emission CLI was completed earlier in the day (4 commits across the day landed the port: `535a598` SandboxStrategy, `a0a930c` worker-cap fix, `a65d1ba` universe filter, `3be9463` active risk overlay; predict CLI `4797a57`). Predict cron is installed and emailing every 4 hours, so the live signal feed flows — but until the forecast-gap investigation gives a reason to trust those signals, treat the emails as research data, not actionable. Brand purchased the $99 unlimited-time 2-Step Swing 10k FTMO challenge earlier in the day and is now on hold from activating it. Total validation-run cost: ~$0.30 in droplet time — caught the issue before paying any FTMO challenge fee.
 
 ---
 
-## What Was Done This Session (April 29)
+## What Was Done This Session (April 29-30)
+
+### Late-evening / overnight: full walk-forward gate on droplet — VERDICT: FAILED
+
+Pulled the trigger on the on-demand droplet validation run that the prior block had queued to settle the 0/37 question. Provisioned `bh-research` (`s-8vcpu-16gb`, ~$0.143/hr), bootstrapped natively (no Docker — apt + TA-Lib from source + venv + pip), rsynced the 298MB OANDA H4 DuckDB, ran `--strategies sandbox_v1` with all walk-forward folds + starts unlimited.
+
+The run completed in ~36 minutes (16 folds, 202 starts, 4 workers). Verdict block:
+
+```
+ Sharpe (annualized, 1h basis):     -1.33  (≥ 1.00)    FAIL
+ Profit factor:                      0.84  (≥ 1.30)    FAIL
+ Win rate:                          36.6%  (≥ 45.0%)   FAIL
+ Max drawdown:                      12.4%  (≤ 10.0%)   FAIL
+ FTMO pass-rate (lower 95% CI):      2.5%  (≥ 70.0%)   FAIL
+ Margin vs best baseline:          +3.0pp  (≥ 10.00)   FAIL
+                                   (best baseline: random_baseline @ 2.5%)
+```
+
+The killer line: **pass rate 2.5%, statistically tied with a random baseline at 2.5%.** So the 0/37 package smoke was the real signal, not small-sample noise. Material gap from the sandbox track's 12-14% forecast — explanations to investigate: (a) lookahead leakage or other methodology issue in the sandbox notebook; (b) the port introduced subtle differences from the sandbox harness; (c) the gate's evaluation methodology differs from sandbox's scoring.
+
+Cost: ~$0.30 in droplet time. Artifacts pulled to `src/graphs/sandbox_v1_full_2026-04-29_2311.html`, `src/logs/sandbox_v1_full_2026-04-29_2311.csv`, `src/logs/sandbox_v1_full_2026-04-29_2311.log`. Droplet destroyed.
+
+**Operational lessons logged for future droplet work:**
+- The original `humanaction.sh` swallowed stderr on the TA-Lib build step (`> /dev/null 2>&1` on `make`), so it failed silently and Brand's terminal showed nothing. The droplet sat idle for 2+ hours before we noticed during a status check. The recovery script (`/tmp/bh-bootstrap-resume.sh`) showed stderr properly. Future bootstrap scripts: never silence stderr on the long opaque build steps.
+- The cron install in `/tmp/humanaction.sh` (and a parallel inline install I did) both initially dropped the `cd /root/BlueHorseshoe &&` prefix from the cron line, causing the first 20:15 UTC fire to hit `./run.sh: not found`. Fixed via sed; subsequent fires worked. Future cron lines that invoke `./run.sh`: the `cd` prefix is mandatory because cron's CWD isn't `$HOME`.
+- The droplet bootstrap also needs OANDA credentials (`OANDA_API_TOKEN` + `OANDA_ACCOUNT_ID`) — the original bootstrap script didn't push a `.env` file, so the gate aborted on first launch with "OANDA_API_TOKEN is not set". Folded a minimal 2-line `.env` push into the recovery sequence. Future versions of `humanaction.sh` should include an `.env` push step (just OANDA lines, not SMTP/AlphaVantage etc.).
+
+### Predict cron installed and verified (afternoon)
+
+After predict CLI landed, installed the every-4h cron (`15 */4 * * *` UTC = 6 emails/day). First scheduled fire at 20:15 UTC failed because the cron line dropped the `cd` prefix — sed-fixed in place. Manual run with the corrected invocation succeeded and emailed a real 1-signal report (GBP_CAD long, $100 risk, 0.29 lots). Subsequent cron fires expected to work normally; next is 04:15 UTC (will be the first true cron-triggered email).
+
+HTML report formatting was iterated on — the report originally had Gmail-stripped CSS (no borders, merged columns) because the styles were in a `<style>` block and Gmail's renderer drops most of those plus pseudo-selectors like `:nth-child`. Rewrote `render_html` in `predict.py` to inline every style attribute on each cell directly — fixed Gmail rendering. Visible improvements: cell borders, dark-blue header row, alternating zebra stripes, right-aligned numeric columns with tabular-nums, centered uppercase Direction column, breathing-room padding.
 
 ### Production port: 4 commits, package validated end-to-end (afternoon-evening)
 
@@ -33,9 +64,9 @@ After the morning's sandbox validation finalized, executed the porting sequence 
 
 Package smoke shows MaxDD 11.3% in the verdict block but **zero** FTMO breach exits in the trade ledger. These metrics measure different things — `ftmo_breach` is the engine's check against per-day buffer / total balance limits in real time, while reporter MaxDD is peak-to-trough on the equity curve which captures intraday lows the overlay later liquidates out of. The TODO item about reporter Sharpe/MaxDD computing on different bases (line 231) is the same family of issue. Worth investigating but does NOT invalidate the breach-count finding — for FTMO survival, breach count is the operative metric.
 
-### Open question: 0% pass rate on 37 challenges
+### ~~Open question: 0% pass rate on 37 challenges~~ — **RESOLVED: real signal, not noise**
 
-Sandbox forecast was 12-14% pass rate on full walk-forward (925 challenges). At that rate, 37 challenges expects 4-5 passes. We got 0. Three possibilities: small-sample bad luck (P(0 passes | p=0.13, n=37) ≈ 0.6%, improbable but not impossible), tough-regime sample (these specific 37 windows happen to be hostile), or production code has lower expected value than sandbox (some real edge lost in translation). Path to certainty: full-fold gate on the c2-48vcpu-96gb droplet (~$0.35) AND/OR forward-test on OANDA demo. Both already on the plan; queued after NA #3 (production CLI) so we have everything in place when we measure.
+Sandbox forecast was 12-14% pass rate on full walk-forward (925 challenges). At that rate, 37 challenges expects 4-5 passes. We got 0. Three possibilities listed at the time: small-sample bad luck (P(0 passes | p=0.13, n=37) ≈ 0.6%, improbable but not impossible), tough-regime sample, or production code has lower expected value than sandbox. **Resolved by the late-evening droplet gate run**: 202-start full walk-forward returned a 2.5% pass-rate (lower 95% CI), statistically tied with random_baseline at 2.5%. So it's not bad luck and it's not a tough sample — the production code's expected pass rate genuinely sits near zero, far below the sandbox's 12-14% forecast. The forecast-vs-gate gap investigation is the new open question; see top of this file and the late-evening entry above.
 
 ### FTMO challenge purchased — 2-Step Swing 10k
 
