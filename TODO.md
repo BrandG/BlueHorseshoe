@@ -20,14 +20,21 @@ Now deployed in paper trading: `src/bh_ftmo_paper.py`, every 4h via cron at `:20
 
 1. **Validate amplifier signal in live paper data.** RSI<30 amplifier shows ~+0.029 R lift in held-out backtest but P(positive)=81%, not 95%. After 2-3 weeks of paper fills (~50-100 trades), split the journal by `rsi_oversold` flag and compare avg R between cohorts. If differential matches backtest (+0.029 R), graduate from tiered sizing to filter mode (only trade confirmed). If not, revert to flat 1% risk and retire the amplifier.
 
-2. **Grow the amplifier candidate list.** RSI<30 alone is modest. Real edge-stacking comes from several validated amplifiers combining. Test queue using same train/test sign-stability framework that retired v_bottom and validated RSI<30:
-   - **Bollinger Bands** — price below lower BB(20,2) at trigger time
-   - **ADX** — ADX(14) low (weak trend) = better mean reversion bounce
-   - **MACD** — bullish histogram, MACD>signal, divergence
-   - **Higher-timeframe trend** — D1 SMA(50) rising when H4 trigger fires
-   - **Volatility regime** — ATR(14) elevated vs rolling median = stronger moves
+2. **Grow the signal lineup.** Each candidate gets a solo-edge sweep first (TF + RR independent of rising_3bar's config). Outcome decides deployment shape:
+   - **Strong solo edge** → standalone strategy that runs in parallel with rising_3bar (don't subordinate it as an amplifier; AND-ing destroys most of its trades and creates a different distribution).
+   - **No solo edge but stable cohort delta on host** → amplifier/filter on rising_3bar.
+   - **Conditioning state** (HTF trend, ADX level, ATR regime) → filter by definition; skip solo-edge, go straight to cohort-delta.
 
-   Each ~10 minutes to test using `/tmp/score_rsi_amplifier.py` template. Expect 1-in-3 hit rate (RSI<30 was the only one of 3 RSI variants that passed). Goal: 3-4 confirmed amplifiers we can stack into a composite score.
+   Standalone strategy candidates (event signals with their own edge expected):
+   - ~~**Bollinger Bands**~~ — *RETIRED 2026-04-30*. Looked STRONG on mid OHLC at H1 (3 RR cells, 81k trades), but realistic OANDA bid/ask modeling flipped every cell negative or to near-zero (H1 1%/1% went +0.013 → **-0.037** R, CI excluded zero on the negative side). The "edge" was mid-price noise. Methodology lesson: spread-cost simulation belongs in the *first* gate, not deferred.
+   - **MACD** — bullish histogram cross, MACD>signal, divergence
+
+   Amplifier / filter candidates (state signals or weak-solo events):
+   - **ADX(14) low** (weak trend = better mean reversion bounce)
+   - **Higher-timeframe trend** (D1 SMA(50) rising when H4 trigger fires)
+   - **Volatility regime** (ATR(14) elevated vs rolling median)
+
+   Tooling: `/tmp/sweep_bb_solo.py` for solo-edge sweeps, `/tmp/test_bb_amplifier.py` for amplifier/cohort-delta tests. Both are template scripts — copy and adapt for the next candidate.
 
 **Tooling in place:**
 - `src/bh_ftmo/research/test_signal.py` — per-trade R harness
@@ -46,6 +53,7 @@ Now deployed in paper trading: `src/bh_ftmo_paper.py`, every 4h via cron at `:20
 - D1 timeframe at fixed 1.5%/1.5% — spread cost in R is timeframe-invariant
 - Linear sum of `stoch_strength + rsi_strength` — no usable rank ordering
 - Sandbox_v1 portfolio (3-signal stack) — failed walk-forward, underperformed random
+- **BB-below-lower as rising_3bar amplifier** (2026-04-30) — FLIP at H1 across 1%/1%, 1.5%/1.5%, 1%/2% with decisively negative test deltas. The AND-of-(rising_3bar AND BB) intersection is a tiny extreme-oversold subset (~10k of 200k trades) that doesn't behave like either signal alone. NOTE: BB still passed solo-edge — promoted to standalone strategy candidate, just not as an amplifier on rising_3bar.
 
 ### ~~🔥 PRIORITY — Find a signal with measurable positive R-expectancy under realistic windows~~ (done 2026-04-30 — see new top priority above)
 
