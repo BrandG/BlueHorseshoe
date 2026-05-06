@@ -22,8 +22,8 @@ The order-submission path is mode-agnostic — all entry modes go through
 the same loop with a per-cell branch at submission.
 
 Risk profile:
-  - 0.5% of account NAV per trade (matches the FTMO sizing sim's
-    conservative-model survival baseline)
+  - 0.5% of account NAV per trade (chosen 2026-05-06 after the gated-ledger
+    sizing sweep; see research/v2_deploy_backtest/)
   - 1.0% stop / 1.0% target (v2 cell convention)
   - Limit order valid for one H4 bar (~4h) via GTD, mirroring the simulator's
     LIMIT_FILL_WINDOW=1.
@@ -77,7 +77,13 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 CONFIG_PATH = REPO_ROOT / "src" / "bh_ftmo_config.json"
 JOURNAL_PATH = REPO_ROOT / "src" / "logs" / "bh_ftmo_v2_paper_journal.csv"
 
-RISK_PER_TRADE_PCT = 0.005   # 0.5% — FTMO sim conservative-model baseline
+RISK_PER_TRADE_PCT = 0.005   # 0.5% — chosen 2026-05-06 after the gated-ledger
+                              # sizing sweep. With direction + already-open gates
+                              # applied (the live system's actual behavior), pass
+                              # rate is 96% realistic / 80% conservative at 0.5%
+                              # vs 99% / 99% at 0.25% — the safety gain is small
+                              # but median time-to-pass drops 322d -> 145d.
+                              # See research/v2_deploy_backtest/sweep_gated_results.json
 MAX_NEW_ORDERS_PER_RUN = 5
 
 # Which cells are in the V2 autonomous deployment universe.
@@ -237,7 +243,7 @@ def run(*, dry_run: bool) -> int:
             return 1
 
         risk_dollars = equity * RISK_PER_TRADE_PCT
-        LOG.info("risk per trade: %.2f %s (%.1f%% of NAV)",
+        LOG.info("risk per trade: %.2f %s (%.2f%% of NAV)",
                  risk_dollars, account_ccy, RISK_PER_TRADE_PCT * 100)
 
         margin_ok, margin_reason = margin_gate_allows(account)

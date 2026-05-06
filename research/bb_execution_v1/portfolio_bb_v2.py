@@ -152,6 +152,10 @@ def main():
     print(f"\nTotal portfolio trades: {len(df_t)}")
     print(f"Date range: {df_t['entry_ts'].min().date()} → {df_t['entry_ts'].max().date()}")
 
+    out_csv = "/root/BlueHorseshoe/research/bb_execution_v1/portfolio_trades.csv"
+    df_t[["pair", "entry_ts", "exit_ts", "r"]].to_csv(out_csv, index=False)
+    print(f"Wrote {out_csv}")
+
     cut = int(len(df_t) * TRAIN_FRAC)
     df_tr = df_t.iloc[:cut].copy()
     df_te = df_t.iloc[cut:].copy()

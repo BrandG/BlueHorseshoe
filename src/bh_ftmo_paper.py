@@ -264,7 +264,7 @@ def run(*, dry_run: bool) -> int:
             return 1
 
         risk_dollars = equity * RISK_PER_TRADE_PCT
-        LOG.info("risk per trade: %.2f %s (%.1f%% of NAV)", risk_dollars, account_ccy, RISK_PER_TRADE_PCT * 100)
+        LOG.info("risk per trade: %.2f %s (%.2f%% of NAV)", risk_dollars, account_ccy, RISK_PER_TRADE_PCT * 100)
 
         margin_ok, margin_reason = margin_gate_allows(account)
         LOG.info("margin gate: %s", margin_reason)

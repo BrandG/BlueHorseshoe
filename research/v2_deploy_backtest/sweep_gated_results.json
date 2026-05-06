@@ -1,0 +1,231 @@
+{
+  "n_starts": 500,
+  "sizing_sweep": [
+    [
+      0.0025,
+      {
+        "realistic": {
+          "n_starts": 500,
+          "passed": 495,
+          "failed": 0,
+          "in_progress": 5,
+          "pass_rate": 0.99,
+          "fail_reasons": {},
+          "median_days_to_pass": 322.0,
+          "pass_days_p25": 242.5,
+          "pass_days_p50": 322.0,
+          "pass_days_p75": 480.0,
+          "max_dd_p50": 0.0,
+          "max_dd_p95": 0.0
+        },
+        "conservative": {
+          "n_starts": 500,
+          "passed": 495,
+          "failed": 0,
+          "in_progress": 5,
+          "pass_rate": 0.99,
+          "fail_reasons": {},
+          "median_days_to_pass": 322.0,
+          "pass_days_p25": 242.5,
+          "pass_days_p50": 322.0,
+          "pass_days_p75": 480.0,
+          "max_dd_p50": 0.0,
+          "max_dd_p95": 0.0
+        }
+      }
+    ],
+    [
+      0.005,
+      {
+        "realistic": {
+          "n_starts": 500,
+          "passed": 481,
+          "failed": 19,
+          "in_progress": 0,
+          "pass_rate": 0.962,
+          "fail_reasons": {
+            "max_dd": 19
+          },
+          "median_days_to_pass": 145.0,
+          "pass_days_p25": 102.0,
+          "pass_days_p50": 145.0,
+          "pass_days_p75": 197.0,
+          "max_dd_p50": 0.0,
+          "max_dd_p95": 0.0
+        },
+        "conservative": {
+          "n_starts": 500,
+          "passed": 402,
+          "failed": 98,
+          "in_progress": 0,
+          "pass_rate": 0.804,
+          "fail_reasons": {
+            "max_dd": 98
+          },
+          "median_days_to_pass": 131.5,
+          "pass_days_p25": 89.25,
+          "pass_days_p50": 131.5,
+          "pass_days_p75": 175.0,
+          "max_dd_p50": 0.0,
+          "max_dd_p95": 0.10484200662992293
+        }
+      }
+    ],
+    [
+      0.0075,
+      {
+        "realistic": {
+          "n_starts": 500,
+          "passed": 414,
+          "failed": 86,
+          "in_progress": 0,
+          "pass_rate": 0.828,
+          "fail_reasons": {
+            "max_dd": 63,
+            "daily_dd": 23
+          },
+          "median_days_to_pass": 84.0,
+          "pass_days_p25": 54.0,
+          "pass_days_p50": 84.0,
+          "pass_days_p75": 119.0,
+          "max_dd_p50": 0.0,
+          "max_dd_p95": 0.10438050738416155
+        },
+        "conservative": {
+          "n_starts": 500,
+          "passed": 250,
+          "failed": 250,
+          "in_progress": 0,
+          "pass_rate": 0.5,
+          "fail_reasons": {
+            "max_dd": 243,
+            "daily_dd": 7
+          },
+          "median_days_to_pass": 61.0,
+          "pass_days_p25": 43.0,
+          "pass_days_p50": 61.0,
+          "pass_days_p75": 90.75,
+          "max_dd_p50": 0.02797474870970591,
+          "max_dd_p95": 0.105
+        }
+      }
+    ],
+    [
+      0.01,
+      {
+        "realistic": {
+          "n_starts": 500,
+          "passed": 394,
+          "failed": 106,
+          "in_progress": 0,
+          "pass_rate": 0.788,
+          "fail_reasons": {
+            "max_dd": 87,
+            "daily_dd": 19
+          },
+          "median_days_to_pass": 52.0,
+          "pass_days_p25": 33.0,
+          "pass_days_p50": 52.0,
+          "pass_days_p75": 78.75,
+          "max_dd_p50": 0.0,
+          "max_dd_p95": 0.11
+        },
+        "conservative": {
+          "n_starts": 500,
+          "passed": 143,
+          "failed": 357,
+          "in_progress": 0,
+          "pass_rate": 0.286,
+          "fail_reasons": {
+            "max_dd": 333,
+            "daily_dd": 24
+          },
+          "median_days_to_pass": 31.0,
+          "pass_days_p25": 24.0,
+          "pass_days_p50": 31.0,
+          "pass_days_p75": 44.5,
+          "max_dd_p50": 0.11,
+          "max_dd_p95": 0.11
+        }
+      }
+    ],
+    [
+      0.015,
+      {
+        "realistic": {
+          "n_starts": 500,
+          "passed": 318,
+          "failed": 182,
+          "in_progress": 0,
+          "pass_rate": 0.636,
+          "fail_reasons": {
+            "daily_dd": 125,
+            "max_dd": 57
+          },
+          "median_days_to_pass": 29.0,
+          "pass_days_p25": 19.0,
+          "pass_days_p50": 29.0,
+          "pass_days_p75": 45.0,
+          "max_dd_p50": 0.0,
+          "max_dd_p95": 0.105
+        },
+        "conservative": {
+          "n_starts": 500,
+          "passed": 21,
+          "failed": 479,
+          "in_progress": 0,
+          "pass_rate": 0.042,
+          "fail_reasons": {
+            "daily_dd": 156,
+            "max_dd": 323
+          },
+          "median_days_to_pass": 14.0,
+          "pass_days_p25": 12.0,
+          "pass_days_p50": 14.0,
+          "pass_days_p75": 16.0,
+          "max_dd_p50": 0.105,
+          "max_dd_p95": 0.105
+        }
+      }
+    ],
+    [
+      0.02,
+      {
+        "realistic": {
+          "n_starts": 500,
+          "passed": 273,
+          "failed": 227,
+          "in_progress": 0,
+          "pass_rate": 0.546,
+          "fail_reasons": {
+            "daily_dd": 181,
+            "max_dd": 46
+          },
+          "median_days_to_pass": 18.0,
+          "pass_days_p25": 12.0,
+          "pass_days_p50": 18.0,
+          "pass_days_p75": 26.0,
+          "max_dd_p50": 0.0,
+          "max_dd_p95": 0.12
+        },
+        "conservative": {
+          "n_starts": 500,
+          "passed": 12,
+          "failed": 488,
+          "in_progress": 0,
+          "pass_rate": 0.024,
+          "fail_reasons": {
+            "daily_dd": 328,
+            "max_dd": 160
+          },
+          "median_days_to_pass": 12.5,
+          "pass_days_p25": 10.0,
+          "pass_days_p50": 12.5,
+          "pass_days_p75": 14.25,
+          "max_dd_p50": 0.1,
+          "max_dd_p95": 0.12
+        }
+      }
+    ]
+  ]
+}
