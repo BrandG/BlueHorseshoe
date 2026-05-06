@@ -1,4 +1,11 @@
 {
+  "v2_paper": {
+    "_comment": "Runtime policy for bh_ftmo_v2_paper.py. Position age cap is per entry-mode: null = no cap (default), N = close after N days. Mixed cap (5d limit, null mid) is the Phase II setting from research/v2_deploy_backtest/phase2_results.json — captures most of the conservative pass-rate gain at ~30% of the cum-R cost. Disable (set both to null) once funded and scaling matters more than tail risk.",
+    "max_position_age_days_by_entry_mode": {
+      "limit": 5,
+      "mid": null
+    }
+  },
   "account": {
     "size": 100000,
     "currency": "USD"

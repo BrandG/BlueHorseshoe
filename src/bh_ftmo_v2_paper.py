@@ -27,6 +27,10 @@ Risk profile:
   - 1.0% stop / 1.0% target (v2 cell convention)
   - Limit order valid for one H4 bar (~4h) via GTD, mirroring the simulator's
     LIMIT_FILL_WINDOW=1.
+  - Position-age cap (Phase II mixed cap): per entry-mode in
+    bh_ftmo_config.json::v2_paper.max_position_age_days_by_entry_mode.
+    Default {limit: 5, mid: null} closes limit-cell trades after 5 days,
+    leaves mid-cell trades to TP/SL. Set both to null to disable.
 
 Run modes:
   --dry-run   detect signals, compute orders, but DO NOT submit
@@ -157,6 +161,112 @@ def _compute_units(
     return units if direction == "long" else -units
 
 
+_ENTRY_MODE_BY_STRATEGY = {c.strategy: c.entry_mode for c in CELLS}
+
+
+def _parse_oanda_iso(iso: str) -> datetime:
+    """OANDA returns RFC3339 with nanosecond precision (Python only handles us)."""
+    if "." in iso:
+        head, frac = iso.split(".")
+        frac = frac.rstrip("Z")[:6]
+        iso = f"{head}.{frac}+00:00"
+    else:
+        iso = iso.replace("Z", "+00:00")
+    return datetime.fromisoformat(iso)
+
+
+def _close_aged_positions(
+    trader: OandaTrader,
+    max_age_by_em: dict,
+    *,
+    dry_run: bool,
+) -> int:
+    """Close v2-tagged positions older than the per-entry-mode cap.
+
+    Identifies our trades by the `clientExtensions.tag` we set on order creation
+    (format: ``v2:<strategy>:<direction>:<bar_ts>``). Strategy → entry_mode is
+    looked up from `bh_briefing.CELLS`. Caps are per entry_mode; ``None`` skips.
+
+    Returns the number of positions closed (0 in dry-run).
+    """
+    if not any(v is not None for v in max_age_by_em.values()):
+        return 0
+    try:
+        trades = trader.get_open_trades()
+    except OandaTraderError as exc:
+        LOG.warning("age-close: failed to fetch open trades: %s", exc)
+        return 0
+
+    now = datetime.now(UTC)
+    closed = 0
+    for tr in trades:
+        tag = (tr.get("clientExtensions") or {}).get("tag", "")
+        if not tag.startswith("v2:"):
+            continue
+        parts = tag.split(":")
+        if len(parts) < 3:
+            continue
+        strategy = parts[1]
+        entry_mode = _ENTRY_MODE_BY_STRATEGY.get(strategy)
+        if entry_mode is None:
+            continue
+        cap_days = max_age_by_em.get(entry_mode)
+        if cap_days is None:
+            continue
+        try:
+            opened = _parse_oanda_iso(tr["openTime"])
+        except (KeyError, ValueError):
+            continue
+        age_days = (now - opened).total_seconds() / 86400
+        if age_days < cap_days:
+            continue
+
+        instrument = tr.get("instrument", "?")
+        units = int(tr.get("currentUnits", 0))
+        side = "long" if units > 0 else "short"
+        if dry_run:
+            LOG.info("[DRY] age-close would fire: %s/%s age=%.1fd cap=%dd",
+                     strategy, instrument, age_days, cap_days)
+            _append_journal_row({
+                "ts_utc": datetime.now(UTC).isoformat(),
+                "run_mode": "dry-run",
+                "event": "would_close_aged",
+                "strategy": strategy,
+                "pair": instrument,
+                "direction": side,
+                "entry_mode": entry_mode,
+                "note": f"age={age_days:.1f}d cap={cap_days}d",
+            })
+            continue
+
+        LOG.info("age-close: %s/%s age=%.1fd cap=%dd → CLOSE",
+                 strategy, instrument, age_days, cap_days)
+        try:
+            trader.close_position(instrument, side=side)
+            closed += 1
+            _append_journal_row({
+                "ts_utc": datetime.now(UTC).isoformat(),
+                "run_mode": "live",
+                "event": "closed_aged",
+                "strategy": strategy,
+                "pair": instrument,
+                "direction": side,
+                "entry_mode": entry_mode,
+                "note": f"age={age_days:.1f}d cap={cap_days}d",
+            })
+        except OandaTraderError as exc:
+            LOG.error("age-close failed for %s: %s", instrument, exc)
+            _append_journal_row({
+                "ts_utc": datetime.now(UTC).isoformat(),
+                "run_mode": "live",
+                "event": "close_aged_failed",
+                "strategy": strategy,
+                "pair": instrument,
+                "note": str(exc)[:200],
+            })
+    return closed
+
+
 def _next_bar_close(latest_open_ts: pd.Timestamp) -> datetime:
     """Compute the close time of the bar that's currently forming.
 
@@ -257,6 +367,13 @@ def run(*, dry_run: bool) -> int:
                 "note": margin_reason,
             })
             return 0
+
+        max_age_by_em = (cfg.get("v2_paper", {})
+                         .get("max_position_age_days_by_entry_mode", {}))
+        if any(v is not None for v in max_age_by_em.values()):
+            n_aged = _close_aged_positions(trader, max_age_by_em, dry_run=dry_run)
+            if n_aged:
+                LOG.info("age-close: closed %d aged position(s)", n_aged)
 
         try:
             open_positions = trader.get_open_positions()

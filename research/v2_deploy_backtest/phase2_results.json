@@ -1,0 +1,47 @@
+{
+  "deployed_sizing": 0.005,
+  "n_starts": 500,
+  "short_cap_strategies": [
+    "atr",
+    "ichimoku",
+    "macd"
+  ],
+  "gate_summary": {
+    "in": 21783,
+    "kept": 4672,
+    "skips": {
+      "skip_already_open": 17111
+    }
+  },
+  "sim_mixed": {
+    "realistic": {
+      "n_starts": 500,
+      "passed": 485,
+      "failed": 15,
+      "in_progress": 0,
+      "pass_rate": 0.97,
+      "fail_reasons": {
+        "max_dd": 15
+      },
+      "median_days_to_pass": 150.0,
+      "pass_days_p50": 150.0
+    },
+    "conservative": {
+      "n_starts": 500,
+      "passed": 420,
+      "failed": 80,
+      "in_progress": 0,
+      "pass_rate": 0.84,
+      "fail_reasons": {
+        "max_dd": 80
+      },
+      "median_days_to_pass": 140.0,
+      "pass_days_p50": 140.0
+    }
+  },
+  "gated_mixed_stats": {
+    "n": 4672,
+    "mean_r": 0.08418691985406149,
+    "cum_r": 393.32128955817524
+  }
+}
