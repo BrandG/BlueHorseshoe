@@ -21,6 +21,7 @@ src/logs/*.log
 src/logs/*.html
 src/logs/*.txt
 src/logs/*.csv
+src/logs/*.csv.bak
 src/logs/*.json
 src/logs/*.md
 src/logs/briefings/
