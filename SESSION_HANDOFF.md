@@ -1,5 +1,49 @@
 # Session Handoff
 
+**Date:** May 5–6, 2026
+**Status:** **BH Briefing tool deployed end-to-end + two-track plan locked in.**
+
+The session pivoted on a key reframe from Brand: the briefing-style daily-decision tool is the *near-term* product (not the autonomous trader I'd been engineering toward). Two-track plan now memorialised at `project_two_track_plan.md`:
+- **Track 1 (now):** human-in-the-loop morning briefing — Brand reads it, picks signals, places orders manually on the FTMO challenge. Concurrency / FTMO sizing-sim survival are NOT engineering concerns here — Brand is the gate.
+- **Track 2 (continue on practice):** autonomous trader. `rising_3bar` already live on OANDA practice; new strategies graduate here only after earning trust on Track 1.
+
+**Track 1 shipped** (`src/bh_briefing.py`, 730 lines, `run_bh_briefing.sh` wrapper):
+- Evaluates **34 v2 production cells** across 17 pairs on the most-recently-closed H4 bar: stoch (4), bb (5), macd (5, limit), sma (3), ema (4), rsi (3), cci (5), atr (3, limit), ichimoku (1, limit), candlestick (1).
+- Modes: console (default), `--verbose` (full cell roster), `--email` + `--email-only-if-fires` (Gmail-friendly inline-styled HTML, archived to `src/logs/briefings/`, sent via SMTP_* env vars).
+- Multi-strategy confirmation grouping built in: `Nx confirmations: stoch, sma, rsi` line per (pair, direction).
+- Direction badges (green LONG / red SHORT). All 34 cells executed cleanly on real OANDA data; 1–2 fires per bar typical.
+
+**Cron shifted to bar-close-aligned** (was misaligned by ~3h before). All 4 FTMO crons moved from `*/4` (00, 04, 08, ... UTC) to `1,5,9,13,17,21` UTC (5 min after each H4 close):
+```
+:05 incremental update    :10 predict
+:15 paper trader          :20 briefing
+```
+Worst-case latency: ~3h25m → ~20m. First briefing on new schedule fires at next H4 close.
+
+**Earlier in the session (before the pivot):** built FTMO sizing simulator (`research/ftmo_sizing_sim/`); ran full sweep across 14 portfolios × 4 sizing % × 2 intra-trade models. Headline: macd limit + cci limit pass 100% under conservative model at 0.50% sizing (no fails). Heavy mid-entry portfolios (atr mid 60k trades, stoch mid 24k) collapse under conservative-model concurrency. Combined 14-portfolio book fails 100% — concurrency kills it. **Important caveat:** these results inform Track 2, not Track 1, since the human curates which signals to take.
+
+**Sim bug fixed during the sweep:** `simulate_challenge` required `not open_positions` to declare a pass, deferring passes by years on heavy-flow portfolios. Removed (FTMO lets you flatten on target-hit; floating-PnL DD check above already guards safety). Stoch mid 0.05% median dropped from 1808d → 150d.
+
+**Commits + push:** `6d6195f` (briefing tool, 3 files / 764 lines) and `5c928a0` (v2 research artifacts, 207 files / ~390k lines incl. all v2 indicator runners + planning docs + filter tests + sizing sim). Both on `origin/master`. Working tree clean.
+
+**Next steps:**
+- Watch the first few cron-fired briefings land (next at the upcoming `:20` UTC slot after an H4 close). Confirm timing and email format on real inbox-delivered output.
+- After a few days of live briefings: decide whether to add a "since-last-N-bars" mode for mid-day check-ins, or keep "most-recent-bar-only" semantics.
+- Track 2 (autonomous): more strategies could graduate from briefing → autonomous as Brand develops trust. Currently only `rising_3bar` is live; the v2 production cells in the briefing are candidates.
+- The session_filter and multi-TF (D1 alignment) findings exist as research but haven't been wired into either the briefing or the autonomous trader. Worth deciding if/when those filters ship into production.
+
+**Open questions / blockers:** none active. Track 1 is fully wired and shipped.
+
+**Key files (this session):**
+- `src/bh_briefing.py` — the briefing tool (730 lines, owns Cell defs + 10 evaluators + console/HTML rendering + email delivery)
+- `run_bh_briefing.sh` — cron wrapper
+- `research/ftmo_sizing_sim/` — sizing simulator + sweep results (`sim.py`, `run_sweep.py`, `per_portfolio_results.csv`, `combined_results.csv`)
+- `src/bh_ftmo_swing_config.json` — 2-Step Swing 10k FTMO rules used by sizing sim
+- `crontab` (system, not in repo) — 4 FTMO crons now at `5,10,15,20 1,5,9,13,17,21 * * *`
+- Memory: `project_two_track_plan.md` — the bifurcation decision and how to apply it
+
+---
+
 **Date:** May 4, 2026 (continued)
 **Status:** **Limit-at-signal-bar entry retrofit completed across the v2 indicator universe.** All seven `research/_v2_rerun/run_*_v2.py` runners now accept `--entry={mid,limit}`; new sims `sim_long_limit`, `sim_short_limit`, `sim_long_limit_spread`, `sim_short_limit_spread` live in `_lib.py`. Limit price = signal-bar low (long) / high (short), fill window = 1 H4 bar. Sweep results: limit produces 1.10-1.86× mean_R uplift and 1.2-3.6× smaller max_DD vs mid across RSI/Stoch/CCI/SMA/EMA. EMA is the lone DD regression — its mid baseline was already cleanest. SuperTrend NULL under both modes (limit makes it worse: 3→0 walk-forward survivors); trend-following confirmed dead in this universe. Williams %R discovered to be byte-for-byte equivalent to Stochastic %K in this framework — they're the same indicator on different scales, do not count as independent confirmations. Recurring pairs across 3+ indicators under limit: CAD_CHF s, NZD_CHF s, GBP_NZD l. Crucially, **GBP_CAD long and AUD_CHF short — flagged as "lost from FTMO universe" in the v2-mid update — are recovered under limit entry**, suggesting the v2-mid universe-shrink was at least partly a market-order execution artifact. Code committed (`d804f80`) and pushed; CSVs not committed (reproducible). Memories saved: `project_limit_entry_sweep.md`, `project_wr_equals_stoch.md`. **Next:** decide whether to lock in limit entry as the default for FTMO portfolio building, then revisit the v2 mid "20 production cells / 9 unique pairs" finding under the limit-entry universe; the limit-entry pair set is materially different and likely the basis for a real FTMO deployment portfolio.
 
