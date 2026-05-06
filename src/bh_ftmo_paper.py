@@ -40,6 +40,11 @@ from bh_ftmo.trading.oanda_trader import (
     OandaTraderConfig,
     OandaTraderError,
 )
+from bh_ftmo.trading.safety import (
+    count_open_directions,
+    direction_gate_allows,
+    margin_gate_allows,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 CONFIG_PATH = REPO_ROOT / "src" / "bh_ftmo_config.json"
@@ -261,6 +266,20 @@ def run(*, dry_run: bool) -> int:
         risk_dollars = equity * RISK_PER_TRADE_PCT
         LOG.info("risk per trade: %.2f %s (%.1f%% of NAV)", risk_dollars, account_ccy, RISK_PER_TRADE_PCT * 100)
 
+        margin_ok, margin_reason = margin_gate_allows(account)
+        LOG.info("margin gate: %s", margin_reason)
+        if not margin_ok:
+            append_journal_row({
+                "ts_utc": datetime.now(UTC).isoformat(),
+                "run_mode": "dry-run" if dry_run else "live",
+                "event": "skip_margin_util",
+                "equity": f"{equity:.2f}",
+                "risk_dollars": f"{risk_dollars:.2f}",
+                "risk_multiplier": "1.00",
+                "note": margin_reason,
+            })
+            return 0
+
         # Fetch already-open positions to avoid duplicates
         try:
             open_positions = trader.get_open_positions()
@@ -268,7 +287,9 @@ def run(*, dry_run: bool) -> int:
             LOG.error("Failed to fetch open positions: %s", exc)
             return 1
         open_pair_set = {p.get("instrument") for p in open_positions if p.get("instrument")}
-        LOG.info("currently open positions: %d (%s)", len(open_pair_set), sorted(open_pair_set))
+        n_long, n_short = count_open_directions(open_positions)
+        LOG.info("currently open positions: %d (n_long=%d n_short=%d) %s",
+                 len(open_pair_set), n_long, n_short, sorted(open_pair_set))
 
         # Detect signals (rising_3bar) and capture RSI at trigger time
         signals: list[tuple[PairSpec, pd.DataFrame, float]] = []
@@ -324,6 +345,16 @@ def run(*, dry_run: bool) -> int:
             if pair in open_pair_set:
                 LOG.info("%s: signal fired but position already open — skipping", pair)
                 append_journal_row({**base_fields, "event": "skip_already_open"})
+                continue
+
+            dir_ok, dir_reason = direction_gate_allows("long", n_long, n_short)
+            if not dir_ok:
+                LOG.info("%s: direction gate skip — %s", pair, dir_reason)
+                append_journal_row({
+                    **base_fields,
+                    "event": "skip_direction_imbalance",
+                    "note": dir_reason,
+                })
                 continue
 
             qta = quote_to_account_rate(pair, account_ccy, mid_by_pair)
@@ -395,6 +426,7 @@ def run(*, dry_run: bool) -> int:
                 or resp.get("orderCreateTransaction", {}).get("id", "")
             )
             n_placed += 1
+            n_long += 1
             append_journal_row({
                 **order_fields,
                 "event": "order_placed",

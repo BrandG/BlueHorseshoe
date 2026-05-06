@@ -1,13 +1,25 @@
-"""BH FTMO V2 autonomous trader — limit-entry production cells.
+"""BH FTMO V2 autonomous trader — limit + mid-entry production cells.
 
 Counterpart to bh_ftmo_paper.py (rising_3bar). Reuses the v2 cell list and
 evaluators from src/bh_briefing.py and replaces the email-out path with
-OANDA limit-order submission.
+OANDA order submission. Limit cells use LIMIT orders with GTD set to the
+next H4 close. Mid cells use MARKET orders that fill immediately at the
+just-closed signal bar's mid (no GTD).
 
 Currently deploys:
-  - macd-limit cells (5 pairs)
-  - cci-limit cells (none yet — briefing has cci mid; if/when limit cells
-    are added to bh_briefing.CELLS, they'll auto-deploy via DEPLOY_PREDICATE)
+  - macd     5 limit cells (AUD_JPY L, NZD_JPY L, CAD_CHF/EUR_CHF/NZD_USD S)
+  - atr      3 limit cells (EUR_NOK L, NZD_CHF S, USD_JPY L)
+  - ichimoku 1 limit cell  (USD_SGD S, tk_cross)
+  - stoch    4 mid cells   (CAD_CHF S, CHF_JPY L, EUR_GBP L, USD_JPY L)
+  - bb       5 mid cells   (AUD_CAD S, CAD_CHF S, CHF_JPY L, EUR_CAD L, USD_JPY L)
+  - cci      5 mid cells   (CAD_CHF S, CHF_JPY L, EUR_USD S, USD_CAD L, USD_JPY L)
+  - ema      4 mid cells   (CHF_JPY L, EUR_CAD L, EUR_GBP S, GBP_CAD L)
+  - sma      3 mid cells   (CAD_JPY L, EUR_CAD L, EUR_GBP L)
+  - rsi      3 mid cells   (CHF_JPY L, EUR_GBP L, USD_JPY L)
+
+Only candlestick (1 cell, gate-skating per research memory) is held back.
+The order-submission path is mode-agnostic — all entry modes go through
+the same loop with a per-cell branch at submission.
 
 Risk profile:
   - 0.5% of account NAV per trade (matches the FTMO sizing sim's
@@ -52,6 +64,11 @@ from bh_ftmo.trading.oanda_trader import (
     OandaTraderConfig,
     OandaTraderError,
 )
+from bh_ftmo.trading.safety import (
+    count_open_directions,
+    direction_gate_allows,
+    margin_gate_allows,
+)
 
 # Mirror bh_ftmo_paper helpers we want directly
 from bh_ftmo_paper import _split, latest_mid_close, quote_to_account_rate
@@ -66,10 +83,12 @@ MAX_NEW_ORDERS_PER_RUN = 5
 # Which cells are in the V2 autonomous deployment universe.
 # Keep this conservative — only cells with FTMO-sim conservative-model
 # survival evidence go here.
+DEPLOYED_STRATEGIES = frozenset({"macd", "atr", "ichimoku", "stoch", "bb", "cci",
+                                  "ema", "sma", "rsi"})
+
+
 def DEPLOY_PREDICATE(cell: Cell) -> bool:  # noqa: N802 (intentionally caps as a constant-fn)
-    if cell.entry_mode != "limit":
-        return False
-    return cell.strategy in {"macd", "cci"}
+    return cell.strategy in DEPLOYED_STRATEGIES
 
 
 LOG = logging.getLogger("bh_ftmo.v2_paper")
@@ -77,9 +96,9 @@ LOG = logging.getLogger("bh_ftmo.v2_paper")
 
 JOURNAL_FIELDS = [
     "ts_utc", "run_mode", "event", "strategy", "pair", "direction",
-    "trigger_bar_close_ts", "limit_price", "stop_price", "target_price",
-    "gtd_time_utc", "units", "equity", "risk_dollars", "quote_to_account",
-    "order_id", "status", "note",
+    "entry_mode", "trigger_bar_close_ts", "entry_price", "stop_price",
+    "target_price", "gtd_time_utc", "units", "equity", "risk_dollars",
+    "quote_to_account", "order_id", "status", "note",
 ]
 
 
@@ -155,8 +174,8 @@ def run(*, dry_run: bool) -> int:
 
     deploy_cells = [c for c in CELLS if DEPLOY_PREDICATE(c)]
     deploy_pairs = {c.pair for c in deploy_cells}
-    LOG.info("V2 autonomous: %d deployable cells across %d pairs (filter: limit-entry macd+cci)",
-             len(deploy_cells), len(deploy_pairs))
+    LOG.info("V2 autonomous: %d deployable cells across %d pairs (deployed: %s)",
+             len(deploy_cells), len(deploy_pairs), sorted(DEPLOYED_STRATEGIES))
     if not deploy_cells:
         LOG.warning("no cells match DEPLOY_PREDICATE — nothing to do")
         _append_journal_row({"ts_utc": datetime.now(UTC).isoformat(),
@@ -221,14 +240,27 @@ def run(*, dry_run: bool) -> int:
         LOG.info("risk per trade: %.2f %s (%.1f%% of NAV)",
                  risk_dollars, account_ccy, RISK_PER_TRADE_PCT * 100)
 
+        margin_ok, margin_reason = margin_gate_allows(account)
+        LOG.info("margin gate: %s", margin_reason)
+        if not margin_ok:
+            _append_journal_row({
+                "ts_utc": datetime.now(UTC).isoformat(),
+                "run_mode": "dry-run" if dry_run else "live",
+                "event": "skip_margin_util",
+                "equity": f"{equity:.2f}",
+                "note": margin_reason,
+            })
+            return 0
+
         try:
             open_positions = trader.get_open_positions()
         except OandaTraderError as exc:
             LOG.error("Failed to fetch open positions: %s", exc)
             return 1
         open_pair_set = {p.get("instrument") for p in open_positions if p.get("instrument")}
-        LOG.info("currently open positions: %d (%s)",
-                 len(open_pair_set), sorted(open_pair_set))
+        n_long, n_short = count_open_directions(open_positions)
+        LOG.info("currently open positions: %d (n_long=%d n_short=%d) %s",
+                 len(open_pair_set), n_long, n_short, sorted(open_pair_set))
 
         # Evaluate each deployable cell on the most-recently-closed H4 bar
         fires: list[dict] = []
@@ -277,17 +309,29 @@ def run(*, dry_run: bool) -> int:
                 "strategy": cell.strategy,
                 "pair": pair,
                 "direction": cell.direction,
+                "entry_mode": cell.entry_mode,
                 "trigger_bar_close_ts": signal_close_ts.isoformat(),
-                "limit_price": f"{entry:.{precision}f}",
+                "entry_price": f"{entry:.{precision}f}",
                 "stop_price": f"{stop:.{precision}f}",
                 "target_price": f"{target:.{precision}f}",
-                "gtd_time_utc": gtd.isoformat(),
+                "gtd_time_utc": gtd.isoformat() if cell.entry_mode == "limit" else "",
                 "equity": f"{equity:.2f}",
             }
 
             if pair in open_pair_set:
                 LOG.info("%s/%s: position already open — skip", cell.strategy, pair)
                 _append_journal_row({**base_fields, "event": "skip_already_open"})
+                continue
+
+            dir_ok, dir_reason = direction_gate_allows(cell.direction, n_long, n_short)
+            if not dir_ok:
+                LOG.info("%s/%s: direction gate skip — %s",
+                         cell.strategy, pair, dir_reason)
+                _append_journal_row({
+                    **base_fields,
+                    "event": "skip_direction_imbalance",
+                    "note": dir_reason,
+                })
                 continue
 
             qta = quote_to_account_rate(pair, account_ccy, mid_by_pair)
@@ -315,12 +359,18 @@ def run(*, dry_run: bool) -> int:
             }
 
             if dry_run:
-                LOG.info(
-                    "[DRY] %s/%s %s: limit=%.5f stop=%.5f target=%.5f units=%d "
-                    "gtd=%s",
-                    cell.strategy, pair, cell.direction.upper(),
-                    entry, stop, target, units, gtd.isoformat(),
-                )
+                if cell.entry_mode == "limit":
+                    LOG.info(
+                        "[DRY] %s/%s %s LIMIT: entry=%.5f stop=%.5f target=%.5f units=%d gtd=%s",
+                        cell.strategy, pair, cell.direction.upper(),
+                        entry, stop, target, units, gtd.isoformat(),
+                    )
+                else:
+                    LOG.info(
+                        "[DRY] %s/%s %s MARKET: entry=%.5f stop=%.5f target=%.5f units=%d",
+                        cell.strategy, pair, cell.direction.upper(),
+                        entry, stop, target, units,
+                    )
                 _append_journal_row({**order_fields,
                                      "event": "would_open",
                                      "status": "dry_run"})
@@ -333,20 +383,31 @@ def run(*, dry_run: bool) -> int:
 
             client_tag = (f"v2:{cell.strategy}:{cell.direction}:"
                           f"{signal_close_ts.strftime('%Y%m%d%H%M')}")
-            LOG.info("submitting LIMIT %s/%s %s units=%d limit=%.5f stop=%.5f target=%.5f",
+            LOG.info("submitting %s %s/%s %s units=%d entry=%.5f stop=%.5f target=%.5f",
+                     cell.entry_mode.upper(),
                      cell.strategy, pair, cell.direction.upper(),
                      units, entry, stop, target)
             try:
-                resp = trader.create_limit_order_with_bracket(
-                    instrument=pair,
-                    units=units,
-                    limit_price=entry,
-                    stop_loss_price=stop,
-                    take_profit_price=target,
-                    gtd_time=gtd,
-                    price_precision=precision,
-                    client_tag=client_tag,
-                )
+                if cell.entry_mode == "limit":
+                    resp = trader.create_limit_order_with_bracket(
+                        instrument=pair,
+                        units=units,
+                        limit_price=entry,
+                        stop_loss_price=stop,
+                        take_profit_price=target,
+                        gtd_time=gtd,
+                        price_precision=precision,
+                        client_tag=client_tag,
+                    )
+                else:
+                    resp = trader.create_market_order_with_bracket(
+                        instrument=pair,
+                        units=units,
+                        stop_loss_price=stop,
+                        take_profit_price=target,
+                        price_precision=precision,
+                        client_tag=client_tag,
+                    )
             except OandaTraderError as exc:
                 LOG.error("%s/%s: order submission failed: %s", cell.strategy, pair, exc)
                 _append_journal_row({
@@ -362,6 +423,10 @@ def run(*, dry_run: bool) -> int:
                 or resp.get("orderFillTransaction", {}).get("orderID", "")
             )
             n_placed += 1
+            if cell.direction == "long":
+                n_long += 1
+            else:
+                n_short += 1
             _append_journal_row({
                 **order_fields,
                 "event": "order_placed",
