@@ -1,0 +1,2 @@
+tr_n,tr_mean_r,tr_se_r,tr_ci_low_r,tr_ci_high_r,te_n,te_mean_r,te_se_r,te_ci_low_r,te_ci_high_r,pair,tenkan,kijun,senkou_b,displacement,trigger,direction,total_n
+116,0.16609039144311669,0.07656667052966189,0.016019717204979383,0.316161065681254,51,0.2513155022020348,0.1161041815964324,0.023751306273027295,0.4788796981310423,USD_SGD,9,26,52,26,tk_cross,short,167

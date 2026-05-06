@@ -1,8 +1,56 @@
 # BH FTMO — Bollinger Band Strategy v1 (Phase 0+1 Complete)
 
-**Status:** Validated candidate strategy. Holds spread-aware walk-forward. Awaiting integration with other indicators (stochastic, etc.) before portfolio sizing and FTMO rule simulation.
+**Status:** Validated. Production cells updated 2026-05-03 (see v2 section below). Original v1 spec retained for audit trail.
 
-**Date locked:** 2026-05-01
+**Date locked:** 2026-05-01 (v1), 2026-05-03 (v2 update)
+
+---
+
+## v2 Production Cells (2026-05-03) — supersedes v1 below
+
+Re-run under v2 methodology: per-trade R tracking + expectancy CI gate (mean R − 1.96·SE > 0 on both halves). Same 1%/1% RR, same H4 universe, same walk-forward 70/30 protocol.
+
+**5 production pairs** (was 4 in v1):
+
+| Pair    | BB Period | BB Std | Depth | Direction | Test n | Test mean R |
+|---------|-----------|--------|-------|-----------|--------|-------------|
+| AUD_CAD | 50        | 1.5    | 0.25  | short     | 66     | +0.231      |
+| CAD_CHF | 10        | 1.5    | 0.00  | short     | 318    | +0.157      |
+| CHF_JPY | 50        | 2.0    | 0.00  | long      | 89     | +0.234      |
+| EUR_CAD | 50        | 2.0    | 0.00  | long      | 89     | +0.227      |
+| USD_JPY | 50        | 1.5    | 0.10  | long      | 103    | +0.199      |
+
+### Portfolio test stats (v2, test half 2022-11-29 → 2026-04-07, 663 trades)
+
+WR 60.7% / mean_R +0.197 / cum_R +130.6 / max_DD -22.0R / max_simul 16.
+
+### Changes from v1
+- **Gained:** AUD_CAD short (new, no prior indicator coverage). USD_JPY long params shifted from p=10 with rise_0.00% confirmation to p=50 depth=0.10 no-confirmation cell.
+- **Lost:** none (all original v1 pairs retained).
+
+### Cross-pair monthly R correlation (test half)
+
+|         | AUD_CAD | CAD_CHF | CHF_JPY | EUR_CAD | USD_JPY |
+|---------|---------|---------|---------|---------|---------|
+| AUD_CAD |  1.00   | -0.15   | **-0.46** |  0.02 |  0.12   |
+| CAD_CHF | -0.15   |  1.00   | -0.03   |  0.37   | -0.21   |
+| CHF_JPY | **-0.46** | -0.03 |  1.00   | -0.02   |  0.30   |
+| EUR_CAD |  0.02   |  0.37   | -0.02   |  1.00   |  0.24   |
+| USD_JPY |  0.12   | -0.21   |  0.30   |  0.24   |  1.00   |
+
+AUD_CAD short × CHF_JPY long is the strongest internal diversifier (-0.46).
+
+### Reproducibility (v2)
+
+- `research/bb_execution_v1/sweep_bb_execution_variants.py` — 4-variant Phase 0 sweep (only variant A produced robust cells)
+- `research/bb_execution_v1/walkforward_bb_execution_variants.py` — walk-forward
+- `research/bb_execution_v1/walkforward_bb_execution_spread.py` — spread test
+- `research/bb_execution_v1/portfolio_bb_v2.py` — portfolio assembly
+- CSVs in same directory.
+
+---
+
+## v1 Original (2026-05-01)
 
 ## Strategy Spec
 

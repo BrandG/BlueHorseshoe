@@ -1,6 +1,6 @@
 {
   "account": {
-    "size": 100000,
+    "size": 10000,
     "currency": "USD"
   },
   "risk": {

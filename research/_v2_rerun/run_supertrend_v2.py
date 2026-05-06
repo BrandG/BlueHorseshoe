@@ -28,6 +28,7 @@ from _lib import (
     PAIRS_FULL, GRANULARITY, MAX_HOLD, TRAIN_FRAC, LIMIT_FILL_WINDOW,
     sim_long_mid, sim_short_mid, sim_long_spread, sim_short_spread,
     sim_long_limit, sim_short_limit, sim_long_limit_spread, sim_short_limit_spread,
+    sim_long_stop, sim_short_stop, sim_long_stop_spread, sim_short_stop_spread,
     expectancy_split, survivor_gate_walkforward, select_production_cells,
     portfolio_stats,
 )
@@ -69,6 +70,8 @@ def walkforward_pair(pair, entry_mode="mid"):
 
     if entry_mode == "limit":
         long_sim, short_sim = sim_long_limit, sim_short_limit
+    elif entry_mode == "stop":
+        long_sim, short_sim = sim_long_stop, sim_short_stop
     else:
         long_sim, short_sim = sim_long_mid, sim_short_mid
 
@@ -123,6 +126,11 @@ def spread_test_pair(pair, period, multiplier, direction, entry_mode="mid"):
                 r, _ = sim_long_limit_spread(ca, hb, lb, cb, lb, int(i), MAX_HOLD)
             else:
                 r, _ = sim_short_limit_spread(cb, ha, la, ca, ha, int(i), MAX_HOLD)
+        elif entry_mode == "stop":
+            if direction == "long":
+                r, _ = sim_long_stop_spread(ca, hb, lb, cb, ha, ha, int(i), MAX_HOLD)
+            else:
+                r, _ = sim_short_stop_spread(cb, ha, la, ca, lb, lb, int(i), MAX_HOLD)
         else:
             if direction == "long":
                 r, _ = sim_long_spread(ca, hb, lb, cb, int(i), MAX_HOLD)
@@ -168,6 +176,12 @@ def collect_trades(pair, period, multiplier, direction, entry_mode="mid"):
             else:
                 r, exit_idx = sim_short_limit_spread(cb, ha, la, ca, ha, i, MAX_HOLD)
             entry_idx = i + LIMIT_FILL_WINDOW
+        elif entry_mode == "stop":
+            if direction == "long":
+                r, exit_idx = sim_long_stop_spread(ca, hb, lb, cb, ha, ha, i, MAX_HOLD)
+            else:
+                r, exit_idx = sim_short_stop_spread(cb, ha, la, ca, lb, lb, i, MAX_HOLD)
+            entry_idx = i + LIMIT_FILL_WINDOW
         else:
             if direction == "long":
                 r, exit_idx = sim_long_spread(ca, hb, lb, cb, i, MAX_HOLD)
@@ -185,12 +199,14 @@ def collect_trades(pair, period, multiplier, direction, entry_mode="mid"):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--entry", choices=["mid", "limit"], default="mid",
+    parser.add_argument("--entry", choices=["mid", "limit", "stop"], default="mid",
                         help="Entry mechanic: mid=market at signal close, "
-                             "limit=limit at signal-bar low/high, fill window 1 bar")
+                             "limit=limit at signal-bar low/high (mean-reversion), "
+                             "stop=stop-buy at signal-bar high/low (breakout continuation), "
+                             "fill window 1 bar")
     args = parser.parse_args()
     entry_mode = args.entry
-    suffix = "_limit" if entry_mode == "limit" else ""
+    suffix = "" if entry_mode == "mid" else f"_{entry_mode}"
 
     out_dir = "/root/BlueHorseshoe/research/_v2_rerun/supertrend"
     os.makedirs(out_dir, exist_ok=True)

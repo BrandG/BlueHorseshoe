@@ -170,6 +170,133 @@ def sim_short_spread(cb, ha, la, ca, i, max_hold):
     return (entry - exit_p) / risk, i + max_hold
 
 
+def sim_long_stop(close, high, low, i, max_hold, fill_window=LIMIT_FILL_WINDOW):
+    """Stop-buy at signal-bar high. Order rests ABOVE market; fills when price
+    extends UP through the level (continuation). Mirror of sim_long_limit but for
+    breakout/trend-following shapes.
+    """
+    stop_price = high[i]
+    fill_idx = None
+    for j in range(1, fill_window + 1):
+        k = i + j
+        if k >= len(close):
+            return None, None
+        if high[k] >= stop_price:
+            fill_idx = k
+            break
+    if fill_idx is None:
+        return None, None
+    if fill_idx + max_hold >= len(close):
+        return None, None
+    entry = stop_price
+    tp = entry * (1 + TP_PCT)
+    sl = entry * (1 - STOP_PCT)
+    risk = entry - sl
+    for j in range(1, max_hold + 1):
+        k = fill_idx + j
+        if low[k] <= sl:
+            return -1.0, k
+        if high[k] >= tp:
+            return (tp - entry) / risk, k
+    exit_p = close[fill_idx + max_hold]
+    return (exit_p - entry) / risk, fill_idx + max_hold
+
+
+def sim_short_stop(close, high, low, i, max_hold, fill_window=LIMIT_FILL_WINDOW):
+    """Stop-sell at signal-bar low. Order rests BELOW market; fills when price
+    extends DOWN through the level.
+    """
+    stop_price = low[i]
+    fill_idx = None
+    for j in range(1, fill_window + 1):
+        k = i + j
+        if k >= len(close):
+            return None, None
+        if low[k] <= stop_price:
+            fill_idx = k
+            break
+    if fill_idx is None:
+        return None, None
+    if fill_idx + max_hold >= len(close):
+        return None, None
+    entry = stop_price
+    tp = entry * (1 - TP_PCT)
+    sl = entry * (1 + STOP_PCT)
+    risk = sl - entry
+    for j in range(1, max_hold + 1):
+        k = fill_idx + j
+        if high[k] >= sl:
+            return -1.0, k
+        if low[k] <= tp:
+            return (entry - tp) / risk, k
+    exit_p = close[fill_idx + max_hold]
+    return (entry - exit_p) / risk, fill_idx + max_hold
+
+
+def sim_long_stop_spread(ca, hb, lb, cb, ha, ha_signal, i, max_hold, fill_window=LIMIT_FILL_WINDOW):
+    """Spread variant of sim_long_stop. Stop at ask-high of signal bar (ha_signal[i]),
+    fill when next bar's ask-high rises through (cross-spread fill: buy at ask-side level).
+    Entry = stop_price (paying ask). TP/SL exits on bid side.
+    """
+    stop_price = ha_signal[i]
+    fill_idx = None
+    for j in range(1, fill_window + 1):
+        k = i + j
+        if k >= len(ca):
+            return None, None
+        if ha[k] >= stop_price:
+            fill_idx = k
+            break
+    if fill_idx is None:
+        return None, None
+    if fill_idx + max_hold >= len(ca):
+        return None, None
+    entry = stop_price
+    tp = entry * (1 + TP_PCT)
+    sl = entry * (1 - STOP_PCT)
+    risk = entry - sl
+    for j in range(1, max_hold + 1):
+        k = fill_idx + j
+        if lb[k] <= sl:
+            return -1.0, k
+        if hb[k] >= tp:
+            return (tp - entry) / risk, k
+    exit_p = cb[fill_idx + max_hold]
+    return (exit_p - entry) / risk, fill_idx + max_hold
+
+
+def sim_short_stop_spread(cb, ha, la, ca, lb, lb_signal, i, max_hold, fill_window=LIMIT_FILL_WINDOW):
+    """Spread variant of sim_short_stop. Stop at bid-low of signal bar (lb_signal[i]),
+    fill when next bar's bid-low falls through. Entry = stop_price (selling at bid).
+    TP/SL exits on ask side.
+    """
+    stop_price = lb_signal[i]
+    fill_idx = None
+    for j in range(1, fill_window + 1):
+        k = i + j
+        if k >= len(cb):
+            return None, None
+        if lb[k] <= stop_price:
+            fill_idx = k
+            break
+    if fill_idx is None:
+        return None, None
+    if fill_idx + max_hold >= len(cb):
+        return None, None
+    entry = stop_price
+    tp = entry * (1 - TP_PCT)
+    sl = entry * (1 + STOP_PCT)
+    risk = sl - entry
+    for j in range(1, max_hold + 1):
+        k = fill_idx + j
+        if ha[k] >= sl:
+            return -1.0, k
+        if la[k] <= tp:
+            return (entry - tp) / risk, k
+    exit_p = ca[fill_idx + max_hold]
+    return (entry - exit_p) / risk, fill_idx + max_hold
+
+
 def sim_long_limit_spread(ca, hb, lb, cb, lb_signal, i, max_hold, fill_window=LIMIT_FILL_WINDOW):
     """Spread variant of sim_long_limit. Limit price = bid-low at signal bar (lb_signal[i]),
     fill if next bar's bid-low <= limit (cross-spread fill assumption: buy at ask of fill bar).
@@ -280,6 +407,8 @@ def expectancy_overall(rs):
 
 def survivor_gate_walkforward(df):
     """Return df rows with both halves CI_low_r > 0, tr_n>=50, te_n>=30."""
+    if df.empty:
+        return df.copy()
     return df[(df["tr_ci_low_r"] > 0.0) & (df["te_ci_low_r"] > 0.0)
               & (df["tr_n"] >= 50) & (df["te_n"] >= 30)].copy()
 
