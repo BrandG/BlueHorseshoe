@@ -21,6 +21,7 @@ import logging
 import os
 import time
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
 
@@ -227,6 +228,60 @@ class OandaTrader:
                 "timeInForce": "GTC",
             },
         }
+        if client_tag is not None:
+            order["clientExtensions"] = {"tag": str(client_tag)[:128]}
+
+        path = f"/accounts/{self.config.account_id}/orders"
+        return self._request("POST", path, json_body={"order": order})
+
+    def create_limit_order_with_bracket(
+        self,
+        instrument: str,
+        units: int,
+        limit_price: float,
+        stop_loss_price: float,
+        take_profit_price: float,
+        *,
+        gtd_time: Optional[datetime] = None,
+        price_precision: int = 5,
+        client_tag: Optional[str] = None,
+    ) -> dict[str, Any]:
+        """Submit a LIMIT order with attached stop-loss and take-profit.
+
+        ``units`` is signed: positive = long, negative = short.
+        ``limit_price`` is the limit fill price.
+        ``gtd_time`` (if given) sets timeInForce=GTD and the order auto-cancels
+        at that absolute UTC time. If omitted, the order is GTC. For v2-cell
+        deployments, callers typically pass the next H4 bar's close so the
+        order matches the simulator's 1-bar fill window.
+        Returns the OANDA order-creation response.
+        """
+        if units == 0:
+            raise OandaTraderError("units must be non-zero")
+
+        order: dict[str, Any] = {
+            "type": "LIMIT",
+            "instrument": instrument,
+            "units": str(units),
+            "price": f"{limit_price:.{price_precision}f}",
+            "positionFill": "DEFAULT",
+            "stopLossOnFill": {
+                "price": f"{stop_loss_price:.{price_precision}f}",
+                "timeInForce": "GTC",
+            },
+            "takeProfitOnFill": {
+                "price": f"{take_profit_price:.{price_precision}f}",
+                "timeInForce": "GTC",
+            },
+        }
+        if gtd_time is not None:
+            if gtd_time.tzinfo is None:
+                gtd_time = gtd_time.replace(tzinfo=timezone.utc)
+            order["timeInForce"] = "GTD"
+            order["gtdTime"] = (gtd_time.astimezone(timezone.utc)
+                                .strftime("%Y-%m-%dT%H:%M:%S.000000000Z"))
+        else:
+            order["timeInForce"] = "GTC"
         if client_tag is not None:
             order["clientExtensions"] = {"tag": str(client_tag)[:128]}
 
