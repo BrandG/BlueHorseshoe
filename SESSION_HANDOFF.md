@@ -1,5 +1,20 @@
 # Session Handoff
 
+**Date:** May 6, 2026 (continued)
+**Status:** **Track 2 autonomous V2 trader deployed (`bh_ftmo_v2_paper`).**
+
+Track 2 of the two-track plan now live alongside `rising_3bar`. New script `src/bh_ftmo_v2_paper.py` reuses the Cell list + evaluators from `bh_briefing.py` and replaces the email path with OANDA limit-order submission. Initial deploy filter (`DEPLOY_PREDICATE` in the file): limit-entry macd+cci cells. Briefing currently has 5 macd-limit cells and 0 cci-limit cells (cci's production set is mid-entry; the FTMO sim's "cci limit" portfolio is from a separate research artifact, not yet in `bh_briefing.CELLS`). So **first deploy = 5 macd-limit cells**.
+
+Risk profile: 0.5% NAV per trade (matches FTMO sim conservative-model survival baseline), 1.0%/1.0% RR, conflict-skip on existing position. Cron installed at `16 1,5,9,13,17,21 * * *` — 1 min after rising_3bar paper trader, 11 min after data update. Journal at `src/logs/bh_ftmo_v2_paper_journal.csv`.
+
+`OandaTrader.create_limit_order_with_bracket` added — sibling of the market helper, supports `gtd_time` so the limit auto-cancels at the next H4 close (mirrors the simulator's `LIMIT_FILL_WINDOW=1`).
+
+**Operational note worth flagging for next session:** rising_3bar already holds 31 open positions on the practice account. With conflict-skip semantics, V2 will mostly be skip-already-open in the short term; first V2 fires only land on the 9 pairs rising_3bar isn't currently in. As rising_3bar positions close (target/stop), V2 gets its turn. Behavior is correct, just expect the journal to lean heavy on `skip_already_open` early on.
+
+**Commit + push:** `262e1e4` (V2 trader + OandaTrader limit helper + cron wrapper). On `origin/master`.
+
+---
+
 **Date:** May 5–6, 2026
 **Status:** **BH Briefing tool deployed end-to-end + two-track plan locked in.**
 

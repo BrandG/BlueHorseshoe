@@ -2,6 +2,32 @@
 
 ## Near Term
 
+### 🔥 PRIORITY — Validate `bh_ftmo_v2_paper` autonomous trader in live practice (added 2026-05-06)
+
+**State of the case:** Track 2 of the two-track plan shipped. `src/bh_ftmo_v2_paper.py` reuses Cell list + evaluators from `bh_briefing` and submits OANDA limit orders for filtered v2 production cells. First deploy = 5 macd-limit cells (briefing has no cci-limit cells yet — see open question below). 0.5% NAV per trade, 1.0%/1.0% RR, GTD = next H4 close. Cron at `16 1,5,9,13,17,21 * * *`. Journal at `src/logs/bh_ftmo_v2_paper_journal.csv`.
+
+**Validation steps now:**
+
+1. **Watch first cron-fired runs.** Confirm wrapper loads `.env` properly under cron (same pattern that works for `bh_ftmo_paper`/`bh_briefing`, but new file). Check the journal for clean `event` values: `no_fires`, `skip_already_open`, `skip_no_conversion`, `would_open` (in dry-run), `order_placed` (in live), `order_failed`. Watch for any `skip_zero_units` (would suggest a sizing math edge case).
+
+2. **Watch the first actual `order_placed`.** OANDA accepts the LIMIT body. The GTD timestamp parses correctly. The bracket (stop + target) attaches. The order auto-cancels at GTD if not filled. None of these have been exercised yet — the smoke test only confirmed signal evaluation + dry-run logging.
+
+3. **Conflict-skip footprint.** Right now rising_3bar holds 31 open positions on the practice account. V2 will skip on those pairs. As rising_3bar positions close, V2's effective universe expands. Worth tracking: how often does V2 actually get to place an order? If the answer is "almost never," it's structurally subordinate to rising_3bar and the conflict policy needs revisiting (e.g. allow simultaneous opposing positions, or a per-strategy NAV slice).
+
+4. **Open: should cci-limit cells join the briefing?** The FTMO sim showed `cci limit (D1)` passing 100/100 conservative at 0.5% — but those cells aren't in `bh_briefing.CELLS` (briefing has cci-mid). Two paths:
+   - Add `cci limit` cells to the briefing using the surviving cells from `research/_v2_rerun/cci/walkforward_spread_limit.csv` (selection rule: per pair, largest `te_n` with `tr_ci_low_r > 0` and `te_ci_low_r > 0`). They'll auto-deploy via DEPLOY_PREDICATE.
+   - Stay macd-only for now; revisit after a few weeks of macd live data.
+
+5. **Open: graduation of more cells over time.** When V2 macd-limit accumulates a track record (~50+ filled orders), check live R distribution against the v2 backtest expectation (mean_R ~+0.30 R/trade per the macd planning doc). If aligned, expand DEPLOY_PREDICATE to include more cell types. Candidates from the FTMO sim conservative-model survivors: `sma mid` (99/100 pass), `ema mid` (99/100), `rsi limit unfilt` (99/100), `stoch limit (D1)` (99/100).
+
+**Files:**
+- `src/bh_ftmo_v2_paper.py` (~340 lines) — trader logic, journal schema, DEPLOY_PREDICATE
+- `run_bh_ftmo_v2_paper.sh` — cron wrapper
+- `src/bh_ftmo/trading/oanda_trader.py` — `create_limit_order_with_bracket` added (with GTD support)
+- `src/logs/bh_ftmo_v2_paper.log` (run log) and `bh_ftmo_v2_paper_journal.csv` (per-signal record)
+
+**Commit:** `262e1e4`, on master.
+
 ### 🔥 PRIORITY — Validate BH Briefing in real morning use + decide on filter integration (added 2026-05-06)
 
 **State of the case:** Track 1 of the two-track plan (`project_two_track_plan.md`) shipped end-to-end. `src/bh_briefing.py` evaluates 34 v2 production cells across 17 pairs on the most-recently-closed H4 bar (stoch 4, bb 5, macd 5 limit, sma 3, ema 4, rsi 3, cci 5, atr 3 limit, ichimoku 1 limit, candlestick 1) and emails an inline-styled HTML briefing. Cron installed at `20 1,5,9,13,17,21 * * *` (20 min after each H4 close). Companion shell wrapper at `run_bh_briefing.sh`. All 4 FTMO crons shifted to the bar-close-aligned schedule (incremental :05, predict :10, paper :15, briefing :20) — worst-case latency dropped from ~3h25m to ~20m.
