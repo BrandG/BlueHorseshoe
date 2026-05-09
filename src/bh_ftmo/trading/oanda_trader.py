@@ -194,6 +194,17 @@ class OandaTrader:
         payload = self._request("GET", path)
         return list(payload.get("trades", []))
 
+    def _raise_if_rejected(self, response: dict[str, Any]) -> None:
+        """Surface OANDA create-time rejects that arrive in otherwise-successful responses."""
+        cancel = response.get("orderCancelTransaction")
+        reject = response.get("orderRejectTransaction")
+        if cancel:
+            reason = cancel.get("reason", "UNKNOWN")
+            raise OandaTraderError(f"OANDA cancelled order at create: {reason}")
+        if reject:
+            reason = reject.get("rejectReason") or reject.get("reason", "UNKNOWN")
+            raise OandaTraderError(f"OANDA rejected order at create: {reason}")
+
     def create_market_order_with_bracket(
         self,
         instrument: str,
@@ -232,7 +243,9 @@ class OandaTrader:
             order["clientExtensions"] = {"tag": str(client_tag)[:128]}
 
         path = f"/accounts/{self.config.account_id}/orders"
-        return self._request("POST", path, json_body={"order": order})
+        response = self._request("POST", path, json_body={"order": order})
+        self._raise_if_rejected(response)
+        return response
 
     def create_limit_order_with_bracket(
         self,
@@ -286,7 +299,9 @@ class OandaTrader:
             order["clientExtensions"] = {"tag": str(client_tag)[:128]}
 
         path = f"/accounts/{self.config.account_id}/orders"
-        return self._request("POST", path, json_body={"order": order})
+        response = self._request("POST", path, json_body={"order": order})
+        self._raise_if_rejected(response)
+        return response
 
     def close_position(self, instrument: str, *, side: str = "all") -> dict[str, Any]:
         """Flatten an open position. side ∈ {"all", "long", "short"}."""

@@ -532,12 +532,18 @@ def run(*, dry_run: bool) -> int:
                         client_tag=client_tag,
                     )
             except OandaTraderError as exc:
-                LOG.error("%s/%s: order submission failed: %s", cell.strategy, pair, exc)
+                exc_msg = str(exc)
+                if "MARKET_HALTED" in exc_msg:
+                    LOG.info("%s/%s: market halted; skipping order: %s", cell.strategy, pair, exc)
+                    event = "skip_market_halted"
+                else:
+                    LOG.error("%s/%s: order submission failed: %s", cell.strategy, pair, exc)
+                    event = "order_failed"
                 _append_journal_row({
                     **order_fields,
-                    "event": "order_failed",
+                    "event": event,
                     "status": "failed",
-                    "note": str(exc)[:200],
+                    "note": exc_msg[:200],
                 })
                 continue
 

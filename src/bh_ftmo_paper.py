@@ -412,12 +412,18 @@ def run(*, dry_run: bool) -> int:
                     client_tag=f"rising3bar:{trigger_bar_ts.strftime('%Y%m%d%H%M')}",
                 )
             except OandaTraderError as exc:
-                LOG.error("%s: order submission failed: %s", pair, exc)
+                exc_msg = str(exc)
+                if "MARKET_HALTED" in exc_msg:
+                    LOG.info("%s: market halted; skipping order: %s", pair, exc)
+                    event = "skip_market_halted"
+                else:
+                    LOG.error("%s: order submission failed: %s", pair, exc)
+                    event = "order_failed"
                 append_journal_row({
                     **order_fields,
-                    "event": "order_failed",
+                    "event": event,
                     "status": "failed",
-                    "note": str(exc)[:200],
+                    "note": exc_msg[:200],
                 })
                 continue
 
