@@ -23,6 +23,13 @@ services:
       TWOFA_TIMEOUT_ACTION: restart
       AUTO_RESTART_TIME: ""
       ACCEPT_INCOMING_CONNECTION: accept
+      # Always claim the IBKR session on startup. Required for unattended
+      # operation — if a human is logged into the portal, the gateway will
+      # take over rather than wait on a manual-resolution dialog.
+      EXISTING_SESSION_DETECTED_ACTION: primary
+      # Enable VNC for debugging the gateway UI on port 5900. Strip this
+      # back out once unattended operation is verified.
+      VNC_SERVER_PASSWORD: ${VNC_SERVER_PASSWORD:-vncdebug}
     ports:
       - "4001:4001"
       - "4002:4002"

@@ -385,6 +385,106 @@ class IBKRClient:
             logger.error("Error fetching open orders: %s", e)
             return []
 
+    def get_open_trades(self) -> list:
+        """
+        Get all open Trade objects (order + contract + fills + status).
+
+        Each Trade exposes .contract, .order, .orderStatus, .fills.
+        Preferred over get_open_orders() when downstream needs symbol context.
+        """
+        try:
+            self._ensure_connected()
+            return self._ib.openTrades()
+        except Exception as e:
+            logger.error("Error fetching open trades: %s", e)
+            return []
+
+    def get_positions(self) -> List[dict]:
+        """
+        Get all current positions from IB Gateway.
+
+        Returns:
+            List of dicts with: account, symbol, position (signed qty),
+            avg_cost, contract_type. Empty list on error or no positions.
+        """
+        try:
+            self._ensure_connected()
+        except Exception as e:
+            logger.error("Cannot connect to fetch positions: %s", e)
+            return []
+
+        try:
+            raw = self._ib.positions()
+            results = []
+            for p in raw:
+                contract = p.contract
+                results.append({
+                    "account": getattr(p, "account", ""),
+                    "symbol": getattr(contract, "symbol", ""),
+                    "position": float(getattr(p, "position", 0) or 0),
+                    "avg_cost": _safe_float(getattr(p, "avgCost", None)) or 0.0,
+                    "contract_type": getattr(contract, "secType", ""),
+                    "currency": getattr(contract, "currency", ""),
+                })
+            return results
+        except Exception as e:
+            logger.error("Error fetching positions: %s", e)
+            return []
+
+    def get_account_summary(self, account: str = "") -> dict:
+        """
+        Get account summary values needed for sizing and safety gates.
+
+        Returns dict with keys (all floats, 0.0 if unavailable):
+          - net_liquidation, settled_cash, available_funds, buying_power,
+            total_cash_value, gross_position_value, account_id.
+
+        Args:
+            account: Optional account ID filter. Empty = first account found.
+        """
+        empty = {
+            "account_id": account,
+            "net_liquidation": 0.0,
+            "settled_cash": 0.0,
+            "available_funds": 0.0,
+            "buying_power": 0.0,
+            "total_cash_value": 0.0,
+            "gross_position_value": 0.0,
+        }
+        try:
+            self._ensure_connected()
+        except Exception as e:
+            logger.error("Cannot connect to fetch account summary: %s", e)
+            return empty
+
+        # Map IBKR tag -> our key. Tag names from IB API documentation.
+        tag_map = {
+            "NetLiquidation": "net_liquidation",
+            "SettledCash": "settled_cash",
+            "AvailableFunds": "available_funds",
+            "BuyingPower": "buying_power",
+            "TotalCashValue": "total_cash_value",
+            "GrossPositionValue": "gross_position_value",
+        }
+
+        try:
+            rows = self._ib.accountSummary(account) if account else self._ib.accountSummary()
+            summary = dict(empty)
+            for row in rows:
+                tag = getattr(row, "tag", "")
+                value = getattr(row, "value", "")
+                row_account = getattr(row, "account", "")
+                if tag in tag_map and value:
+                    parsed = _safe_float(value)
+                    if parsed is not None:
+                        summary[tag_map[tag]] = parsed
+                if row_account and not summary["account_id"]:
+                    summary["account_id"] = row_account
+            return summary
+        except Exception as e:
+            logger.error("Error fetching account summary: %s", e)
+            return empty
+
     def close(self):
         """Disconnect from IB Gateway."""
         if self._ib is not None:

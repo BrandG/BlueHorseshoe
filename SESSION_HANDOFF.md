@@ -1,5 +1,100 @@
 # Session Handoff
 
+**Date:** May 12, 2026
+**Status:** **BH Swing automation plan locked + Phase 0 (read-only shadow) scaffolded + IBKR Lite→Pro conversion in flight.**
+
+Phase 0 of the BH Swing → IBKR automation migration is fully written and unit-tested (20 new tests, all passing; 0 regressions in the 1503-test suite). The code is parked behind a one-day account-conversion wait — IBKR Lite blocks API access entirely, conversion to Pro is pending.
+
+### 1. BH Swing migration plan locked
+Five-phase plan written to `/root/.claude/plans/synthetic-cooking-meerkat.md` after a /plan exploration:
+- Phase 0 (shipped, this session): read-only shadow — reconciliation + HTML tracker + operator CLI
+- Phase 1: autonomous management of manually-placed entries
+- Phase 2: autonomous entries on paper
+- Phase 3: live with $500 cap
+- Phase 4: full $3K
+Architecture: cron-poll, stateless-per-run, broker-truth-first, CSV journal, mirrors the proven bh_ftmo/ pattern. New `src/bh_swing/` module sits parallel to bh_ftmo/, not co-mingled with bluehorseshoe/.
+
+### 2. Phase 0 scaffold — shipped (no commit yet, in working tree)
+**New files:**
+- `src/bh_swing/__init__.py`, `trading/`, `analysis/`, `operator/` package skeleton
+- `src/bh_swing/journal.py` — append-only CSV at `src/logs/bh_swing_journal.csv`, stateless exec_id dedup via trailing-window read (no separate state store)
+- `src/bh_swing/trading/reconciler.py` — broker truth → `fill_detected` journal events; emits one row per new IBKR execution
+- `src/bh_swing/trading/tracker_html.py` — renders `src/graphs/swing_tracker.html` per tick (account state cards, positions, working orders, last 50 journal events). Static page, no JS framework.
+- `src/bh_swing_monitor.py` — one-shot cron entrypoint; uses dedicated client_id=7 to avoid colliding with `-p` (client_id=1)
+- `src/bh_swing_status.py` — operator dashboard with `--no-broker` fallback
+- `run_bh_swing_monitor.sh` — cron wrapper
+- 20 unit tests across `test_bh_swing_journal.py` / `test_bh_swing_reconciler.py` / `test_bh_swing_tracker_html.py`
+
+**Extended:** `src/bluehorseshoe/data/ibkr_client.py` — added `get_positions()`, `get_account_summary()`, `get_open_trades()`. All read-only; no order mutations from bh_swing in Phase 0.
+
+**Verified:** 20/20 new tests pass; 21/21 pre-existing IBKR client tests pass; lint clean (9.31/10). The 8 failures in `test_strategy.py` / `test_signal_generator.py` are pre-existing weight-config drift, unrelated.
+
+### 3. IBKR Gateway debugging marathon (the lesson)
+Spent ~2 hours trying to bring the IB Gateway up to verify the monitor end-to-end. Root cause was non-obvious and worth recording. Sequence:
+1. Gateway container "up" 8 days but Java process never authed since 2026-05-01. socat inside the container had been failing to connect to 127.0.0.1:4002 for the entire window because the gateway's API listener never started.
+2. Initial diagnosis: stale password. Brand updated both `.env` files (root + docker/) and removed `$$` doubling, added single quotes. → "server error" persisted.
+3. Reverted: `$$` was actually the correct compose-substitution escape; the password value was reaching IBKR fine — IBKR was just rejecting it. Generated a fresh password, no shell-special chars.
+4. New password got us past auth → hit "Existing session detected" modal. Added `EXISTING_SESSION_DETECTED_ACTION: primary` to compose. Required for unattended ops.
+5. After clearing the browser session and bouncing again → IBC stalled on `Attempt 1: server error, will retry in 3 seconds...` dialog. Stuck for 50+ min with no progress.
+6. VNC'd in (added `VNC_SERVER_PASSWORD` to compose, tunneled `ssh -L 15901:127.0.0.1:5900 root@134.122.15.186 -N`). Dialog text: **"API Support is not available for accounts that support free trading"**.
+
+**Root cause:** The IBKR account is on the **Lite** tier, which forbids API access entirely. No code or config change fixes this. Brand initiated Lite→Pro conversion in Client Portal; IBKR says ≥24h to process.
+
+**Compose changes (kept; may need cleanup later):**
+- `EXISTING_SESSION_DETECTED_ACTION: primary` — keep; required for unattended ops
+- `VNC_SERVER_PASSWORD: ${VNC_SERVER_PASSWORD:-vncdebug}` — debug-only; consider removing once Phase 0 is verified end-to-end
+
+### Next steps (post-conversion)
+1. Wait ≥24h for IBKR Lite→Pro to process.
+2. Bounce gateway: `cd docker && docker compose up -d --force-recreate ib-gateway`.
+3. Watch login: `docker logs --since 3m -f ib-gateway`. Expect to see "Login has completed" / API server listening, no dialog stalls.
+4. Run `./run.sh python src/bh_swing_monitor.py -v`. Should snapshot account, render `src/graphs/swing_tracker.html`.
+5. Once happy, install cron: `*/5 13-21 * * 1-5 /root/BlueHorseshoe/run_bh_swing_monitor.sh`.
+6. Phase 0 exit gate: 5 trading days clean + HTML mirrors manual paper activity → green-light Phase 1 (stop-rule + management of manually-placed entries).
+
+### Previously open (still queued)
+**Date:** May 7-9, 2026
+**Status:** OANDA rejection-detection bug shipped + HUF concentration autopsy + IBKR trade journal populated.
+
+Three concrete deliverables this session, all small and surgical. Live FTMO practice account is at NAV $93,753 (-6.25% from $100k start, 14 days live) — drawdown concentrated in HUF crosses (see autopsy below). Not panicking; v2 sim projected median 145 days to FTMO target with routine 6%+ interim DDs.
+
+### 1. OANDA rejection-detection fix — shipped (commit `4234fd9`, on `origin/master`)
+**Bug:** `bh_ftmo_paper.py` was logging FOK market orders that OANDA killed atomically with `MARKET_HALTED` (weekend HUF/SGD feeds) as `event=order_placed status=submitted`. Same trigger bar (2026-05-01T17:00) produced 13-14 phantom journal rows for USD_HUF / EUR_HUF / USD_SGD across the 2026-05-02→04 weekend before the actual Monday fill.
+
+**Root cause:** `oanda_trader.create_market_order_with_bracket()` returned the raw response without inspecting it. OANDA's response for a halted-feed FOK contains both `orderCreateTransaction` (ack) AND `orderCancelTransaction` (rejection); the runner only checked for `orderFillTransaction` and fell back to `orderCreateTransaction.id`, so cancelled orders looked identical to filled ones.
+
+**Fix:** New `OandaTrader._raise_if_rejected()` helper inspects every order response; raises `OandaTraderError` on `orderCancelTransaction` / `orderRejectTransaction`. Both `bh_ftmo_paper.py` and `bh_ftmo_v2_paper.py` string-match `MARKET_HALTED` and route to `event=skip_market_halted` (INFO log) instead of `event=order_failed` (ERROR). Same helper applied to limit-order path. 205-line new test module covers happy-path + cancel + reject for both market and limit orders. **Verified:** 73 tests passing via `./run.sh pytest`, lint exit 0, status smoke ran cleanly against live OANDA.
+
+### 2. HUF concentration autopsy (no code change — analysis only)
+Live OANDA practice has lost $3,489 realized + $1,275 unrealized on 4 HUF trades (2 USD_HUF, 2 EUR_HUF, all longs, all rising_3bar). ~78% of total realized loss on the account. Three reinforcing causes identified:
+- **RSI<30 amplifier doubled down on a losing trend.** Round 1 fired at RSI 42 / 39 (no amplifier, 1.00×); both stopped. Round 2 fired the same pairs 16h later at RSI 29.5 / 28.5 — `RSI_AMPLIFIER_RISK_MULTIPLIER=1.5` flipped on, sizing up exactly when correlated risk said to size down.
+- **No correlation gate.** USD_HUF and EUR_HUF share HUF on the quote side; both lose when HUF strengthens. Portfolio `direction_imbalance` cap (8) treats them as two independent slots. Effective 3.0× position on "HUF will weaken" packaged as four trades.
+- **No re-entry cooldown.** Round 2 fired 16h after round 1 stopped, no rest period after the loss.
+
+**Not fixed yet — left for future-Brand call.** Three possible interventions (correlation guard / re-entry cooldown / amplifier audit). All deferred; v2 sim variance suggests waiting 2-3 more weeks of trades before structural changes.
+
+### 3. IBKR trade journal populated (one-shot data task)
+Generated `src/logs/journal_executed_trades.csv` (103 round-trip trades) from `docs/IBKR_journal.csv` covering Jan 1 – May 6 2026. Aggregated multi-lot entries/scale-outs into single rows with qty-weighted avg prices. Back-filled `strategy` + `signal_rank` from MongoDB `trade_scores` using prior-trading-day signal-date convention: 83/103 matched (80 prior-day + 3 same-day fallback), 17 baseline / 66 mean_reversion. 20 unmatched are all pre-2026-02-13 when score coverage was sparse. Per-symbol P/L verified against IBKR's `Realized & Unrealized Performance Summary` (AA $8.95, APD -$7.17, AMTB $12.30 all match exactly). Two open positions at statement end (GSBD, MFIC) flagged in notes.
+
+**Memory saved this session:**
+- `feedback_codex_worktree_env.md` — symlink `.venv` and `.env` from main repo into Codex worktrees before handoff so `./run.sh` and OANDA-aware scripts work. Discovered 2026-05-08 when Codex's validation came back "Partially Passed" purely because the bare worktree had no venv/env. With the symlink pattern, the next handoff is friction-free.
+
+**Next steps:**
+- Watch the new `event=skip_market_halted` rows land in the next weekend cycle (2026-05-10 / 2026-05-11) — should be quiet single rows per pair per cycle, not 13 per pair.
+- HUF concentration: decide whether to ship a correlation guard, re-entry cooldown, or amplifier audit, or wait 2-3 weeks more for sample size. No urgency.
+- The session_filter and multi-TF (D1 alignment) findings (still in research, not yet wired into briefing or autonomous trader) — separate decision pending.
+
+**Open questions / blockers:** none active. Master is clean on `4234fd9`.
+
+**Key files modified this session:**
+- `src/bh_ftmo/trading/oanda_trader.py` (+19) — `_raise_if_rejected` helper + both call-site invocations
+- `src/bh_ftmo_paper.py` (+12 / -4) — MARKET_HALTED routing
+- `src/bh_ftmo_v2_paper.py` (+12 / -4) — same MARKET_HALTED routing
+- `src/tests/test_oanda_trader.py` (new, 205 lines) — full coverage of cancel/reject paths
+- `src/logs/journal_executed_trades.csv` (gitignored, 103 rows) — populated from IBKR statement
+
+---
+
 **Date:** May 6, 2026 (continued)
 **Status:** **Track 2 autonomous V2 trader deployed (`bh_ftmo_v2_paper`).**
 
