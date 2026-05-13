@@ -37,6 +37,53 @@ POSITIONS_PATH = REPO_ROOT / "src" / "bh_lite_positions.json"
 CLOSED_LOG_PATH = REPO_ROOT / "src" / "bh_positions_closed.json"
 BRIEFING_ORDERS_PATH = REPO_ROOT / "src" / "bh_briefing_ftmo_orders.json"
 BH_LITE_ORDERS_PATH = REPO_ROOT / "src" / "bh_lite_orders.json"
+LITE_CONFIG_PATH = REPO_ROOT / "src" / "bh_lite_config.json"
+
+
+def _load_instrument_map() -> dict[str, dict]:
+    """Index bh_lite_config instruments by FTMO .sim symbol."""
+    if not LITE_CONFIG_PATH.exists():
+        return {}
+    cfg = json.loads(LITE_CONFIG_PATH.read_text(encoding="utf-8"))
+    return {inst["ftmo"]: inst for inst in cfg.get("instruments", [])}
+
+
+def compute_risk_usd(ftmo_symbol: str, entry: float, stop: float,
+                     lots: float, instrument_map: dict[str, dict] | None = None) -> float | None:
+    """Forex risk: lots × pips_at_risk × dollar_per_pip_per_lot.
+    Returns None if the instrument isn't in the config.
+    """
+    if instrument_map is None:
+        instrument_map = _load_instrument_map()
+    inst = instrument_map.get(ftmo_symbol)
+    if inst is None:
+        return None
+    pip_size = float(inst.get("pip_size", 0))
+    dpp = float(inst.get("dollar_per_pip_per_lot", 0))
+    if pip_size <= 0 or dpp <= 0:
+        return None
+    risk_in_pips = abs(entry - stop) / pip_size
+    return round(risk_in_pips * dpp * float(lots), 2)
+
+
+def _backheal_positions(positions: list[dict]) -> tuple[list[dict], bool]:
+    """Fill in risk_usd for any position missing it (or with risk_usd=0).
+    Returns (positions, changed) so callers can write back when changed.
+    """
+    inst_map = _load_instrument_map()
+    changed = False
+    for p in positions:
+        if p.get("risk_usd"):
+            continue
+        risk = compute_risk_usd(
+            p.get("ftmo_symbol", ""),
+            float(p["entry"]), float(p["stop"]), float(p["lots"]),
+            instrument_map=inst_map,
+        )
+        if risk is not None:
+            p["risk_usd"] = risk
+            changed = True
+    return positions, changed
 
 
 def load_positions() -> list[dict]:
@@ -45,7 +92,11 @@ def load_positions() -> list[dict]:
     raw = POSITIONS_PATH.read_text(encoding="utf-8").strip()
     if not raw:
         return []
-    return json.loads(raw)
+    positions = json.loads(raw)
+    positions, changed = _backheal_positions(positions)
+    if changed:
+        save_positions(positions)
+    return positions
 
 
 def save_positions(positions: list[dict]) -> None:
@@ -116,7 +167,12 @@ def cmd_add(args: argparse.Namespace) -> int:
         target = args.target if args.target is not None else None
         lots = args.lots
         strategy = args.strategy
-        risk_usd = abs(entry - stop) * lots * args.risk_per_pip if args.risk_per_pip else None
+        risk_usd = compute_risk_usd(args.ftmo_symbol, entry, stop, lots)
+        if risk_usd is None:
+            print(f"WARN: no instrument config for {args.ftmo_symbol} — "
+                  f"risk_usd will be blank. Add it to bh_lite_config.json "
+                  f"or pass --side/--entry/--stop/--lots after editing config.",
+                  file=sys.stderr)
     else:
         found = _find_in_orders(args.ftmo_symbol)
         if found is None:
@@ -207,8 +263,6 @@ def main(argv: list[str] | None = None) -> int:
     p_add.add_argument("--lots", type=float)
     p_add.add_argument("--strategy")
     p_add.add_argument("--opened", help="YYYY-MM-DD (default: today)")
-    p_add.add_argument("--risk-per-pip", type=float,
-                       help="for manual risk calc when no orders.json source")
 
     p_close = sub.add_parser("close", help="close a position (archive to closed log)")
     p_close.add_argument("ftmo_symbol")
