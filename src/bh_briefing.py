@@ -702,8 +702,13 @@ def _send_html_email(subject: str, html_body: str) -> bool:
         return False
 
 
-def run(*, verbose: bool = False, email: bool = False,
-        email_only_if_fires: bool = False) -> int:
+def evaluate_fires() -> tuple[list[dict], list[Cell], dict[str, pd.Timestamp]]:
+    """Load H4 bars, evaluate every cell on the most-recently-closed bar,
+    return the (fires, ordered_cells, bar_ts_by_pair) tuple.
+
+    Extracted from run() so external tools (e.g. bh_briefing_ftmo.py) can
+    consume the v2 cell fire-evaluation without driving the rendering layer.
+    """
     pair_set = {c.pair for c in CELLS}
     LOG.info("evaluating %d cells across %d pairs", len(CELLS), len(pair_set))
 
@@ -746,6 +751,12 @@ def run(*, verbose: bool = False, email: bool = False,
             "target": target,
             "precision": _price_precision(cell.pair),
         })
+    return fires, ordered_cells, bar_ts_by_pair
+
+
+def run(*, verbose: bool = False, email: bool = False,
+        email_only_if_fires: bool = False) -> int:
+    fires, ordered_cells, bar_ts_by_pair = evaluate_fires()
 
     now_utc = datetime.now(UTC)
     report = render_console_report(
