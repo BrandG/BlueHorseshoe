@@ -722,8 +722,12 @@ def run(*, verbose: bool = False, email: bool = False,
     finally:
         store.close()
 
+    # Iterate cells in CELL_QUALITY_RANK descending order so the briefing's
+    # fired-list AND full-cell table both surface highest-edge setups first.
+    ordered_cells = ranked_cells()
+
     fires: list[dict] = []
-    for cell in CELLS:
+    for cell in ordered_cells:
         df = bars.get(cell.pair)
         if df is None:
             continue
@@ -746,18 +750,18 @@ def run(*, verbose: bool = False, email: bool = False,
     now_utc = datetime.now(UTC)
     report = render_console_report(
         fires, now_utc,
-        total_cells=len(CELLS),
+        total_cells=len(ordered_cells),
         bar_ts_by_pair=bar_ts_by_pair,
-        verbose=verbose, cells=CELLS,
+        verbose=verbose, cells=ordered_cells,
     )
     print(report)
 
     if email:
         html_body = render_html_report(
             fires, now_utc,
-            total_cells=len(CELLS),
+            total_cells=len(ordered_cells),
             bar_ts_by_pair=bar_ts_by_pair,
-            cells=CELLS,
+            cells=ordered_cells,
         )
         BRIEFING_DIR.mkdir(parents=True, exist_ok=True)
         archive_path = BRIEFING_DIR / f"briefing_{now_utc.strftime('%Y-%m-%d_%H%M')}.html"
