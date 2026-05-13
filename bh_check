@@ -1,0 +1,36 @@
+#!/bin/bash
+# bh_check — interactive shortcut to regenerate FTMO live-order recommendations.
+#
+# Usage:
+#   ./bh_check            run bh_briefing_ftmo using cached H4 bars (instant)
+#   ./bh_check --fresh    refresh OANDA bars first, then run (~10s slower,
+#                         use right after an H4 close)
+#   ./bh_check -h         show this help
+#
+# Outputs:
+#   - console: recommended orders + suppressed + open positions
+#   - src/bh_briefing_ftmo_orders.json: machine-readable for copy/paste
+#
+# Companions:
+#   ./run.sh python src/bh_positions.py list
+#   ./run.sh python src/bh_positions.py add  FTMO_SYMBOL
+#   ./run.sh python src/bh_positions.py close FTMO_SYMBOL --pnl ...
+
+set -e
+
+REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$REPO_DIR"
+
+case "$1" in
+    -h|--help)
+        sed -n '2,15p' "$0"
+        exit 0
+        ;;
+    -f|--fresh)
+        echo "→ refreshing OANDA H4 bars..."
+        ./run.sh python -m bh_ftmo.data.incremental_update
+        echo
+        ;;
+esac
+
+./run.sh python src/bh_briefing_ftmo.py
