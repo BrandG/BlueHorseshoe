@@ -176,20 +176,36 @@ def render_console(annotated: list[dict], suppressed: list[dict],
         lines.append("No tradeable fires on this bar (after position + cluster filters).")
     else:
         lines.append("== ORDERS TO PLACE ==")
-        lines.append(f"  {'#':>2}  {'FTMO Symbol':<14}  {'Cluster':<16}  "
-                     f"{'Cell':<22}  {'Entry':>10}  {'Stop':>10}  "
-                     f"{'Target':>10}  {'Lots':>6}  {'Risk $':>8}  {'Rank':>7}")
+        lines.append(f"  {'#':>2}  {'FTMO Symbol':<14}  {'SIDE':<6}  "
+                     f"{'Cluster':<16}  {'Cell':<18}  "
+                     f"{'Entry':>10}  {'Stop':>10}  {'Target':>10}  "
+                     f"{'Lots':>6}  {'Risk $':>8}  {'Rank':>7}")
         for i, f in enumerate(annotated, 1):
-            cell_desc = f"{f['strategy']:>9}/{f['direction']:<5}/{f['entry_mode']:<5}"
+            side = "BUY" if f["direction"] == "long" else "SELL"
+            cell_desc = f"{f['strategy']}/{f['entry_mode']}"
             cluster = (f.get("clusters") or [""])[0] or "—"
             precision = f["precision"]
             ent = f"{f['entry']:.{precision}f}"
             stp = f"{f['stop']:.{precision}f}"
             tgt = f"{f['target']:.{precision}f}"
-            lines.append(f"  {i:>2}  {f['ftmo_symbol']:<14}  {cluster:<16}  "
-                         f"{cell_desc:<22}  {ent:>10}  {stp:>10}  {tgt:>10}  "
+
+            # Sanity check: geometry must match declared side.
+            warn = ""
+            if side == "BUY":
+                if not (f["target"] > f["entry"] > f["stop"]):
+                    warn = "  !! GEOMETRY MISMATCH — review before placing"
+            else:  # SELL
+                if not (f["target"] < f["entry"] < f["stop"]):
+                    warn = "  !! GEOMETRY MISMATCH — review before placing"
+
+            lines.append(f"  {i:>2}  {f['ftmo_symbol']:<14}  {side:<6}  "
+                         f"{cluster:<16}  {cell_desc:<18}  "
+                         f"{ent:>10}  {stp:>10}  {tgt:>10}  "
                          f"{f['lots']:>6.2f}  ${f['actual_risk']:>6.2f}  "
-                         f"{f['quality_rank']:>+6.3f}")
+                         f"{f['quality_rank']:>+6.3f}{warn}")
+        lines.append("")
+        lines.append("  SIDE column: BUY = long (target > entry > stop),  "
+                     "SELL = short (target < entry < stop)")
     if suppressed:
         lines.append("")
         lines.append("== SUPPRESSED ==")
