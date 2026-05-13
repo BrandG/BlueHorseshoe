@@ -15,8 +15,8 @@ from __future__ import annotations
 
 from typing import Iterable, Mapping
 
-MAX_MARGIN_UTILIZATION = 0.30
-MAX_NET_DIRECTION_IMBALANCE = 8
+MAX_MARGIN_UTILIZATION = 0.40
+MAX_NET_DIRECTION_IMBALANCE = 12
 
 
 def margin_utilization(summary: Mapping) -> float:

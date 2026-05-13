@@ -60,6 +60,7 @@ from bh_briefing import (
     _price_precision,
     compute_entry_stop_target,
     evaluate_cell,
+    ranked_cells,
 )
 from bh_ftmo.data.fx_store import FxStore
 from bh_ftmo.indicators import ohlc_mid
@@ -288,7 +289,7 @@ def run(*, dry_run: bool) -> int:
     cfg = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
     account_ccy = cfg["ftmo"]["account_currency"].upper()
 
-    deploy_cells = [c for c in CELLS if DEPLOY_PREDICATE(c)]
+    deploy_cells = [c for c in ranked_cells() if DEPLOY_PREDICATE(c)]
     deploy_pairs = {c.pair for c in deploy_cells}
     LOG.info("V2 autonomous: %d deployable cells across %d pairs (deployed: %s)",
              len(deploy_cells), len(deploy_pairs), sorted(DEPLOYED_STRATEGIES))

@@ -50,8 +50,12 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 CONFIG_PATH = REPO_ROOT / "src" / "bh_ftmo_config.json"
 BRIEFING_DIR = REPO_ROOT / "src" / "logs" / "briefings"
 
-# All v2 cells share these RR settings
-TP_PCT = 0.01
+# All v2 cells share these RR settings. TP tightened 2026-05-13 after MFE-sweep
+# analysis (research/mfe_tp_sweep/) showed throughput per slot is flat 0.4R–1.0R
+# on the full sample and peaks at 0.3R in the last 18 months — tight TPs match
+# or beat 1.0R on $/day because they release slots faster. Brand was already
+# discretionarily undercutting to ~0.5R with better results.
+TP_PCT = 0.005
 STOP_PCT = 0.01
 LOOKBACK_BARS = 300  # enough warmup for the slowest indicator (BB period=50)
 H4_BAR_HOURS = 4  # FxStore stores the bar's OPEN time; close = open + this
@@ -152,6 +156,68 @@ CELLS: list[Cell] = [
     Cell("candle", "USD_JPY", "long", "mid",
          {"pattern": "bull_engulf", "strict": False}),
 ]
+
+
+# Per-cell expectancy rank at TP=0.5R from the last 18 months of historical
+# H4 data (research/mfe_tp_sweep/per_trade.csv, computed 2026-05-13). Higher
+# value = stronger recent edge. Used to prioritize cells when MAX_NEW_ORDERS_PER_RUN
+# or safety gates would otherwise drop fires arriving later in CELLS order.
+# Refresh by re-running research/mfe_tp_sweep/run_mfe_sweep.py and grouping
+# per_trade.csv by (strategy, pair, direction).mean("r_tp0.5") over last 540d.
+CELL_QUALITY_RANK: dict[tuple[str, str, str], float] = {
+    ("ema",      "CHF_JPY", "long"):  0.3235,
+    ("rsi",      "CHF_JPY", "long"):  0.3209,
+    ("rsi",      "EUR_GBP", "long"):  0.3140,
+    ("bb",       "CHF_JPY", "long"):  0.2911,
+    ("bb",       "USD_JPY", "long"):  0.2447,
+    ("macd",     "CAD_CHF", "short"): 0.2439,
+    ("sma",      "EUR_GBP", "long"):  0.2434,
+    ("macd",     "NZD_JPY", "long"):  0.2273,
+    ("cci",      "CAD_CHF", "short"): 0.2178,
+    ("ema",      "EUR_CAD", "long"):  0.1998,
+    ("cci",      "CHF_JPY", "long"):  0.1968,
+    ("macd",     "EUR_CHF", "short"): 0.1909,
+    ("bb",       "CAD_CHF", "short"): 0.1826,
+    ("macd",     "NZD_USD", "short"): 0.1757,
+    ("stoch",    "CAD_CHF", "short"): 0.1725,
+    ("ema",      "EUR_GBP", "short"): 0.1656,
+    ("rsi",      "USD_JPY", "long"):  0.1627,
+    ("sma",      "EUR_CAD", "long"):  0.1596,
+    ("bb",       "AUD_CAD", "short"): 0.1250,
+    ("atr",      "NZD_CHF", "short"): 0.1226,
+    ("stoch",    "EUR_GBP", "long"):  0.1049,
+    ("stoch",    "CHF_JPY", "long"):  0.1000,
+    ("cci",      "USD_CAD", "long"):  0.0976,
+    ("sma",      "CAD_JPY", "long"):  0.0946,
+    ("ichimoku", "USD_SGD", "short"): 0.0927,
+    ("cci",      "EUR_USD", "short"): 0.0914,
+    ("candle",   "USD_JPY", "long"):  0.0862,
+    ("cci",      "USD_JPY", "long"):  0.0843,
+    ("ema",      "GBP_CAD", "long"):  0.0800,
+    ("stoch",    "USD_JPY", "long"):  0.0522,
+    ("atr",      "USD_JPY", "long"):  0.0369,
+    ("bb",       "EUR_CAD", "long"):  0.0129,
+    ("macd",     "AUD_JPY", "long"): -0.0122,
+    ("atr",      "EUR_NOK", "long"): -0.0325,
+}
+
+
+def ranked_cells(cells: list[Cell] | None = None) -> list[Cell]:
+    """Return cells sorted by CELL_QUALITY_RANK descending.
+
+    Cells missing from the rank map sort last (rank = -inf), preserving their
+    relative order. Use this in any consumer that processes fires under a cap
+    (MAX_NEW_ORDERS_PER_RUN, direction gate, margin gate) so the highest-edge
+    setups consume scarce slots first.
+    """
+    src = cells if cells is not None else CELLS
+    return sorted(
+        src,
+        key=lambda c: CELL_QUALITY_RANK.get(
+            (c.strategy, c.pair, c.direction), float("-inf"),
+        ),
+        reverse=True,
+    )
 
 
 def _bb_fired(mid_df: pd.DataFrame, params: dict, direction: str) -> bool:
