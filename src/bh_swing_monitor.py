@@ -65,6 +65,21 @@ def main(argv: list[str] | None = None) -> int:
     try:
         # Account snapshot first so we can tag fills with NAV / settled cash.
         account, positions, open_trades = reconciler.snapshot_account(client)
+
+        if not reconciler.is_broker_reachable(account):
+            # Broker unreachable. Skip reconcile + tracker render so the
+            # last-known-good HTML stays on disk (its stale mtime is the
+            # operator's cue). Exit non-zero so cron flags the run.
+            logger.error(
+                "Broker unreachable — empty account summary. "
+                "Skipping reconcile and HTML render."
+            )
+            journal.append(journal.JournalRow(
+                run_mode=run_mode, event=journal.EVENT_RUN_ERROR,
+                note="broker unreachable (empty account_id)",
+            ))
+            return 2
+
         nav = float(account.get("net_liquidation", 0.0) or 0.0)
         settled = float(account.get("settled_cash", 0.0) or 0.0)
         logger.info(

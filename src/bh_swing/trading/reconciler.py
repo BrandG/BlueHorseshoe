@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime, timedelta, timezone
+from typing import Mapping
 
 from bluehorseshoe.data.ibkr_client import IBKRClient
 
@@ -95,6 +96,17 @@ def reconcile(
         "fills_new": len(new_rows),
         "dup_skipped": dup_skipped,
     }
+
+
+def is_broker_reachable(account: Mapping) -> bool:
+    """Did the account-summary call actually reach IBKR?
+
+    IBKRClient.get_account_summary() returns a blank account_id only when the
+    underlying connection failed (timeout, refused, etc.). A real account
+    snapshot always carries the IBKR-issued account id. This is the cheapest
+    signal we have for "the gateway answered" vs "we got a stub of zeros".
+    """
+    return bool(account.get("account_id"))
 
 
 def snapshot_account(

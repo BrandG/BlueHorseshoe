@@ -87,3 +87,21 @@ class TestSnapshotAccount:
         assert account == {"net_liquidation": 1000.0}
         assert positions == [{"symbol": "AAPL", "position": 10}]
         assert trades == ["trade1", "trade2"]
+
+
+class TestIsBrokerReachable:
+    def test_populated_account_is_reachable(self):
+        assert reconciler.is_broker_reachable(
+            {"account_id": "DUE616654", "net_liquidation": 10000.0}
+        ) is True
+
+    def test_blank_account_id_is_unreachable(self):
+        # IBKRClient.get_account_summary() returns account_id="" on conn fail.
+        assert reconciler.is_broker_reachable({"account_id": "", "net_liquidation": 0.0}) is False
+
+    def test_missing_account_id_key_is_unreachable(self):
+        assert reconciler.is_broker_reachable({}) is False
+
+    def test_account_id_is_only_signal(self):
+        # Even with zero balances, a populated account_id means we reached IBKR.
+        assert reconciler.is_broker_reachable({"account_id": "DUE000001"}) is True
