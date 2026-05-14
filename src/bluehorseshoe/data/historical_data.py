@@ -681,7 +681,8 @@ def load_historical_data(symbol, database=None, score_manager_instance=None, sto
             if len(days) >= 20 and ('ema_20' not in days[-1] or 'avg_volume_20' not in days[-1]):
                 df = pd.DataFrame(days)
                 data['days'] = get_technical_indicators(df)
-                save_historical_data(symbol, data, store)
+                # No persist: DuckDB schema is OHLCV-only; indicators are
+                # always recomputed from raw OHLCV at load time.
 
                 # Also update score
                 try:
