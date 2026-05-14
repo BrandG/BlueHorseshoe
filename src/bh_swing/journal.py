@@ -17,20 +17,36 @@ from bluehorseshoe.core.config import REPO_ROOT
 
 JOURNAL_PATH = os.path.join(REPO_ROOT, "src", "logs", "bh_swing_journal.csv")
 
-# Event vocabulary. Reconciler-emitted events on top, action events on bottom.
+# Event vocabulary.
+#
+# Tier 1 — reconciler observations (broker truth -> log):
 EVENT_FILL_DETECTED = "fill_detected"
 EVENT_POSITION_OPENED = "position_opened"
 EVENT_POSITION_CLOSED = "position_closed"
 EVENT_PARTIAL_FILL = "partial_fill"
 EVENT_ORDER_CANCELLED = "order_cancelled"
 EVENT_ORDER_REJECTED = "order_rejected"
+EVENT_STATE_DRIFT = "state_drift"
+
+# Tier 2 — run lifecycle:
 EVENT_RUN_START = "run_start"
 EVENT_RUN_END = "run_end"
 EVENT_RUN_ERROR = "run_error"
-# Reserved for later phases:
+
+# Tier 3 — management actions (Phase 1+):
+EVENT_ACTION_PROPOSED = "action_proposed"  # decided what to do, before gates
+EVENT_ACTION_TAKEN = "action_taken"        # gate passed, broker call succeeded
+EVENT_ACTION_SKIPPED = "action_skipped"    # gate refused (rate-limit, widen, ...)
+EVENT_ACTION_FAILED = "action_failed"      # gate passed but broker call errored
+EVENT_STOP_ADVANCED = "stop_advanced"      # specific action: moved a stop
+EVENT_EARLY_EXIT = "early_exit"            # specific action: closed a position early
+EVENT_WOULD_ADVANCE_STOP = "would_advance_stop"  # dry-run shadow of stop_advanced
+EVENT_WOULD_CANCEL_ORDER = "would_cancel_order"  # dry-run shadow of order_cancelled
+EVENT_WOULD_CLOSE_POSITION = "would_close_position"  # dry-run shadow of early_exit
+EVENT_KILL_SWITCH_ACTIVE = "kill_switch_active"  # sentinel file present; skipped mutations
+
+# Reserved for Phase 2 (entry-side):
 EVENT_ORDER_PLACED = "order_placed"
-EVENT_STOP_ADVANCED = "stop_advanced"
-EVENT_EARLY_EXIT = "early_exit"
 EVENT_SKIP_PAUSED = "skip_paused"
 EVENT_SKIP_CASH = "skip_cash"
 EVENT_SKIP_DUPLICATE = "skip_duplicate"
