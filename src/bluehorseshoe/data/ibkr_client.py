@@ -408,6 +408,110 @@ class IBKRClient:
             logger.error("Error fetching open trades: %s", e)
             return []
 
+    def modify_order_stop(self, order_id: int, new_stop_price: float) -> dict:
+        """
+        Modify the stop (auxPrice) of a working STP order.
+
+        IBKR's modify semantics: call placeOrder again with the same orderId
+        and changed fields. The order keeps its orderId; only the modified
+        attributes propagate. We use reqAllOpenOrders() so this works across
+        clients (e.g., monitor modifies a PaperTrader-placed stop).
+
+        Returns dict with keys: order_id, status, error.
+        """
+        try:
+            self._ensure_connected()
+        except Exception as e:
+            return {"order_id": order_id, "status": "error", "error": str(e)}
+
+        try:
+            trades = self._ib.reqAllOpenOrders()
+            target = next(
+                (t for t in trades if getattr(t.order, "orderId", None) == order_id),
+                None,
+            )
+            if target is None:
+                return {"order_id": order_id, "status": "error",
+                        "error": f"order {order_id} not found in open trades"}
+
+            target.order.auxPrice = round(float(new_stop_price), 2)
+            self._ib.placeOrder(target.contract, target.order)
+            logger.info(
+                "modify_order_stop: order_id=%s new_stop=%.2f symbol=%s",
+                order_id, new_stop_price,
+                getattr(target.contract, "symbol", "?"),
+            )
+            return {"order_id": order_id, "status": "submitted", "error": None}
+        except Exception as e:
+            logger.error("Error modifying stop on order %s: %s", order_id, e)
+            return {"order_id": order_id, "status": "error", "error": str(e)}
+
+    def cancel_order(self, order_id: int) -> dict:
+        """
+        Cancel a working order.
+
+        Looks up the order across all clients via reqAllOpenOrders() and
+        calls IB.cancelOrder. Returns dict with keys: order_id, status, error.
+        """
+        try:
+            self._ensure_connected()
+        except Exception as e:
+            return {"order_id": order_id, "status": "error", "error": str(e)}
+
+        try:
+            trades = self._ib.reqAllOpenOrders()
+            target = next(
+                (t for t in trades if getattr(t.order, "orderId", None) == order_id),
+                None,
+            )
+            if target is None:
+                return {"order_id": order_id, "status": "error",
+                        "error": f"order {order_id} not found in open trades"}
+
+            self._ib.cancelOrder(target.order)
+            logger.info("cancel_order: order_id=%s symbol=%s",
+                        order_id, getattr(target.contract, "symbol", "?"))
+            return {"order_id": order_id, "status": "cancelling", "error": None}
+        except Exception as e:
+            logger.error("Error cancelling order %s: %s", order_id, e)
+            return {"order_id": order_id, "status": "error", "error": str(e)}
+
+    def place_market_order(
+        self, symbol: str, action: str, quantity: int,
+    ) -> dict:
+        """
+        Place a market order. Used by the flatten operator tool to exit
+        positions immediately.
+
+        Args:
+            symbol: stock ticker
+            action: "BUY" | "SELL"
+            quantity: positive integer
+
+        Returns dict with keys: order_id, status, error.
+        """
+        try:
+            self._ensure_connected()
+        except Exception as e:
+            return {"order_id": 0, "status": "error", "error": str(e)}
+
+        try:
+            import ib_async  # pylint: disable=import-outside-toplevel
+            contract = ib_async.Stock(symbol, "SMART", "USD")
+            self._ib.qualifyContracts(contract)
+            order = ib_async.MarketOrder(action, quantity)
+            order.tif = "DAY"
+            trade = self._ib.placeOrder(contract, order)
+            order_id = getattr(trade.order, "orderId", 0)
+            logger.info(
+                "place_market_order: symbol=%s %s qty=%d order_id=%s",
+                symbol, action, quantity, order_id,
+            )
+            return {"order_id": order_id, "status": "submitted", "error": None}
+        except Exception as e:
+            logger.error("Error placing market order for %s: %s", symbol, e)
+            return {"order_id": 0, "status": "error", "error": str(e)}
+
     def get_positions(self) -> List[dict]:
         """
         Get all current positions from IB Gateway.

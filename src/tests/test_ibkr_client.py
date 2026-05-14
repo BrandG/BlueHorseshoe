@@ -245,6 +245,129 @@ class TestIBKRClientWithMockedIB:
         assert client._ib is None
 
 
+class TestModifyOrderStop:
+    """IBKRClient.modify_order_stop uses placeOrder-with-same-orderId
+    semantics. The order is found across clients via reqAllOpenOrders."""
+
+    @patch("bluehorseshoe.data.ibkr_client.ib_async", create=True)
+    def test_modifies_and_resubmits(self, mock_ib_async):
+        mock_ib = MagicMock()
+        mock_ib.isConnected.return_value = True
+
+        trade = MagicMock()
+        trade.contract.symbol = "AAPL"
+        trade.order.orderId = 42
+        trade.order.auxPrice = 147.0
+        mock_ib.reqAllOpenOrders.return_value = [trade]
+        mock_ib_async.IB.return_value = mock_ib
+
+        with patch.dict("sys.modules", {"ib_async": mock_ib_async}):
+            client = IBKRClient()
+            client._ib = mock_ib
+            result = client.modify_order_stop(42, 150.0)
+
+        assert result["status"] == "submitted"
+        assert result["order_id"] == 42
+        assert result["error"] is None
+        assert trade.order.auxPrice == 150.0
+        mock_ib.placeOrder.assert_called_once_with(trade.contract, trade.order)
+
+    @patch("bluehorseshoe.data.ibkr_client.ib_async", create=True)
+    def test_order_not_found(self, mock_ib_async):
+        mock_ib = MagicMock()
+        mock_ib.isConnected.return_value = True
+        mock_ib.reqAllOpenOrders.return_value = []
+        mock_ib_async.IB.return_value = mock_ib
+
+        with patch.dict("sys.modules", {"ib_async": mock_ib_async}):
+            client = IBKRClient()
+            client._ib = mock_ib
+            result = client.modify_order_stop(99, 100.0)
+
+        assert result["status"] == "error"
+        assert "not found" in result["error"]
+        mock_ib.placeOrder.assert_not_called()
+
+    @patch("bluehorseshoe.data.ibkr_client.ib_async", create=True)
+    def test_broker_exception_propagates_as_error(self, mock_ib_async):
+        mock_ib = MagicMock()
+        mock_ib.isConnected.return_value = True
+        trade = MagicMock()
+        trade.order.orderId = 42
+        mock_ib.reqAllOpenOrders.return_value = [trade]
+        mock_ib.placeOrder.side_effect = RuntimeError("rejected by IBKR")
+        mock_ib_async.IB.return_value = mock_ib
+
+        with patch.dict("sys.modules", {"ib_async": mock_ib_async}):
+            client = IBKRClient()
+            client._ib = mock_ib
+            result = client.modify_order_stop(42, 150.0)
+
+        assert result["status"] == "error"
+        assert "rejected by IBKR" in result["error"]
+
+
+class TestCancelOrder:
+    @patch("bluehorseshoe.data.ibkr_client.ib_async", create=True)
+    def test_cancels(self, mock_ib_async):
+        mock_ib = MagicMock()
+        mock_ib.isConnected.return_value = True
+        trade = MagicMock()
+        trade.contract.symbol = "AAPL"
+        trade.order.orderId = 42
+        mock_ib.reqAllOpenOrders.return_value = [trade]
+        mock_ib_async.IB.return_value = mock_ib
+
+        with patch.dict("sys.modules", {"ib_async": mock_ib_async}):
+            client = IBKRClient()
+            client._ib = mock_ib
+            result = client.cancel_order(42)
+
+        assert result["status"] == "cancelling"
+        assert result["error"] is None
+        mock_ib.cancelOrder.assert_called_once_with(trade.order)
+
+    @patch("bluehorseshoe.data.ibkr_client.ib_async", create=True)
+    def test_cancel_order_not_found(self, mock_ib_async):
+        mock_ib = MagicMock()
+        mock_ib.isConnected.return_value = True
+        mock_ib.reqAllOpenOrders.return_value = []
+        mock_ib_async.IB.return_value = mock_ib
+
+        with patch.dict("sys.modules", {"ib_async": mock_ib_async}):
+            client = IBKRClient()
+            client._ib = mock_ib
+            result = client.cancel_order(99)
+
+        assert result["status"] == "error"
+        assert "not found" in result["error"]
+        mock_ib.cancelOrder.assert_not_called()
+
+
+class TestPlaceMarketOrder:
+    @patch("bluehorseshoe.data.ibkr_client.ib_async", create=True)
+    def test_market_sell(self, mock_ib_async):
+        mock_ib = MagicMock()
+        mock_ib.isConnected.return_value = True
+        # placeOrder returns Trade with orderId set
+        new_trade = MagicMock()
+        new_trade.order.orderId = 101
+        mock_ib.placeOrder.return_value = new_trade
+        mock_ib_async.Stock.return_value = MagicMock()
+        mock_ib_async.MarketOrder.return_value = MagicMock()
+        mock_ib_async.IB.return_value = mock_ib
+
+        with patch.dict("sys.modules", {"ib_async": mock_ib_async}):
+            client = IBKRClient()
+            client._ib = mock_ib
+            result = client.place_market_order("AAPL", "SELL", 10)
+
+        assert result["status"] == "submitted"
+        assert result["order_id"] == 101
+        mock_ib_async.MarketOrder.assert_called_with("SELL", 10)
+        mock_ib.placeOrder.assert_called_once()
+
+
 class TestGetOpenTrades:
     """Regression: monitor uses a different client_id than PaperTrader, so
     openTrades() (this-client only) misses the brackets we actually placed.
