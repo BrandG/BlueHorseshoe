@@ -250,7 +250,9 @@ class IBKRClient:
             contract = ib_async.Stock(symbol, "SMART", "USD")
             self._ib.qualifyContracts(contract)
 
-            bracket = ib_async.bracketOrder(
+            # ib_async moved the bracket-order helper from module-level to an
+            # instance method (kept the same kwargs).
+            bracket = self._ib.bracketOrder(
                 action="BUY",
                 quantity=quantity,
                 limitPrice=round(limit_price, 2),

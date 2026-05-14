@@ -243,3 +243,60 @@ class TestIBKRClientWithMockedIB:
 
         mock_ib.disconnect.assert_called_once()
         assert client._ib is None
+
+
+class TestPlaceBracketOrder:
+    """Regression coverage: ib_async moved bracketOrder() from module-level
+    to an instance method. Calling the old module-level form throws
+    AttributeError silently inside PaperTrader, which presents as every
+    submission returning status='error' with no orders placed."""
+
+    @patch("bluehorseshoe.data.ibkr_client.ib_async", create=True)
+    def test_calls_bracket_helper_on_ib_instance(self, mock_ib_async):
+        mock_ib = MagicMock()
+        mock_ib.isConnected.return_value = True
+
+        # Three Order mocks make up the bracket; placeOrder echoes each back
+        # with a unique orderId so the caller can record them.
+        parent, take_profit, stop_loss = MagicMock(), MagicMock(), MagicMock()
+        mock_ib.bracketOrder.return_value = [parent, take_profit, stop_loss]
+
+        trades = []
+        for oid in (101, 102, 103):
+            t = MagicMock()
+            t.order.orderId = oid
+            trades.append(t)
+        mock_ib.placeOrder.side_effect = trades
+
+        mock_ib_async.Stock.return_value = MagicMock()
+        mock_ib_async.IB.return_value = mock_ib
+
+        with patch.dict("sys.modules", {"ib_async": mock_ib_async}):
+            client = IBKRClient()
+            client._ib = mock_ib
+
+            result = client.place_bracket_order(
+                symbol="AAPL", quantity=10, limit_price=150.0,
+                take_profit_price=155.0, stop_loss_price=147.0,
+            )
+
+        # The fix: helper is called on the IB instance, not the module.
+        assert mock_ib.bracketOrder.called, "expected self._ib.bracketOrder() to be invoked"
+        assert not hasattr(mock_ib_async, "bracketOrder") or \
+            not mock_ib_async.bracketOrder.called, \
+            "must not call the obsolete module-level ib_async.bracketOrder()"
+
+        # Call-shape regression: kwargs must reach the helper unchanged.
+        kwargs = mock_ib.bracketOrder.call_args.kwargs
+        assert kwargs == {
+            "action": "BUY", "quantity": 10, "limitPrice": 150.0,
+            "takeProfitPrice": 155.0, "stopLossPrice": 147.0,
+        }
+        # All three legs were submitted and the order IDs collected.
+        assert mock_ib.placeOrder.call_count == 3
+        assert result["status"] == "submitted"
+        assert result["order_ids"] == [101, 102, 103]
+        assert result["error"] is None
+        # All legs must be GTC.
+        for leg in (parent, take_profit, stop_loss):
+            assert leg.tif == "GTC"
