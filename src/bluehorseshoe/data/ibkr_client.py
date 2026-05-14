@@ -389,14 +389,21 @@ class IBKRClient:
 
     def get_open_trades(self) -> list:
         """
-        Get all open Trade objects (order + contract + fills + status).
+        Get all open Trade objects (order + contract + fills + status)
+        across **all** clients on this account.
+
+        IBKR's API scopes order visibility to the client_id that placed
+        them — `openTrades()` alone would only return orders this client
+        submitted. `reqAllOpenOrders()` snapshots open orders from every
+        client (PaperTrader on client_id=1, monitor on client_id=7, etc.),
+        which is what the read-only monitor needs.
 
         Each Trade exposes .contract, .order, .orderStatus, .fills.
         Preferred over get_open_orders() when downstream needs symbol context.
         """
         try:
             self._ensure_connected()
-            return self._ib.openTrades()
+            return self._ib.reqAllOpenOrders()
         except Exception as e:
             logger.error("Error fetching open trades: %s", e)
             return []

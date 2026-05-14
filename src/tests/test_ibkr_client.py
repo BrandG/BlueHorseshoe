@@ -245,6 +245,50 @@ class TestIBKRClientWithMockedIB:
         assert client._ib is None
 
 
+class TestGetOpenTrades:
+    """Regression: monitor uses a different client_id than PaperTrader, so
+    openTrades() (this-client only) misses the brackets we actually placed.
+    get_open_trades must call reqAllOpenOrders() for cross-client visibility."""
+
+    @patch("bluehorseshoe.data.ibkr_client.ib_async", create=True)
+    def test_uses_reqAllOpenOrders_for_cross_client_visibility(self, mock_ib_async):
+        mock_ib = MagicMock()
+        mock_ib.isConnected.return_value = True
+        other_client_trade = MagicMock()
+        other_client_trade.contract.symbol = "AAPL"
+        mock_ib.reqAllOpenOrders.return_value = [other_client_trade]
+        # Local cache (would be empty for a fresh monitor connection)
+        mock_ib.openTrades.return_value = []
+        mock_ib_async.IB.return_value = mock_ib
+
+        with patch.dict("sys.modules", {"ib_async": mock_ib_async}):
+            client = IBKRClient()
+            client._ib = mock_ib
+
+            result = client.get_open_trades()
+
+        assert mock_ib.reqAllOpenOrders.called, \
+            "expected reqAllOpenOrders for cross-client visibility"
+        assert not mock_ib.openTrades.called, \
+            "must not use openTrades() — that's client-scoped"
+        assert result == [other_client_trade]
+
+    @patch("bluehorseshoe.data.ibkr_client.ib_async", create=True)
+    def test_returns_empty_on_exception(self, mock_ib_async):
+        mock_ib = MagicMock()
+        mock_ib.isConnected.return_value = True
+        mock_ib.reqAllOpenOrders.side_effect = RuntimeError("connection dropped")
+        mock_ib_async.IB.return_value = mock_ib
+
+        with patch.dict("sys.modules", {"ib_async": mock_ib_async}):
+            client = IBKRClient()
+            client._ib = mock_ib
+
+            result = client.get_open_trades()
+
+        assert result == []
+
+
 class TestPlaceBracketOrder:
     """Regression coverage: ib_async moved bracketOrder() from module-level
     to an instance method. Calling the old module-level form throws
