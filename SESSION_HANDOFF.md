@@ -1,5 +1,117 @@
 # Session Handoff
 
+**Date:** May 13–14, 2026
+**Status:** **BH Swing Phase 0 live & exercised + Phase 1a shipped + cron flipped to `--manage-dry-run`.**
+
+The big arc this session: IBKR Pro conversion landed → Phase 0 end-to-end against real paper positions → Phase 1 kickoff plan locked → Phase 1a code shipped and now running as cron-driven shadow management. Next session picks up the Phase 1a → 1b promotion decision.
+
+## Where things stand (current reality on master)
+
+Latest commit: `7aff8a9` on `origin/master`. Branch is clean.
+
+Cron entries on the BlueHorseshoe droplet (134.122.15.186):
+```
+*/5 13-21 * * 1-5 /root/BlueHorseshoe/run_bh_swing_monitor.sh --manage-dry-run
+```
+plus the unchanged bh_ftmo set (incremental update, predict, paper, briefing, v2_paper). Run-flag change from Phase 0 read-only to Phase 1a shadow management — no broker mutations from bh_swing yet.
+
+IBKR paper account `DUE616654`: NAV ~$1,052,200. **5 open paper positions** from the morning's `-p` run sitting at entry price waiting for T1 fills:
+- RPRX qty 18 @ $53.25 (T1 $54.31, T2 $55.36, stop $51.63)
+- VRSN qty 3 @ $295.14 (T1 $301.04, T2 $310.18, stop $283.39)
+- EXEL qty 19 @ $51.29 (T1 $52.32, T2 $54.67, stop $48.79)
+- VLGEA qty 22 @ $45.26 (T1 $46.17, T2 $47.49, stop $43.39)
+- TRGP qty 3 @ $263.29 (T1 $268.56, T2 $281.74, stop $251.99)
+
+LI was a full bracket lifecycle today (opened 13:59 UTC, stopped out 13:59 UTC at $19.13).
+
+BTX, BIIB, NTAP, PBA entries placed but never filled today — their BUY LMTs sat below market.
+
+## What shipped this session
+
+### IBKR Pro live (account conversion complete)
+Lite→Pro request from yesterday processed overnight. Gateway logs in cleanly, no dialog stalls, API listener on port 4004 reachable. `EXISTING_SESSION_DETECTED_ACTION: primary` and `VNC_SERVER_PASSWORD` env vars in `docker/docker-compose.yml` from yesterday are still there — the first is required for unattended ops, the second is debug-only (consider removing once 1b is stable).
+
+### Four Phase 0 fixes (all on master, all with regression tests)
+1. `6fe438b` — drop no-op DuckDB resave in `load_historical_data()` (was spamming "Cannot write to a read-only DuckDBStore" warnings on every `-p`)
+2. `ef483df` — `bh_swing_monitor` was silently degrading when the gateway dropped (returning empty dicts → clean `run_end` with $0 NAV). Added `reconciler.is_broker_reachable()` + monitor branch that emits `run_error` and exit 2 on unreachable broker
+3. `137eb82` — `ib_async.bracketOrder` API drift: helper moved from module-level to IB instance method. Was silently failing every paper bracket submission with `AttributeError`
+4. `366dbe8` — cross-client visibility: monitor (`client_id=7`) couldn't see PaperTrader's orders (`client_id=1`) until we switched `get_open_trades()` from `openTrades()` to `reqAllOpenOrders()`
+
+### Phase 0 fully exercised end-to-end
+After fixes, ran `-p` with `PAPER_TRADING_ENABLED=true`. 10/10 brackets submitted, 60 working-order legs visible in the tracker HTML, 6 `fill_detected` events observed across 6 symbols within 30 min of market open. Phase 0 exit-gate items 1–4 are met; item 5 (5 trading days soak) is calendar time only.
+
+### Phase 1 plan locked
+`/root/.claude/plans/phase1-bh-swing-kickoff.md` written. Three sub-phases (1a shadow → 1b live mechanical → 1c live early-exit), each with explicit exit criteria. Brand confirmed all four open questions in the plan: single script with flags (not split daemon), match broker orders to Mongo `trade_orders` metadata, EOD-only dynamic early-exit (Phase 1c), safety gates module mirroring `bh_ftmo`. **Stop rule v1 = breakeven on T1 fill, swap to midpoint or ATR-clamped via config later.**
+
+### Phase 1a shipped — two commits, 66 new tests
+- `be23caf` — pure-logic layer: `position_state.py` (ManagedPosition + BracketLeg + builder that merges broker truth with Mongo metadata), `stop_rules.py` (breakeven advancement + early-exit hook stub), `safety.py` (4 gates: stop-tightening, rate limit ≤3 mutations/tick, position cap, kill-switch file sentinel), expanded journal vocabulary
+- `7aff8a9` — broker integration: `manager.py` orchestrator, IBKRClient `modify_order_stop`/`cancel_order`/`place_market_order`, `bh_swing_flatten.py` operator tool, `bh_swing_monitor.py --manage`/`--manage-dry-run` flags
+
+Total bh_swing tests: **117** (51 from Phase 0 + 66 new). Full repo: 1549 pass, 0 regressions. The pre-existing 8 failures in `test_strategy.py` / `test_signal_generator.py` (weight-config drift) remain unrelated.
+
+### Cron updated to shadow mode
+Cron now passes `--manage-dry-run` so the orchestrator runs every 5 min during market hours alongside the read-only reconcile. Journal will accumulate `action_proposed` + `would_advance_stop` rows when any T1 fires.
+
+## Next session — Phase 1a → 1b decision
+
+When you come back:
+
+1. **Eyeball the journal:**
+   ```
+   grep -E "would_advance_stop|action_proposed|state_drift|action_skipped" /root/BlueHorseshoe/src/logs/bh_swing_journal.csv | tail -30
+   ```
+   Look for `would_advance_stop` events from any T1 fills that happened while you were away. Each row's `note` says "T1 filled @ X.XX -> advance T2 stop to breakeven Y.YY" — sanity-check that the proposed moves match what you'd do manually.
+
+2. **Phase 1a exit gate:** proposed actions match your manual judgment ≥ 90% of the time across 3+ trading days. If yes, flip the cron line from `--manage-dry-run` to `--manage`:
+   ```
+   crontab -e
+   # change: */5 13-21 * * 1-5 /root/BlueHorseshoe/run_bh_swing_monitor.sh --manage-dry-run
+   # to:     */5 13-21 * * 1-5 /root/BlueHorseshoe/run_bh_swing_monitor.sh --manage
+   ```
+   Sub-phase 1b is then live mechanical management (real `modify_order_stop` calls).
+
+3. **If you need to pause mid-flight at any point:**
+   ```
+   touch /root/BlueHorseshoe/.bh_swing_pause_management
+   ```
+   Halts all mutations within one tick. `rm` resumes.
+
+4. **Emergency exit:**
+   ```
+   ./run.sh python src/bh_swing_flatten.py            # dry-run preview
+   ./run.sh python src/bh_swing_flatten.py --execute  # actually flatten
+   ```
+
+## Open questions / blockers
+
+- **None blocking.** The cron is running, the suite is green, the plan is clear.
+- **TWS daily disconnect** caused a gateway wedge yesterday (~04:31 UTC). Recovered by a single `docker compose up -d --force-recreate ib-gateway`. If this recurs nightly, we'll want auto-recovery (cron watchdog that bounces the container on socat-error patterns). Not urgent — once-per-day manual bounce is tolerable for now.
+- **No T1 fills observed yet.** The 5 open positions are sitting at entry price; if none fires within the 3-day soak, Brand may need to either accept the soak as "no evidence accumulated, ship to 1b anyway" or place an entry at higher quantity / closer-to-market T1 to force a test. Decision deferred until end of soak.
+- **Phase 1 plan doc** at `/root/.claude/plans/phase1-bh-swing-kickoff.md` references existing research on midpoint advancement / dynamic early-exit. None was found in the repo — the only artifacts are `backtest.use_trailing_stop` (defaulted off, untuned) and `bh_lite.check_position_health` (status classifier, not action engine). If you have notes elsewhere, they'd inform the Phase 1c rule tuning.
+
+## Memory written this session
+
+- `reference_ibkr_account_types.md` — IBKR Lite forbids API; must be Pro
+- `reference_ibkr_gateway_compose.md` — compose env-var checklist, `$$` escaping, VNC tunnel howto
+
+## Key files modified
+
+- `src/bh_swing/` package — full Phase 1a additions (see commits)
+- `src/bluehorseshoe/data/ibkr_client.py` — read-only methods (`get_positions`, `get_account_summary`, `get_open_trades`) + mutations (`modify_order_stop`, `cancel_order`, `place_market_order`) + `bracketOrder` API fix
+- `src/bluehorseshoe/data/historical_data.py` — dropped no-op DuckDB resave
+- `src/bh_swing_monitor.py` — `--manage` / `--manage-dry-run` flags
+- `src/bh_swing_status.py`, `src/bh_swing_flatten.py` — operator tools
+- `docker/docker-compose.yml` — `EXISTING_SESSION_DETECTED_ACTION`, `VNC_SERVER_PASSWORD`
+- Crontab — `--manage-dry-run` flag added
+- 10 new test files / extensions, 1549 tests pass
+
+## Untracked / not committed
+
+- `docs/IBKR_journal.csv` — raw IBKR account statement export. Likely sensitive (account balances, full position history). Left untracked in every commit this session. Decide separately whether to add to `.gitignore` or move out of `docs/`.
+- `src/bh_positions.py` has an uncommitted edit (auto-suffix `.sim` to FTMO symbols) — yours, not mine; left alone.
+
+---
+
 **Date:** May 12, 2026
 **Status:** **BH Swing automation plan locked + Phase 0 (read-only shadow) scaffolded + IBKR Lite→Pro conversion in flight.**
 
