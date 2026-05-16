@@ -1,5 +1,94 @@
 # Session Handoff
 
+**Date:** May 16, 2026
+**Status:** **Phase 1a soak unblocked (position-cap gate fix) + nightly IB Gateway wedge resolved (two-layer fix). Cron still on `--manage-dry-run`.**
+
+Short Saturday session. Two operational issues found and fixed; no Phase 1 progression yet. The May 13 soak had produced zero `would_advance_stop` evidence because a safety gate was halting every tick, and the same nightly gateway-wedge pattern from the prior handoff recurred. Both fixes are on master.
+
+## Where things stand (current reality on master)
+
+Latest commit: `f85cb3a` on `origin/master`. Branch is clean of my changes (Brand still has the uncommitted `.sim` suffix edit in `src/bh_positions.py` and two untracked docs: `docs/IBKR_journal.csv`, `docs/SUBSYSTEMS_GUIDE.md`).
+
+**IB Gateway is healthy right now** — `Login has completed` at 09:28 UTC, Java listener probe rc=0, `bh_swing_status` reports NAV $1,052,532 and **15 open paper positions**: SDRL, VLGEA, BTX, VRSN, EPD, TRGP, EXEL, NVGS, ENS, TRP, RPRX, USAC, NTAP, WMB, PBA. Bracket legs all `PreSubmitted`.
+
+15 positions = 5 leftovers from May 14 (RPRX/VRSN/EXEL/VLGEA/TRGP, still sitting at entry) + 10 fresh from May 15's `-p`. **`PaperTrader` doesn't subtract still-working brackets from its target-N count** — that's a separate latent bug worth fixing later.
+
+Cron entries (no schedule changes; one new line):
+```
+*/5 13-21 * * 1-5 /root/BlueHorseshoe/run_bh_swing_monitor.sh --manage-dry-run
+1-59/5 * * * *   /root/BlueHorseshoe/run_ibgw_watchdog.sh        # NEW this session
+```
+The `1-59/5` offset is deliberate: watchdog fires 1 min off the monitor schedule so a bounce never overlaps a monitor tick.
+
+## What shipped this session
+
+### 1. Safety-gate semantics fix (`af46103`)
+
+The Phase 1a soak was producing zero evidence because every monitor tick since 2026-05-15 21:25 UTC was halted by:
+```
+action_skipped — global: 15 open positions exceeds cap 10; halting mutations
+```
+
+The cap-as-halt was the wrong shape for this orchestrator: it only does **risk-reducing** mutations (stop-tightening, future early-exit close). Blocking those when the book is bloated is *more* dangerous, not less. The cap belongs on entry-side flows (`PaperTrader`) that actually add positions.
+
+Fix: in `manager.py`, over-cap now emits a `state_drift` row tagged `position_cap_exceeded:` for ops visibility, then management continues. `safety.py` docstring updated to reflect the new diagnostic role. Test flipped from "asserts halt" → "asserts state_drift logged + management proceeds + would_advance_stop emitted". All 87 bh_swing tests pass.
+
+### 2. Two-layer IB Gateway wedge fix (`f85cb3a`)
+
+Same nightly-disconnect wedge pattern as the May 13 incident, now diagnosed end-to-end:
+
+- **01:40 UTC** — IBKR's nightly server-maintenance disconnect (expected, daily).
+- **05:15 UTC** — IBC tries to reconnect ("Connecting to server..."), then "Starting application..." frame **Closed** silently.
+- **05:32 UTC →** Java process is dead, but the container is still "up" so `restart: unless-stopped` never fires. Crucially, **socat keeps accepting TCP on host port 4004 even after Java dies** — so a host-side `nc -z` probe falsely reports "healthy." The right probe is to `docker exec` into the container and test Java's 4002 listener directly.
+
+**Layer 1 (preventive) — `docker/docker-compose.yml`:** `AUTO_RESTART_TIME: "08:00"` (was `""`). IBC recycles Java daily at 4am ET, past the nightly disconnect and well before US market open (13:30 UTC). Clean controlled login instead of fragile auto-reconnect.
+
+**Layer 2 (recovery) — `run_ibgw_watchdog.sh`:** cronned at `1-59/5 * * * *`. Probes via
+```bash
+timeout 8 docker exec ib-gateway bash -c \
+  "timeout 3 bash -c 'exec 3<>/dev/tcp/127.0.0.1/4002'"
+```
+rc=0 = healthy (exit silently), rc≠0 = wedge (force-recreate the container). 15-min cooldown file at `/tmp/ibgw_watchdog.last_bounce` prevents stacked recreates while a new container is mid-login. Log at `src/logs/ibgw_watchdog.log`.
+
+**Verified end-to-end this session:** running the watchdog manually against the live wedge correctly detected it, triggered the recreate, IBC login completed in ~60s, Java listener probe returned rc=0, gateway is now healthy.
+
+### 3. Memory saved
+
+- `reference_ibgw_wedge_probe.md` — the host-side-nc-is-misleading lesson plus the correct probe pattern. Indexed in MEMORY.md References. Future-Claude finding "gateway looks fine but bh_swing_monitor is timing out" will land on the right diagnosis instead of repeating today's detour.
+
+## Next session — same Phase 1a → 1b decision, now actually evaluable
+
+When you come back:
+
+1. **Eyeball the journal** for the new `state_drift: position_cap_exceeded` plus any `would_advance_stop` rows that fired:
+   ```
+   grep -E "would_advance_stop|action_proposed|state_drift|action_skipped" \
+     /root/BlueHorseshoe/src/logs/bh_swing_journal.csv | tail -50
+   ```
+   With the gate fix in place, Monday's ticks will *all* log a `state_drift` row (15 > 10), then proceed through stop-rule evaluation. Any T1 fill should now produce a `would_advance_stop`. Each row's `note` says "T1 filled @ X.XX -> advance T2 stop to breakeven Y.YY" — sanity-check that the proposed moves match what you'd do manually.
+
+2. **Phase 1a exit gate** unchanged: proposed actions match your manual judgment ≥90% across 3+ trading days. If yes, flip cron from `--manage-dry-run` → `--manage`. We still need T1s to fire — if none fires through the soak, same decision as before (accept "no evidence accumulated, ship to 1b anyway" or force a test).
+
+3. **Operator controls** unchanged: kill-switch at `touch /root/BlueHorseshoe/.bh_swing_pause_management`; emergency flatten at `./run.sh python src/bh_swing_flatten.py --execute`.
+
+4. **Watchdog observability:** `tail -f src/logs/ibgw_watchdog.log` to see any bounces. File stays empty on healthy days — the script exits silently when the probe passes. If you see daily entries, IBC's 08:00 UTC restart isn't working and we'd need to investigate.
+
+## Open questions / blockers
+
+- **PaperTrader double-deploy.** `-p` placed 10 new bracket sets on top of the 5 working ones from May 14, putting us at 15 — `PAPER_MAX_POSITIONS=10` is being interpreted as "submit 10" rather than "have at most 10." Not blocking, but worth fixing before we ever go from paper to live capital. Suggested location to look: `src/bluehorseshoe/trading/paper_trader.py` (untouched this session).
+- **No T1 fills yet on the May 14 batch.** Still 4 calendar days into a 3-trading-day soak. RPRX/VRSN/EXEL/VLGEA/TRGP all at entry price. Same decision deferred as last session.
+- **TWS daily disconnect** should now self-heal via either IBC's 08:00 UTC restart or the watchdog. The first IBC-restart cycle happens tomorrow morning — worth checking the gateway logs Monday to confirm `AUTO_RESTART_TIME` actually fired.
+
+## Key files modified
+
+- `src/bh_swing/trading/manager.py` — over-cap is now a `state_drift` note, not a halt
+- `src/bh_swing/trading/safety.py` — docstring on `position_count_under_cap` clarified
+- `src/tests/test_bh_swing_manager.py` — test flipped (still 87 bh_swing tests passing)
+- `docker/docker-compose.yml` — `AUTO_RESTART_TIME: "08:00"`
+- `run_ibgw_watchdog.sh` — new, executable, cronned
+
+---
+
 **Date:** May 13–14, 2026
 **Status:** **BH Swing Phase 0 live & exercised + Phase 1a shipped + cron flipped to `--manage-dry-run`.**
 
