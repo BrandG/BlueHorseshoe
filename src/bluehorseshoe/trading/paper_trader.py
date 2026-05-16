@@ -8,7 +8,7 @@ import math
 import os
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Set, Tuple
 
 from pymongo.database import Database
 
@@ -102,8 +102,31 @@ class PaperTrader:
         """
         if idea_lookup is None:
             idea_lookup = {}
-        top = candidates[: self._config.max_positions]
+
+        # Treat max_positions as "have at most this many on the book," not
+        # "submit this many now." Without this, running -p with N still-working
+        # brackets from yesterday submits N more today and the book grows
+        # unbounded across days.
+        occupied = self._get_occupied_symbols()
+        if occupied is None:
+            # Broker unreachable. Fail closed — don't size off stale assumptions.
+            logger.error(
+                "Paper trading: broker unreachable; skipping submission of "
+                "%d candidates", len(candidates),
+            )
+            return []
+
+        slots_available = max(0, self._config.max_positions - len(occupied))
+        eligible = [c for c in candidates if c.get("symbol", "") not in occupied]
+        top = eligible[:slots_available]
         per_position = self._config.total_investment / self._config.max_positions
+
+        logger.info(
+            "Paper trading: %d occupied, %d slots available, "
+            "%d/%d candidates eligible after dedup, submitting %d",
+            len(occupied), slots_available,
+            len(eligible), len(candidates), len(top),
+        )
 
         results: List[OrderResult] = []
 
@@ -215,6 +238,38 @@ class PaperTrader:
         self._log_trade_orders(results, target_date)
 
         return results
+
+    def _get_occupied_symbols(self) -> Optional[Set[str]]:
+        """Symbols the broker already considers ours, by either an open
+        position or a working BUY entry order. Returns None if the broker
+        is unreachable, so the caller can fail closed.
+
+        SELL legs (bracket exit orders) don't get counted separately — the
+        parent position is already counted via get_positions().
+        """
+        # Reachability test mirrors bh_swing.trading.reconciler — a blank
+        # account_id is how IBKRClient signals "the call didn't reach the
+        # gateway" (it swallows exceptions and returns a stub).
+        account = self._client.get_account_summary()
+        if not account.get("account_id"):
+            return None
+
+        occupied: Set[str] = set()
+        for p in self._client.get_positions():
+            if p.get("position", 0) != 0 and p.get("symbol"):
+                occupied.add(p["symbol"])
+
+        for trade in self._client.get_open_trades():
+            contract = getattr(trade, "contract", None)
+            order = getattr(trade, "order", None)
+            if contract is None or order is None:
+                continue
+            action = getattr(order, "action", "")
+            symbol = getattr(contract, "symbol", "")
+            if action == "BUY" and symbol:
+                occupied.add(symbol)
+
+        return occupied
 
     @staticmethod
     def _validate_prices(

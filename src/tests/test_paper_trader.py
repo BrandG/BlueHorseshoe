@@ -35,20 +35,55 @@ def _make_candidate(
 
 
 def _make_trader(tmp_path, db=None, client=None):
-    """Create a PaperTrader with mocked client and optional mock db."""
+    """Create a PaperTrader with mocked client and optional mock db.
+
+    Default mock client = healthy broker with nothing on the book. Tests
+    that need a non-empty book or a wedged gateway pass their own client.
+    """
     if client is None:
-        client = MagicMock(spec=["place_bracket_order"])
+        client = MagicMock(spec=[
+            "place_bracket_order",
+            "get_account_summary",
+            "get_positions",
+            "get_open_trades",
+        ])
         client.place_bracket_order.return_value = {
             "order_ids": [1, 2, 3],
             "status": "submitted",
             "error": None,
         }
+    # If the caller passed a spec-less or partial MagicMock, give it sensible
+    # defaults for the occupancy-check methods so existing tests don't have
+    # to know about the new behavior. Tests that *want* to assert occupancy
+    # configure these explicitly.
+    _ensure_broker_defaults(client)
     config = PaperTradeConfig(
         total_investment=10000.0,
         max_positions=10,
         logs_path=str(tmp_path),
     )
     return PaperTrader(ibkr_client=client, config=config, database=db)
+
+
+def _ensure_broker_defaults(client):
+    """Default the occupancy-check reads to 'healthy broker, empty book',
+    but ONLY for methods the caller hasn't already configured. Tests that
+    set their own return_value (e.g. an open position) keep it.
+    """
+    defaults = {
+        "get_account_summary": {"account_id": "PAPER1"},
+        "get_positions": [],
+        "get_open_trades": [],
+    }
+    for method_name, default in defaults.items():
+        try:
+            method = getattr(client, method_name)
+        except AttributeError:
+            continue  # spec-restricted mock without this method
+        # An unconfigured MagicMock returns a MagicMock from .return_value.
+        # Only override when nothing real has been set.
+        if isinstance(method.return_value, MagicMock):
+            method.return_value = default
 
 
 # ── Position sizing ──────────────────────────────────────────────────
@@ -273,11 +308,12 @@ class TestMongoLogging:
 
 class TestExecuteEndToEnd:
     def test_max_positions_respected(self, tmp_path):
-        """15 candidates with max_positions=10 → only 10 processed."""
+        """15 candidates with max_positions=10 and empty broker → only 10 processed."""
         client = MagicMock()
         client.place_bracket_order.return_value = {
             "order_ids": [1, 2, 3], "status": "submitted", "error": None,
         }
+        _ensure_broker_defaults(client)
         config = PaperTradeConfig(
             total_investment=10000.0,
             max_positions=10,
@@ -316,6 +352,152 @@ class TestExecuteEndToEnd:
         assert results[2].status == "submitted"
         # Split orders: 2 calls per valid position = 4
         assert client.place_bracket_order.call_count == 4
+
+
+# ── Occupancy-aware sizing (cap = "have at most", not "submit this many") ──
+
+class TestOccupancyAwareSizing:
+    """The double-deploy bug: PaperTrader used to submit N brackets every run
+    regardless of what was already working on the broker. Across days this
+    stacked unboundedly. Cap is now 'have at most N on the book at once.'"""
+
+    @staticmethod
+    def _trade(symbol, action="BUY"):
+        """A minimal stand-in for an ib_async Trade: just the attrs we read."""
+        t = MagicMock()
+        t.contract.symbol = symbol
+        t.order.action = action
+        return t
+
+    def test_skips_candidate_already_in_open_positions(self, tmp_path):
+        """If AAPL is already in get_positions(), the AAPL candidate is dropped
+        and we don't pile T1+T2 onto it."""
+        client = MagicMock(spec=[
+            "place_bracket_order", "get_account_summary",
+            "get_positions", "get_open_trades",
+        ])
+        client.place_bracket_order.return_value = {
+            "order_ids": [1, 2, 3], "status": "submitted", "error": None,
+        }
+        client.get_account_summary.return_value = {"account_id": "PAPER1"}
+        client.get_positions.return_value = [
+            {"symbol": "AAPL", "position": 10, "avg_cost": 150.0},
+        ]
+        client.get_open_trades.return_value = []
+        trader = _make_trader(tmp_path, client=client)
+
+        results = trader.execute(
+            [_make_candidate(symbol="AAPL"), _make_candidate(symbol="MSFT")],
+            "2026-01-15",
+        )
+        symbols_submitted = {r.symbol for r in results if r.status == "submitted"}
+        assert "MSFT" in symbols_submitted
+        assert "AAPL" not in symbols_submitted
+        # MSFT split-bracket = 2 place_bracket_order calls, no AAPL calls
+        assert client.place_bracket_order.call_count == 2
+
+    def test_skips_candidate_with_working_buy_entry(self, tmp_path):
+        """If a BUY LMT is working for AAPL (entry not yet filled), the AAPL
+        candidate is dropped — the slot is already reserved."""
+        client = MagicMock(spec=[
+            "place_bracket_order", "get_account_summary",
+            "get_positions", "get_open_trades",
+        ])
+        client.place_bracket_order.return_value = {
+            "order_ids": [1, 2, 3], "status": "submitted", "error": None,
+        }
+        client.get_account_summary.return_value = {"account_id": "PAPER1"}
+        client.get_positions.return_value = []
+        client.get_open_trades.return_value = [
+            self._trade("AAPL", action="BUY"),
+        ]
+        trader = _make_trader(tmp_path, client=client)
+
+        results = trader.execute(
+            [_make_candidate(symbol="AAPL"), _make_candidate(symbol="MSFT")],
+            "2026-01-15",
+        )
+        symbols_submitted = {r.symbol for r in results if r.status == "submitted"}
+        assert symbols_submitted == {"MSFT"}
+
+    def test_sell_legs_alone_do_not_occupy_a_slot(self, tmp_path):
+        """SELL legs are bracket exits, tied to existing positions. They
+        shouldn't double-count vs. get_positions(). If AAPL has SELL legs
+        working but no open position, the symbol is free."""
+        client = MagicMock(spec=[
+            "place_bracket_order", "get_account_summary",
+            "get_positions", "get_open_trades",
+        ])
+        client.place_bracket_order.return_value = {
+            "order_ids": [1, 2, 3], "status": "submitted", "error": None,
+        }
+        client.get_account_summary.return_value = {"account_id": "PAPER1"}
+        client.get_positions.return_value = []
+        client.get_open_trades.return_value = [
+            self._trade("AAPL", action="SELL"),
+        ]
+        trader = _make_trader(tmp_path, client=client)
+        results = trader.execute([_make_candidate(symbol="AAPL")], "2026-01-15")
+        assert results[0].status == "submitted"
+
+    def test_caps_to_remaining_slots(self, tmp_path):
+        """7 already on the book + max_positions=10 → only top 3 candidates
+        get submitted, even if 10 candidates are eligible."""
+        client = MagicMock(spec=[
+            "place_bracket_order", "get_account_summary",
+            "get_positions", "get_open_trades",
+        ])
+        client.place_bracket_order.return_value = {
+            "order_ids": [1, 2, 3], "status": "submitted", "error": None,
+        }
+        client.get_account_summary.return_value = {"account_id": "PAPER1"}
+        client.get_positions.return_value = [
+            {"symbol": f"HELD{i}", "position": 1, "avg_cost": 50.0} for i in range(7)
+        ]
+        client.get_open_trades.return_value = []
+        trader = _make_trader(tmp_path, client=client)
+        # 10 fresh candidates, none overlap with HELD*
+        candidates = [_make_candidate(symbol=f"NEW{i}") for i in range(10)]
+        results = trader.execute(candidates, "2026-01-15")
+
+        # 10 - 7 = 3 slots available
+        assert len(results) == 3
+        assert client.place_bracket_order.call_count == 6  # 3 × split bracket
+
+    def test_full_book_submits_nothing(self, tmp_path):
+        """10 on the book + max_positions=10 → 0 candidates submitted."""
+        client = MagicMock(spec=[
+            "place_bracket_order", "get_account_summary",
+            "get_positions", "get_open_trades",
+        ])
+        client.get_account_summary.return_value = {"account_id": "PAPER1"}
+        client.get_positions.return_value = [
+            {"symbol": f"HELD{i}", "position": 1, "avg_cost": 50.0} for i in range(10)
+        ]
+        client.get_open_trades.return_value = []
+        trader = _make_trader(tmp_path, client=client)
+        results = trader.execute(
+            [_make_candidate(symbol=f"NEW{i}") for i in range(5)],
+            "2026-01-15",
+        )
+        assert results == []
+        client.place_bracket_order.assert_not_called()
+
+    def test_unreachable_broker_skips_all(self, tmp_path):
+        """Blank account_id signals the gateway didn't answer. Fail closed
+        rather than size off an empty assumption."""
+        client = MagicMock(spec=[
+            "place_bracket_order", "get_account_summary",
+            "get_positions", "get_open_trades",
+        ])
+        client.get_account_summary.return_value = {"account_id": ""}
+        trader = _make_trader(tmp_path, client=client)
+        results = trader.execute(
+            [_make_candidate(symbol=f"NEW{i}") for i in range(5)],
+            "2026-01-15",
+        )
+        assert results == []
+        client.place_bracket_order.assert_not_called()
 
 
 # ── Graceful failure ─────────────────────────────────────────────────
