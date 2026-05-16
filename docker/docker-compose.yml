@@ -21,7 +21,14 @@ services:
       TRADING_MODE: ${TRADING_MODE:-paper}
       READ_ONLY_API: ${IBKR_READ_ONLY:-yes}
       TWOFA_TIMEOUT_ACTION: restart
-      AUTO_RESTART_TIME: ""
+      # IBC restarts the Java process daily at this UTC time. Set to 08:00
+      # (= 4am ET) — past IBKR's nightly server-maintenance disconnect
+      # (~01:40 UTC) and well before US market open (13:30 UTC). Without
+      # this, the Java process tries to auto-reconnect after the daily
+      # disconnect and often wedges silently (container stays up but the
+      # API listener inside is dead). Watchdog cron is the backstop for
+      # any failure mode IBC's daily restart misses.
+      AUTO_RESTART_TIME: "08:00"
       ACCEPT_INCOMING_CONNECTION: accept
       # Always claim the IBKR session on startup. Required for unattended
       # operation — if a human is logged into the portal, the gateway will
