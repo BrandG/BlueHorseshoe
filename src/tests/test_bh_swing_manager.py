@@ -90,22 +90,33 @@ class TestGlobalGates:
         events = [r["event"] for r in journal.read_recent()]
         assert "kill_switch_active" in events
 
-    def test_position_cap_halts_pass(self, temp_journal, monkeypatch):
+    def test_position_cap_exceeded_logs_drift_but_continues(self, temp_journal, monkeypatch):
+        """Over-cap is diagnostic only for this orchestrator — risk-reducing
+        actions (stop-tightening, early-exit) should still proceed so a
+        bloated book doesn't go unmanaged."""
         client = MagicMock()
         _mock_build_managed(monkeypatch, [_t1_filled_position()])
 
         positions = [{"symbol": f"S{i}", "position": 1, "avg_cost": 1.0} for i in range(11)]
         cfg = manager.ManageConfig(
-            dry_run=False, position_count_cap=10,
+            dry_run=True, position_count_cap=10,
             kill_switch_path="/tmp/never-exists",
         )
         ms = manager.manage_tick(
             client=client, broker_positions=positions, broker_open_trades=[],
             trade_orders_collection=_coll(), config=cfg,
         )
-        assert ms.halted_reason is not None
-        assert "exceeds cap" in ms.halted_reason
-        client.modify_order_stop.assert_not_called()
+        # No halt.
+        assert ms.halted_reason is None
+        # Diagnostic row was written.
+        rows = journal.read_recent()
+        drift_rows = [r for r in rows if r["event"] == journal.EVENT_STATE_DRIFT]
+        assert any("position_cap_exceeded" in r.get("note", "") for r in drift_rows)
+        # Management proceeded — proposed advancement made it through.
+        assert ms.proposed == 1
+        assert ms.taken == 1
+        would_events = [r for r in rows if r["event"] == journal.EVENT_WOULD_ADVANCE_STOP]
+        assert len(would_events) == 1
 
 
 class TestDryRunManagement:

@@ -13,11 +13,15 @@ Gates included in Phase 1:
                                   tries to widen a stop gets blocked here.
   ``actions_under_rate_limit`` — limit total broker mutations per tick.
                                   Bounds blast radius of a runaway loop.
-  ``position_count_under_cap`` — refuse all mutation if the account holds
-                                  more positions than the system expects.
-                                  Tripping this gate is a signal that
-                                  something else opened positions (or the
-                                  cap is wrong); halt and surface to ops.
+  ``position_count_under_cap`` — diagnostic check: returns False when the
+                                  account holds more positions than the
+                                  system expects. Callers that *add* risk
+                                  (e.g. PaperTrader) should halt on a
+                                  False return; callers that only *reduce*
+                                  risk (the management orchestrator) should
+                                  log it and continue — stop-tightening on
+                                  a 15-position book is safer than letting
+                                  those positions go unmanaged.
   ``kill_switch_inactive``     — checks for a sentinel file. Touch the
                                   file from any SSH session and all
                                   mutations pause within one tick.

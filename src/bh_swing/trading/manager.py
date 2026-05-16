@@ -97,10 +97,12 @@ def manage_tick(
     positions_list = list(broker_positions)
     ok, reason = safety.position_count_under_cap(positions_list, config.position_count_cap)
     if not ok:
-        _emit(journal.EVENT_ACTION_SKIPPED, run_mode=run_mode, note=f"global: {reason}")
-        summary.halted_reason = reason
-        logger.warning("manage_tick halted: %s", reason)
-        return summary
+        # Diagnostic only: this orchestrator's mutations (stop-tightening,
+        # early-exit close) all *reduce* risk, so a high position count is
+        # not a reason to halt them. The cap belongs on entry-side flows
+        # (PaperTrader) that actually add positions.
+        _emit(journal.EVENT_STATE_DRIFT, run_mode=run_mode, note=f"position_cap_exceeded: {reason}")
+        logger.warning("manage_tick over cap (continuing risk-reducing actions): %s", reason)
 
     # ---- Build state ---------------------------------------------------
     build = position_state.build_managed_positions(
