@@ -50,6 +50,25 @@ def debug_test():
     pass    # pylint: disable=unnecessary-pass
 
 if __name__ == "__main__":
+    # -s : portfolio status snapshot. Short-circuits before the heavy
+    # logging/warning setup so a quick peek doesn't truncate the daily
+    # blueHorseshoe.log and returns in seconds, not minutes.
+    if "-s" in sys.argv:
+        from bluehorseshoe.trading.live_gateway_lifecycle import (
+            refresh_token, snapshot_live_account,
+        )
+        live = "--live" in sys.argv
+        refresh = "--refresh-token" in sys.argv
+        if not (live or refresh):
+            print("Use `./run.sh python src/bh_swing_status.py` for the "
+                  "paper account, `-s --live` for a live snapshot, or "
+                  "`-s --refresh-token` to roll the live 7-day session "
+                  "(triggers 2FA on your phone).", file=sys.stderr)
+            sys.exit(2)
+        if refresh:
+            sys.exit(refresh_token())
+        sys.exit(snapshot_live_account())
+
     logging.basicConfig(
         level=logging.DEBUG,
         format='%(asctime)s - %(levelname)s - %(message)s',

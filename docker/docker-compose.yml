@@ -46,8 +46,53 @@ services:
       - app_net
     mem_limit: 512m
 
+  # Persistent live-account Gateway. READ_ONLY_API pinned to "yes" so a
+  # code bug can never place a live order. 2FA is required at first
+  # login; after that, IBC's auto-restart token survives daily restarts
+  # for ~7 days. Refresh the token at will with
+  # `./run.sh python src/main.py -s --refresh-token` while phone is in
+  # hand (forces a fresh 2FA push, resets the 7-day window).
+  ib-gateway-live:
+    image: ghcr.io/gnzsnz/ib-gateway:latest
+    container_name: ib-gateway-live
+    restart: unless-stopped
+    environment:
+      TWS_USERID: ${TWS_USERID_LIVE}
+      TWS_PASSWORD: ${TWS_PASSWORD_LIVE}
+      TRADING_MODE: live
+      READ_ONLY_API: "yes"
+      TWOFA_TIMEOUT_ACTION: restart
+      # Daily restart at 09:00 UTC. Uses the saved auto-restart token so
+      # no 2FA needed — keeps the 7-day window rolling. Set after the
+      # paper Gateway's 08:00 restart to avoid both wedging at once.
+      AUTO_RESTART_TIME: "09:00"
+      ACCEPT_INCOMING_CONNECTION: accept
+      # Yield to the IBKR mobile app when it logs in. When the phone
+      # session ends, the Gateway reclaims the session using its saved
+      # token — no 2FA needed. The opposite ("primary") would fight the
+      # phone for the session and force a 2FA on every phone-open.
+      EXISTING_SESSION_DETECTED_ACTION: secondary
+    volumes:
+      # Persists IBC settings + the autorestart token across container
+      # recreations. Without this, `docker compose down` (or any image
+      # update) would lose the token and force a fresh 2FA.
+      - ibgateway_live_jts:/home/ibgateway/Jts
+    ports:
+      # Live API listens on 4001 (raw) and 4003 (socat-wrapped) inside
+      # the gnzsnz image. We use 4003 because socat's accept logic plays
+      # nicely with the docker bridge; the raw 4001 port rejects
+      # connections that don't appear to come from container-local IPs
+      # (TrustedTwsApiClientIPs would have to be pre-populated). Same
+      # pattern as paper, which uses 4004 (socat) instead of 4002 (raw).
+      # Host port 4011 avoids clashing with the paper container.
+      - "4011:4003"
+    networks:
+      - app_net
+    mem_limit: 512m
+
 networks:
   app_net:
 
 volumes:
   mongo_data:
+  ibgateway_live_jts:
