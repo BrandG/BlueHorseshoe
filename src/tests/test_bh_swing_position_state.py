@@ -129,9 +129,11 @@ class TestManagedPositionBuild:
         assert t1leg.entry_partially_filled is True
         assert t1leg.entry_filled is False
 
-    def test_filled_order_not_in_open_trades_is_tolerated(self):
-        """After T1 entry fills, IBKR drops it from openTrades. We still need
-        to build the leg from Mongo and recognize entry as gone (None)."""
+    def test_filled_entry_inferred_when_position_held(self):
+        """After T1 entry fills, IBKR drops it from openTrades. If broker
+        still reports the position is held, we infer the entry filled
+        (cancellation would have left qty=0). Without this inference,
+        propose_stop_advancement bails forever on `not t1.entry_filled`."""
         positions = [{"symbol": "NVDA", "position": 10, "avg_cost": 500.0}]
         t1 = _doc("NVDA", "T1", "i", [20, 21, 22])
         coll = _mongo([t1])
@@ -143,10 +145,57 @@ class TestManagedPositionBuild:
         result = position_state.build_managed_positions(positions, trades, coll)
         assert len(result.managed) == 1
         leg = result.managed[0].t1
-        assert leg.entry_order is None
-        assert leg.entry_filled is False  # we don't know — needs fills data
+        # Synthesized Filled view, not None.
+        assert leg.entry_order is not None
+        assert leg.entry_order.status == "Filled"
+        assert leg.entry_order.order_id == 20  # carries through Mongo id
+        assert leg.entry_filled is True
         assert leg.stop_is_alive is True
         assert leg.take_profit_order is not None
+
+    def test_no_entry_synthesis_when_position_not_held(self):
+        """If broker shows qty=0 the symbol isn't in get_positions() at
+        all — build_managed_positions skips it. But guard against the
+        synthesis firing when the leg has no broker_position_qty signal
+        (e.g., a future caller that passes 0)."""
+        positions = [{"symbol": "NVDA", "position": 0, "avg_cost": 0.0}]
+        # build_managed_positions filters qty=0 entirely; this asserts that.
+        t1 = _doc("NVDA", "T1", "i", [20, 21, 22])
+        coll = _mongo([t1])
+        result = position_state.build_managed_positions(positions, [], coll)
+        assert result.managed == []
+
+    def test_end_to_end_t1_filled_drives_stop_advancement(self):
+        """Full chain: synthesized entry_filled → propose_stop_advancement
+        returns a breakeven move. This is the bug the May 19 soak surfaced:
+        seven T1 take-profits fired, zero would_advance_stop events, because
+        T1 entries had been filled-and-gone for days."""
+        from bh_swing.analysis import stop_rules
+
+        # Long position, T2 still held (T1 take-profit hit yesterday).
+        positions = [{"symbol": "AAPL", "position": 10, "avg_cost": 150.0}]
+        t1 = _doc("AAPL", "T1", "i", [101, 102, 103], entry=150.0, stop=147.0)
+        t2 = _doc("AAPL", "T2", "i", [104, 105, 106], entry=150.0, stop=147.0)
+        coll = _mongo([t1, t2])
+        # T1 fully closed (entry+tp+stop gone). T2 entry gone (filled);
+        # T2 TP and STP still working.
+        trades = [
+            _trade(105, "SELL", "LMT", lmt=155.0, status="Submitted", symbol="AAPL"),
+            _trade(106, "SELL", "STP", stp=147.0, status="PreSubmitted", symbol="AAPL"),
+        ]
+        result = position_state.build_managed_positions(positions, trades, coll)
+        assert len(result.managed) == 1
+        pos = result.managed[0]
+        assert pos.t1.entry_filled is True   # synthesized
+        assert pos.t2.entry_filled is True   # synthesized
+        assert pos.t2.stop_is_alive is True
+
+        decision = stop_rules.propose_stop_advancement(pos)
+        assert decision is not None, "T1 filled + T2 stop alive should advance"
+        assert decision.leg == "T2"
+        assert decision.current_stop == 147.0
+        assert decision.new_stop == 150.0
+        assert decision.order_id == 106
 
     def test_takes_newest_bracket_when_multiple_match(self):
         positions = [{"symbol": "MSFT", "position": 10, "avg_cost": 400.0}]

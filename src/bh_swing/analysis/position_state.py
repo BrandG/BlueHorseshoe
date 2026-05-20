@@ -162,22 +162,36 @@ def _assign_legs_to_views(
     mongo_legs: list[Mapping],
     views_by_id: dict[int, BrokerOrderView],
     side: str,
+    broker_position_qty: float,
 ) -> tuple[list[BracketLeg], list[str]]:
     """For each Mongo leg doc, attach the matching broker order views.
 
     Returns (legs, drift_notes). Drift notes flag issues that don't break
     management (e.g., stop already cancelled) but are worth journaling.
+
+    Inference rule for missing entry orders: IBKR drops filled/cancelled
+    orders from reqAllOpenOrders(). If Mongo recorded that we submitted
+    entry order X, X is missing from open_trades, AND the broker reports
+    we hold the position (broker_position_qty != 0), then X filled — a
+    cancelled entry would have left qty=0. We synthesize a Filled view
+    so downstream rules (propose_stop_advancement) can act. Without this,
+    every position whose entry has actually filled looks like "entry never
+    filled" forever.
     """
     action_for_entry = "BUY" if side == "long" else "SELL"
     legs: list[BracketLeg] = []
     drift_notes: list[str] = []
+    position_held = broker_position_qty != 0
 
     for doc in mongo_legs:
         ids = list(doc.get("broker_order_ids") or [])
         leg_name = str(doc.get("leg", ""))
         symbol = str(doc.get("symbol", ""))
+        leg_qty = int(doc.get("quantity", 0) or 0)
+        leg_limit = float(doc.get("limit_price", 0.0) or 0.0)
 
         entry_v = tp_v = stop_v = None
+        missing_oids: list[int] = []
         for idx, oid in enumerate(ids):
             try:
                 oid_int = int(oid)
@@ -185,7 +199,9 @@ def _assign_legs_to_views(
                 continue
             v = views_by_id.get(oid_int)
             if v is None:
-                # Likely filled or cancelled (not in open-orders snapshot).
+                # Filled or cancelled (not in open-orders snapshot). Defer
+                # to post-loop synthesis when we know which role this was.
+                missing_oids.append(oid_int)
                 continue
             role = _classify_view_role(v, action_for_entry)
             if role == ROLE_ENTRY:
@@ -200,10 +216,29 @@ def _assign_legs_to_views(
                     f"(action={v.action} type={v.order_type})"
                 )
 
+        # Entry-fill inference: if the entry order is missing from open
+        # orders AND broker still holds the position, the entry filled.
+        # Synthesize a Filled view so entry_filled works correctly.
+        if entry_v is None and position_held and missing_oids:
+            # Convention: entry is the first broker_order_id in Mongo (set
+            # at submit time by PaperTrader). Use it for the synthetic id
+            # so audit trails line up.
+            entry_v = BrokerOrderView(
+                order_id=missing_oids[0],
+                symbol=symbol,
+                action=action_for_entry,
+                order_type="LMT",
+                limit_price=leg_limit,
+                stop_price=0.0,
+                status="Filled",
+                filled_qty=leg_qty,
+                remaining_qty=0,
+            )
+
         legs.append(BracketLeg(
             leg=leg_name,
-            quantity=int(doc.get("quantity", 0) or 0),
-            entry_price=float(doc.get("limit_price", 0.0) or 0.0),
+            quantity=leg_qty,
+            entry_price=leg_limit,
             take_profit_price=float(doc.get("take_profit_price", 0.0) or 0.0),
             stop_loss_price=float(doc.get("stop_loss_price", 0.0) or 0.0),
             entry_order=entry_v,
@@ -286,7 +321,7 @@ def build_managed_positions(
         )
         original_stop = float(first.get("stop_loss_price", 0.0) or 0.0)
 
-        legs, leg_drift = _assign_legs_to_views(mongo_legs, views_by_id, side)
+        legs, leg_drift = _assign_legs_to_views(mongo_legs, views_by_id, side, qty)
         drift.extend(leg_drift)
 
         managed.append(ManagedPosition(
