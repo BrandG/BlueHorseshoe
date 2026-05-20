@@ -63,11 +63,24 @@ def main(argv: list[str] | None = None) -> int:
     if args.manage and args.manage_dry_run:
         parser.error("--manage and --manage-dry-run are mutually exclusive")
 
+    # force=True: some imports (ib_async) configure the root logger before
+    # we get here, which silently makes a plain basicConfig() a no-op. The
+    # symptom is INFO-level lines (Reconciler:, Manage:) never landing in
+    # the log file while WARNINGs still come through in the bare default
+    # format. force=True tears down whatever was set first.
     logging.basicConfig(
         level=logging.DEBUG if args.verbose else logging.INFO,
         format="%(asctime)sZ %(levelname)s %(name)s: %(message)s",
+        force=True,
     )
     logging.Formatter.converter = __import__("time").gmtime
+    # ib_async is chatty at INFO — every orderStatus/openOrder dump is ~70
+    # lines per tick, drowning our orchestrator summary. Pin its loggers to
+    # WARNING so we keep the real signal (Reconciler:/Manage: from
+    # bh_swing.monitor) visible. -v restores everything.
+    if not args.verbose:
+        for noisy in ("ib_async.wrapper", "ib_async.client", "ib_async.ib"):
+            logging.getLogger(noisy).setLevel(logging.WARNING)
 
     # run_mode tag in the journal reflects whether mutations are possible.
     # "live" only when --manage is set; everything else (default, dry-run) is "dry-run".

@@ -97,7 +97,10 @@ def position_count_under_cap(
     """
     count = sum(1 for _ in open_positions)
     if count > cap:
-        return False, f"{count} open positions exceeds cap {cap}; halting mutations"
+        # No "halting" verb in the message — the caller decides whether to
+        # halt (PaperTrader / entry-side flows) or just log and proceed (the
+        # management orchestrator). See docstring above for the contract.
+        return False, f"{count} open positions exceeds cap {cap}"
     return True, f"{count}/{cap} open positions"
 
 
