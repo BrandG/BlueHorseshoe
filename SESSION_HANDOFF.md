@@ -1,19 +1,17 @@
 # Session Handoff
 
 **Date:** May 20, 2026
-**Status:** **Phase 1a soak produced T1 fills but ZERO `would_advance_stop` events. Real bug downstream of the gate. Brand shipped live-status track (`-s --live`) on a parallel workstream.**
+**Status:** **Orchestrator bug found and fixed. Phase 1a is now producing real evidence — 9 of 10 positions propose correct breakeven advancements. Promotion-to-1b decision is in your hands.**
 
-The Saturday fixes all work — `state_drift: position_cap_exceeded` rows appear and management continues past them as designed. Tuesday's session saw **seven T1 take-profits fire** (EXEL, SDRL, VLGEA, PBA, TRP, WMB, EPD). But `propose_stop_advancement` produced no actions: zero `action_proposed`, zero `would_advance_stop`, zero `state_drift` build notes. Something between `build_managed_positions` and `stop_rules` is silently no-op'ing. That's the next-session #1.
-
-In parallel, Brand shipped three commits on the live-status track (read-only snapshot of the live IBKR account via `-s --live`). Separate workstream — informational here, not blocking Phase 1.
+What happened today: diagnosed why Tuesday's seven T1 take-profits produced zero `would_advance_stop` events, fixed it, verified live, shipped. Brand's live-status track (`-s --live`) on the new `ib-gateway-live` container is parallel and informational here.
 
 ## Where things stand (current reality on master)
 
-Latest commit: `dad5074` on `origin/master`. Branch is clean of my changes (uncommitted `src/bh_positions.py` and untracked `docs/IBKR_journal.csv` + `docs/SUBSYSTEMS_GUIDE.md` are still there).
+Latest commit: `a1b55b6` on `origin/master`. Branch is clean of my changes (uncommitted `src/bh_positions.py` and untracked `docs/IBKR_journal.csv` + `docs/SUBSYSTEMS_GUIDE.md` are still there).
 
-Paper book is **10 positions** (down from 15 on Saturday): NVGS, TRP, RPRX, USAC, NTAP, WMB, VRSN, EPD, PBA, TRGP. NAV $1,052,952. **Right at the cap of 10** — PaperTrader will currently submit zero new brackets per `-p` until one closes.
+Paper book is **10 positions** (down from 15 on Saturday): NVGS, TRP, RPRX, USAC, NTAP, WMB, VRSN, EPD, PBA, TRGP. NAV $1,052,952. **Right at the cap of 10** — PaperTrader submits zero new brackets per `-p` until one closes.
 
-Notable working-orders weirdness: TRGP has a **BUY LMT working at $267.48** alongside SELL legs at multiple stop prices ($256.34 × 2, $272.83 LMT). Looks like the May 14 entry got partially filled, a fresh entry got submitted somewhere (qty 1?), and the bracket tree has a leftover branch. Worth eyeballing.
+Notable working-orders weirdness: TRGP has a **BUY LMT working at $267.48** alongside SELL legs at multiple stop prices ($256.34 × 2, $272.83 LMT). The fix correctly skips TRGP (T1 entry is genuinely still pending), but the bracket-tree shape itself is irregular — worth eyeballing whether to flatten + re-enter cleanly.
 
 Cron unchanged (still on `--manage-dry-run`). Watchdog cron also unchanged.
 
@@ -25,6 +23,8 @@ Cron unchanged (still on `--manage-dry-run`). Watchdog cron also unchanged.
 - `f85cb3a` — two-layer IB Gateway wedge fix (Sat)
 - `5877117` — Saturday handoff doc
 - `9da0dbf` — PaperTrader "have at most, not submit this many" fix (Sat)
+- `eec74c5` — handoff doc for the missing-advancement mystery (Wed)
+- **`a1b55b6` — fix(swing): infer T1 entry_filled from broker position (Wed, the headline)**
 - Memory: `reference_ibgw_wedge_probe.md`, `reference_ibkr_gateway_split.md`
 
 ### Brand's live-status track (parallel workstream, separate Gateway container)
@@ -35,38 +35,30 @@ Cron unchanged (still on `--manage-dry-run`). Watchdog cron also unchanged.
 
 Memory file `reference_ibkr_gateway_split.md` captures the two-container split. `bh_ftmo` is OANDA, not IBKR — don't conflate.
 
-## The downstream bug — investigation starting point
+## The orchestrator bug — root cause and fix
 
-Journal facts from Tuesday 2026-05-19:
+Diagnosis via a one-off script (`/root/.claude/jobs/.../diag_managed.py`) that ran `build_managed_positions` against the live broker and printed the None-return path for each position. **All 10 positions hit `t1.entry_filled is False`.**
+
+Root cause: `BracketLeg.entry_filled` requires `entry_order.status == "Filled"`. But `entry_order` comes from `IBKRClient.get_open_trades()` (which calls `reqAllOpenOrders()`), and IBKR **only returns currently-working orders** from that call. Once an entry fills, IBKR drops it from the list. So `entry_order` becomes `None`, the property returns `False`, and `propose_stop_advancement` bails at `if not t1.entry_filled: return None` for every position whose T1 has actually filled — which was all of them. The existing test `test_filled_order_not_in_open_trades_is_tolerated` had the design comment "we don't know — needs fills data" and locked the bug in.
+
+The fix uses available information that the original design missed: if Mongo recorded entry order X for this idea, X is missing from `open_trades`, AND `broker_position_qty != 0`, then X must have filled — a cancellation would have left qty=0. `_assign_legs_to_views` now takes `broker_position_qty` and synthesizes a `Filled` `BrokerOrderView` (carrying the Mongo broker_order_id for audit continuity) when the entry view is missing but the position is held.
+
+**Live verification** (post-fix, against current paper book):
 
 ```
-13:35:03  fill_detected  EXEL  sell  qty=10 @ 48.71   (T1 take-profit)
-13:35:03  state_drift    position_cap_exceeded: 12 open positions exceeds cap 10
-13:40:02  fill_detected  SDRL  sell  qty=10 @ 55.14
-... (state_drift continues at 11 positions until VLGEA T1 hits at 15:30)
-15:30:03  fill_detected  VLGEA sell  qty=11 @ 47.49
-16:20:03  fill_detected  PBA   sell  qty=10 @ 49.56
-16:25:03  fill_detected  TRP   sell  qty=7  @ 69.50
-17:25:03  fill_detected  WMB   sell  qty=6  @ 79.24
-19:25:03  fill_detected  EPD   sell  qty=12 @ 40.01
+NVGS  ADVANCE 22.68 → 23.68
+TRP   ADVANCE 66.23 → 68.14
+RPRX  ADVANCE 51.63 → 53.25      (matches PaperTrader entry-price record)
+USAC  ADVANCE 28.14 → 29.51
+NTAP  ADVANCE 113.34 → 118.58
+WMB   ADVANCE 75.00 → 77.69
+VRSN  ADVANCE 283.39 → 295.14
+EPD   ADVANCE 38.10 → 39.23
+PBA   ADVANCE 47.22 → 48.59
+TRGP  NO ADVANCEMENT — t1.entry_filled is False  (BUY LMT @ 267.48 genuinely still working)
 ```
 
-Seven T1 take-profits in one session. **None produced `action_proposed` or `would_advance_stop`.**
-
-`manage_tick` IS running (the WARNING-level log "manage_tick over cap (continuing risk-reducing actions)" appears every tick — my fixed code is deployed). But INFO-level logs are filtered by the cron wrapper, so we can't see the `Manage: positions=N unmanaged=M proposed=P ...` summary line directly.
-
-`propose_stop_advancement` returns None in these cases:
-- `t1 is None or t2 is None` — possible if `build_managed_positions` doesn't link both legs (e.g., a position missing in `trade_orders` Mongo collection)
-- `not t1.entry_filled` — possible if entry-filled bit isn't being computed from broker state correctly
-- `t2.stop_order is None or not t2.stop_is_alive` — possible if T2 stop was cancelled/filled by something
-- `current_stop >= entry_price` (long) — only if stop has already been advanced (unlikely; live mutations aren't enabled)
-
-**The investigation plan:**
-1. Bump monitor logger to INFO (cron wrapper). One run with INFO logging shows `Manage: positions=X unmanaged=Y proposed=Z` directly.
-2. Or: write a one-off script that imports `position_state.build_managed_positions` and prints what comes back for the current broker state. Five minutes of work.
-3. Likely culprit (gut feel): `trade_orders` doesn't have entries for the May 14 / May 15 positions (they may have been placed when the trade_orders writing path had a different shape), so all positions land in `unmanaged_symbols` and the stop-rule loop never runs.
-
-Once we know the failure mode, the fix is probably small (either a `build_managed_positions` matching tweak or a one-time backfill of `trade_orders`).
+The TRGP no-op is the correct decision — the fix distinguishes "entry filled and gone" from "entry still pending in open_trades."
 
 ## Operational health
 
@@ -74,13 +66,38 @@ Once we know the failure mode, the fix is probably small (either a `build_manage
 - **`AUTO_RESTART_TIME=08:00` UTC:** unclear whether it fired this morning. IBC log shows an "Attempt 2: Authenticating..." → "Starting application... Closed" sequence at 04:26-04:29 UTC May 20 (looks like an auto-reconnect attempt after the nightly disconnect, not the 08:00 scheduled restart). Gateway is healthy now so something recovered, but we should confirm whether 08:00 restart is actually working or whether the gateway recovered via auto-reconnect.
 - **Watchdog log** (`src/logs/ibgw_watchdog.log`): silent except the one 5/18 entry. Good.
 
-## Next session — concrete checklist
+## Next session — Phase 1a → 1b decision
 
-1. **Diagnose missing `would_advance_stop`.** Either flip the monitor cron to INFO logging for one cycle, or run `build_managed_positions` interactively against current broker state. Confirm which of the four None-return paths is firing.
-2. **Fix it.** Likely either: (a) backfill `trade_orders` for the existing positions so they're managed, or (b) loosen the build-matching rule to handle whatever's missing. Tests obviously.
-3. **Phase 1a → 1b** still blocked on #1 + 2 producing real evidence. Once stops are advancing correctly in dry-run for one trading day, the 3-day ≥90%-match soak begins fresh.
-4. **Eyeball TRGP** — the dangling BUY LMT @ $267.48 + extra SELL legs looks like a bracket-tree corruption from a partial fill. Decide whether to flatten and re-enter or live with it.
-5. **Confirm `AUTO_RESTART_TIME` semantics** by inspecting tomorrow's 08:00 UTC gateway logs. If it's not firing, watchdog still backstops us, but layer 1 should be doing real work.
+The soak is now producing real evidence. The first monitor tick after the
+fix lands should journal ~9 `would_advance_stop` rows (one per position
+whose T1 filled). To check:
+
+```
+grep would_advance_stop src/logs/bh_swing_journal.csv | tail -30
+```
+
+**Operational note on noise:** the orchestrator is idempotent in dry-run.
+Every tick will keep re-proposing the same 9 advancements until you flip
+to `--manage`, so the journal will accumulate ~108 `would_advance_stop`
+rows per market hour. That's expected. Once live, the first tick advances
+the stops; the next tick sees stop already at breakeven and returns None;
+noise stops naturally.
+
+**Decision flow:**
+1. Pick 2-3 advancements (e.g., RPRX 51.63→53.25, EPD 38.10→39.23,
+   NTAP 113.34→118.58). Eyeball each: is the proposed stop where you'd
+   manually move it on a half-out? Each is straight breakeven, so the
+   answer should usually be "yes."
+2. If they match across a couple of trading days, flip cron from
+   `--manage-dry-run` → `--manage`.
+3. Once live, watch for the journal to show `stop_advanced` + `action_taken`
+   rows on the first post-flip tick, then go quiet (stops are at breakeven,
+   nothing more to do).
+
+## Other things to look at
+
+1. **Eyeball TRGP** — dangling BUY LMT @ $267.48 + extra SELL legs from a partial-fill / re-entry weirdness. Phase 1a fix handles it correctly (no-op), but the bracket-tree shape isn't clean. Decide whether to flatten + re-enter or live with it.
+2. **Confirm `AUTO_RESTART_TIME` semantics.** Today's IBC logs showed an "Attempt 2: Authenticating..." → "Starting application... Closed" sequence at 04:26-04:29 UTC May 20 — looks like auto-reconnect after the nightly disconnect, not the 08:00 scheduled restart. Gateway is healthy now (something recovered), but worth confirming whether the 08:00 layer is actually firing or whether we're relying on auto-reconnect plus the watchdog backstop.
 
 ## Operator controls (unchanged from Saturday)
 
