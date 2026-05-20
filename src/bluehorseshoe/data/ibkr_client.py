@@ -324,7 +324,7 @@ class IBKRClient:
                     "exec_id": execution.execId,
                     "symbol": fill.contract.symbol,
                     "side": execution.side.lower(),  # "BOT" → "bot", "SLD" → "sld"
-                    "quantity": int(execution.shares),
+                    "quantity": float(execution.shares),
                     "price": float(execution.price),
                     "commission": commission,
                     "exec_time": execution.time,

@@ -12,13 +12,19 @@ Run directly (assumes ib-gateway-live is already up):
 from __future__ import annotations
 
 import argparse
+import json
 import logging
 import os
 import sys
+from datetime import datetime, timedelta
+from pathlib import Path
 
 import requests
 
+from bluehorseshoe.core.config import REPO_ROOT
 from bluehorseshoe.data.ibkr_client import IBKRClient, IBKRConfig, QuoteData
+
+EXECUTIONS_CACHE_PATH = Path(REPO_ROOT) / "src" / "logs" / "ibkr_executions_cache.json"
 
 logger = logging.getLogger("bh_live.status")
 
@@ -61,15 +67,75 @@ def _print_account(account: dict) -> None:
           f"Available {available}   GrossPos {gross}")
 
 
+def _load_executions_cache(path: Path) -> dict[str, dict]:
+    """Read persisted executions, keyed by exec_id. Empty dict on miss/corruption."""
+    if not path.exists():
+        return {}
+    try:
+        with path.open() as f:
+            data = json.load(f)
+    except (json.JSONDecodeError, OSError) as e:
+        print(f"WARNING: executions cache at {path} unreadable ({e}); "
+              "starting fresh.", file=sys.stderr)
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def _save_executions_cache(path: Path, cache: dict[str, dict]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    with tmp.open("w") as f:
+        json.dump(cache, f, default=str, indent=2, sort_keys=True)
+    tmp.replace(path)
+
+
+def _merge_executions_into_cache(
+    cache: dict[str, dict], executions: list[dict]
+) -> int:
+    """Add any unseen exec_ids to the cache. Returns count of new rows."""
+    added = 0
+    for e in executions:
+        eid = e.get("exec_id")
+        if not eid or eid in cache:
+            continue
+        record = dict(e)
+        t = record.get("exec_time")
+        if hasattr(t, "isoformat"):
+            record["exec_time"] = t.isoformat()
+        cache[eid] = record
+        added += 1
+    return added
+
+
+def _fill_avgs_from_executions(executions: list[dict]) -> dict[str, float]:
+    """Compute per-symbol weighted-avg raw fill price (excluding commission).
+
+    Only BOT (buy) side counts toward the long-position cost basis.
+    """
+    totals: dict[str, list[float]] = {}
+    for e in executions:
+        if str(e.get("side", "")).lower() != "bot":
+            continue
+        sym = e.get("symbol")
+        qty = float(e.get("quantity", 0) or 0)
+        price = float(e.get("price", 0) or 0)
+        if not sym or qty <= 0 or price <= 0:
+            continue
+        agg = totals.setdefault(sym, [0.0, 0.0])  # [sum_qty*price, sum_qty]
+        agg[0] += qty * price
+        agg[1] += qty
+    return {s: v[0] / v[1] for s, v in totals.items() if v[1] > 0}
+
+
 def _print_positions(positions: list[dict], quotes: dict[str, QuoteData],
-                     use_color: bool) -> None:
+                     fill_avgs: dict[str, float], use_color: bool) -> None:
     rows = [p for p in positions if float(p.get("position", 0) or 0) != 0]
     print(f"\n{BOLD}=== Positions ({len(rows)}) ==={RESET}")
     if not rows:
         print("  (none)")
         return
-    print(f"  {'Symbol':<8}{'Type':<5}{'Qty':>10}{'AvgCost':>12}"
-          f"{'Last':>12}{'MktValue':>14}{'UnrealP&L':>14}{'P&L%':>9}")
+    print(f"  {'Symbol':<8}{'Type':<5}{'Qty':>10}{'FillAvg':>10}{'AvgCost':>10}"
+          f"{'Last':>10}{'MktValue':>14}{'UnrealP&L':>14}{'P&L%':>9}")
     total_cost = 0.0
     total_mkt = 0.0
     for p in rows:
@@ -79,6 +145,7 @@ def _print_positions(positions: list[dict], quotes: dict[str, QuoteData],
         avg = float(p.get("avg_cost", 0) or 0)
         q = quotes.get(sym)
         last = q.last if (q and q.last is not None) else None
+        fill = fill_avgs.get(sym)
 
         cost_basis = qty * avg
         if last is not None:
@@ -99,15 +166,16 @@ def _print_positions(positions: list[dict], quotes: dict[str, QuoteData],
             pnl_colored = "—"
             pct_colored = "—"
 
-        print(f"  {sym:<8}{ctype:<5}{qty:>10.0f}{avg:>12,.2f}"
-              f"{last_s:>12}{mkt_s:>14}{pnl_colored:>23}{pct_colored:>18}")
+        fill_s = f"{fill:,.2f}" if fill is not None else "—"
+        print(f"  {sym:<8}{ctype:<5}{qty:>10g}{fill_s:>10}{avg:>10,.2f}"
+              f"{last_s:>10}{mkt_s:>14}{pnl_colored:>23}{pct_colored:>18}")
 
     if total_cost:
         total_pnl = total_mkt - total_cost
         total_pct = total_pnl / total_cost * 100.0
         tot_s = f"{total_pnl:+,.2f}"
         pct_s = f"{total_pct:+.2f}%"
-        print(f"  {'':<8}{'':<5}{'':<10}{'':<12}{'TOTAL':>12}"
+        print(f"  {'':<8}{'':<5}{'':<10}{'':<10}{'':<10}{'TOTAL':>10}"
               f"{_money(total_mkt):>14}"
               f"{_color_pnl(total_pnl, tot_s, use_color):>23}"
               f"{_color_pnl(total_pnl, pct_s, use_color):>18}")
@@ -173,7 +241,8 @@ def _fetch_tiingo_last_prices(symbols: list[str]) -> dict[str, QuoteData]:
     return out
 
 
-def snapshot(host: str, port: int, client_id: int, use_color: bool) -> int:
+def snapshot(host: str, port: int, client_id: int, use_color: bool,
+             exec_lookback_days: int) -> int:
     client = IBKRClient(config=IBKRConfig(
         host=host, port=port, client_id=client_id, read_only=True,
     ))
@@ -181,6 +250,17 @@ def snapshot(host: str, port: int, client_id: int, use_color: bool) -> int:
         account = client.get_account_summary()
         positions = client.get_positions()
         open_trades = client.get_open_trades()
+        executions = client.get_executions(
+            since=datetime.now() - timedelta(days=exec_lookback_days),
+        )
+        cache = _load_executions_cache(EXECUTIONS_CACHE_PATH)
+        new_count = _merge_executions_into_cache(cache, executions)
+        if new_count:
+            _save_executions_cache(EXECUTIONS_CACHE_PATH, cache)
+        fill_avgs = _fill_avgs_from_executions(list(cache.values()))
+        print(f"{DIM}FillAvg: {len(cache)} cached fills "
+              f"({new_count} new this run) "
+              f"from {EXECUTIONS_CACHE_PATH.name}{RESET}")
 
         held = sorted({
             str(p.get("symbol", "")) for p in positions
@@ -192,7 +272,7 @@ def snapshot(host: str, port: int, client_id: int, use_color: bool) -> int:
         quotes = _fetch_tiingo_last_prices(held)
 
         _print_account(account)
-        _print_positions(positions, quotes, use_color)
+        _print_positions(positions, quotes, fill_avgs, use_color)
         _print_open_orders(open_trades)
         return 0
     finally:
@@ -210,6 +290,13 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--client-id", type=int, default=DEFAULT_CLIENT_ID)
     parser.add_argument("--no-color", action="store_true",
                         help="Disable ANSI color output.")
+    parser.add_argument("--exec-lookback-days", type=int, default=1,
+                        help="Lookback for the IBKR executions query that "
+                             "feeds the FillAvg cache. NOTE: IBKR's "
+                             "reqExecutions only returns the current "
+                             "session's fills regardless of this value — "
+                             "older fills come from the local cache at "
+                             "src/logs/ibkr_executions_cache.json.")
     parser.add_argument("--verbose", "-v", action="store_true")
     args = parser.parse_args(argv)
 
@@ -220,7 +307,8 @@ def main(argv: list[str] | None = None) -> int:
 
     use_color = (not args.no_color) and sys.stdout.isatty()
     try:
-        return snapshot(args.host, args.port, args.client_id, use_color)
+        return snapshot(args.host, args.port, args.client_id, use_color,
+                        args.exec_lookback_days)
     except Exception as e:  # noqa: BLE001
         print(f"ERROR connecting to live Gateway at {args.host}:{args.port}: "
               f"{type(e).__name__}: {e}", file=sys.stderr)
