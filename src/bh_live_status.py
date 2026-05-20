@@ -16,6 +16,8 @@ import logging
 import os
 import sys
 
+import requests
+
 from bluehorseshoe.data.ibkr_client import IBKRClient, IBKRConfig, QuoteData
 
 logger = logging.getLogger("bh_live.status")
@@ -137,6 +139,40 @@ def _print_open_orders(open_trades: list) -> None:
             print(f"  (render error: {e})")
 
 
+def _fetch_tiingo_last_prices(symbols: list[str]) -> dict[str, QuoteData]:
+    """Get latest US-equity prices from Tiingo's IEX endpoint.
+
+    Used instead of IBKR market data because the read-only secondary user
+    doesn't have its own IBKR market data subscription (each IBKR user is
+    billed separately for data, per exchange rules). Tiingo is already paid
+    for via TIINGO_API_KEY in .env, so no incremental cost.
+    """
+    api_key = os.environ.get("TIINGO_API_KEY")
+    if not api_key or not symbols:
+        return {}
+    try:
+        r = requests.get(
+            "https://api.tiingo.com/iex/",
+            params={"tickers": ",".join(symbols)},
+            headers={"Authorization": f"Token {api_key}"},
+            timeout=8,
+        )
+        r.raise_for_status()
+        rows = r.json()
+    except Exception:  # noqa: BLE001
+        return {}
+    out: dict[str, QuoteData] = {}
+    for row in rows:
+        sym = row.get("ticker")
+        last = row.get("tngoLast") or row.get("last") or row.get("prevClose")
+        if sym and last is not None:
+            try:
+                out[sym] = QuoteData(symbol=sym, last=float(last))
+            except (TypeError, ValueError):
+                continue
+    return out
+
+
 def snapshot(host: str, port: int, client_id: int, use_color: bool) -> int:
     client = IBKRClient(config=IBKRConfig(
         host=host, port=port, client_id=client_id, read_only=True,
@@ -152,8 +188,8 @@ def snapshot(host: str, port: int, client_id: int, use_color: bool) -> int:
             and p.get("contract_type", "") == "STK"
             and p.get("symbol")
         })
-        quotes_list = client.get_quotes(held) if held else []
-        quotes = {q.symbol: q for q in quotes_list}
+        # Tiingo for quotes — see _fetch_tiingo_last_prices for the why.
+        quotes = _fetch_tiingo_last_prices(held)
 
         _print_account(account)
         _print_positions(positions, quotes, use_color)
