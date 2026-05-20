@@ -257,6 +257,7 @@ class TestModifyOrderStop:
         trade = MagicMock()
         trade.contract.symbol = "AAPL"
         trade.order.orderId = 42
+        trade.order.orderType = "STP"
         trade.order.auxPrice = 147.0
         mock_ib.reqAllOpenOrders.return_value = [trade]
         mock_ib_async.IB.return_value = mock_ib
@@ -271,6 +272,31 @@ class TestModifyOrderStop:
         assert result["error"] is None
         assert trade.order.auxPrice == 150.0
         mock_ib.placeOrder.assert_called_once_with(trade.contract, trade.order)
+
+    @patch("bluehorseshoe.data.ibkr_client.ib_async", create=True)
+    def test_refuses_non_stp_order_type(self, mock_ib_async):
+        """Defensive: if a wrong order_id ever gets routed here (e.g., a
+        bug upstream that swaps STP and LMT), setting auxPrice on a LMT
+        would silently corrupt it. Refuse loudly."""
+        mock_ib = MagicMock()
+        mock_ib.isConnected.return_value = True
+
+        trade = MagicMock()
+        trade.contract.symbol = "AAPL"
+        trade.order.orderId = 42
+        trade.order.orderType = "LMT"
+        mock_ib.reqAllOpenOrders.return_value = [trade]
+        mock_ib_async.IB.return_value = mock_ib
+
+        with patch.dict("sys.modules", {"ib_async": mock_ib_async}):
+            client = IBKRClient()
+            client._ib = mock_ib
+            result = client.modify_order_stop(42, 150.0)
+
+        assert result["status"] == "error"
+        assert "'LMT'" in result["error"]
+        assert "not STP" in result["error"]
+        mock_ib.placeOrder.assert_not_called()
 
     @patch("bluehorseshoe.data.ibkr_client.ib_async", create=True)
     def test_order_not_found(self, mock_ib_async):
@@ -294,6 +320,7 @@ class TestModifyOrderStop:
         mock_ib.isConnected.return_value = True
         trade = MagicMock()
         trade.order.orderId = 42
+        trade.order.orderType = "STP"
         mock_ib.reqAllOpenOrders.return_value = [trade]
         mock_ib.placeOrder.side_effect = RuntimeError("rejected by IBKR")
         mock_ib_async.IB.return_value = mock_ib

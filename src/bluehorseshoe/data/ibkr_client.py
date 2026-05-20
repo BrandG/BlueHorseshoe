@@ -434,6 +434,16 @@ class IBKRClient:
                 return {"order_id": order_id, "status": "error",
                         "error": f"order {order_id} not found in open trades"}
 
+            # Defensive: this function is "modify the stop of a STP order."
+            # If we ever get called with a LMT id (say, a bug in upstream
+            # leg classification routed us to a take-profit), setting
+            # auxPrice would silently corrupt the LMT order without actually
+            # modifying any meaningful field. Refuse loudly instead.
+            order_type = getattr(target.order, "orderType", "")
+            if order_type != "STP":
+                return {"order_id": order_id, "status": "error",
+                        "error": f"order {order_id} is {order_type!r}, not STP"}
+
             target.order.auxPrice = round(float(new_stop_price), 2)
             self._ib.placeOrder(target.contract, target.order)
             logger.info(
