@@ -99,7 +99,17 @@ BlueHorseshoe is a quantitative swing trading system that:
 - `report_generator.py`: `ReportWriter` handles console/file logging
 
 **`src/bluehorseshoe/trading/`** - Order execution:
-- `paper_trader.py`: `PaperTrader` submits bracket orders (entry + take-profit + stop-loss) to IBKR paper account after prediction
+- `paper_trader.py`: `PaperTrader` submits bracket orders (entry + take-profit + stop-loss) to IBKR paper account after prediction. `max_positions` is "have at most N on the book," not "submit N per run" — pre-flight broker occupancy check before sizing, fails closed on unreachable gateway.
+
+**`src/bh_swing/`** - Post-trade management for BH Equity bracket orders (parallel to `bluehorseshoe/`, deliberately not co-mingled):
+- `bh_swing_monitor.py` (entrypoint): runs every 5 min from cron during US market hours. Snapshots broker state, reconciles fills into journal, optionally manages stops. Flags: `--manage-dry-run` (Phase 1a, journals `would_*` events without mutating) and `--manage` (Phase 1b, live `modify_order_stop` calls). Uses dedicated `client_id=7` to avoid colliding with PaperTrader's `client_id=1`.
+- `analysis/position_state.py`: merges broker truth (`get_positions()` + `get_open_trades()`) with Mongo `trade_orders` metadata. Synthesizes a `Filled` `BrokerOrderView` for entry orders that are missing from `reqAllOpenOrders()` but where the broker still holds the position — inference is "if Mongo said we submitted X, X is gone from open orders, and we hold the position, X filled" (cancellation would leave qty=0).
+- `analysis/stop_rules.py`: pure-logic stop advancement. Current rule: `BREAKEVEN` (move T2 stop to entry once T1 has fully filled). Early-exit hook stubbed (Phase 1c, disabled by default).
+- `trading/safety.py`: gates composed before any broker-mutating call — `stop_move_is_tightening` (strongest invariant; widening is structurally refused), `actions_under_rate_limit` (default 15 mutations/tick), `position_count_under_cap` (diagnostic-only for this orchestrator's risk-reducing actions; entry-side flows still halt on it), `kill_switch_inactive` (sentinel file at `.bh_swing_pause_management`).
+- `trading/manager.py`: orchestrator — pulls broker state, asks `stop_rules` what to do, runs proposals through `safety` gates, mutates (live) or emits `would_*` events (dry-run). Every decision lands in `src/logs/bh_swing_journal.csv`.
+- `trading/reconciler.py`: snapshot the broker, append `fill_detected` rows. `is_broker_reachable(account)` is the cheap signal for "gateway actually answered" vs "got a stub of zeros."
+- Operator tools: `src/bh_swing_status.py` (read-only dashboard), `src/bh_swing_flatten.py` (`--execute` flattens positions when something needs manual intervention).
+- Watchdog: `run_ibgw_watchdog.sh` cronned at `1-59/5 * * * *` — probes Java's listener inside the container via `docker exec` (host-side `nc -z 4004` is misleading because socat keeps accepting after Java dies). Force-recreates the gateway on a confirmed wedge, with a 15-min cooldown.
 
 ### Data Flow
 
@@ -189,6 +199,8 @@ Test fixtures in `test_*.py` files include:
 4. **Column Checks:** When adding indicators, use `Series.index` for column presence checks to avoid value-based subsetting errors.
 5. **Dependency Injection:** New code should use injected `database`, `config`, `report_writer`, `store` instead of global singletons. CLI context manager (`create_cli_context()`) handles cleanup. Use `ctx.store` for OHLCV reads.
 6. **DuckDB is the sole OHLCV store.** MongoDB `historical_prices` and `historical_prices_recent` collections are no longer read from or written to. All OHLCV operations use `DuckDBStore` via `ctx.store`.
+7. **IB Gateway wedge probe.** Host-side `nc -z 127.0.0.1 4004` is misleading after a daily-disconnect wedge — socat inside the container keeps accepting TCP even after the Java listener dies. To detect a wedge, `docker exec` into the container and probe `127.0.0.1:4002` with a timeout. Watchdog in `run_ibgw_watchdog.sh` does this correctly; don't reinvent host-side TCP probes.
+8. **`reqAllOpenOrders()` drops filled orders.** Once an entry fills, IBKR no longer returns it. `BracketLeg.entry_filled` infers fill from "entry order_id is gone from open_trades AND broker_position_qty != 0" — see `_assign_legs_to_views` in `bh_swing/analysis/position_state.py`. Don't add code that assumes a filled order will still appear in the open-orders snapshot.
 
 ## Development Workflow
 
@@ -211,7 +223,10 @@ Test fixtures in `test_*.py` files include:
 - **Python Wrapper:** `run.sh` (activates venv, sets PYTHONPATH)
 - **Logs:** `src/logs/` directory
 - **Reports:** `src/graphs/` directory
-- **Docker Config:** `docker/docker-compose.yml` (MongoDB + IBKR Gateway only)
+- **Docker Config:** `docker/docker-compose.yml` (MongoDB, paper IBKR Gateway on 4004, live read-only IBKR Gateway on 4011)
+- **BH Swing journal:** `src/logs/bh_swing_journal.csv` (per-tick events from `bh_swing_monitor`)
+- **BH Swing tracker:** `src/graphs/swing_tracker.html` (rendered each tick)
+- **Watchdog log:** `src/logs/ibgw_watchdog.log` (silent on healthy days)
 
 ## gstack
 Use /browse from gstack for all web browsing.
