@@ -34,7 +34,13 @@ from typing import Iterable
 from bluehorseshoe.core.config import REPO_ROOT
 
 # Defaults — overridable from monitor via env vars or config later.
-DEFAULT_ACTION_RATE_LIMIT = 3
+# Rate limit bumped from 3 to 15 on 2026-05-20: with 9 T1 fires observed in a
+# single trading session, a cap of 3 means stops trickle to breakeven across
+# 3 ticks (15 min). The tightening gate is the real safety net (widening is
+# structurally impossible), so the rate cap is just belt-and-suspenders
+# against a runaway bug. 15 covers the realistic worst case (all 10 positions
+# need an advancement in one tick, with room to spare).
+DEFAULT_ACTION_RATE_LIMIT = 15
 DEFAULT_POSITION_COUNT_CAP = 10
 KILL_SWITCH_PATH = os.path.join(REPO_ROOT, ".bh_swing_pause_management")
 

@@ -1,9 +1,9 @@
 # Session Handoff
 
 **Date:** May 20, 2026
-**Status:** **Orchestrator bug found and fixed. Phase 1a is now producing real evidence — 9 of 10 positions propose correct breakeven advancements. Promotion-to-1b decision is in your hands.**
+**Status:** **Orchestrator bug found and fixed. Rate limit bumped 3 → 15. Phase 1a is now producing 9 `would_advance_stop` per tick, all in one pass. Promotion-to-1b decision is in your hands.**
 
-What happened today: diagnosed why Tuesday's seven T1 take-profits produced zero `would_advance_stop` events, fixed it, verified live, shipped. Brand's live-status track (`-s --live`) on the new `ib-gateway-live` container is parallel and informational here.
+What happened today: diagnosed why Tuesday's seven T1 take-profits produced zero `would_advance_stop` events, fixed it, verified live, then bumped `DEFAULT_ACTION_RATE_LIMIT` from 3 to 15 so all 9 advancements come through in one tick instead of trickling over three. Brand's live-status track (`-s --live`) on the new `ib-gateway-live` container is parallel and informational here.
 
 ## Where things stand (current reality on master)
 
@@ -25,6 +25,8 @@ Cron unchanged (still on `--manage-dry-run`). Watchdog cron also unchanged.
 - `9da0dbf` — PaperTrader "have at most, not submit this many" fix (Sat)
 - `eec74c5` — handoff doc for the missing-advancement mystery (Wed)
 - **`a1b55b6` — fix(swing): infer T1 entry_filled from broker position (Wed, the headline)**
+- `5438b96` — handoff update with fix diagnosis + live verification (Wed)
+- Rate limit: `DEFAULT_ACTION_RATE_LIMIT` raised 3 → 15 in `src/bh_swing/trading/safety.py`. With the orchestrator now producing 9 simultaneous advancements after a batch T1 day, a cap of 3 trickled to breakeven over 15 min instead of one tick. The tightening gate is the real safety invariant; the rate cap is just blast-radius defence against a runaway bug.
 - Memory: `reference_ibgw_wedge_probe.md`, `reference_ibkr_gateway_split.md`
 
 ### Brand's live-status track (parallel workstream, separate Gateway container)
@@ -68,9 +70,9 @@ The TRGP no-op is the correct decision — the fix distinguishes "entry filled a
 
 ## Next session — Phase 1a → 1b decision
 
-The soak is now producing real evidence. The first monitor tick after the
-fix lands should journal ~9 `would_advance_stop` rows (one per position
-whose T1 filled). To check:
+The soak is now producing real evidence. **Verified live this session**:
+manual monitor invocation at 12:33 UTC produced 9 `would_advance_stop`
+rows in a single tick (post rate-limit bump). To check current state:
 
 ```
 grep would_advance_stop src/logs/bh_swing_journal.csv | tail -30

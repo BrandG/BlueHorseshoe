@@ -56,9 +56,11 @@ class TestActionsUnderRateLimit:
         ok, _ = safety.actions_under_rate_limit(10, cap=3)
         assert ok is False
 
-    def test_default_cap_is_three(self):
-        # Sanity-check the documented default
-        assert safety.DEFAULT_ACTION_RATE_LIMIT == 3
+    def test_default_cap_is_fifteen(self):
+        # Sanity-check the documented default. Raised from 3 to 15 on
+        # 2026-05-20 after the orchestrator fix surfaced 9 simultaneous
+        # T1 fires needing advancement.
+        assert safety.DEFAULT_ACTION_RATE_LIMIT == 15
 
     def test_negative_counter_refused(self):
         ok, _ = safety.actions_under_rate_limit(-1, cap=3)
