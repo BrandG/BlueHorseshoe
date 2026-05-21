@@ -59,6 +59,12 @@ from bluehorseshoe.core.config import get_settings
 logger = logging.getLogger(__name__)
 
 
+# Module-global indicator cache. Set by main() before the Phase B pool starts,
+# inherited by workers via fork (copy-on-write on Linux — ~3GB stays shared
+# across all workers because no one mutates it).
+_CACHE: dict[str, pd.DataFrame] = {}
+
+
 LEDGER_COLUMNS = [
     "trade_id", "strategy", "symbol",
     "prediction_date", "entry_date", "entry_price",
@@ -335,6 +341,78 @@ def simulate_split_bracket(forward_df: pd.DataFrame, entry_price: float,
 
 
 # ---------------------------------------------------------------------------
+# Per-date worker (Phase B parallelism)
+# ---------------------------------------------------------------------------
+
+def _process_one_date(pred_date: str, strategies: list[str],
+                      top_n: int, hold_days: int) -> list[dict]:
+    """Score, rank, and simulate forward for one prediction date.
+
+    Reads ``_CACHE`` via fork inheritance. Returns list of ledger row dicts.
+    """
+    pred_ts = pd.to_datetime(pred_date)
+    rows: list[dict] = []
+    for strategy in strategies:
+        candidates = []
+        for sym, full_df in _CACHE.items():
+            df_slice = full_df[full_df["date"] <= pred_ts]
+            setup = score_and_setup(df_slice, strategy)
+            if setup is None:
+                continue
+            setup["symbol"] = sym
+            candidates.append(setup)
+        # Secondary sort key on symbol makes the top-N choice deterministic
+        # when scores tie. Without this, dict-iteration order varies across
+        # processes and equally-scored candidates appear in different ranks.
+        candidates.sort(key=lambda c: (-c["score"], c["symbol"]))
+        top = candidates[:top_n]
+
+        for idx, cand in enumerate(top):
+            full_df = _CACHE[cand["symbol"]]
+            forward = full_df[full_df["date"] > pred_ts].head(hold_days)
+            if forward.empty:
+                continue
+            t1_target = round(cand["entry_price"] * 1.02, 4)
+            t2_target = cand["take_profit"]
+            result = simulate_split_bracket(
+                forward, cand["entry_price"], cand["stop_loss"],
+                t1_target, t2_target,
+            )
+            if result.get("status") == "no_entry":
+                continue
+            exit_idx = result["exit_idx"]
+            forward_dates = forward["date"].tolist()
+            entry_date = forward_dates[0].strftime("%Y-%m-%d") if forward_dates else None
+            exit_date = (forward_dates[exit_idx].strftime("%Y-%m-%d")
+                         if 0 <= exit_idx < len(forward_dates) else None)
+            rows.append({
+                "trade_id": f"{pred_date}-{strategy}-{cand['symbol']}-{idx}",
+                "strategy": strategy,
+                "symbol": cand["symbol"],
+                "prediction_date": pred_date,
+                "entry_date": entry_date,
+                "entry_price": result["actual_entry"],
+                "stop_price": cand["stop_loss"],
+                "t1_target": t1_target,
+                "t2_target": t2_target,
+                "t1_exit_price": result["t1_exit_price"],
+                "t1_status": result["t1_status"],
+                "t2_exit_price": result["t2_exit_price"],
+                "t2_status": result["t2_status"],
+                "t1_pnl_pct": result["t1_pnl_pct"],
+                "t2_pnl_pct": result["t2_pnl_pct"],
+                "blended_pnl_pct": result["blended_pnl_pct"],
+                "days_held": result["days_held"],
+                "exit_date": exit_date,
+                "spans_weekends": count_weekends_spanned(entry_date, exit_date),
+                "regime": classify_regime(pred_date),
+                "status": result["status"],
+                "score": cand["score"],
+            })
+    return rows
+
+
+# ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
 
@@ -390,9 +468,9 @@ def main(argv=None):
           flush=True)
 
     # ---- Phase A: preload + compute indicators per symbol (parallel) -------
+    global _CACHE
     print("Phase A: preloading indicators...", flush=True)
     t0 = time.time()
-    cache: dict[str, pd.DataFrame] = {}
     with ProcessPoolExecutor(max_workers=args.max_workers) as pool:
         futures = {pool.submit(_load_and_compute_indicators, sym,
                                settings.duckdb_path): sym for sym in universe}
@@ -402,94 +480,51 @@ def main(argv=None):
             result = fut.result()
             if result is not None:
                 sym, df = result
-                cache[sym] = df
+                _CACHE[sym] = df
             if done % 100 == 0 or done == len(universe):
-                print(f"  [{done}/{len(universe)}] cached={len(cache)} "
+                print(f"  [{done}/{len(universe)}] cached={len(_CACHE)} "
                       f"elapsed={(time.time()-t0)/60:.1f}m", flush=True)
-    print(f"Phase A done: {len(cache)} symbols cached in {(time.time()-t0)/60:.1f}m",
+    print(f"Phase A done: {len(_CACHE)} symbols cached in {(time.time()-t0)/60:.1f}m",
           flush=True)
 
-    # ---- Phase B: per-date scoring + simulation (single process) -----------
+    # ---- Phase B: per-date scoring + simulation (parallel by date) ---------
+    # Workers fork-inherit _CACHE (no IPC, ~3GB stays COW-shared).
     output_path = Path(args.output)
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    print(f"Phase B: writing ledger to {output_path}", flush=True)
+    print(f"Phase B: writing ledger to {output_path}  (max_workers={args.max_workers})",
+          flush=True)
     total_written = 0
     t_b = time.time()
     with output_path.open("w", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=LEDGER_COLUMNS)
         writer.writeheader()
 
-        for di, pred_date in enumerate(dates):
-            pred_ts = pd.to_datetime(pred_date)
-            for strategy in args.strategies:
-                # Score every cached symbol for this date.
-                candidates = []
-                for sym, full_df in cache.items():
-                    df_slice = full_df[full_df["date"] <= pred_ts]
-                    setup = score_and_setup(df_slice, strategy)
-                    if setup is None:
-                        continue
-                    setup["symbol"] = sym
-                    candidates.append(setup)
-                candidates.sort(key=lambda c: c["score"], reverse=True)
-                top = candidates[:args.top_n]
-
-                # Simulate forward for each top candidate.
-                for idx, cand in enumerate(top):
-                    full_df = cache[cand["symbol"]]
-                    forward = full_df[full_df["date"] > pred_ts].head(args.hold_days)
-                    if forward.empty:
-                        continue
-                    t1_target = round(cand["entry_price"] * 1.02, 4)
-                    t2_target = cand["take_profit"]
-                    result = simulate_split_bracket(
-                        forward, cand["entry_price"], cand["stop_loss"],
-                        t1_target, t2_target,
-                    )
-                    if result.get("status") == "no_entry":
-                        continue
-
-                    exit_idx = result["exit_idx"]
-                    entry_idx_in_forward = 0  # by definition: forward starts after pred_date
-                    forward_dates = forward["date"].tolist()
-                    entry_date = forward_dates[0].strftime("%Y-%m-%d") if len(forward_dates) else None
-                    exit_date = (forward_dates[exit_idx].strftime("%Y-%m-%d")
-                                 if 0 <= exit_idx < len(forward_dates) else None)
-
-                    writer.writerow({
-                        "trade_id": f"{pred_date}-{strategy}-{cand['symbol']}-{idx}",
-                        "strategy": strategy,
-                        "symbol": cand["symbol"],
-                        "prediction_date": pred_date,
-                        "entry_date": entry_date,
-                        "entry_price": result["actual_entry"],
-                        "stop_price": cand["stop_loss"],
-                        "t1_target": t1_target,
-                        "t2_target": t2_target,
-                        "t1_exit_price": result["t1_exit_price"],
-                        "t1_status": result["t1_status"],
-                        "t2_exit_price": result["t2_exit_price"],
-                        "t2_status": result["t2_status"],
-                        "t1_pnl_pct": result["t1_pnl_pct"],
-                        "t2_pnl_pct": result["t2_pnl_pct"],
-                        "blended_pnl_pct": result["blended_pnl_pct"],
-                        "days_held": result["days_held"],
-                        "exit_date": exit_date,
-                        "spans_weekends": count_weekends_spanned(entry_date, exit_date),
-                        "regime": classify_regime(pred_date),
-                        "status": result["status"],
-                        "score": cand["score"],
-                    })
+        with ProcessPoolExecutor(max_workers=args.max_workers) as pool:
+            future_to_date = {
+                pool.submit(_process_one_date, d, args.strategies,
+                            args.top_n, args.hold_days): d
+                for d in dates
+            }
+            completed = 0
+            for fut in as_completed(future_to_date):
+                completed += 1
+                pred_date = future_to_date[fut]
+                try:
+                    rows = fut.result()
+                except Exception as e:  # noqa: BLE001
+                    logger.warning("worker failed for %s: %s", pred_date, e)
+                    rows = []
+                for row in rows:
+                    writer.writerow(row)
                     total_written += 1
-
-            if (di + 1) % 25 == 0 or di == len(dates) - 1:
-                elapsed = time.time() - t_b
-                rate = (di + 1) / max(elapsed, 0.001)
-                eta = (len(dates) - di - 1) / max(rate, 0.001)
-                print(f"  [{di+1}/{len(dates)}] {pred_date}  "
-                      f"elapsed {elapsed/60:.1f}m  rate {rate:.2f} dates/s  "
-                      f"eta {eta/60:.1f}m  written {total_written}",
-                      flush=True)
+                if completed % 25 == 0 or completed == len(dates):
+                    elapsed = time.time() - t_b
+                    rate = completed / max(elapsed, 0.001)
+                    eta = (len(dates) - completed) / max(rate, 0.001)
+                    print(f"  [{completed}/{len(dates)}] last={pred_date}  "
+                          f"elapsed {elapsed/60:.1f}m  rate {rate:.2f} dates/s  "
+                          f"eta {eta/60:.1f}m  written {total_written}",
+                          flush=True)
 
     print(f"\nDone. Wrote {total_written} trades to {output_path}")
     return 0

@@ -12,20 +12,24 @@ Two choices to make before provisioning:
 
 | Mode | `--interval-days` | Date count | Est. trades produced | Est. wall time (8-core) |
 |---|---|---|---|---|
-| Daily (production-shape) | 1 | 2,772 | ~50,000 | ~2 days **w/ Phase B parallelism added** |
-| Weekly (efficient) | 7 | 588 | ~10,000+ | ~9 hours single-threaded |
-| Monthly | 30 | 137 | ~2,500 | ~2 hours single-threaded |
+| Daily (production-shape) | 1 | 2,772 | ~50,000 | ~60–70 hours |
+| **Weekly (recommended)** | 7 | 588 | ~10,000+ | **~14 hours** |
+| Monthly | 30 | 137 | ~2,500 | ~3 hours |
+
+Wall-time estimates assume Phase B date-parallelism (shipped 2026-05-21) at ~64% multi-process efficiency. Single-threaded baseline: ~73 hours weekly.
 
 **Recommendation: weekly first.** Clears the design-doc statistical-power gate (≥10K trades) and finishes in a single droplet day. If the result is borderline or the regime stratification needs more samples, re-run daily with Phase B parallelism added.
 
 The forex precedent test ran at the natural signal cadence (every H4 bar), which is the equivalent of daily here. But weekly sampling preserves the hold-time distribution (which is what the weekend question hinges on) and avoids counting the same signal repeatedly across consecutive days.
 
-### 2. Phase B parallelism
+### 2. Phase B parallelism — shipped 2026-05-21
 
-Currently single-threaded (Phase A is parallel via ProcessPoolExecutor). Parallelizing Phase B by date is straightforward but unimplemented — would use fork inheritance of the indicator cache (free on Linux, ~3GB shared via copy-on-write across N workers).
+Both Phase A (indicator preload) and Phase B (per-date scoring + simulation) are parallelized via ProcessPoolExecutor. Workers fork-inherit the ~3GB indicator cache (Linux copy-on-write — no IPC, no duplication). Output is deterministic (secondary sort key on symbol breaks score ties).
 
-**If running weekly:** skip the parallelism work; ~9 hours single-threaded is acceptable.
-**If running daily:** add it before deployment. Otherwise 14 days single-threaded is unworkable.
+Smoke at 100 symbols × Q1 2024 weekly:
+- `--max-workers 1`: Phase B 5.4 min
+- `--max-workers 4`: Phase B 2.1 min (2.57× speedup, 64% efficiency)
+- `--max-workers 8` extrapolated: ~5× speedup expected for 8 workers
 
 ## Droplet provisioning
 
