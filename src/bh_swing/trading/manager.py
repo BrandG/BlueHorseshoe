@@ -127,6 +127,7 @@ def manage_tick(
             journal.EVENT_ACTION_PROPOSED, run_mode=run_mode,
             symbol=advancement.symbol, order_id=str(advancement.order_id),
             price=advancement.new_stop, stop_price=advancement.current_stop,
+            target_price=pos.target_price,
             note=f"advance_stop {advancement.leg}: {advancement.reason}",
         )
 
@@ -158,6 +159,7 @@ def manage_tick(
                 journal.EVENT_WOULD_ADVANCE_STOP, run_mode=run_mode,
                 symbol=advancement.symbol, order_id=str(advancement.order_id),
                 price=advancement.new_stop, stop_price=advancement.current_stop,
+                target_price=pos.target_price,
                 note=advancement.reason,
             )
             summary.taken += 1   # in dry-run, a planned action still "counts"
@@ -170,6 +172,7 @@ def manage_tick(
                 journal.EVENT_STOP_ADVANCED, run_mode=run_mode,
                 symbol=advancement.symbol, order_id=str(advancement.order_id),
                 price=advancement.new_stop, stop_price=advancement.current_stop,
+                target_price=pos.target_price,
                 note=advancement.reason,
             )
             _emit(
