@@ -101,6 +101,23 @@ class ManagedPosition:
     def t2(self) -> Optional[BracketLeg]:
         return next((l for l in self.legs if l.leg == "T2"), None)
 
+    @property
+    def t1_take_profit_filled(self) -> bool:
+        """True iff T1's take-profit has fired, inferred from position size.
+
+        IBKR drops filled orders from ``reqAllOpenOrders``, so we can't
+        observe the T1 SELL fill directly. We infer it: if both legs'
+        entries filled and the broker now holds at most T2's worth of
+        shares, T1's leg has exited. In the Phase 1 paper bracket where
+        T1's stop and T2's stop sit at the same price, the legs' stops
+        fire together — the only way T1 exits alone is via its TP.
+        """
+        if self.t1 is None or self.t2 is None:
+            return False
+        if not (self.t1.entry_filled and self.t2.entry_filled):
+            return False
+        return 0 < self.broker_position_qty <= self.t2.quantity
+
 
 @dataclass(frozen=True)
 class BuildResult:

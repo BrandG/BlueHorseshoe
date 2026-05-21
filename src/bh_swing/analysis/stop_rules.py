@@ -49,10 +49,11 @@ def propose_stop_advancement(
 ) -> Optional[StopAdvancement]:
     """Decide whether to move the T2 leg's stop, and where to.
 
-    Trigger: T1 entry has fully filled. T2 leg still has a working stop.
-    Action (breakeven): move that stop to the original entry price.
+    Trigger: T1's *take-profit* has fired (half-position sold at a profit).
+    Action (breakeven): move T2's remaining stop up to the original entry
+    price, locking the rest of the trade into "free roll" territory.
 
-    Returns None if no advancement is warranted (T1 not filled, T2 stop
+    Returns None if no advancement is warranted (T1 TP not filled, T2 stop
     already at-or-past breakeven, T2 stop missing, etc.). The monitor
     treats None as "leave it alone."
     """
@@ -64,8 +65,8 @@ def propose_stop_advancement(
     t2 = position.t2
     if t1 is None or t2 is None:
         return None
-    if not t1.entry_filled:
-        return None  # haven't earned the advance yet
+    if not position.t1_take_profit_filled:
+        return None  # T1 hasn't taken profit yet — nothing to advance
     if t2.stop_order is None or not t2.stop_is_alive:
         return None  # nothing to move
 
@@ -84,7 +85,7 @@ def propose_stop_advancement(
         new_stop=round(position.entry_price, 2),
         side=position.side,
         reason=(
-            f"T1 filled @ {t1.entry_order.limit_price if t1.entry_order else position.entry_price} "
+            f"T1 TP filled @ {t1.take_profit_price:.2f} "
             f"-> advance T2 stop to breakeven {position.entry_price:.2f}"
         ),
     )

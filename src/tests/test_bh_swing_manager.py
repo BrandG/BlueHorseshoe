@@ -28,7 +28,9 @@ def _view(order_id, action="SELL", order_type="STP", lmt=0.0, stp=0.0,
 
 
 def _t1_filled_position(entry=150.0, stop=147.0, t2_stop_order_id=99):
-    """A managed position with T1 filled, T2 stop still working at original stop."""
+    """A managed position with T1's take-profit already filled: both leg
+    entries are filled, T1's qty (10) has left the book, broker holds T2's
+    qty (10), and T2's stop is still working at the original stop level."""
     t1_entry = _view(1, action="BUY", order_type="LMT", lmt=entry, status="Filled", filled=10)
     t1_tp = _view(2, action="SELL", order_type="LMT", lmt=152.0, status="Submitted")
     t1_stop = _view(3, action="SELL", order_type="STP", stp=stop, status="PreSubmitted")
@@ -51,7 +53,7 @@ def _t1_filled_position(entry=150.0, stop=147.0, t2_stop_order_id=99):
     return ManagedPosition(
         symbol="AAPL", idea_id="i", side="long",
         entry_price=entry, target_price=155.0, original_stop_price=stop,
-        legs=[t1, t2], broker_position_qty=20, broker_avg_cost=entry,
+        legs=[t1, t2], broker_position_qty=10, broker_avg_cost=entry,
     )
 
 

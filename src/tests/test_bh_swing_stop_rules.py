@@ -34,7 +34,10 @@ def _leg(leg="T1", filled_entry=False, stop_alive=True, stop_price=147.0,
 
 
 def _position(t1, t2, side="long", entry_price=150.0, target_price=155.0,
-              symbol="AAPL"):
+              symbol="AAPL", broker_position_qty=10):
+    """Default broker_position_qty=10 represents T1 TP already filled: only
+    T2's worth (10 of the original 20) is still held. Override to 20 to
+    represent the pre-TP state and to 0 to represent fully exited."""
     legs = []
     if t1 is not None:
         legs.append(t1)
@@ -44,13 +47,26 @@ def _position(t1, t2, side="long", entry_price=150.0, target_price=155.0,
         symbol=symbol, idea_id="idea-1", side=side,
         entry_price=entry_price, target_price=target_price,
         original_stop_price=147.0, legs=legs,
-        broker_position_qty=20, broker_avg_cost=entry_price,
+        broker_position_qty=broker_position_qty, broker_avg_cost=entry_price,
     )
 
 
 class TestProposeStopAdvancement:
     def test_returns_none_when_t1_not_filled(self):
-        pos = _position(_leg("T1", filled_entry=False), _leg("T2", filled_entry=False))
+        # Neither entry filled and broker holds full size: no advancement.
+        pos = _position(_leg("T1", filled_entry=False), _leg("T2", filled_entry=False),
+                        broker_position_qty=20)
+        assert stop_rules.propose_stop_advancement(pos) is None
+
+    def test_returns_none_when_entries_filled_but_t1_tp_has_not_fired(self):
+        """The original bug: T1 entry (BUY) had filled days ago but T1's
+        take-profit hadn't fired yet — broker still holds the full position.
+        Advancing the T2 stop to breakeven here would have stopped fresh
+        positions out immediately on any pullback."""
+        t1 = _leg("T1", filled_entry=True)
+        t2 = _leg("T2", filled_entry=True)
+        # Both legs entered (qty 10 each); nothing exited yet — broker holds 20.
+        pos = _position(t1, t2, broker_position_qty=20)
         assert stop_rules.propose_stop_advancement(pos) is None
 
     def test_advances_to_breakeven_when_t1_fills(self):
@@ -111,6 +127,44 @@ class TestProposeStopAdvancement:
         t2 = _leg("T2", filled_entry=True, stop_price=149.0)
         pos = _position(t1, t2, side="short", entry_price=150.0)
         assert stop_rules.propose_stop_advancement(pos) is None
+
+    def test_returns_none_when_position_fully_exited(self):
+        """broker_position_qty=0: both T1 and T2 are gone (either both stops
+        hit, or both TPs hit). Nothing left to manage."""
+        t1 = _leg("T1", filled_entry=True)
+        t2 = _leg("T2", filled_entry=True)
+        pos = _position(t1, t2, broker_position_qty=0)
+        assert stop_rules.propose_stop_advancement(pos) is None
+
+    def test_advances_when_broker_holds_exactly_t2_worth(self):
+        """The canonical T1-TP-filled state: T1's qty has left the book,
+        T2's qty remains."""
+        t1 = _leg("T1", filled_entry=True)
+        t2 = _leg("T2", filled_entry=True, stop_price=147.0)
+        # T1.qty=10, T2.qty=10, broker holds exactly 10 → T1 has exited.
+        pos = _position(t1, t2, broker_position_qty=10)
+        decision = stop_rules.propose_stop_advancement(pos)
+        assert decision is not None
+        assert decision.new_stop == 150.0
+
+    def test_advances_when_broker_holds_partial_t2(self):
+        """Edge case: T1 exited and T2 entry only partially filled. Holding
+        less than T2.qty still satisfies the inference (≤ t2.quantity)."""
+        t1 = _leg("T1", filled_entry=True)
+        t2 = _leg("T2", filled_entry=True, stop_price=147.0)
+        pos = _position(t1, t2, broker_position_qty=5)  # less than T2.qty
+        decision = stop_rules.propose_stop_advancement(pos)
+        assert decision is not None
+
+    def test_reason_string_uses_t1_take_profit_price(self):
+        """Note text should reference T1's TP price, not the entry price."""
+        t1 = _leg("T1", filled_entry=True, tp_price=153.75)
+        t2 = _leg("T2", filled_entry=True, stop_price=147.0)
+        pos = _position(t1, t2, entry_price=150.0)
+        decision = stop_rules.propose_stop_advancement(pos)
+        assert decision is not None
+        assert "153.75" in decision.reason
+        assert "150.00" in decision.reason
 
     def test_unsupported_rule_returns_none(self):
         # MIDPOINT and ATR_CLAMPED are placeholders for now.
