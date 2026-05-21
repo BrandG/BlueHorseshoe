@@ -1,5 +1,102 @@
 # Session Handoff
 
+**Date:** May 21, 2026
+**Status:** **Second bug found in the breakeven rule — and a worse one. Phase 1a → 1b promotion paused. Fresh soak clock starts now under the corrected rule.**
+
+What happened today: a casual journal review surfaced that the rule was firing on **T1 entry fill** rather than **T1 take-profit fill** — meaning if we'd flipped to `--manage` today, fresh positions would have had their stops moved to breakeven on the same day they entered, stopping them out on any pullback. The May 20 "looks healthy" verification was lucky coincidence: every position in the batch had aged enough that its T1 TP had separately fired, so the wrong rule produced right answers for 8 of 9. RPRX was the tell — held a full week, no TP fill, but the rule was still proposing advancement against a market 0.4% below the new stop. Fix shipped, verified live; the next manual tick correctly dropped from 9 → 8 proposals (RPRX excluded). bh_status got significant readability improvements along the way.
+
+## Where things stand (current reality on master)
+
+Latest commit: `9cf90d4` on `origin/master`. Branch is clean of my changes (`src/bh_positions.py` `.sim` suffix edit and the two untracked docs `docs/IBKR_journal.csv` + `docs/SUBSYSTEMS_GUIDE.md` are still pre-existing).
+
+Paper book is **10 positions**: NVGS, TRP, RPRX, USAC, NTAP, WMB, VRSN, EPD, PBA, TRGP. NAV ~$1,052,952. **Right at the cap of 10** — PaperTrader submits zero new brackets per `-p` until one closes.
+
+Under the corrected rule, the per-tick proposal breakdown decomposes cleanly:
+
+- **8 advance:** NVGS, TRP, USAC, NTAP, WMB, VRSN, EPD, PBA — T1 TP fired between 5/15 and 5/19, all visible as `fill_detected` sell rows in the journal.
+- **1 hold (RPRX):** T1 BUY filled 5/14, T1 TP has never fired (broker still holds 18 = T1+T2 qty). Under the **old** rule this would have advanced — exactly the case the corrected rule now correctly refuses.
+- **1 hold (TRGP):** BUY LMT @ $267.48 still working; T1 entry hasn't filled. Correctly no-op under both rules. The bracket-tree shape itself is still irregular — flagged in the May 20 handoff for eyeball.
+
+Cron unchanged (still `--manage-dry-run`). Watchdog cron also unchanged.
+
+## What shipped this session — three commits, all on master
+
+- `6f99170` — **feat(bh_status): unround Qty, add FillAvg column + executions cache**. Display fix (`{qty:>10g}` not `{qty:>10.0f}` — fractional shares are now visible), plus a new FillAvg column showing the weighted-average raw fill price from IBKR executions, backed by a persistent JSON cache at `src/logs/ibkr_executions_cache.json` (because `reqExecutions` only returns the current session no matter what `time` filter we pass — verified experimentally). Also fixed an int-cast bug in `IBKRClient.get_executions` that was silently truncating fractional fills.
+- `eb3aaec` — **feat(bh_swing): journal T2 target on advancements + decision-review tool**. Every `action_proposed` / `would_advance_stop` / `stop_advanced` row now carries `pos.target_price` (was always 0.0 because no caller threaded it through). New operator tool `src/bh_swing_review.py` joins each `would_advance_stop` row with current broker state + Mongo `trade_orders` + a Tiingo quote, prints one decision block per (symbol, order_id) per day with four invariant checks (tightening, below T2, matches entry, market above new stop). This is the tool that surfaced the bug.
+- `9cf90d4` — **fix(bh_swing): trigger breakeven on T1 take-profit fill, not entry fill**. New `ManagedPosition.t1_take_profit_filled` property that infers TP fill from position size (both entries filled AND `broker_position_qty ≤ t2.quantity`). `propose_stop_advancement` now keys off this. Reason string fixed to show T1's actual TP price (e.g., `"T1 TP filled @ 24.15 → advance T2 stop to breakeven 23.68"`). 94 bh_swing tests pass, including five new targeted regressions.
+
+## The bug — full diagnosis
+
+The rule in `stop_rules.py` was:
+
+```python
+if not t1.entry_filled:
+    return None  # haven't earned the advance yet
+```
+
+`t1.entry_filled` is True the moment T1's BUY (the entry) fills — i.e., the moment we enter the half-position. The correct trigger is T1's **take-profit** having fired, which is a different event entirely.
+
+This bug was *masked* for the entire May 14–20 dry-run soak by a stack of accidents:
+
+1. **`a1b55b6` (May 20) made `entry_filled` correct.** Before that, `entry_filled` always returned False because IBKR drops filled orders from `reqAllOpenOrders`. So the rule never fired and the underlying mis-keying was invisible.
+2. **The May 20 verification batch was lucky.** Every position in the batch had been open for 4–7 days, long enough that its T1 TP had separately fired. So the wrong rule produced the right answer for 8 of 9.
+3. **RPRX was the canary.** Opened 5/14, T1 TP never fired, still holding 18 shares. The new `bh_swing_review.py` cross-checked the proposed stop (53.25) against the current market (53.06) and flagged it red. That was the thread to pull.
+
+What would have happened if we'd flipped to `--manage` on May 20:
+
+- Existing positions: stops advanced correctly by coincidence, except RPRX which would have stopped out immediately.
+- **Newly placed positions: stop moved to entry on the same day the entry filled.** Any tick that touched entry-1¢ during normal price discovery would have flatlined the position for a $0 P&L "win." Days of trading reduced to coin-flip noise.
+
+## How the fix works
+
+`t1_take_profit_filled` infers the TP fill from position size:
+
+```python
+if not (self.t1.entry_filled and self.t2.entry_filled):
+    return False
+return 0 < self.broker_position_qty <= self.t2.quantity
+```
+
+The reasoning: in the Phase 1 paper bracket, T1's stop and T2's stop sit at the same price level (entry - σ). If price drops to that level, both stops fire together (broker_qty → 0). The only way T1 alone can exit is via its take-profit. So "both entries filled AND broker holds at most T2's worth" is sufficient to conclude T1 TP fired.
+
+This assumption is documented in the property's docstring. If we ever ship a bracket variant with split stop levels, this needs revisiting.
+
+## Phase 1a → 1b decision — paused, not blocked
+
+The previous "3 days of clean review at ≥90% match" exit criterion was running against the wrong rule. Those days don't count. The clock resets effectively today.
+
+**What to look for in the next 3 trading days** under the corrected rule:
+
+1. **RPRX stays in the hold list** until its T1 TP actually fires. If it does fire, watch for the next-tick proposal — that's the first real T1-TP-driven advancement we'll get to verify under the new rule.
+2. **Any new positions placed by PaperTrader** (once one of the current 10 closes) should NOT receive an advancement proposal until their T1 fires. The old bug would have proposed advancement immediately on entry.
+3. **The 8 currently-proposing positions** keep re-proposing every tick (idempotent dry-run — same noise as before).
+
+Decision flow on next review:
+
+```bash
+./run.sh python src/bh_swing_review.py
+```
+
+The tool prints decision blocks with all four invariants checked inline. ≥90% match across 3 trading days = promote. Find any decision that fails the "market above new stop" check = pause and investigate.
+
+## Other things to look at
+
+1. **Eyeball TRGP** — still has the dangling BUY LMT @ $267.48 + extra SELL legs from May 20. Both rules correctly skip it; the bracket-tree shape is the open question. Decide whether to flatten + re-enter or live with it.
+2. **`AUTO_RESTART_TIME=08:00` UTC** — May 20 handoff flagged that we don't know whether this is actually firing or whether we're relying on auto-reconnect plus the watchdog. Still unconfirmed.
+3. **Executions cache for live bh_status** — currently captures fills only on days the operator runs `-s --live`. For positions opened earlier, FillAvg stays `—` until they close. Acceptable for now (it self-heals as positions roll over); revisit if it becomes annoying.
+
+## Operator controls (unchanged)
+
+- Kill switch: `touch /root/BlueHorseshoe/.bh_swing_pause_management`
+- Emergency flatten: `./run.sh python src/bh_swing_flatten.py --execute`
+- Watchdog log: `tail -f src/logs/ibgw_watchdog.log` (silent on healthy days)
+- Live account snapshot: `./run.sh python src/main.py -s --live`
+- **New:** Decision review: `./run.sh python src/bh_swing_review.py [--date YYYY-MM-DD]`
+
+---
+
+# Session Handoff
+
 **Date:** May 20, 2026
 **Status:** **Orchestrator bug found and fixed. Rate limit bumped 3 → 15. Phase 1a is now producing 9 `would_advance_stop` per tick, all in one pass. Promotion-to-1b decision is in your hands.**
 
