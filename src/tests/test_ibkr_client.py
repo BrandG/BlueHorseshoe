@@ -491,6 +491,9 @@ class TestPlaceBracketOrder:
         assert result["status"] == "submitted"
         assert result["order_ids"] == [101, 102, 103]
         assert result["error"] is None
-        # All legs must be GTC.
-        for leg in (parent, take_profit, stop_loss):
-            assert leg.tif == "GTC"
+        # Entry must be DAY (unfilled limits die at EOD; algorithm re-picks
+        # the symbol the next day if the setup still holds). TP and SL stay
+        # GTC so they ride the position once activated.
+        assert parent.tif == "DAY"
+        assert take_profit.tif == "GTC"
+        assert stop_loss.tif == "GTC"

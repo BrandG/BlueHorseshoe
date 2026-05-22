@@ -227,7 +227,10 @@ class IBKRClient:
         """
         Place a bracket order: limit entry + take-profit + stop-loss.
 
-        All three legs use GTC (Good-Til-Cancelled) time-in-force.
+        Entry leg uses DAY (cancelled at EOD if unfilled — the algorithm
+        re-picks the symbol the next day with fresh prices if the setup
+        still holds). Take-profit and stop-loss legs use GTC so they
+        ride with the position until the trade closes.
 
         Args:
             symbol: Stock ticker symbol (e.g., "AAPL")
@@ -260,8 +263,12 @@ class IBKRClient:
                 stopLossPrice=round(stop_loss_price, 2),
             )
 
-            # Set all legs to GTC
-            for order in bracket:
+            # Entry leg: DAY — unfilled limits die at EOD rather than
+            # linger with stale TP/SL prices. Children: GTC — must ride
+            # with the position once activated. IBKR auto-cancels children
+            # if the parent expires unfilled (parentId linkage).
+            bracket[0].tif = "DAY"
+            for order in bracket[1:]:
                 order.tif = "GTC"
 
             order_ids = []
