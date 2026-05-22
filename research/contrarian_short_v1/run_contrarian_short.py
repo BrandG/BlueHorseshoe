@@ -39,14 +39,16 @@ LOOKBACK_DAYS = 365
 
 def _fetch_top_n_per_date(db, dates: list[str], bottom: bool = False,
                           random_seed: int | None = None,
+                          all_picks: bool = False,
                           min_pool: int = 20) -> dict[str, list[dict]]:
     """For each date, return up to TOP_N baseline picks (symbol + score).
 
     If bottom=True, takes the lowest-scoring positive picks instead.
     If random_seed is not None, samples TOP_N uniformly at random from the
     eligible pool with the given seed (mutually exclusive with bottom).
-    Dates with fewer than min_pool qualified symbols are skipped (bottom-10
-    or random-10 of a 5-row universe is meaningless).
+    If all_picks=True, returns every baseline-positive pick on the date
+    (mutually exclusive with bottom and random).
+    Dates with fewer than min_pool qualified symbols are skipped.
     """
     import random
     rng = random.Random(random_seed) if random_seed is not None else None
@@ -61,8 +63,9 @@ def _fetch_top_n_per_date(db, dates: list[str], bottom: bool = False,
         if pool_size < min_pool:
             continue
         proj = {"symbol": 1, "score": 1, "metadata.entry_price": 1, "_id": 0}
-        if rng is not None:
-            # Pull the full eligible pool and sample in Python for reproducibility.
+        if all_picks:
+            chosen = list(coll.find(query, proj))
+        elif rng is not None:
             pool = list(coll.find(query, proj))
             chosen = rng.sample(pool, min(TOP_N, len(pool)))
         else:
@@ -219,11 +222,12 @@ def main():
     ap.add_argument("--bottom", action="store_true", help="use bottom-N (weakest signal) instead of top-N")
     ap.add_argument("--random", action="store_true", help="sample N uniformly from the eligible baseline-positive pool")
     ap.add_argument("--seed", type=int, default=42, help="seed for --random sampling")
+    ap.add_argument("--all", action="store_true", help="use ALL baseline-positive picks (no top-N filter)")
     ap.add_argument("--entry", choices=["open", "limit"], default="open",
                     help="entry mechanic: 'open' (next-day open) or 'limit' (limit at metadata.entry_price on bar 0)")
     args = ap.parse_args()
-    if args.bottom and args.random:
-        ap.error("--bottom and --random are mutually exclusive")
+    if sum([args.bottom, args.random, args.all]) > 1:
+        ap.error("--bottom, --random, --all are mutually exclusive")
     TP_PCT = args.tp / 100.0
     SL_PCT = args.sl / 100.0
     HOLD_DAYS = args.hold
@@ -257,7 +261,9 @@ def main():
         print("No baseline score dates in window. Exiting.")
         return 1
 
-    if args.random:
+    if args.all:
+        sel_label = "ALL baseline-positive picks (no top-N filter)"
+    elif args.random:
         sel_label = f"RANDOM-{TOP_N} (seed={args.seed})"
     elif args.bottom:
         sel_label = f"BOTTOM-{TOP_N} baseline by score"
@@ -267,6 +273,7 @@ def main():
     picks_by_date = _fetch_top_n_per_date(
         db, dates, bottom=args.bottom,
         random_seed=args.seed if args.random else None,
+        all_picks=args.all,
     )
     all_symbols = sorted({r["symbol"] for rows in picks_by_date.values() for r in rows})
     print(f"  Unique symbols across all dates: {len(all_symbols)}")
@@ -304,10 +311,22 @@ def main():
             if future.empty:
                 no_data_count += 1
                 continue
-            tl = _simulate_trade("long", future, entry_mode=args.entry, bh_entry=pick.get("bh_entry"))
-            ts = _simulate_trade("short", future, entry_mode=args.entry, bh_entry=pick.get("bh_entry"))
-            tl["symbol"] = sym; tl["score_date"] = d; tl["bh_entry"] = pick.get("bh_entry")
-            ts["symbol"] = sym; ts["score_date"] = d; ts["bh_entry"] = pick.get("bh_entry")
+            # close on the score date itself, for entry-distance computation
+            score_bar = df[df["date"] == cutoff]
+            close_on_score = float(score_bar.iloc[0]["close"]) if not score_bar.empty else float("nan")
+            bh_e = pick.get("bh_entry")
+            try:
+                entry_dist_pct = (close_on_score - float(bh_e)) / close_on_score * 100.0
+            except Exception:
+                entry_dist_pct = float("nan")
+            tl = _simulate_trade("long", future, entry_mode=args.entry, bh_entry=bh_e)
+            ts = _simulate_trade("short", future, entry_mode=args.entry, bh_entry=bh_e)
+            tl["symbol"] = sym; tl["score_date"] = d; tl["bh_entry"] = bh_e
+            tl["close_on_score"] = close_on_score; tl["entry_dist_pct"] = entry_dist_pct
+            tl["score"] = pick.get("score")
+            ts["symbol"] = sym; ts["score_date"] = d; ts["bh_entry"] = bh_e
+            ts["close_on_score"] = close_on_score; ts["entry_dist_pct"] = entry_dist_pct
+            ts["score"] = pick.get("score")
             long_trades.append(tl); short_trades.append(ts)
             date_trades_l.append(tl); date_trades_s.append(ts)
             if tl["status"] not in ("no_future_data", "no_fill", "no_entry_price"):

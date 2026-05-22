@@ -222,10 +222,80 @@ The combined signal across addenda 1+2+3:
 
 Still want a longer window and the entry-distance decomposition before any production change.
 
-## Follow-ups (open, post-addendum 3)
+## Addendum 4 — Entry-Distance Decomposition (2026-05-22)
 
-- **Entry-distance decomposition.** Bucket all baseline-positive picks by `(entry_price − close) / close` and check per-bucket mean R under limit entry. If buckets explain the effect, the score is just a noisy proxy for pullback-distance and can be dropped.
-- **Replicate on a longer window** (12+ months) and across multiple RR cells to confirm the inverted-score effect isn't regime-bound. Requires backfilling `trade_scores` first.
+To test whether the inverted-score effect is mechanically about pullback-distance and not score per se, ran the simulator with `--all` (every baseline-positive pick, no top-N filter) at 1.5/3/3 LONG @ limit. **42,398 attempted picks, 25,084 filled**. For each pick, captured `entry_dist_pct = (close_on_score_date − bh_entry) / close × 100` (positive = entry below close = a buy-pullback).
+
+### Quintile bins by entry-distance
+
+| Bucket | N | Avg dist% | Avg score | WR | Mean R/trade | 95% CI | Cum % |
+|---|---:|---:|---:|---:|---:|---|---:|
+| Q1 (−0.91, +0.20%) | 4,675 | −0.265% | **15.98** | 63.3% | +0.090% | [+0.040, +0.141] | +421% |
+| Q2 (+0.20, +0.43%) | 4,674 | +0.334% | 13.41 | 64.3% | +0.174% | [+0.122, +0.225] | +811% |
+| Q3 (+0.43, +0.58%) | 4,674 | +0.495% | 10.68 | 66.0% | +0.211% | [+0.155, +0.268] | +988% |
+| Q4 (+0.58, +0.83%) | 4,674 | +0.689% |  8.15 | 69.2% | +0.341% | [+0.287, +0.395] | +1595% |
+| Q5 (+0.83, +2.42%) | 4,674 | +1.074% |  **5.79** | 75.6% | **+0.618%** | [+0.565, +0.670] | **+2888%** |
+
+Mean R rises monotonically with entry-distance: **+0.090% → +0.618%, a +0.528 pp swing across quintiles**. All five CIs exclude zero. Win rate also climbs monotonically: 63.3% → 75.6%. **Avg score drops monotonically as entry-distance rises** — score is inversely correlated with pullback-distance, which explains the addendum 3 result entirely.
+
+### Cross-tab — does score have residual edge?
+
+**Within each entry-distance quintile, split by score median:**
+
+| Quintile | Low-score N | Mean R | High-score N | Mean R | High − Low gap |
+|---|---:|---:|---:|---:|---:|
+| Q1 | 2,339 | +0.098% | 2,336 | +0.083% | **−0.015%** |
+| Q2 | 2,345 | +0.208% | 2,329 | +0.139% | **−0.070%** |
+| Q3 | 2,337 | +0.195% | 2,337 | +0.228% | +0.032% |
+| Q4 | 2,442 | +0.383% | 2,232 | +0.296% | **−0.087%** |
+| Q5 | 2,337 | +0.590% | 2,337 | +0.646% | +0.057% |
+
+Gaps: −0.087 to +0.057 pp. Inconsistent sign (low-score wins 3 of 5). CIs overlap heavily. **Score has no within-bucket predictive power.**
+
+**Mirror — within each score quintile, split by entry-distance median:**
+
+| Score quintile | Narrow-dist Mean R | Wide-dist Mean R | Wide − Narrow gap |
+|---|---:|---:|---:|
+| S1 (lowest score) | +0.155% | +0.531% | **+0.377%** |
+| S2 | +0.223% | +0.616% | **+0.394%** |
+| S3 | +0.224% | +0.400% | **+0.175%** |
+| S4 | +0.083% | +0.362% | **+0.280%** |
+| S5 (highest score) | +0.079% | +0.200% | **+0.121%** |
+
+Gaps: +0.121 to +0.394 pp. **All 5 score buckets show wide-pullback > narrow-pullback** with statistical significance in 4 of 5. **Entry-distance has strong residual predictive power inside every score bucket.**
+
+### Verdict
+
+**Entry-distance is the entire edge. Score has no independent contribution.**
+
+The "bottom-10 wins" finding from addenda 2 and 3 is fully explained by the inverse correlation between score and entry-distance:
+- Top-10 picks: avg score ~16, avg entry-distance ~0.27% (Q1 cluster) → +0.09%/trade
+- Bottom-10 picks: avg score ~6, avg entry-distance ~1.07% (Q5 cluster) → +0.62%/trade
+
+It was never about the score; it was always about how far BH wanted the stock to pull back before buying. The score is a noisy proxy for entry-distance, and a worse one than the entry-distance itself.
+
+### Production recommendation
+
+**Rank by `entry_dist_pct` descending, not by score.** Take the top N picks by required pullback magnitude. This is a one-line change in the candidate selection logic.
+
+Expected per-trade R based on the data: Q5 produced +0.618%/trade across 4,674 trades — ~3.4× better than top-10-by-score's +0.179% from addendum 1, and 1.2× better than bottom-10's +0.532%.
+
+### Remaining caveats (smaller now)
+
+1. **Window.** Same 2026-02-12 → 2026-05-19 window. Could be regime-specific. Longer-window backfill still warranted.
+2. **One RR cell.** Within-bucket decomposition only run at 1.5/3/3. Need to confirm the entry-distance gradient holds at 2/4/5 (which had the biggest BOTTOM-TOP gap in the sweep).
+3. **No commission/spread modeling.** Q5's 48% fill rate means ~2 limit orders per fill — broker fees compound on cancellations.
+4. **Volatility confound.** Entry-distance may be correlated with stock volatility. High-vol names mean-revert more, so Q5 might just be "volatile-stock bucket." Worth a sub-decomposition (entry-distance bucketed within ATR/volatility quintile).
+5. **Possible look-ahead artifact.** Verify `entry_price` in `metadata` is computed from data available at score-date close (not later). If entry_price uses next-day data, the test is contaminated. Quick code review needed.
+6. **R:R filter interaction.** Production also filters by R:R > 1.0 etc. Wide-pullback picks may already be filtered differently than narrow ones — the production candidate set may not be the full Q5 universe this test used.
+
+## Follow-ups (open, post-addendum 4)
+
+- **Verify `metadata.entry_price` provenance.** Code-review the strategy code path that writes entry_price — confirm it's computed only from data ≤ score_date close. Critical sanity check before trusting this result.
+- **Replicate the entry-distance decomposition at 2/4/5.** Confirm the Q1-to-Q5 gradient holds at the cell with the biggest score-bucket gap.
+- **Volatility sub-decomposition.** Bucket by entry-distance AND ATR — is the Q5 edge persistent across volatility regimes, or concentrated in high-vol names?
+- **Longer-window replication** (requires `trade_scores` backfill).
+- **Paper-trader A/B.** Run a parallel "top-10 by entry_dist_pct" book at 1.5/3/3 vs the existing top-10-by-score book. 30 days of live results would settle production deployment.
 - **Production A/B.** If the live paper trader can run a parallel "bottom-10" or "random-10" book at 1.5/3/3, measure 30-day live results against the top-10 book.
 - **Decompose by entry-distance.** Is the bottom-10 edge actually about score, or just about `(entry_price - close) / close` magnitude? Re-bin picks by entry-distance and check per-trade R.
 - **Multi-day limit GTD.** Production may keep the limit open >1 bar. Test `--limit-good-for {1,2,3}`.
