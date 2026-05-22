@@ -1,0 +1,76 @@
+# Master copy of root's user crontab on the research droplet.
+# Apply with:  crontab ops/crontab.txt
+# View live:   crontab -l
+#
+# IMPORTANT: `crontab <file>` REPLACES the existing crontab entirely (no
+# merge). If you're adding a new entry, edit THIS file, then reinstall —
+# do not use `crontab -e` on its own or the file in repo will drift.
+#
+# History (2026-05-22): reconstructed from journalctl after an accidental
+# clobber. If schedules feel off, cross-check against the live journal.
+
+# ====================
+# Time-critical (every-N-minutes)
+# ====================
+# IBGW watchdog — probes Java listener inside the container; force-recreates
+# on confirmed wedge with 15-min cooldown. Confirmed `1-59/5 * * * *` from
+# memory + journal (1780 fires / 7 days, every 5 min from :01).
+1-59/5 * * * *  /root/BlueHorseshoe/run_ibgw_watchdog.sh
+
+# BH Swing monitor — 5-min cadence during US market hours, Mon-Fri.
+# Reconstructed window 13:00-21:00 UTC = 09:00-17:00 ET (108 fires/weekday,
+# matches 9 hours × 12 fires/hour).
+*/5 13-21 * * 1-5  /root/BlueHorseshoe/run_bh_swing_monitor.sh --manage-dry-run
+
+# IBGW live-account keepalive — 48 fires/full-day on Thursday in journal,
+# 2 fires Wednesday evening (started Wed late). Inferred every 30 min daily.
+0,30 * * * *  /root/BlueHorseshoe/run_ibgw_live_keepalive.sh
+
+# ====================
+# BH FTMO session loop — every 4h, staggered by minute within session
+# ====================
+# Sessions: 01,05,09,13,17,21 UTC. Each session runs 5 scripts in order
+# 05→10→15→16→20 minutes past the hour. All 7-day patterns clean.
+5  1,5,9,13,17,21 * * *  cd /root/BlueHorseshoe && ./run.sh python -m bh_ftmo.data.incremental_update >> /root/BlueHorseshoe/src/logs/bh_ftmo_incremental.log 2>&1
+10 1,5,9,13,17,21 * * *  cd /root/BlueHorseshoe && ./run.sh python -m bh_ftmo.predict --equity 10000 >> /root/BlueHorseshoe/src/logs/bh_ftmo_signals.log 2>&1
+15 1,5,9,13,17,21 * * *  cd /root/BlueHorseshoe && ./run.sh python src/bh_ftmo_paper.py >> /root/BlueHorseshoe/src/logs/bh_ftmo_paper.log 2>&1
+16 1,5,9,13,17,21 * * *  /root/BlueHorseshoe/run_bh_ftmo_v2_paper.sh
+20 1,5,9,13,17,21 * * *  /root/BlueHorseshoe/run_bh_briefing.sh
+25 1,5,9,13,17,21 * * *  cd /root/BlueHorseshoe && ./run.sh python src/bh_briefing_ftmo.py >> /root/BlueHorseshoe/src/logs/bh_briefing_ftmo.log 2>&1
+
+# Extra weekday briefing at 22:30 — saw 5 fires Mon-Fri this week, no Sat/Sun.
+30 22 * * 1-5  cd /root/BlueHorseshoe && ./run.sh python src/bh_briefing_ftmo.py >> /root/BlueHorseshoe/src/logs/bh_briefing_ftmo.log 2>&1
+
+# ====================
+# Daily / weekly maintenance
+# ====================
+# Daily pipeline — Tue-Sat 01:00 UTC. Per script comment: "Mon-Fri: Update
+# -> Predict -> Journal -> Report -> Email; Saturday: Full symbol update".
+0 1 * * 2-6  /root/BlueHorseshoe/run_daily_pipeline.sh
+
+# IBGW paper-gateway daily restart — added recently (only 2 fires journaled
+# Thu/Fri this week). Per memory commit 938d59c, this is daily 08:00 UTC.
+0 8 * * *  /root/BlueHorseshoe/run_ibgw_paper_restart.sh
+
+# BlueHorseshoe daily backup — 05:00 UTC.
+0 5 * * *  /root/BlueHorseshoe/backup.sh >> /root/BlueHorseshoe/src/logs/backup.log 2>&1
+
+# Weekly model retrain — Sunday 02:00 UTC.
+0 2 * * 0  /root/BlueHorseshoe/src/cron_weekly_retrain.sh >> /root/BlueHorseshoe/src/logs/cron_retrain.log 2>&1
+
+# ====================
+# dailyLitBits (separate project, parallel to BH)
+# ====================
+# Hourly content dispatch.
+0 * * * *  docker exec dailylitbits python dispatch.py >> /var/log/dailylitbits.log 2>&1
+# AI summarizer once daily at 20:00.
+0 20 * * *  docker exec dailylitbits python summarize.py >> /var/log/dailylitbits_ai.log 2>&1
+# Backup at 02:00 daily.
+0 2 * * *  /usr/bin/python3 /root/dailyLitBits/src/backup.py >> /var/log/dailylitbits_backup.log 2>&1
+
+# ====================
+# Contrarian thread reminder — added by Claude 2026-05-22.
+# Fires once on 2026-05-29 at 13:00 UTC (= 09:00 ET) and no-ops in
+# subsequent years. Safe to delete after firing.
+# ====================
+0 13 29 5 * cd /root/BlueHorseshoe && [ "$(date +\%Y)" = "2026" ] && ./run.sh python scripts/send_handoff_reminder.py --subject "Reminder: resume contrarian thread (session 9a48c5c7)" --doc docs/handoff/CONTRARIAN_NEXT.md --note "Resume with: claude --resume 9a48c5c7-fb77-4623-8bcd-20611dd14520" >> src/logs/reminder.log 2>&1
