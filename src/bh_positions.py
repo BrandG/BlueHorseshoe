@@ -271,6 +271,8 @@ def main(argv: list[str] | None = None) -> int:
     p_close.add_argument("--note")
 
     args = parser.parse_args(argv)
+    if getattr(args, "ftmo_symbol", None) and "." not in args.ftmo_symbol:
+        args.ftmo_symbol = f"{args.ftmo_symbol}.sim"
     if args.cmd == "list":
         return cmd_list(args)
     if args.cmd == "add":
