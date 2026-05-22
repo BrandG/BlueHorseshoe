@@ -289,9 +289,58 @@ Expected per-trade R based on the data: Q5 produced +0.618%/trade across 4,674 t
 5. **Possible look-ahead artifact.** Verify `entry_price` in `metadata` is computed from data available at score-date close (not later). If entry_price uses next-day data, the test is contaminated. Quick code review needed.
 6. **R:R filter interaction.** Production also filters by R:R > 1.0 etc. Wide-pullback picks may already be filtered differently than narrow ones — the production candidate set may not be the full Q5 universe this test used.
 
-## Follow-ups (open, post-addendum 4)
+## Addendum 5 — entry_price Provenance Audit (2026-05-22)
 
-- **Verify `metadata.entry_price` provenance.** Code-review the strategy code path that writes entry_price — confirm it's computed only from data ≤ score_date close. Critical sanity check before trusting this result.
+Code-reviewed the `metadata.entry_price` write path. Findings:
+
+**No look-ahead. Result is valid.**
+
+Call chain:
+1. `SwingTrader._load_and_validate_data` (`src/bluehorseshoe/analysis/strategy.py:375`) — line 387: `df = df[df['date'] <= target_ts]`. Truncates to target_date inclusive. Strict cutoff.
+2. `yesterday = dict(df.iloc[-1])` (line 399) — misleadingly named, but this is the **target_date row** (the most recent bar ≤ target_date). The "yesterday" naming is from the runtime perspective: predictions are generated after target_date's market close, evaluated by the trader for "tomorrow."
+3. `_determine_baseline_entry` (line 224): `last_close = last_row['close']` (line 243). Score-date close.
+4. `entry_price = last_close − (atr_discount × atr)` (line 250). Both inputs strictly from data ≤ score-date.
+
+**The score→entry-distance correlation is structural, not organic.**
+
+The `atr_discount` term comes from `_get_dynamic_atr_discount(technical_score)` which is a hard-coded lookup in `src/bluehorseshoe/analysis/constants.py:75`:
+
+```python
+ENTRY_DISCOUNT_BY_SIGNAL = {
+    'EXTREME': 0.05,   # Score ≥ 20 (top 1%)   → entry near market, narrow pullback
+    'HIGH':    0.10,   # Score ≥ 14.5 (top 5%)
+    'MEDIUM':  0.20,   # Score ≥ 7 (top 20%)
+    'LOW':     0.35,   # Score ≥ 2 (top 40%)
+    'WEAK':    0.50,   # Score < 2 (bottom 60%) → wide pullback required
+}
+```
+
+So `entry_dist_pct = atr_discount × (atr / close) × 100`, with `atr_discount` deterministically chosen *inversely* to score. The score→entry-distance correlation observed in addendum 4 is wired in by this table.
+
+**The data says this calibration is backwards.**
+
+The intent of the table is clear from the comments: high-conviction signals deserve aggressive entry near market price; weak signals need conservative pullback for safety. Under a limit-at-`entry_price` execution rule, the data says the opposite: bigger discount → better filtered outcomes. The Q5 bucket (avg score 5.8, atr_discount ≈ 0.50) outperformed Q1 (avg score 16, atr_discount ≈ 0.05) by **3.4× on per-trade R** (+0.618% vs +0.090%) and **6.9× on cumulative PnL** (+2888% vs +421% across 4,674 trades each).
+
+### Production change candidates
+
+| Option | Change | Mechanism |
+|---|---|---|
+| **A. Invert the table** | EXTREME→0.50, HIGH→0.35, MEDIUM→0.20, LOW→0.10, WEAK→0.05 | Strongest signals demand the biggest pullback. Matches "selection through difficulty." |
+| **B. Flatten the table** | All tiers → 0.50 | Drops the score-tier modulation. Treats every baseline-positive pick the same. Matches "score has no residual edge." |
+| **C. Drop score-ranking, rank candidates by `entry_dist_pct` post-hoc** | Compute entry at whatever atr_discount, then sort candidates by the resulting distance | Most flexible — preserves current entry computation, just changes selection order. |
+
+Option B is closest to the addendum 4 evidence (score has zero residual edge → no reason to keep the tiering). Option A is more conservative — keeps the tiering structure, inverts the direction. Option C is the safest single-line change.
+
+### Remaining caveat — volatility confound (still open)
+
+`entry_dist_pct = atr_discount × atr / close`. Even with `atr_discount` fixed, picks with higher `atr / close` (more volatile stocks) produce wider entry distances. The Q5 effect might be partly "volatile-stock bucket wins" rather than "wide-pullback wins." Worth a sub-decomposition:
+
+1. Within each `atr_discount` tier (i.e., within each signal-strength class), do Q5-by-entry-distance picks still beat Q1?
+2. Within volatility quintiles (atr / close), does the entry-distance gradient persist?
+
+If yes to both, the entry-distance effect is genuine and not just volatility. If the gradient flattens once volatility is controlled, the production change is "trade higher-volatility names" rather than "use wider discount."
+
+## Follow-ups (open, post-addendum 5)
 - **Replicate the entry-distance decomposition at 2/4/5.** Confirm the Q1-to-Q5 gradient holds at the cell with the biggest score-bucket gap.
 - **Volatility sub-decomposition.** Bucket by entry-distance AND ATR — is the Q5 edge persistent across volatility regimes, or concentrated in high-vol names?
 - **Longer-window replication** (requires `trade_scores` backfill).
