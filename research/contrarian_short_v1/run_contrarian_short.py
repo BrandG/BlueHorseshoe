@@ -4,11 +4,14 @@ BlueHorseshoe lose money in the immediate short term (1.5% TP / 3% SL /
 3-day max hold)?
 
 Compares two parallel sims over the same trades:
-  LONG  — what BH actually recommends (buy at next-day open, cover at +1.5% TP, -3% SL, or 3d close)
-  SHORT — contrarian flip (sell at next-day open, cover at -1.5% TP, +3% SL, or 3d close)
+  LONG  — what BH actually recommends (cover at +TP, -SL, or hold-day close)
+  SHORT — contrarian flip (cover at -TP, +SL, or hold-day close)
 
-Entry mechanic is "next-day open" rather than a limit at BH's entry_price,
-to avoid filtering bias from limit-fill selection.
+Two entry modes (--entry):
+  open  — fill at next-day open for both directions (v1 default; no fill filter)
+  limit — LONG fills buy-limit at metadata.entry_price (low <= entry, gap-down → open);
+          SHORT fills sell-limit at the same price (high >= entry, gap-up → open).
+          Bar-0 only; un-touched limits are tagged 'no_fill' and excluded from stats.
 
 Stop-vs-target precedence on an inside-bar is conservative against the trade
 (SL wins ties) — same convention as the production long backtester.
@@ -67,21 +70,52 @@ def _fetch_top_n_per_date(db, dates: list[str], bottom: bool = False,
     return out
 
 
-def _simulate_trade(direction: str, future: pd.DataFrame) -> dict:
+def _simulate_trade(direction: str, future: pd.DataFrame,
+                    entry_mode: str = "open",
+                    bh_entry: float | None = None) -> dict:
     """
     Simulate one trade given a DataFrame of >=1 future trading days (sorted asc).
     direction: 'long' or 'short'.
+    entry_mode: 'open' (next-day open) or 'limit' (limit at bh_entry on bar 0).
 
-    Entry: at future.iloc[0]['open'].
+    Limit-mode fill (bar 0 only):
+      LONG  buy-limit at bh_entry: fills if open <= bh_entry (gap-down, fill at open)
+            else if low <= bh_entry (fill at bh_entry); else 'no_fill'.
+      SHORT sell-limit at bh_entry: fills if open >= bh_entry (gap-up, fill at open)
+            else if high >= bh_entry (fill at bh_entry); else 'no_fill'.
+
     TP/SL: ±TP_PCT / ±SL_PCT from entry.
     Stop-vs-target precedence is conservative against the trade (SL wins ties on
     an inside-bar).
-    Time exit: close of day index HOLD_DAYS-1 (0-indexed: the 3rd bar).
+    Time exit: close of day index HOLD_DAYS-1 (0-indexed: the Nth bar).
     """
     if future.empty:
         return {"status": "no_future_data", "pnl_pct": 0.0, "days_held": 0}
 
-    entry = float(future.iloc[0]["open"])
+    if entry_mode == "open":
+        entry = float(future.iloc[0]["open"])
+    elif entry_mode == "limit":
+        if bh_entry is None or (isinstance(bh_entry, float) and np.isnan(bh_entry)):
+            return {"status": "no_entry_price", "pnl_pct": 0.0, "days_held": 0}
+        bh_entry = float(bh_entry)
+        bar0 = future.iloc[0]
+        o0, h0, l0 = float(bar0["open"]), float(bar0["high"]), float(bar0["low"])
+        if direction == "long":
+            if o0 <= bh_entry:
+                entry = o0  # gap-down: filled at open, better than limit
+            elif l0 <= bh_entry:
+                entry = bh_entry
+            else:
+                return {"status": "no_fill", "pnl_pct": 0.0, "days_held": 0}
+        else:  # short
+            if o0 >= bh_entry:
+                entry = o0  # gap-up: filled at open, better than limit
+            elif h0 >= bh_entry:
+                entry = bh_entry
+            else:
+                return {"status": "no_fill", "pnl_pct": 0.0, "days_held": 0}
+    else:
+        raise ValueError(f"unknown entry_mode: {entry_mode}")
     if direction == "long":
         tp = entry * (1 + TP_PCT)
         sl = entry * (1 - SL_PCT)
@@ -125,10 +159,14 @@ def _simulate_trade(direction: str, future: pd.DataFrame) -> dict:
 
 
 def _summarize(label: str, trades: list[dict]) -> str:
-    valid = [t for t in trades if t["status"] != "no_future_data"]
+    skipped = sum(1 for t in trades
+                  if t["status"] in ("no_future_data", "no_fill", "no_entry_price"))
+    no_fill = sum(1 for t in trades if t["status"] == "no_fill")
+    valid = [t for t in trades
+             if t["status"] not in ("no_future_data", "no_fill", "no_entry_price")]
     n = len(valid)
     if n == 0:
-        return f"{label}: no valid trades"
+        return f"{label}: no valid trades (skipped={skipped}, no_fill={no_fill})"
     wins = [t for t in valid if t["pnl_pct"] > 0]
     losses = [t for t in valid if t["pnl_pct"] < 0]
     flat = n - len(wins) - len(losses)
@@ -148,9 +186,13 @@ def _summarize(label: str, trades: list[dict]) -> str:
     ci_lo = avg - 1.96 * se
     ci_hi = avg + 1.96 * se
 
+    fill_rate = n / (n + no_fill) * 100 if (n + no_fill) > 0 else 0.0
+    fill_line = (f"  Fill rate:        {fill_rate:.1f}%  ({n} filled / {no_fill} no_fill)\n"
+                 if no_fill > 0 else "")
     return (
         f"\n=== {label} ===\n"
-        f"  Trades:           {n}\n"
+        f"  Trades:           {n}  (skipped={skipped})\n"
+        f"{fill_line}"
         f"  Win rate:         {win_rate:.1f}%  ({len(wins)}W / {len(losses)}L / {flat}flat)\n"
         f"  Exit breakdown:   TP={tp_hits}  SL={sl_hits}  time_profit={time_wins}  time_loss={time_losses}\n"
         f"  Avg PnL / trade:  {avg:+.3f}%  (median {med:+.3f}%)\n"
@@ -168,6 +210,8 @@ def main():
     ap.add_argument("--hold", type=int, default=HOLD_DAYS, help="max hold trading days")
     ap.add_argument("--tag", type=str, default="", help="suffix for output CSV files")
     ap.add_argument("--bottom", action="store_true", help="use bottom-N (weakest signal) instead of top-N")
+    ap.add_argument("--entry", choices=["open", "limit"], default="open",
+                    help="entry mechanic: 'open' (next-day open) or 'limit' (limit at metadata.entry_price on bar 0)")
     args = ap.parse_args()
     TP_PCT = args.tp / 100.0
     SL_PCT = args.sl / 100.0
@@ -176,7 +220,10 @@ def main():
     print("Contrarian-short backtest v1")
     print(f"  Top {TOP_N} baseline per date | TP {TP_PCT*100:.1f}% | SL {SL_PCT*100:.1f}% | hold {HOLD_DAYS}d")
     print(f"  Window: last {LOOKBACK_DAYS} days")
-    print(f"  Entry: next-day open after the score date")
+    if args.entry == "open":
+        print(f"  Entry: next-day open after the score date")
+    else:
+        print(f"  Entry: limit at metadata.entry_price on next bar (gap-better fills at open)")
 
     settings = get_settings()
     container = AppContainer(settings=settings)
@@ -237,14 +284,16 @@ def main():
             if future.empty:
                 no_data_count += 1
                 continue
-            tl = _simulate_trade("long", future)
-            ts = _simulate_trade("short", future)
-            tl["symbol"] = sym; tl["score_date"] = d
-            ts["symbol"] = sym; ts["score_date"] = d
+            tl = _simulate_trade("long", future, entry_mode=args.entry, bh_entry=pick.get("bh_entry"))
+            ts = _simulate_trade("short", future, entry_mode=args.entry, bh_entry=pick.get("bh_entry"))
+            tl["symbol"] = sym; tl["score_date"] = d; tl["bh_entry"] = pick.get("bh_entry")
+            ts["symbol"] = sym; ts["score_date"] = d; ts["bh_entry"] = pick.get("bh_entry")
             long_trades.append(tl); short_trades.append(ts)
             date_trades_l.append(tl); date_trades_s.append(ts)
-            daily_pnl_long[d] += tl["pnl_pct"]
-            daily_pnl_short[d] += ts["pnl_pct"]
+            if tl["status"] not in ("no_future_data", "no_fill", "no_entry_price"):
+                daily_pnl_long[d] += tl["pnl_pct"]
+            if ts["status"] not in ("no_future_data", "no_fill", "no_entry_price"):
+                daily_pnl_short[d] += ts["pnl_pct"]
         per_date_counts.append({"date": d, "n": len(date_trades_l)})
 
     print(f"\nTotal trades simulated: {len(long_trades)}  ({no_data_count} skipped for missing data)")

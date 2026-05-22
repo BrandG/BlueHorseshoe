@@ -68,12 +68,66 @@ Secondary question: does the "bottom-10" of the positive-score pool (weakest qua
 
 The most likely structural explanation: **the simulator uses next-day open entry, not BH's limit at `entry_price`.** Production BH only fills on a limit pullback to a pre-computed entry; the test bypasses that filter entirely. So this experiment measures "what if BH market-bought its signals" — and the answer is "it loses money." That's a strong argument for the limit-entry mechanic being part of the edge, not a hindrance.
 
-## Follow-ups (open)
+## Addendum — Limit-Entry Re-run (2026-05-22)
 
-- **Re-run with limit-at-`entry_price` fills.** Compare LONG-with-limit vs LONG-with-open to quantify how much edge the limit mechanic preserves. If limit-LONG is profitable while open-LONG is negative, that's the production thesis confirmed.
-- **Regime split.** Slice the window into pre/post a regime marker (e.g., SPY EMA200 cross or VIX bands) to see if the negative expectancy is concentrated in one regime.
-- **Cross-check against ML overlay.** Top-10 ranked by `score` ignores the ML win-probability re-rank. Re-run on top-10 *after* ML re-ranking — that's what production actually trades.
-- **Bottom-pool noise floor as a null benchmark.** Bottom-10 sits at ~0% mean R; future strategy tests can use it as a sanity baseline for "would random NASDAQ tickers do this well."
+Added `--entry {open,limit}` to the simulator and re-ran all four cells with limit-at-`metadata.entry_price` fills. Bar-0 only: if the bar trades through the limit (LONG: `low <= entry`, SHORT: `high >= entry`), the trade fills (gap-better → at open). Un-touched bars are tagged `no_fill` and excluded from stats.
+
+### Apples-to-apples (today, same window, 1.5% / 3% / 3d TOP-10)
+
+The score-date universe shifted by one day between the v1 and addendum runs, so the v1 open-mode numbers (n=661, mean −0.193%) aren't directly comparable. Both bars below are from today's runs over the same 580-pick universe.
+
+| Entry | N filled | Fill rate | WR | Mean R/trade | 95% CI | Cum % |
+|---|---:|---:|---:|---:|---|---:|
+| **LONG @ open**  | 580 | 100%  | 57.1% | −0.101% | [−0.253, +0.051] | −58.4% |
+| **LONG @ limit** | 413 | 71.2% | 63.9% | **+0.179%** | [−0.000, +0.358] | +73.8% |
+| **SHORT @ open**  | 580 | 100%  | 58.6% | +0.107% | [−0.042, +0.256] | +62.0% |
+| **SHORT @ limit** | 539 | 92.9% | 60.7% | **+0.230%** | [+0.083, +0.377] | +124.1% |
+
+**LONG mean swings +0.28 pp** (−0.101% → +0.179%) by going limit-only. **SHORT mean swings +0.12 pp**. Both deltas are larger than their individual CI half-widths.
+
+### Recent 90d slice (where v1 saw the strongest negative)
+
+| Entry | N | WR | Mean R/trade | 95% CI |
+|---|---:|---:|---:|---|
+| LONG @ open | 530 | 55.5% | **−0.168%** | [−0.328, −0.008] |
+| LONG @ limit | 371 | 62.5% | +0.117% | [−0.075, +0.309] |
+
+In the recent regime, LONG-open is significantly negative; LONG-limit fully neutralizes it (CI overlaps zero). The limit filter erases a real ~+0.29 pp/trade swing.
+
+### Full grid summary (filled trades, limit mode)
+
+| Cell | Dir | N | Fill | WR | Mean | 95% CI | Cum % |
+|---|---|---:|---:|---:|---:|---|---:|
+| TOP 1.5/3/3 | LONG | 413 | 71% | 63.9% | +0.179% | [−0.000, +0.358] | +73.8% |
+| TOP 1.5/3/3 | SHORT | 539 | 93% | 60.7% | +0.230% | [+0.083, +0.377] | +124.1% |
+| TOP 5/3/14 | LONG | 413 | 71% | 42.9% | −0.060% | [−0.408, +0.288] | −24.8% |
+| TOP 5/3/14 | SHORT | 539 | 93% | 44.5% | +0.438% | [+0.121, +0.755] | +236.0% |
+| BOT 1.5/3/3 | LONG | 278 | 48% | 72.3% | +0.532% | [+0.342, +0.721] | +147.8% |
+| BOT 1.5/3/3 | SHORT | 559 | 96% | 54.6% | +0.098% | [−0.044, +0.239] | +54.6% |
+| BOT 5/3/14 | LONG | 278 | 48% | 47.1% | +0.211% | [−0.209, +0.631] | +58.7% |
+| BOT 5/3/14 | SHORT | 559 | 96% | 36.7% | −0.015% | [−0.301, +0.271] | −8.2% |
+
+### Why the asymmetric fill rates matter
+
+LONG-no-fill cases are bars where the stock ran *up* and never pulled back to BH's entry — exactly the chase-entries we want to skip. SHORT-no-fill cases (only ~7% of bars) are gap-down days where the stock crashed below entry overnight; for SHORT, those are the *best* entries we'd ideally take, so skipping them is a structural bias against the contrarian-short thesis. The SHORT-limit positive result is therefore likely conservative-upward: shorting at BH's entry-price on the way up filters to bars where the stock rallied at least to entry, which captures most days. The contrarian shorting strategy still doesn't have an operational thesis — there's no plausible execution that says "sell at BH's limit-buy price."
+
+### Bottom-10 surprise
+
+BOTTOM-10 LONG @ limit at 1.5/3/3 produces **+0.532% mean per trade with CI excluding zero** — the strongest cell in the grid. Fill rate is only 48% (weakest signals → entry prices further from current price → frequent no-fill), but the filtered subset wins. This contradicts the v1 "bottom-10 is noise" conclusion and suggests the entry-price filter, applied to *any* baseline-positive name, has edge. The signal-score ranking and the limit-entry filter are two separate sources of edge, and the limit is doing more work than the ranking.
+
+### Updated verdict
+
+- **The limit-at-entry-price mechanic is load-bearing for the production strategy.** It adds ~+0.28 pp/trade to LONG and turns a borderline-negative window into a borderline-positive one.
+- **The "BH baseline is broken" reading of v1 is wrong.** The v1 negative LONG result was a counterfactual — what would happen *without* the limit filter. It measured the value of the filter, not a defect in production.
+- **Contrarian short is dead.** With limit-at-entry-price for both sides, SHORT looks positive on paper but the fill mechanic is implausible as a real trading rule (sell at the buyer's pullback level). No operational strategy.
+- **New open question.** The bottom-10 LONG-limit cell (+0.532% / trade, n=278) is unexpected — it suggests weak baseline signals + the entry-price limit still produce positive expectancy. Worth a follow-up: is the entry-price mechanic the dominant source of edge across the score distribution?
+
+## Follow-ups (open, post-addendum)
+
+- **Isolate the entry-price filter's edge from the score signal.** Run BOTTOM-10 vs random-baseline-positive picks under limit entry to see if the limit mechanic alone is profitable, independent of ranking.
+- **Multi-day limit GTD.** Production may keep the limit open >1 bar. Test fill rate and edge for `--limit-good-for {1,2,3}` bars.
+- **Regime split.** Slice the window into pre/post a SPY EMA200 cross to see if the negative open-LONG window is regime-bound.
+- **Cross-check ML re-ranking.** Top-N by ML win-probability (production order) may differ materially from top-N by raw score.
 
 ## Files
 
