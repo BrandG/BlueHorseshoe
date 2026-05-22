@@ -38,30 +38,37 @@ LOOKBACK_DAYS = 365
 
 
 def _fetch_top_n_per_date(db, dates: list[str], bottom: bool = False,
+                          random_seed: int | None = None,
                           min_pool: int = 20) -> dict[str, list[dict]]:
     """For each date, return up to TOP_N baseline picks (symbol + score).
 
-    If bottom=True, takes the lowest-scoring positive picks instead. Dates with
-    fewer than min_pool qualified symbols are skipped (bottom-10 of a 5-row
-    universe is meaningless).
+    If bottom=True, takes the lowest-scoring positive picks instead.
+    If random_seed is not None, samples TOP_N uniformly at random from the
+    eligible pool with the given seed (mutually exclusive with bottom).
+    Dates with fewer than min_pool qualified symbols are skipped (bottom-10
+    or random-10 of a 5-row universe is meaningless).
     """
+    import random
+    rng = random.Random(random_seed) if random_seed is not None else None
     out: dict[str, list[dict]] = {}
     coll = db["trade_scores"]
     sort_dir = 1 if bottom else -1
     for d in dates:
-        # Require positive scores so "bottom" doesn't just collect zeros.
         query = {"date": d, "strategy": "baseline",
                  "metadata.entry_price": {"$exists": True},
                  "score": {"$gt": 0}}
         pool_size = coll.count_documents(query)
         if pool_size < min_pool:
             continue
-        cur = coll.find(
-            query,
-            {"symbol": 1, "score": 1, "metadata.entry_price": 1, "_id": 0},
-        ).sort("score", sort_dir).limit(TOP_N)
+        proj = {"symbol": 1, "score": 1, "metadata.entry_price": 1, "_id": 0}
+        if rng is not None:
+            # Pull the full eligible pool and sample in Python for reproducibility.
+            pool = list(coll.find(query, proj))
+            chosen = rng.sample(pool, min(TOP_N, len(pool)))
+        else:
+            chosen = list(coll.find(query, proj).sort("score", sort_dir).limit(TOP_N))
         rows = []
-        for r in cur:
+        for r in chosen:
             meta = r.get("metadata") or {}
             rows.append({"symbol": r["symbol"], "score": r["score"],
                          "bh_entry": meta.get("entry_price")})
@@ -210,9 +217,13 @@ def main():
     ap.add_argument("--hold", type=int, default=HOLD_DAYS, help="max hold trading days")
     ap.add_argument("--tag", type=str, default="", help="suffix for output CSV files")
     ap.add_argument("--bottom", action="store_true", help="use bottom-N (weakest signal) instead of top-N")
+    ap.add_argument("--random", action="store_true", help="sample N uniformly from the eligible baseline-positive pool")
+    ap.add_argument("--seed", type=int, default=42, help="seed for --random sampling")
     ap.add_argument("--entry", choices=["open", "limit"], default="open",
                     help="entry mechanic: 'open' (next-day open) or 'limit' (limit at metadata.entry_price on bar 0)")
     args = ap.parse_args()
+    if args.bottom and args.random:
+        ap.error("--bottom and --random are mutually exclusive")
     TP_PCT = args.tp / 100.0
     SL_PCT = args.sl / 100.0
     HOLD_DAYS = args.hold
@@ -246,8 +257,17 @@ def main():
         print("No baseline score dates in window. Exiting.")
         return 1
 
-    print(f"  Selection: {'BOTTOM' if args.bottom else 'TOP'}-{TOP_N} baseline by score")
-    picks_by_date = _fetch_top_n_per_date(db, dates, bottom=args.bottom)
+    if args.random:
+        sel_label = f"RANDOM-{TOP_N} (seed={args.seed})"
+    elif args.bottom:
+        sel_label = f"BOTTOM-{TOP_N} baseline by score"
+    else:
+        sel_label = f"TOP-{TOP_N} baseline by score"
+    print(f"  Selection: {sel_label}")
+    picks_by_date = _fetch_top_n_per_date(
+        db, dates, bottom=args.bottom,
+        random_seed=args.seed if args.random else None,
+    )
     all_symbols = sorted({r["symbol"] for rows in picks_by_date.values() for r in rows})
     print(f"  Unique symbols across all dates: {len(all_symbols)}")
 

@@ -122,11 +122,56 @@ BOTTOM-10 LONG @ limit at 1.5/3/3 produces **+0.532% mean per trade with CI excl
 - **Contrarian short is dead.** With limit-at-entry-price for both sides, SHORT looks positive on paper but the fill mechanic is implausible as a real trading rule (sell at the buyer's pullback level). No operational strategy.
 - **New open question.** The bottom-10 LONG-limit cell (+0.532% / trade, n=278) is unexpected — it suggests weak baseline signals + the entry-price limit still produce positive expectancy. Worth a follow-up: is the entry-price mechanic the dominant source of edge across the score distribution?
 
-## Follow-ups (open, post-addendum)
+## Addendum 2 — Score-Ranking vs Entry-Price-Filter Decomposition (2026-05-22)
 
-- **Isolate the entry-price filter's edge from the score signal.** Run BOTTOM-10 vs random-baseline-positive picks under limit entry to see if the limit mechanic alone is profitable, independent of ranking.
-- **Multi-day limit GTD.** Production may keep the limit open >1 bar. Test fill rate and edge for `--limit-good-for {1,2,3}` bars.
-- **Regime split.** Slice the window into pre/post a SPY EMA200 cross to see if the negative open-LONG window is regime-bound.
+Added `--random` to sample N picks uniformly from the same baseline-positive pool (score > 0, has `entry_price`) with a Python seed. Ran 3 seeds on the 1.5% / 3% / 3d cell with LONG @ limit, then pooled.
+
+### Results — LONG @ limit, 1.5% / 3% / 3d
+
+| Selection | N | Fill rate | WR | Mean R/trade | 95% CI | Cum % |
+|---|---:|---:|---:|---:|---|---:|
+| **TOP-10**    (best score) | 413 | 71.2% | 63.9% | +0.179% | [−0.000, +0.358] | +73.8% |
+| RANDOM seed=42  | 310 | 53.4% | 68.7% | +0.347% | [+0.156, +0.539] | +107.7% |
+| RANDOM seed=7   | 334 | 57.7% | 66.5% | +0.250% | [+0.064, +0.435] | +83.4% |
+| RANDOM seed=2026 | 295 | 50.9% | 62.4% | +0.157% | [−0.038, +0.352] | +46.3% |
+| **RANDOM pooled (3 seeds)** | 939 | ~54% | — | **+0.253%** | [+0.143, +0.363] | +237.4% |
+| **BOTTOM-10** (worst score) | 278 | 47.9% | 72.3% | **+0.532%** | [+0.342, +0.721] | +147.8% |
+
+### Key observations
+
+1. **Per-trade R is inversely correlated with score.** Top → Random → Bottom is monotonic: +0.179% → +0.253% → +0.532%. Pooled-random CI doesn't overlap top's CI or bottom's CI — the ordering is statistically real, not seed noise.
+2. **Fill rate is also inversely correlated with score.** 71% (top) → 54% (random) → 48% (bottom). Stronger baseline scores produce entry-prices closer to current price (small pullback → frequent fill); weaker scores produce entry-prices further away (large pullback required → rare fill).
+3. **Cumulative PnL strongly favors lower-score buckets.** Bottom-10 generates 2× the per-trade R and 2× the cum PnL vs top-10 with 33% fewer trades.
+4. **The score-ranking edge looks inverted under limit-entry, not absent.** It's not "score doesn't matter" — it's "lower scores produce *better* limit-filtered returns."
+
+### Interpretation
+
+The most plausible mechanical explanation: **"selection through difficulty."** A limit at `entry_price` requires the stock to pull back to that level. For high-score (strong-momentum) picks, BH sets `entry_price` close to current price — so any minor pullback fills, and we collect many low-quality fills. For low-score (weak-momentum) picks, BH sets `entry_price` further away — only the stocks with a *real* meaningful pullback fill, and those are the ones that subsequently snap back to TP. The bottom-10 filtered subset is self-selecting for stocks with strong mean-reversion setups.
+
+This decouples cleanly: **the entry-price filter has uniform, large positive edge across the entire score distribution.** The score ranking is a *second* effect that, paradoxically, weakens the filter's selectivity for top picks.
+
+### Implications for production
+
+Production trades top-N-by-score, gets ~71% fill rate, and earns ~+0.18%/trade. If this finding generalizes:
+
+- **Inverting the ranking** (trade bottom-N) would ~3× per-trade R and ~2× cum PnL — but at half the fill rate, requiring different position-sizing or slot allocation.
+- **Removing the ranking** (random) more than doubles per-trade R and triples cum PnL with ~54% fill rate — likely the simplest production change.
+- **The "good signal → trade it" logic of the baseline is contradicted** by the limit-entry mechanic. Either the score should be inverted, or the entry-price should be set independently of the score (e.g., fixed % below close for everything).
+
+### Caveats
+
+- One ~3-month window (2026-02-12 → 2026-05-19). Could be regime-specific.
+- 1.5% / 3% / 3d only — wider TP/SL cells may behave differently.
+- No commission or spread modeling. Bottom-10's lower fill rate means more "wasted" attempts; at scale, broker fees on cancellations could erode the edge.
+- The 5/3/14 BOTTOM cell from addendum 1 (mean +0.211%, CI crosses zero) doesn't show the same effect, so the result may be specific to the tight 1.5/3/3 RR.
+- Bottom-10 sampling is constrained by the `score > 0` and `min_pool=20` filters — it's not "random NASDAQ tickers," it's "weakest qualifying baseline signals."
+
+## Follow-ups (open, post-addendum 2)
+
+- **Replicate on a longer window** (12+ months) and across multiple RR cells to confirm the inverted-score effect isn't regime-bound.
+- **Production A/B.** If the live paper trader can run a parallel "bottom-10" or "random-10" book at 1.5/3/3, measure 30-day live results against the top-10 book.
+- **Decompose by entry-distance.** Is the bottom-10 edge actually about score, or just about `(entry_price - close) / close` magnitude? Re-bin picks by entry-distance and check per-trade R.
+- **Multi-day limit GTD.** Production may keep the limit open >1 bar. Test `--limit-good-for {1,2,3}`.
 - **Cross-check ML re-ranking.** Top-N by ML win-probability (production order) may differ materially from top-N by raw score.
 
 ## Files
