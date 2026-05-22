@@ -317,7 +317,8 @@ class SwingTrader:
             'vol_ratio': float(last_row['volume'] / avg_volume if avg_volume > 0 else 0),
             'is_realistic': (abs((last_close / entry_price) - 1) <= 0.15) and (risk_pct <= MAX_RISK_PERCENT),
             'atr_discount_used': float(atr_discount_used),
-            'signal_strength': signal_strength
+            'signal_strength': signal_strength,
+            'actual_close': float(last_close),
         }
 
     def calculate_mean_reversion_setup(self, df: pd.DataFrame, ml_stop_multiplier: float = 1.5, ml_target_multiplier: float = 2.0) -> Dict[str, float]:
@@ -355,7 +356,8 @@ class SwingTrader:
             'take_profit': float(take_profit),
             'rr_ratio': float(rr_ratio),
             'vol_ratio': last_row['volume'] / last_row.get('avg_volume_20', 1) if last_row.get('avg_volume_20', 0) > 0 else 0,
-            'is_realistic': risk_pct <= MAX_RISK_PERCENT
+            'is_realistic': risk_pct <= MAX_RISK_PERCENT,
+            'actual_close': float(last_close),
         }
 
     def calculate_relative_strength(self, df: pd.DataFrame, benchmark_df: pd.DataFrame, lookback: int = 63) -> float:
@@ -816,6 +818,7 @@ class SwingTrader:
                             "entry_price": setup.get("entry_price", 0),
                             "stop_loss": setup.get("stop_loss", 0),
                             "take_profit": setup.get("take_profit", 0),
+                            "actual_close": setup.get("actual_close", 0),
                             "ml_win_prob": r.get(strat.ml_prob_key, 0.0),
                             "stop_multiplier": r.get("stop_multiplier", strat.default_stop_multiplier),
                             "target_multiplier": r.get("target_multiplier", strat.default_target_multiplier),

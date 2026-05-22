@@ -337,15 +337,28 @@ class HTMLReporter:
         symbol = c['symbol']
         url = f"https://finance.yahoo.com/quote/{symbol}"
         
-        # Format prices with percentage from entry
+        # Format prices with percentage from entry. The candidate's "close"
+        # field is actually the BH-computed entry_price (pullback level);
+        # "actual_close" is the real score-date close used to compute the
+        # required pullback distance.
         entry = c.get('close', 0)
+        actual_close = c.get('actual_close', 0)
         stop = c.get('stop_loss', 0)
         target = c.get('target', 0)
 
         stop_pct = ((stop - entry) / entry * 100) if entry else 0
         target_pct = ((target - entry) / entry * 100) if entry else 0
+        entry_dist_pct = ((actual_close - entry) / actual_close * 100) if actual_close else 0
 
-        price_info = (f"E:<b>${entry:.2f}</b> "
+        # Distance shown next to entry only when we have actual_close. Older
+        # MongoDB docs that pre-date the field render this as 0 — hide it
+        # rather than mislead by displaying "+0.0%" when the value is missing.
+        if actual_close:
+            entry_display = (f"E:<b>${entry:.2f}</b><small> "
+                             f"(&Delta;{entry_dist_pct:+.2f}%)</small>")
+        else:
+            entry_display = f"E:<b>${entry:.2f}</b>"
+        price_info = (f"{entry_display} "
                       f"S:<b style='color:var(--badge-bear)'>${stop:.2f}</b><small style='color:var(--badge-bear)'> ({stop_pct:.1f}%)</small> "
                       f"T:<b style='color:var(--badge-bull)'>${target:.2f}</b><small style='color:var(--badge-bull)'> (+{target_pct:.1f}%)</small>")
         
@@ -702,7 +715,7 @@ class HTMLReporter:
 
         if baseline_top:
             html.append("<table>")
-            html.append("<tr><th>Symbol</th><th>Score</th><th title='AlphaVantage NEWS_SENTIMENT API'>Sent (AV)</th><th title='Tiingo News API &mdash; headlines scored with VADER'>Sent (TI)</th><th title='StockTwits &mdash; bull/bear tag ratio from public messages'>Sent (ST)</th><th title='Finviz &mdash; news headlines scored with VADER'>Sent (FV)</th><th title='Z-score normalized composite'>Sent (C)</th><th>ML Confidence</th><th>Entry</th><th>Stop</th><th>T1 (+2%)</th><th>T2 Target</th></tr>")
+            html.append("<tr><th>Symbol</th><th>Score</th><th title='AlphaVantage NEWS_SENTIMENT API'>Sent (AV)</th><th title='Tiingo News API &mdash; headlines scored with VADER'>Sent (TI)</th><th title='StockTwits &mdash; bull/bear tag ratio from public messages'>Sent (ST)</th><th title='Finviz &mdash; news headlines scored with VADER'>Sent (FV)</th><th title='Z-score normalized composite'>Sent (C)</th><th>ML Confidence</th><th>Entry</th><th title='Required pullback from score-date close to entry limit'>&Delta;Entry</th><th>Stop</th><th>T1 (+2%)</th><th>T2 Target</th></tr>")
             for c in baseline_top:
                 symbol = c['symbol']
                 url = f"https://finance.yahoo.com/quote/{symbol}"
@@ -718,11 +731,15 @@ class HTMLReporter:
 
                 ml_prob = c.get('ml_prob', 0.0)
                 entry = c.get('close', 0)
+                actual_close = c.get('actual_close', 0)
                 stop = c.get('stop_loss', 0)
                 t1 = c.get('t1_target', entry * 1.02 if entry else 0)
                 target = c.get('target', 0)
                 stop_pct = ((stop - entry) / entry * 100) if entry else 0
                 target_pct = ((target - entry) / entry * 100) if entry else 0
+                entry_dist_pct = ((actual_close - entry) / actual_close * 100) if actual_close else 0
+                # "—" rather than "+0.00%" for old MongoDB docs that pre-date the field.
+                entry_dist_display = f"{entry_dist_pct:+.2f}%" if actual_close else "&mdash;"
 
                 html.append("<tr>")
                 html.append(f"<td><a href='{url}' target='_blank'><strong>{symbol}</strong></a></td>")
@@ -734,6 +751,7 @@ class HTMLReporter:
                 html.append(f"<td><strong>{self._get_sentiment_display(c.get('sentiment_composite', 0.0))}</strong></td>")
                 html.append(f"<td>{ml_prob*100:.0f}%</td>")
                 html.append(f"<td>${entry:.2f}</td>")
+                html.append(f"<td>{entry_dist_display}</td>")
                 html.append(f"<td style='color:#c0392b;font-weight:bold'>${stop:.2f} <span style='font-size:0.85em'>({stop_pct:.1f}%)</span></td>")
                 html.append(f"<td style='color:#e67e22;font-weight:bold'>${t1:.2f} <span style='font-size:0.85em'>(+2.0%)</span></td>")
                 html.append(f"<td style='color:#27ae60;font-weight:bold'>${target:.2f} <span style='font-size:0.85em'>(+{target_pct:.1f}%)</span></td>")
@@ -750,7 +768,7 @@ class HTMLReporter:
 
         if meanrev_top:
             html.append("<table>")
-            html.append("<tr><th>Symbol</th><th>Score</th><th title='AlphaVantage NEWS_SENTIMENT API'>Sent (AV)</th><th title='Tiingo News API &mdash; headlines scored with VADER'>Sent (TI)</th><th title='StockTwits &mdash; bull/bear tag ratio from public messages'>Sent (ST)</th><th title='Finviz &mdash; news headlines scored with VADER'>Sent (FV)</th><th title='Z-score normalized composite'>Sent (C)</th><th>ML Confidence</th><th>Entry</th><th>Stop</th><th>T1 (+2%)</th><th>T2 Target</th></tr>")
+            html.append("<tr><th>Symbol</th><th>Score</th><th title='AlphaVantage NEWS_SENTIMENT API'>Sent (AV)</th><th title='Tiingo News API &mdash; headlines scored with VADER'>Sent (TI)</th><th title='StockTwits &mdash; bull/bear tag ratio from public messages'>Sent (ST)</th><th title='Finviz &mdash; news headlines scored with VADER'>Sent (FV)</th><th title='Z-score normalized composite'>Sent (C)</th><th>ML Confidence</th><th>Entry</th><th title='Mean Reversion enters at the close, so there is no required pullback'>&Delta;Entry</th><th>Stop</th><th>T1 (+2%)</th><th>T2 Target</th></tr>")
             for c in meanrev_top:
                 symbol = c['symbol']
                 url = f"https://finance.yahoo.com/quote/{symbol}"
@@ -782,6 +800,7 @@ class HTMLReporter:
                 html.append(f"<td><strong>{self._get_sentiment_display(c.get('sentiment_composite', 0.0))}</strong></td>")
                 html.append(f"<td>{ml_prob*100:.0f}%</td>")
                 html.append(f"<td>${entry:.2f}</td>")
+                html.append(f"<td>&mdash;</td>")
                 html.append(f"<td style='color:#c0392b;font-weight:bold'>${stop:.2f} <span style='font-size:0.85em'>({stop_pct:.1f}%)</span></td>")
                 html.append(f"<td style='color:#e67e22;font-weight:bold'>${t1:.2f} <span style='font-size:0.85em'>(+2.0%)</span></td>")
                 html.append(f"<td style='color:#27ae60;font-weight:bold'>${target:.2f} <span style='font-size:0.85em'>(+{target_pct:.1f}%)</span></td>")
