@@ -166,9 +166,66 @@ Production trades top-N-by-score, gets ~71% fill rate, and earns ~+0.18%/trade. 
 - The 5/3/14 BOTTOM cell from addendum 1 (mean +0.211%, CI crosses zero) doesn't show the same effect, so the result may be specific to the tight 1.5/3/3 RR.
 - Bottom-10 sampling is constrained by the `score > 0` and `min_pool=20` filters — it's not "random NASDAQ tickers," it's "weakest qualifying baseline signals."
 
-## Follow-ups (open, post-addendum 2)
+## Addendum 3 — RR-Cell Sweep (2026-05-22)
 
-- **Replicate on a longer window** (12+ months) and across multiple RR cells to confirm the inverted-score effect isn't regime-bound.
+To check whether the inverted-score finding is structural or a 1.5/3/3 quirk, swept LONG @ limit across 6 RR cells × 3 selections (TOP-10, RANDOM seed=42, BOTTOM-10). RANDOM seed=42 single-seed except 1.5/3/3 which is pooled across 3 seeds.
+
+### Results — LONG @ limit, per-trade Mean R with 95% CI
+
+| Cell | TOP-10 (best score) | RANDOM | BOTTOM-10 (worst score) |
+|---|---|---|---|
+| 1/2/3   | +0.118%  [−0.020, +0.255] | +0.343%*  [+0.199, +0.486] | +0.372%*  [+0.216, +0.529] |
+| 1.5/3/3 | +0.179%  [−0.000, +0.358] | +0.253%*  [+0.143, +0.363] | +0.532%*  [+0.342, +0.721] |
+| 2/3/3   | +0.087%  [−0.110, +0.285] | +0.213%   [−0.003, +0.429] | +0.526%*  [+0.312, +0.741] |
+| 2/4/5   | +0.043%  [−0.198, +0.283] | +0.261%*  [+0.012, +0.511] | +0.657%*  [+0.414, +0.899] |
+| 3/4/7   | +0.022%  [−0.278, +0.322] | +0.081%   [−0.250, +0.412] | +0.367%*  [+0.024, +0.710] |
+| 5/3/14  | −0.060%  [−0.408, +0.288] | (not run)                   | +0.211%   [−0.209, +0.631] |
+
+`*` = 95% CI excludes zero. N: TOP=413, RANDOM=310 (or 939 for 1.5/3/3 pooled), BOTTOM=278.
+
+### Cumulative PnL (sum of pnl_pct across filled trades)
+
+| Cell | TOP-10 | RANDOM | BOTTOM-10 | BOTTOM−TOP per-trade |
+|---|---:|---:|---:|---:|
+| 1/2/3   | +48.6%   | +106.2% | +103.6% | +0.255% |
+| 1.5/3/3 | +73.8%   | +237.4% | +147.8% | +0.353% |
+| 2/3/3   | +36.0%   | +66.1%  | +146.4% | +0.439% |
+| 2/4/5   | +17.6%   | +81.0%  | +182.6% | +0.614% |
+| 3/4/7   | +9.1%    | +25.1%  | +102.1% | +0.345% |
+| 5/3/14  | −24.8%   | —       | +58.7%  | +0.271% |
+
+### Verdict
+
+**The inverted-score effect is structural.**
+
+- **TOP-10 LONG @ limit has zero statistically significant positive cells out of 6.** Every CI crosses zero. Production's top-N-by-score selection has no demonstrated edge under limit-entry on this dataset.
+- **BOTTOM-10 LONG @ limit has 5 of 6 cells with CI excluding zero**, with mean R ranging from +0.211% to +0.657%/trade.
+- **BOTTOM beats TOP on cumulative PnL in 6/6 cells**, with per-trade gaps from +0.255% to +0.614% — always positive, never close.
+- **The pattern weakens at long hold periods.** 5/3/14 (14-day hold, wide TP) is the only cell where BOTTOM doesn't reach significance — likely because time-stop dominates over pullback-quality at long horizons.
+- **Best single cell:** BOTTOM-10 at 2/4/5 — mean R +0.657%/trade, CI [+0.414, +0.899], cum +182.6%, fill rate 48%, win rate 70.5%.
+
+### What the sweep does NOT yet rule out
+
+1. **Regime dependence.** All 6 cells share the same 2026-02-12 → 2026-05-19 window. The market environment may have been atypically favorable to mean-reversion of weak-score names. Needs a longer window to test (which requires backfilling `trade_scores` — currently the collection only goes back to 2026-02-12).
+2. **Entry-distance confounding.** Bottom-10 picks have `entry_price` further from `close` than top-10 picks. The effect may be entirely about pullback-magnitude, not score. The "entry-distance decomposition" follow-up (open) would settle this.
+3. **Commission and spread.** Bottom-10's 48% fill rate means broker fees on cancellation attempts. Not modeled.
+4. **Limit-good-for-1-bar artifact.** Production may use multi-day GTD limits. A wider fill window may change the bottom-vs-top story.
+5. **SHORT side excluded from sweep.** Only LONG was run; the SHORT @ limit results from addendum 1 already showed the contrarian-short thesis has no operational interpretation.
+
+### What this means for production (preliminary)
+
+The combined signal across addenda 1+2+3:
+
+- The **limit-at-entry_price mechanic** is the dominant source of edge. Adding it to a market-buy strategy is worth ~+0.28 pp/trade.
+- The **top-N-by-score ranking** is unsupported by this data and may actively hurt the limit mechanic's edge. The score may be selecting *against* the high-quality pullback setups the limit filter is designed to capture.
+- A live A/B between top-10, random-10, and bottom-10 books on the paper trader — same 1.5/3/3 RR, 30 days — is the cheapest next step that produces a verdict. Backtest now favors random-10 or bottom-10 by a wide margin on every cell tested.
+
+Still want a longer window and the entry-distance decomposition before any production change.
+
+## Follow-ups (open, post-addendum 3)
+
+- **Entry-distance decomposition.** Bucket all baseline-positive picks by `(entry_price − close) / close` and check per-bucket mean R under limit entry. If buckets explain the effect, the score is just a noisy proxy for pullback-distance and can be dropped.
+- **Replicate on a longer window** (12+ months) and across multiple RR cells to confirm the inverted-score effect isn't regime-bound. Requires backfilling `trade_scores` first.
 - **Production A/B.** If the live paper trader can run a parallel "bottom-10" or "random-10" book at 1.5/3/3, measure 30-day live results against the top-10 book.
 - **Decompose by entry-distance.** Is the bottom-10 edge actually about score, or just about `(entry_price - close) / close` magnitude? Re-bin picks by entry-distance and check per-trade R.
 - **Multi-day limit GTD.** Production may keep the limit open >1 bar. Test `--limit-good-for {1,2,3}`.
