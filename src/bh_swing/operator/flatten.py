@@ -38,6 +38,15 @@ JOURNAL_FIELDS = [
 DEFAULT_MAX_CLOSES = 10
 DEFAULT_CLIENT_ID = int(os.environ.get("BH_SWING_CLIENT_ID", "7"))
 
+# Event names emitted into the journal. Friday-flatten overrides these so its
+# rows are filterable (e.g., `grep ^[ts],live,friday_flatten,` shows only the
+# Friday-cadence flattens). Schema is unchanged either way.
+DEFAULT_EVENT_NAMES = {
+    "would_close":   "would_close",
+    "flattened":     "position_flattened",
+    "failed":        "flatten_failed",
+}
+
 
 @dataclass
 class PositionSummary:
@@ -118,11 +127,17 @@ def run(
     max_closes: int,
     sort_by: str,
     symbols_filter: Optional[set[str]] = None,
+    event_names: Optional[dict[str, str]] = None,
 ) -> int:
     """Plan and (optionally) execute a flatten pass.
 
     Returns the count of positions actually closed (0 in dry-run mode).
+
+    ``event_names`` overrides the journal event strings for callers that
+    want a distinct trail (e.g., Friday-cadence flatten). Schema is
+    unchanged; only the ``event`` column value differs.
     """
+    events = event_names or DEFAULT_EVENT_NAMES
     run_mode = "live" if execute else "dry-run"
     summaries = _build_summaries(client)
     if symbols_filter:
@@ -154,7 +169,7 @@ def run(
         for s in plan:
             _journal({
                 "ts_utc": _now_utc_iso(), "run_mode": run_mode,
-                "event": "would_close", "symbol": s.symbol, "qty": s.qty,
+                "event": events["would_close"], "symbol": s.symbol, "qty": s.qty,
                 "avg_cost": f"{s.avg_cost:.2f}",
                 "unrealized_pnl": f"{s.unrealized_pnl:.2f}",
                 "note": f"sort_by={sort_by}",
@@ -187,7 +202,7 @@ def run(
             closed += 1
             _journal({
                 "ts_utc": _now_utc_iso(), "run_mode": run_mode,
-                "event": "position_flattened", "symbol": s.symbol, "qty": s.qty,
+                "event": events["flattened"], "symbol": s.symbol, "qty": s.qty,
                 "avg_cost": f"{s.avg_cost:.2f}",
                 "unrealized_pnl": f"{s.unrealized_pnl:.2f}",
                 "cancelled_order_ids": "|".join(str(i) for i in cancelled),
@@ -198,7 +213,7 @@ def run(
         else:
             _journal({
                 "ts_utc": _now_utc_iso(), "run_mode": run_mode,
-                "event": "flatten_failed", "symbol": s.symbol, "qty": s.qty,
+                "event": events["failed"], "symbol": s.symbol, "qty": s.qty,
                 "note": result.get("error", ""),
             })
             print(f"  ERROR closing {s.symbol}: {result.get('error')}")
