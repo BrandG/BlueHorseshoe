@@ -1,5 +1,51 @@
 # Session Handoff
 
+**Date:** May 22, 2026
+**Status:** **`bh_swing_friday_flatten.py` shipped. Cron line ready to enable but NOT yet activated — deliberate go-live gate.**
+
+The Friday-flatten policy from yesterday's WEEKEND_FLATTEN_EQUITIES_v1 study is now implemented end-to-end. Short focused session; one commit (`6e68a5d`). The script is tested and smoke-verified against the live broker (kill switch short-circuits cleanly; `--force --dry-run` correctly lists positions and sends no orders). It is **NOT yet on the crontab** — that's an operator step Brand should do when ready for Phase 3 (or earlier, if you want the policy active on the current paper book to start banking the regime evidence).
+
+## Where things stand (current reality on master)
+
+Latest commit: `6e68a5d` on `origin/master`. Branch clean of my changes.
+
+Paper book: 7 open positions per the `--dry-run` smoke (TRGP, EPD, USAC, NTAP, PBA, NVGS, WMB) — down from 10 yesterday afternoon, so three closed naturally overnight or this morning. Cron unchanged (`--manage-dry-run` on the monitor side; Friday-flatten cron NOT yet added).
+
+## What shipped this session
+
+- `6e68a5d` — `bh_swing_friday_flatten.py` + supporting machinery:
+  - `src/bh_swing/operator/friday_flatten.py` (wrapper with day-of-week gate, kill switch, distinct client_id)
+  - `src/bh_swing/operator/flatten.py` (1 minimal change — optional `event_names` parameter; default preserves existing behavior)
+  - `src/bh_swing_friday_flatten.py` (top-level entrypoint)
+  - `run_bh_swing_friday_flatten.sh` (cron wrapper)
+  - `src/tests/test_bh_swing_friday_flatten.py` (10 new tests covering day gate, kill switch, `--force`, dry-run, event names)
+  - All 21 flatten + friday-flatten tests green
+
+## Operational notes
+
+- **Kill switch (distinct from the monitor's):** `touch /root/BlueHorseshoe/.bh_swing_pause_friday_flatten`
+- **Distinct IBKR client_id:** `BH_SWING_FRIDAY_CLIENT_ID=8` (vs monitor's 7) so the 19:55 UTC Friday tick doesn't collide with the 5-min monitor cron.
+- **Journal event names:** `friday_flatten`, `friday_flatten_proposed`, `friday_flatten_failed` — distinct from emergency-flatten's `position_flattened` so the journal is grep-able by cadence.
+- **Cron line ready to enable:**
+  ```
+  55 19 * * 5 /root/BlueHorseshoe/run_bh_swing_friday_flatten.sh
+  ```
+  Not added yet. Decide based on Phase 3 timing or whether you want paper-book evidence ahead of live.
+
+## What to do next session
+
+1. **Decide on activating the Friday-flatten cron.** Two reasonable timings:
+   (a) Activate now on the paper book — produces real-world evidence (journal rows, broker behavior under MKT sells, monitor reconciliation on Monday) before live capital is involved. Costs nothing.
+   (b) Activate when Phase 3 starts — minimal exposure, single change at the live-capital flip.
+   I'd lean (a) for the same reason we soaked Phase 1a in dry-run: real ops surface issues that tests don't.
+2. **Phase 1a → 1b promotion (separate arc, paused from 2026-05-21 morning).** Same exit gate: ≥90% match between proposed and manual judgment across 3 trading days, under the corrected T1-TP rule. Clock effectively restarted Wednesday.
+
+Both remain Phase 3 prerequisites. Friday-flatten is technically ready; the 1a→1b promotion is process-paced.
+
+---
+
+# Session Handoff
+
 **Date:** May 21, 2026 (afternoon)
 **Status:** **WEEKEND_FLATTEN_EQUITIES_v1 study completed. Uniform Friday-flatten SHIPS for equities. Needs implementation as `bh_swing_friday_flatten.py` before Phase 3 live capital.**
 
