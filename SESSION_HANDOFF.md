@@ -1,6 +1,93 @@
 # Session Handoff
 
-**Date:** May 21, 2026
+**Date:** May 21, 2026 (afternoon)
+**Status:** **WEEKEND_FLATTEN_EQUITIES_v1 study completed. Uniform Friday-flatten SHIPS for equities. Needs implementation as `bh_swing_friday_flatten.py` before Phase 3 live capital.**
+
+Following the morning's T1-TP bug fix (entry below), spent the afternoon on the weekend-flatten study Brand asked for: does the equity rule "never hold over a weekend" actually pay? The forex version of this question was answered NO in May for forex, but that test explicitly distinguished equities from forex and did not measure the equity case. This study is that measurement.
+
+Result: **uniform Friday-close flatten + Monday-open reopen REDUCES max drawdown by 41%** (130.8 → 76.6 R) on an 11,163-trade ledger spanning 2015-2026 weekly sampling, with mean R/day *improving* (-0.036 → -0.027) and bootstrap stable (4.7% flip rate, just inside the 5% gate). Confirms the asymmetric tail-risk hypothesis the forex study left unmeasured. The asymmetric "flatten winners only" variant was rejected (25.6% flip rate — pooled cum-R gain is within sampling noise).
+
+The whole pipeline — design doc, lean simulator (bypassing the Backtester's DuckDB-broken slow paths), droplet provisioning, simulators, comparison + ship/no-ship — went from morning planning to result by EOD. ~6h droplet wall time + $1.50.
+
+## Where things stand (current reality on master)
+
+Latest commit: `8586b0d` on `origin/master`. Branch is clean of my changes (`src/bh_positions.py` `.sim` suffix edit and the two untracked docs `docs/IBKR_journal.csv` + `docs/SUBSYSTEMS_GUIDE.md` are still pre-existing).
+
+Paper book is **unchanged from this morning** — still 10 positions, still at the cap. Cron unchanged (`--manage-dry-run`). The T1 TP fix soak (separate arc) continues to accumulate evidence under the corrected rule.
+
+Weekend-flatten artifacts are now in `research/weekend_flatten_equities_v1/`:
+- `baseline_ledger_weekly.csv` (2.9 MB, 11,163 trades)
+- `uniform_flatten_ledger.csv` (3.0 MB)
+- `asymmetric_flatten_ledger.csv` (3.0 MB)
+- `WEEKEND_FLATTEN_EQUITIES_v1_RESULTS.md` (full memo)
+- `run.log` (Phase 1 progress trace from the droplet)
+- `RUNBOOK.md` (kept in case re-running becomes useful)
+- `generate_baseline_ledger_lean.py`, `simulate_flatten.py`, `compare_arms.py` (the three Phase scripts)
+
+Droplet (`bh-weekend-flatten-equities`, id 572328388, lon1) destroyed cleanly after results were verified.
+
+## What shipped this afternoon
+
+- `acd8983` — design doc: `docs/planning/WEEKEND_FLATTEN_EQUITIES_v1.md`
+- `eb80439` — lean Phase 1 simulator (`generate_baseline_ledger_lean.py`) + RUNBOOK. Bypasses the production Backtester (which has DuckDB-bypassing slow paths that made it unusable for 11-year sweeps).
+- `5667eca` — morning handoff entry (this file)
+- `6e9d2d9` — Phase B date-parallelism via ProcessPoolExecutor + fork-inherited ~3GB cache. Deterministic via secondary-sort tiebreak. Validated 2.57× speedup on smoke; full run got 8 hours → 6 hours.
+- `956150c` — Phase 2 (`simulate_flatten.py`) + Phase 3 (`compare_arms.py`). Segment-walk on daily OHLCV; bootstrap stability at 1000 resamples; auto-applies the ship/no-ship rule.
+- `8586b0d` — results: ledgers + full memo
+
+Memory: `project_weekend_flatten_equities_v1_RESULTS.md` saved + indexed in MEMORY.md. The DESIGN entry now points to the RESULTS entry as superseder.
+
+## Key findings (uniform vs baseline)
+
+| Metric | Baseline | Uniform | Δ |
+|---|---|---|---|
+| Trades | 11,163 | 11,163 | — |
+| Cum R | +640.2 | +594.1 | −7.2% (cost) |
+| Mean R/day | −0.036 | **−0.027** | improves |
+| Max drawdown | −130.8 | **−76.6** | **−41%** |
+| Bootstrap flip rate | — | 4.7% | inside 5% gate |
+
+**Regime breakdown — improvement scales with vol:**
+- bear_2022: +0.029 R/day (largest gain)
+- covid_2020: +0.019
+- trend_2023_2026: +0.011
+- trend_2019: +0.009
+- vol_2018: +0.004
+- trend_2015_2017: +0.002
+- trend_2021: 0.000 (tied)
+
+Improvement in 6 of 7 regimes; the high-vol regimes dominate the gain. Pattern matches the original asymmetric-tail-risk hypothesis exactly.
+
+## Caveats called out in the memo
+
+1. **Per-regime statistical-power gate is borderline.** Four regimes (bear_2022 997, trend_2019 980, trend_2021 972, covid_2020 969) land 3-31 trades below the design-doc ≥1000 threshold. Misses are small (~3% under) and the bootstrap is stable, so the conclusion holds. A daily-sampling rerun would close this definitively but isn't needed to act.
+2. **Simulator T2-stop drift.** After T1 fills, the lean simulator moves T2 stop to `entry × 0.98` while production (post-T1-TP fix shipped this morning) uses entry exactly. Makes baseline P&L conservative — flatten benefit if anything understated.
+
+## What to do next session
+
+1. **Implement `bh_swing_friday_flatten.py`.** Concrete shape sketched in the results memo:
+   - Cron at ~19:55 UTC Fri (≈15:55 ET, 5 min before US close)
+   - Walk every open position via broker truth (same path as `bh_swing_monitor`)
+   - Submit MKT sells for each, journal as event=friday_flatten
+   - Re-entries come from Monday's normal `-p` run
+   - Implementation parallel to `bh_swing_monitor`, not inside it (different cadence)
+2. **Phase 1a → 1b promotion (separate arc, paused since morning).** Same exit gate as before: ≥90% match between proposed and manual judgment across 3 trading days, under the *corrected* rule. Clock effectively restarted this morning.
+
+Both items gate Phase 3 live-capital flip. The Friday-flatten policy is now evidence-backed; the 1a→1b promotion is process-paced.
+
+## Operator controls (unchanged)
+
+- Kill switch: `touch /root/BlueHorseshoe/.bh_swing_pause_management`
+- Emergency flatten: `./run.sh python src/bh_swing_flatten.py --execute`
+- Watchdog log: `tail -f src/logs/ibgw_watchdog.log` (silent on healthy days)
+- Live account snapshot: `./run.sh python src/main.py -s --live`
+- Decision review: `./run.sh python src/bh_swing_review.py [--date YYYY-MM-DD]`
+
+---
+
+# Session Handoff
+
+**Date:** May 21, 2026 (morning)
 **Status:** **Second bug found in the breakeven rule — and a worse one. Phase 1a → 1b promotion paused. Fresh soak clock starts now under the corrected rule.**
 
 What happened today: a casual journal review surfaced that the rule was firing on **T1 entry fill** rather than **T1 take-profit fill** — meaning if we'd flipped to `--manage` today, fresh positions would have had their stops moved to breakeven on the same day they entered, stopping them out on any pullback. The May 20 "looks healthy" verification was lucky coincidence: every position in the batch had aged enough that its T1 TP had separately fired, so the wrong rule produced right answers for 8 of 9. RPRX was the tell — held a full week, no TP fill, but the rule was still proposing advancement against a market 0.4% below the new stop. Fix shipped, verified live; the next manual tick correctly dropped from 9 → 8 proposals (RPRX excluded). bh_status got significant readability improvements along the way.
