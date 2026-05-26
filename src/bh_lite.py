@@ -826,6 +826,7 @@ def _write_orders(signals: Sequence[dict], output_path: str) -> None:
             "side": "buy",
             "entry": round(setup["entry_price"], 5),
             "stop": round(setup["stop_loss"], 5),
+            "target": round(setup["take_profit"], 5),
             "lots": size["lots"],
             "risk_usd": size["risk_usd"],
             "entry_score": signal.get("score", 0),
