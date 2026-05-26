@@ -1182,6 +1182,13 @@ body::after {
   font-size: 0.8rem; color: var(--neon-amber); text-shadow: 0 0 4px var(--neon-amber);
   letter-spacing: 1px; background: rgba(255,170,0,0.05);
 }
+.leaderboard-header .sortable {
+  cursor: pointer; user-select: none; transition: color 0.1s, text-shadow 0.1s;
+  display: flex; align-items: center; gap: 3px;
+}
+.leaderboard-header .sortable:hover { color: var(--neon-green); text-shadow: 0 0 6px var(--neon-green); }
+.leaderboard-header .sortable.active-sort { color: var(--neon-green); text-shadow: 0 0 6px var(--neon-green); }
+.leaderboard-header .sort-arrow { font-size: 0.7em; }
 .leaderboard-body {
   max-height: 65vh; overflow-y: auto; scrollbar-width: thin;
   scrollbar-color: var(--neon-amber-dim) var(--pixel-dark);
@@ -1366,6 +1373,8 @@ const state = {
   currentFilter: 'all',
   calcCandidate: null,
   selected: {},
+  sortKey: 'score',
+  sortDir: 'desc',
 };
 
 function normalizeStrategy(s) {
@@ -1610,6 +1619,53 @@ function renderTicker() {
   tc.innerHTML = items + '<span class="ticker-sep">&bull;</span>' + items;
 }
 
+function sortValue(c, key) {
+  if (key === 'symbol') return c.symbol || '';
+  if (key === 'rr') {
+    return (c.stop_loss > 0 && c.close > c.stop_loss) ? (c.target - c.close) / (c.close - c.stop_loss) : -Infinity;
+  }
+  return c[key] || 0;
+}
+
+function applySort() {
+  const key = state.sortKey, dir = state.sortDir;
+  state.filtered.sort(function(a, b) {
+    const va = sortValue(a, key), vb = sortValue(b, key);
+    if (typeof va === 'string' || typeof vb === 'string') {
+      const cmp = String(va).localeCompare(String(vb));
+      return dir === 'asc' ? cmp : -cmp;
+    }
+    return dir === 'asc' ? va - vb : vb - va;
+  });
+}
+
+function updateSortIndicators() {
+  document.querySelectorAll('.leaderboard-header .sortable').forEach(function(h) {
+    const arrow = h.querySelector('.sort-arrow');
+    if (h.dataset.sort === state.sortKey) {
+      h.classList.add('active-sort');
+      if (arrow) arrow.textContent = state.sortDir === 'asc' ? '▲' : '▼';
+    } else {
+      h.classList.remove('active-sort');
+      if (arrow) arrow.textContent = '';
+    }
+  });
+}
+
+function sortBy(key) {
+  if (state.sortKey === key) {
+    state.sortDir = state.sortDir === 'asc' ? 'desc' : 'asc';
+  } else {
+    state.sortKey = key;
+    // Default direction: text ascending, numbers descending (best-first).
+    state.sortDir = (key === 'symbol') ? 'asc' : 'desc';
+  }
+  applySort();
+  updateSortIndicators();
+  renderLeaderboard();
+  renderTicker();
+}
+
 function filterStrategy(filter, btn) {
   state.currentFilter = filter;
   document.querySelectorAll('.strategy-tab').forEach(function(t) {
@@ -1620,6 +1676,7 @@ function filterStrategy(filter, btn) {
   } else {
     state.filtered = state.candidates.filter(function(c) { return c.strategy === filter; });
   }
+  applySort();
   renderLeaderboard();
   renderStats();
   renderTicker();
@@ -1808,7 +1865,9 @@ document.addEventListener('DOMContentLoaded', function() {
   state.currentDate = REPORT_DATA.date;
   state.currentFilter = 'all';
   state.filtered = state.candidates.slice();
+  applySort();
   renderAll();
+  updateSortIndicators();
 });
 """
 
@@ -1872,7 +1931,16 @@ document.addEventListener('DOMContentLoaded', function() {
             # Leaderboard
             '<div class="leaderboard" id="leaderboard" style="display:none">',
             '<div class="leaderboard-header">',
-            '<div></div><div>#</div><div>SYMBOL</div><div>SCORE</div><div title="Z-score normalized composite sentiment">SENT</div><div>ENTRY</div><div>STOP</div><div>T1</div><div>T2</div><div>ML PROB</div><div>R:R</div>',
+            '<div></div><div>#</div>',
+            '<div class="sortable" data-sort="symbol" onclick="sortBy(\'symbol\')" title="Sort by symbol">SYMBOL<span class="sort-arrow"></span></div>',
+            '<div class="sortable" data-sort="score" onclick="sortBy(\'score\')" title="Sort by score">SCORE<span class="sort-arrow"></span></div>',
+            '<div class="sortable" data-sort="sentiment_composite" onclick="sortBy(\'sentiment_composite\')" title="Sort by Z-score normalized composite sentiment">SENT<span class="sort-arrow"></span></div>',
+            '<div class="sortable" data-sort="close" onclick="sortBy(\'close\')" title="Sort by entry price">ENTRY<span class="sort-arrow"></span></div>',
+            '<div class="sortable" data-sort="stop_loss" onclick="sortBy(\'stop_loss\')" title="Sort by stop">STOP<span class="sort-arrow"></span></div>',
+            '<div class="sortable" data-sort="t1_target" onclick="sortBy(\'t1_target\')" title="Sort by T1 target">T1<span class="sort-arrow"></span></div>',
+            '<div class="sortable" data-sort="target" onclick="sortBy(\'target\')" title="Sort by T2 target">T2<span class="sort-arrow"></span></div>',
+            '<div class="sortable" data-sort="ml_prob" onclick="sortBy(\'ml_prob\')" title="Sort by ML win probability">ML PROB<span class="sort-arrow"></span></div>',
+            '<div class="sortable" data-sort="rr" onclick="sortBy(\'rr\')" title="Sort by risk/reward ratio">R:R<span class="sort-arrow"></span></div>',
             '</div>',
             '<div class="leaderboard-body" id="leaderboardBody"></div>',
             '</div>',
