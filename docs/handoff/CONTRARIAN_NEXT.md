@@ -33,10 +33,11 @@ aab7e18 results(research): CONTRARIAN_SHORT_v1 — top-10 baseline @ next-day-op
 
 ## What to gather before resuming
 
-By 2026-05-29 we'll have ~4 trading days of post-Memorial-Day DAY-tif live data:
+**Original plan:** by 2026-05-29 we'd have ~4 trading days of post-Memorial-Day DAY-tif live data (Tue/Wed/Thu/Fri).
 
-- Trading days expected: Tue 2026-05-26, Wed 27, Thu 28, Fri 29.
-- Two weeks would be better (~9 trading days, Friday 2026-06-05). If you'd rather wait, push the cron back.
+**Revised plan after the 2026-05-26 bellwether incident** (see "Incident log" below): expect at most **3 trading days** of clean end-to-end data by Friday — Wed 27, Thu 28, Fri 29. **Tuesday's pipeline did not run successfully.** And as of 2026-05-26 02:55 UTC, MongoDB shows **only 1 of 248,927 baseline scores has `actual_close` populated**, even though the code change shipped Friday — strongly suggesting Saturday's `-p` either didn't write the field, or `ScoreManager.save_scores` upserts on `(symbol, date)` without overwriting the metadata block. Investigate before trusting any fill-rate-by-tier analysis.
+
+- Two weeks would still be better (~9 trading days, Friday 2026-06-05). Given the incident burned one day, pushing the cron to 06-05 is the more conservative call.
 
 **Data to pull before resuming:**
 
@@ -66,3 +67,28 @@ By 2026-05-29 we'll have ~4 trading days of post-Memorial-Day DAY-tif live data:
 - Verify the `382fb91` change is actually deployed (the systemd service may need a restart to pick up new code).
 - Verify cron timezone — if you re-run -p outside US hours, the IBKR session-close auto-cancel still happens correctly.
 - Sanity-check `_get_occupied_symbols` returns expected counts each morning (no zombies).
+
+## Incident log
+
+### 2026-05-26: Memorial Day → bellwether retry loop, no email Tuesday
+
+**Symptom:** Brand noticed no daily report email for several days. Last legitimate email was Saturday 2026-05-23 (for Fri 2026-05-22 data).
+
+**Root cause:** `check_market_status` in `bluehorseshoe/data/historical_data.py` adjusted for Sat/Sun but had **no US market holiday awareness**. Memorial Day 2026-05-25 (Mon) was the first holiday after the cron `0 1 * * 2-6` schedule put Tue at the head of the run sequence. On Tue 01:00 UTC the bellwether expected Mon SPY data from Tiingo, never got it (market closed), looped at 01:00 and 02:00 UTC. The 3 AM abort in `main.py:104` would have fired at 03:00 and exited cleanly without a report.
+
+**Timeline (all UTC):**
+- 2026-05-26 01:00 — cron fires, `-u --active-only` enters bellwether retry loop.
+- 02:00 — retry, same failure.
+- ~02:40 — Brand asks "why no email", session investigates.
+- ~02:45 — diagnosis confirmed (`Bellwether check failed: Expected 2026-05-25, found 2026-05-22` in `daily_pipeline.log`).
+- ~02:45 — PID 684578 (`src/main.py -u --active-only`) killed via SIGTERM, exited cleanly.
+- ~02:44 — manual recovery: `./run.sh python src/main.py -r 2026-05-22` regenerated Friday's report; `./run.sh python src/send_report_email.py` emailed it via Brevo. Brand received a "duplicate" Friday report so the daily cadence didn't visibly skip a day.
+- ~02:55 — durable fix shipped as commit `c0b88b6`: `check_market_status` now walks `expected_date` back through both weekends AND NYSE holidays (reusing the existing `core/market_calendar.nyse_holidays_for_year`). Three regression tests added.
+
+**Open question raised by the investigation:** MongoDB has 1 score with `metadata.actual_close` populated, out of 248,927 baseline scores total. The `actual_close` field was added in commit `fd8e07b` (pushed Friday 2026-05-22 before the Saturday cron). Saturday's `-p` should have written the field on the 2026-05-22 scores it regenerated, but didn't. Two leading hypotheses:
+1. `ScoreManager.save_scores` upserts on `(symbol, date, strategy)` and preserves the existing metadata block instead of overwriting. Worth code-reading `core/scores.py`.
+2. Saturday's `-p` actually short-circuited (skipped writing because scores already existed for that date) — different from option 1 in that scores weren't touched at all.
+
+Either way, **the entry-distance column will only start populating from Wednesday's cron forward**, on fresh score dates that have no prior trade_scores rows to upsert against. If the column is empty in Thursday's email too, that's confirmation that the save-scores path needs a fix.
+
+**Lesson:** the cron `2-6` schedule means any Monday holiday becomes a Tuesday silent failure unless the bellwether is holiday-aware. Memorial Day, MLK Day, Presidents' Day, Labor Day, and Columbus/Indigenous Peoples' Day all fall on Mondays. With `c0b88b6` shipped, these are all covered going forward.
