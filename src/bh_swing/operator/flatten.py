@@ -36,7 +36,14 @@ JOURNAL_FIELDS = [
 ]
 
 DEFAULT_MAX_CLOSES = 10
-DEFAULT_CLIENT_ID = int(os.environ.get("BH_SWING_CLIENT_ID", "7"))
+# Cancellation is client-scoped in IBKR: only the client that PLACED an order
+# can cancel it. A different client sees it via reqAllOpenOrders() but
+# cancelOrder() is rejected async with Error 10147. PaperTrader places bracket
+# legs as client_id=1, so the flatten tool must connect as 1 to clean them up —
+# otherwise it leaves orphan position-creating legs behind (see
+# reference_ibkr_cross_client_cancel). Overridable, but defaults to the placing
+# client rather than the monitor's id (7).
+DEFAULT_CLIENT_ID = int(os.environ.get("BH_SWING_CLIENT_ID", "1"))
 
 # Event names emitted into the journal. Friday-flatten overrides these so its
 # rows are filterable (e.g., `grep ^[ts],live,friday_flatten,` shows only the
@@ -178,22 +185,46 @@ def run(
         return 0
 
     closed = 0
+    aborted = 0
     for s in plan:
         # Fresh snapshot for each iteration so we react to broker truth
         # (canceller will refuse orders that already auto-cancelled).
         open_trades = client.get_open_trades()
         order_ids = _orders_for_symbol(open_trades, s.symbol)
-        cancelled: list[int] = []
         for oid in order_ids:
-            result = client.cancel_order(oid)
-            if result.get("status") == "cancelling":
-                cancelled.append(oid)
-            else:
-                logger.warning(
-                    "Cancel of order %s for %s failed: %s",
-                    oid, s.symbol, result.get("error"),
-                )
+            # cancel_order returns optimistically ("cancelling") the instant
+            # cancelOrder() is called — a cross-client rejection (IBKR Error
+            # 10147) arrives async and never shows up here. So we do NOT trust
+            # this return value; the re-snapshot below is the source of truth.
+            client.cancel_order(oid)
 
+        # Verify the cancels actually landed before we flatten. If we market-
+        # sell while orphan bracket legs are still working, the position goes
+        # to zero and those legs become *position-creating* orders (a stray BUY
+        # re-opens a long, a stray SELL stop opens a short). Refuse to do that.
+        if order_ids:
+            client.sleep(2)  # let async cancel acks settle, then re-snapshot
+        remaining = _orders_for_symbol(client.get_open_trades(), s.symbol)
+        if remaining:
+            aborted += 1
+            note = (
+                f"cancel incomplete: orders {remaining} still working after "
+                f"cancel attempt; market {('SELL' if s.qty > 0 else 'BUY')} "
+                f"SKIPPED to avoid orphan position-creating legs. Likely a "
+                f"cross-client ownership mismatch — run as the placing client "
+                f"(BH_SWING_CLIENT_ID=1)."
+            )
+            _journal({
+                "ts_utc": _now_utc_iso(), "run_mode": run_mode,
+                "event": events["failed"], "symbol": s.symbol, "qty": s.qty,
+                "avg_cost": f"{s.avg_cost:.2f}",
+                "note": note,
+            })
+            print(f"  !! ABORT {s.symbol}: {len(remaining)} order(s) still "
+                  f"working after cancel {remaining} — market order NOT sent.")
+            continue
+
+        cancelled = order_ids  # all confirmed gone by the re-snapshot above
         # Close direction is opposite the position sign.
         action = "SELL" if s.qty > 0 else "BUY"
         result = client.place_market_order(s.symbol, action, abs(s.qty))
@@ -219,7 +250,10 @@ def run(
             print(f"  ERROR closing {s.symbol}: {result.get('error')}")
 
     print()
-    print(f"Closed {closed}/{len(plan)} positions.")
+    summary = f"Closed {closed}/{len(plan)} positions."
+    if aborted:
+        summary += f" ABORTED {aborted} (orphan legs survived cancel — see journal)."
+    print(summary)
     return closed
 
 

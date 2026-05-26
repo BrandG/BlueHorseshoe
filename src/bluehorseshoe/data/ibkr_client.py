@@ -117,6 +117,17 @@ class IBKRClient:
         """Check if currently connected to IB Gateway."""
         return self._ib is not None and self._ib.isConnected()
 
+    def sleep(self, seconds: float) -> None:
+        """Pump the ib_async event loop for ``seconds``.
+
+        Use between issuing async order mutations (cancel/place) and
+        re-snapshotting broker state, so acknowledgements have time to
+        arrive. A plain ``time.sleep`` would NOT pump the loop and the
+        re-snapshot would be stale.
+        """
+        self._ensure_connected()
+        self._ib.sleep(seconds)
+
     def get_quote(self, symbol: str) -> QuoteData:
         """
         Get a snapshot quote for a single symbol.

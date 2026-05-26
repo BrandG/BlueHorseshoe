@@ -7,16 +7,36 @@ from bh_swing.operator import flatten
 
 
 def _client(positions=None, quotes=None, open_trades=None,
-            cancel_result=None, market_result=None):
-    """Build a MagicMock IBKRClient with sensible defaults."""
+            cancel_result=None, market_result=None, cancels_land=True):
+    """Build a MagicMock IBKRClient with sensible defaults.
+
+    ``get_open_trades`` models broker truth: once an order is cancelled it
+    disappears from subsequent snapshots. Set ``cancels_land=False`` to
+    simulate the cross-client failure (Error 10147) where cancel_order
+    returns optimistically but the order keeps working — the case
+    ``flatten.run`` must detect and refuse to market-sell into.
+    """
     c = MagicMock()
     c.get_positions.return_value = positions or []
-    c.get_open_trades.return_value = open_trades or []
+    trades = list(open_trades or [])
+    cancelled_ids: set = set()
+
+    def _cancel(oid):
+        if cancels_land:
+            cancelled_ids.add(oid)
+        return cancel_result or {"status": "cancelling", "error": None}
+
+    def _open_trades():
+        return [t for t in trades
+                if getattr(t.order, "orderId", None) not in cancelled_ids]
+
+    c.cancel_order.side_effect = _cancel
+    c.get_open_trades.side_effect = _open_trades
+    c.sleep.return_value = None
     c.get_quote.side_effect = lambda sym: MagicMock(
         last=(quotes or {}).get(sym, 0.0),
         close=(quotes or {}).get(sym, 0.0),
     )
-    c.cancel_order.return_value = cancel_result or {"status": "cancelling", "error": None}
     c.place_market_order.return_value = market_result or {
         "order_id": 999, "status": "submitted", "error": None,
     }
@@ -75,6 +95,30 @@ class TestExecute:
         assert cancelled_ids == {1, 2, 3}
         # One market SELL for the full position
         c.place_market_order.assert_called_once_with("AAPL", "SELL", 10)
+
+    def test_aborts_market_sell_when_cancels_dont_land(self, capsys, temp_journal):
+        # Orphan legs survive the cancel attempt (cross-client / Error 10147).
+        # run() must NOT market-sell into them, else flattening to zero turns
+        # the survivors into position-creating orders.
+        ord1, ord2 = MagicMock(), MagicMock()
+        for t, oid in [(ord1, 1), (ord2, 2)]:
+            t.contract.symbol = "AAPL"
+            t.order.orderId = oid
+        c = _client(
+            positions=[{"symbol": "AAPL", "position": 10, "avg_cost": 150.0}],
+            quotes={"AAPL": 145.0},
+            open_trades=[ord1, ord2],
+            cancels_land=False,
+        )
+        closed = flatten.run(c, execute=True, max_closes=5, sort_by="worst")
+        assert closed == 0
+        c.place_market_order.assert_not_called()
+        out = capsys.readouterr().out
+        assert "ABORT" in out
+        with open(temp_journal) as f:
+            text = f.read()
+        assert "flatten_failed" in text
+        assert "cancel incomplete" in text
 
     def test_respects_max_closes(self):
         c = _client(

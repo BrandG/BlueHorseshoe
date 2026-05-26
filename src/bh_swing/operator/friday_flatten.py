@@ -16,9 +16,14 @@ Guards:
     to disable without touching cron. Separate from
     ``.bh_swing_pause_management`` so the two policies can be toggled
     independently.
-  - **Distinct client_id.** Uses ``BH_SWING_FRIDAY_CLIENT_ID`` (default 8)
-    so it can run alongside ``bh_swing_monitor`` (client_id 7) without
-    IBKR connection collision.
+  - **Placing client_id.** Uses ``BH_SWING_FRIDAY_CLIENT_ID`` (default 1 =
+    PaperTrader). IBKR cancellation is client-scoped: only the client that
+    placed a bracket leg can cancel it (a different client gets async Error
+    10147). Flattening therefore must connect as the placing client, or the
+    shared ``flatten.run()`` verify step aborts the market sell to avoid
+    leaving orphan position-creating legs. Runs fine alongside the monitor
+    (client 7); only collides with a concurrent ``-p`` (PaperTrader, also 1) —
+    not expected at the 19:55 UTC Friday tick, but worth keeping off that slot.
 
 Defaults to ``--execute`` (since cron expects mutation by design). Use
 ``--dry-run`` for inspection without sending orders.
@@ -45,7 +50,7 @@ from bh_swing.operator import flatten
 logger = logging.getLogger("bh_swing.friday_flatten")
 
 KILL_SWITCH_PATH = os.path.join(REPO_ROOT, ".bh_swing_pause_friday_flatten")
-DEFAULT_CLIENT_ID = int(os.environ.get("BH_SWING_FRIDAY_CLIENT_ID", "8"))
+DEFAULT_CLIENT_ID = int(os.environ.get("BH_SWING_FRIDAY_CLIENT_ID", "1"))
 
 # Use distinct event names so the journal is filterable. Schema unchanged.
 FRIDAY_EVENT_NAMES = {
