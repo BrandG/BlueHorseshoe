@@ -15,6 +15,7 @@ from bluehorseshoe.data.historical_data import (
     get_deep_backfill_done,
     load_historical_data,
     process_symbol,
+    check_market_status,
     BackfillConfig,
 )
 
@@ -320,3 +321,77 @@ def test_process_symbol_skip_only_for_recent(mock_indicators, mock_save):
     # Provider should have been called (symbol was NOT skipped)
     mock_provider.fetch.assert_called_once()
     mock_save.assert_called_once()
+
+
+# -------------------------------------------------------------------- #
+# check_market_status — bellwether check for daily pipeline             #
+# -------------------------------------------------------------------- #
+
+class _FakeNYTimestamp:
+    """Mimics pd.Timestamp(tz='US/Eastern') for check_market_status mocking."""
+    def __init__(self, year, month, day, hour=21):
+        import datetime as dt
+        self._dt = dt.datetime(year, month, day, hour)
+    def __sub__(self, delta):
+        return _FakeNYTimestamp.from_dt(self._dt - delta.to_pytimedelta())
+    def __isub__(self, delta):
+        self._dt -= delta.to_pytimedelta()
+        return self
+    @classmethod
+    def from_dt(cls, dtobj):
+        inst = cls.__new__(cls)
+        inst._dt = dtobj
+        return inst
+    @property
+    def hour(self):
+        return self._dt.hour
+    def date(self):
+        return self._dt.date()
+    def weekday(self):
+        return self._dt.weekday()
+
+
+@patch("bluehorseshoe.data.historical_data.load_historical_data_from_net")
+@patch("pandas.Timestamp.now")
+def test_check_market_status_skips_memorial_day(mock_now, mock_net):
+    """Bellwether: Tuesday after Memorial Day should expect Friday's data, not Monday's.
+
+    Memorial Day 2026-05-25 is the Monday holiday that exposed the original
+    bug — the bellwether expected 2026-05-25 SPY data from Tiingo, never got
+    it, and the pipeline looped at 01:00, 02:00, ... until the 3 AM abort.
+    With the holiday-aware walk-back, it expects 2026-05-22 (Fri), passes
+    on the first try, and the pipeline proceeds.
+    """
+    # Simulate Tue 2026-05-26 01:00 UTC = Mon 2026-05-25 21:00 EDT.
+    mock_now.return_value = _FakeNYTimestamp(2026, 5, 25, hour=21)
+    # Tiingo returns SPY data through Fri 2026-05-22 (Mon was a holiday).
+    mock_net.return_value = {
+        "days": [
+            {"date": "2026-05-21"},
+            {"date": "2026-05-22"},
+        ]
+    }
+    assert check_market_status() is True
+
+
+@patch("bluehorseshoe.data.historical_data.load_historical_data_from_net")
+@patch("pandas.Timestamp.now")
+def test_check_market_status_weekend_walk_back(mock_now, mock_net):
+    """Saturday morning before 6 PM ET → expects Friday's data."""
+    mock_now.return_value = _FakeNYTimestamp(2026, 5, 23, hour=9)  # Sat 9 AM ET
+    mock_net.return_value = {"days": [{"date": "2026-05-22"}]}
+    assert check_market_status() is True
+
+
+@patch("bluehorseshoe.data.historical_data.load_historical_data_from_net")
+@patch("pandas.Timestamp.now")
+def test_check_market_status_normal_weekday(mock_now, mock_net):
+    """Wednesday post-Memorial-Day → expects Tuesday's data (not Friday's)."""
+    # Wed 2026-05-27 01:00 UTC = Tue 2026-05-26 21:00 EDT.
+    mock_now.return_value = _FakeNYTimestamp(2026, 5, 26, hour=21)
+    # Tiingo only has data through Friday — should fail (data not ready yet).
+    mock_net.return_value = {"days": [{"date": "2026-05-22"}]}
+    assert check_market_status() is False
+    # Same scenario but Tiingo has Tuesday's data → pass.
+    mock_net.return_value = {"days": [{"date": "2026-05-26"}]}
+    assert check_market_status() is True

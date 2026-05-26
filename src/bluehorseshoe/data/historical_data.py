@@ -11,6 +11,7 @@ import talib as ta
 from bluehorseshoe.core.config import get_settings
 from bluehorseshoe.core.symbols import get_symbol_list
 from bluehorseshoe.core.scores import ScoreManager
+from bluehorseshoe.core.market_calendar import nyse_holidays_for_year
 from bluehorseshoe.analysis.technical_analyzer import TechnicalAnalyzer
 from bluehorseshoe.analysis.constants import MIN_STOCK_PRICE, MAX_STOCK_PRICE, MIN_VOLUME_THRESHOLD, MIN_MARKET_CAP
 from bluehorseshoe.data.provider_pool import create_provider_pool_from_env
@@ -56,10 +57,22 @@ def check_market_status(symbol='SPY'):
 
         expected_date = now_ny.date()
 
-        if now_ny.weekday() == 5: # Saturday
-            expected_date -= pd.Timedelta(days=1)
-        elif now_ny.weekday() == 6: # Sunday
-            expected_date -= pd.Timedelta(days=2)
+        # Walk expected_date back to the most recent NYSE trading day.
+        # Skips weekends AND market holidays (Memorial Day, Thanksgiving, etc.)
+        # — without the holiday step, the bellwether retries forever the day
+        # after a Monday holiday because Tiingo never publishes Mon data.
+        while True:
+            wd = expected_date.weekday()
+            if wd == 5:  # Saturday → step back to Friday
+                expected_date -= pd.Timedelta(days=1)
+                continue
+            if wd == 6:  # Sunday → step back to Friday
+                expected_date -= pd.Timedelta(days=2)
+                continue
+            if expected_date in nyse_holidays_for_year(expected_date.year):
+                expected_date -= pd.Timedelta(days=1)
+                continue
+            break
 
         net_data = load_historical_data_from_net(symbol, recent=True)
         if not net_data or 'days' not in net_data:
