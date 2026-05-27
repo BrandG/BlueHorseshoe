@@ -35,6 +35,20 @@ cd docker && docker compose down     # Stop infra containers
 
 **CRITICAL:** Never perform Git operations (`add`, `commit`, `push`) without explicit user confirmation for each step. If asked "what time it is, do not start building a clock" - do not execute large-scale changes or start complex implementations without user approval.
 
+## Project Map (Gordon / Bud)
+
+The repo is **two products** named after *Wall Street* (1987). Full map:
+[`docs/PROJECTS.md`](docs/PROJECTS.md); detailed runbook: `docs/SUBSYSTEMS_GUIDE.md`.
+
+- **GORDON** = US equities (IBKR). **Engine** = `bluehorseshoe/` + `main.py`
+  (signal/prediction, the original). **Manager** = `bh_swing/` (post-fill stop
+  management of the orders the Engine placed — *not* its own universe).
+- **BUD** = forex/FTMO (OANDA). **Lab** = `bh_ftmo/` (research/backtest).
+  **Auto** = `bh_ftmo_paper.py` + `bh_ftmo_v2_paper.py` (autonomous). **Briefing**
+  = `bh_briefing.py` + `bh_briefing_ftmo.py` (human-in-loop; supersedes bh_lite).
+  **Envelope** = `bh_lite_*.json` (engine retired; config files still load-bearing —
+  don't delete).
+
 ## Project Overview
 
 BlueHorseshoe is a quantitative swing trading system that:

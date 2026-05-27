@@ -1,6 +1,16 @@
 # BlueHorseshoe Subsystems Guide
 
-BlueHorseshoe has evolved into four cooperating sub-projects, each serving a different stage of the workflow. This guide explains what each one does, how it works, and how to run it.
+> **Naming note (2026-05-27):** the subsystems are now organized as two named
+> products — **GORDON** (US equities: Engine = §1, Manager = §4) and **BUD**
+> (forex/FTMO: Lab + Auto = §3, Briefing, Envelope). See
+> [`PROJECTS.md`](PROJECTS.md) for the canonical map. This guide is the detailed
+> *runbook*. Two known-stale spots below: **§2 `bh_lite` is retired** — its
+> engine is dormant (see [`planning/BH_LITE_SUNDOWN.md`](planning/BH_LITE_SUNDOWN.md))
+> and the live human-in-loop channel is now **`bh_briefing.py` / `bh_briefing_ftmo.py`**
+> (Bud · Briefing); only `bh_lite_*.json` survives as the shared FTMO config
+> envelope. The flag/output references in each section remain accurate.
+
+This guide explains what each subsystem does, how it works, and how to run it.
 
 | Sub-project | Asset class | Automation | Status |
 |---|---|---|---|

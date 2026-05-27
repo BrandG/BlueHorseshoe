@@ -1,4 +1,9 @@
-"""BH FTMO: H4 forex trading system.
+"""BUD · Lab — forex/FTMO research + backtest engine (H4 trading system).
+
+Product map: docs/PROJECTS.md. This is BUD's research/backtest core; the live
+channels that ride on it are the autonomous traders (BUD · Auto:
+bh_ftmo_paper / bh_ftmo_v2_paper) and the human-in-loop briefing (BUD · Briefing:
+bh_briefing / bh_briefing_ftmo).
 
 Isolated from the equities pipeline: OANDA data ingestion (``data/``),
 forex-native indicators (``indicators/``), multi-pair scoring and strategies
