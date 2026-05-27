@@ -179,6 +179,7 @@ def render_console(annotated: list[dict], suppressed: list[dict],
         lines.append(f"  {'#':>2}  {'FTMO Symbol':<14}  {'SIDE':<6}  "
                      f"{'Cluster':<16}  {'Cell':<18}  "
                      f"{'Entry':>10}  {'Stop':>10}  {'Target':>10}  "
+                     f"{'SL pips':>8}  {'TP pips':>8}  "
                      f"{'Lots':>6}  {'Risk $':>8}  {'Rank':>7}")
         for i, f in enumerate(annotated, 1):
             side = "BUY" if f["direction"] == "long" else "SELL"
@@ -188,6 +189,9 @@ def render_console(annotated: list[dict], suppressed: list[dict],
             ent = f"{f['entry']:.{precision}f}"
             stp = f"{f['stop']:.{precision}f}"
             tgt = f"{f['target']:.{precision}f}"
+            pip_size = float(f["instrument"]["pip_size"])
+            sl_pips = abs(f["entry"] - f["stop"]) / pip_size
+            tp_pips = abs(f["target"] - f["entry"]) / pip_size
 
             # Sanity check: geometry must match declared side.
             warn = ""
@@ -201,11 +205,19 @@ def render_console(annotated: list[dict], suppressed: list[dict],
             lines.append(f"  {i:>2}  {f['ftmo_symbol']:<14}  {side:<6}  "
                          f"{cluster:<16}  {cell_desc:<18}  "
                          f"{ent:>10}  {stp:>10}  {tgt:>10}  "
+                         f"{sl_pips:>8.1f}  {tp_pips:>8.1f}  "
                          f"{f['lots']:>6.2f}  ${f['actual_risk']:>6.2f}  "
                          f"{f['quality_rank']:>+6.3f}{warn}")
         lines.append("")
         lines.append("  SIDE column: BUY = long (target > entry > stop),  "
                      "SELL = short (target < entry < stop)")
+        lines.append(f"  Stop/target are FIXED % offsets from entry "
+                     f"(stop {STOP_PCT*100:.1f}% / target {TP_PCT*100:.1f}%). "
+                     f"If you fill late at a different price, re-anchor: apply the "
+                     f"same %s to your actual fill (SL/TP pips barely change).")
+        lines.append("  'limit' cells: place the limit; it's good for the next "
+                     "4h bar. 'mid' cells: enter at market, then set stop/target "
+                     "off your fill. Don't chase a 'mid' that's already near target.")
     if suppressed:
         lines.append("")
         lines.append("== SUPPRESSED ==")
@@ -282,6 +294,10 @@ def run(*, dry_run: bool = False) -> int:
                     "entry": round(f["entry"], f["precision"]),
                     "stop": round(f["stop"], f["precision"]),
                     "target": round(f["target"], f["precision"]),
+                    "stop_pips": round(abs(f["entry"] - f["stop"]) / float(f["instrument"]["pip_size"]), 1),
+                    "target_pips": round(abs(f["target"] - f["entry"]) / float(f["instrument"]["pip_size"]), 1),
+                    "stop_pct": round(STOP_PCT * 100, 3),
+                    "target_pct": round(TP_PCT * 100, 3),
                     "lots": f["lots"],
                     "risk_usd": round(f["actual_risk"], 2),
                     "strategy": f["strategy"],
