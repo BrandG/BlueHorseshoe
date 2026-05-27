@@ -25,20 +25,23 @@ Output:
 from __future__ import annotations
 
 import argparse
+import html
 import json
 import logging
 import math
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
+
+from bh_ftmo.data.fx_store import FxStore
 
 # Import sibling modules (bh_briefing, ftmo_envelope) from the same src/ dir.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from bh_briefing import (
     CELLS, CELL_QUALITY_RANK, TP_PCT, STOP_PCT,
-    evaluate_fires, _price_precision,
+    evaluate_fires, _price_precision, _send_html_email,
 )
 from ftmo_envelope import (
     DEFAULT_CONFIG_PATH, DEFAULT_POSITIONS_PATH,
@@ -48,6 +51,7 @@ from ftmo_envelope import (
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 ORDERS_JSON_PATH = REPO_ROOT / "src" / "bh_briefing_ftmo_orders.json"
+BRIEFING_DIR = REPO_ROOT / "src" / "logs" / "briefings_ftmo"
 
 # Overrides applied on top of bh_lite_config — matches v2_paper risk envelope
 RISK_PER_TRADE_PCT = 0.005    # 0.5% (bh_lite default is 1%)
@@ -60,6 +64,120 @@ LOG = logging.getLogger("bh_briefing.ftmo")
 def oanda_to_ftmo(pair: str) -> str:
     """USD_JPY -> USDJPY.sim. FTMO platform convention."""
     return pair.replace("_", "") + ".sim"
+
+
+def ftmo_to_oanda(sym: str) -> str:
+    """USDJPY.sim -> USD_JPY. Inverse of oanda_to_ftmo for 6-char FX symbols."""
+    base = sym.replace(".sim", "")
+    return f"{base[:3]}_{base[3:]}" if len(base) == 6 else base
+
+
+def _latest_mid_close(store: FxStore, pair: str) -> Optional[float]:
+    """Most-recent closed H4 mid close for a pair, or None if unavailable."""
+    try:
+        df = store.load(pair, granularity="H4", include_incomplete=False)
+    except Exception:  # noqa: BLE001 — any load failure means "no price"
+        return None
+    if df is None or df.empty:
+        return None
+    last = df.iloc[-1]
+    return float((last["close_bid"] + last["close_ask"]) / 2.0)
+
+
+def _assess_position(
+    p: dict,
+    current: Optional[float],
+    inst: Optional[dict],
+    fire_dirs: set[str],
+) -> dict:
+    """Pure health assessment for one position (no I/O).
+
+    ``current`` = latest H4 mid close (or None if unavailable). ``fire_dirs`` =
+    the set of directions currently firing on this pair. Returns a health dict
+    with unrealized P&L (pips + $), remaining room to stop as a fraction of the
+    original entry->stop distance (>1 = in profit, 0 = at stop, <=0 = breached),
+    a signal verdict, and a single status flag.
+    """
+    pos_dir = "long" if str(p.get("side", "buy")).lower() == "buy" else "short"
+    entry = float(p.get("entry", 0.0) or 0.0)
+    stop = float(p.get("stop", 0.0) or 0.0)
+    lots = float(p.get("lots", 0.0) or 0.0)
+    health: dict[str, Any] = {
+        "ftmo_symbol": p.get("ftmo_symbol", ""), "side": p.get("side", ""),
+        "pos_dir": pos_dir, "current": current,
+    }
+    if current is None or inst is None or entry <= 0 or stop <= 0:
+        health.update(status="NO DATA", signal="?",
+                      reason="no H4 price / instrument config")
+        return health
+
+    pip = float(inst["pip_size"])
+    dpp = float(inst["dollar_per_pip_per_lot"])
+    sign = 1.0 if pos_dir == "long" else -1.0
+    pnl_pips = sign * (current - entry) / pip
+    pnl_usd = pnl_pips * dpp * lots
+    stop_total = abs(entry - stop) / pip
+    room_pips = sign * (current - stop) / pip            # >0 room, <=0 breached
+    room_frac = room_pips / stop_total if stop_total > 0 else 0.0
+
+    opp = "short" if pos_dir == "long" else "long"
+    if opp in fire_dirs:
+        signal = "FLIPPED"
+    elif pos_dir in fire_dirs:
+        signal = "supports"
+    else:
+        signal = "none"
+
+    if room_frac <= 0:
+        status = "AT/PAST STOP"
+    elif room_frac <= 0.25:
+        status = "NEAR STOP"
+    elif signal == "FLIPPED":
+        status = "FLIPPED"
+    elif pnl_usd < 0:
+        status = "UNDERWATER"
+    else:
+        status = "OK"
+
+    health.update(
+        pnl_usd=pnl_usd, pnl_pips=pnl_pips, room_pips=room_pips,
+        room_frac=room_frac, signal=signal, status=status,
+        reason=(f"P&L {pnl_usd:+,.0f} ({pnl_pips:+.0f}p), "
+                f"{room_frac * 100:.0f}% room to stop, signal: {signal}"),
+    )
+    return health
+
+
+def compute_position_health(
+    positions: list[dict],
+    fires_raw: list[dict],
+    instrument_map: dict[str, dict],
+) -> list[dict]:
+    """Assess each open position against the latest H4 bar (loads live prices).
+
+    ``fires_raw`` must be the *unfiltered* fire list (before position-skip), so
+    signals on already-held pairs are still visible. Delegates the per-position
+    decision to the pure :func:`_assess_position`.
+    """
+    if not positions:
+        return []
+
+    fires_by_pair: dict[str, set[str]] = {}
+    for f in fires_raw:
+        fires_by_pair.setdefault(f["pair"], set()).add(f["direction"])
+
+    out: list[dict] = []
+    store = FxStore(read_only=True)
+    try:
+        for p in positions:
+            sym = p["ftmo_symbol"]
+            pair = ftmo_to_oanda(sym)
+            current = _latest_mid_close(store, pair)
+            out.append(_assess_position(
+                p, current, instrument_map.get(sym), fires_by_pair.get(pair, set())))
+    finally:
+        store.close()
+    return out
 
 
 def build_instrument_map(config: dict) -> dict[str, dict]:
@@ -157,7 +275,8 @@ def annotate_fires(fires: list[dict], instrument_map: dict[str, dict]) -> list[d
 def render_console(annotated: list[dict], suppressed: list[dict],
                    positions: list[dict], account_size: float,
                    daily_risk_used: float, daily_risk_cap: float,
-                   now_utc: datetime) -> str:
+                   now_utc: datetime,
+                   health: Optional[list[dict]] = None) -> str:
     lines = []
     lines.append(f"BH Briefing → FTMO  ({now_utc.strftime('%Y-%m-%d %H:%M UTC')})")
     lines.append(f"Account: ${account_size:,.0f}  risk/trade: {RISK_PER_TRADE_PCT*100:.2f}%"
@@ -171,6 +290,14 @@ def render_console(annotated: list[dict], suppressed: list[dict],
                          f"{p['lots']:>5} lots  entry {p['entry']:<9}  "
                          f"stop {p['stop']:<9}  risk ${p.get('risk_usd', 0):>6.2f}  "
                          f"opened {p.get('opened', '?')}")
+    if health:
+        lines.append("")
+        lines.append("== POSITION HEALTH ==")
+        lines.append(f"  {'FTMO Symbol':<14}  {'SIDE':<5}  {'Status':<12}  Detail")
+        for h in health:
+            side = "BUY" if h["pos_dir"] == "long" else "SELL"
+            lines.append(f"  {h['ftmo_symbol']:<14}  {side:<5}  "
+                         f"{h['status']:<12}  {h.get('reason', '')}")
     lines.append("")
     if not annotated:
         lines.append("No tradeable fires on this bar (after position + cluster filters).")
@@ -228,7 +355,88 @@ def render_console(annotated: list[dict], suppressed: list[dict],
     return "\n".join(lines)
 
 
-def run(*, dry_run: bool = False) -> int:
+_STATUS_COLOR = {
+    "OK": "#1a7f37", "UNDERWATER": "#9a6700", "FLIPPED": "#9a6700",
+    "NEAR STOP": "#b35900", "AT/PAST STOP": "#cf222e", "NO DATA": "#888",
+}
+
+
+def render_html(annotated: list[dict], suppressed: list[dict],
+                positions: list[dict], account_size: float,
+                daily_risk_used: float, daily_risk_cap: float,
+                now_utc: datetime,
+                health: Optional[list[dict]] = None) -> str:
+    """HTML email body: position health + sized orders + suppressed."""
+    esc = html.escape
+    th = "text-align:left; border-bottom:1px solid #ddd; padding:4px 8px;"
+    td = "padding:4px 8px;"
+    p: list[str] = []
+    p.append('<div style="font-family:-apple-system,Segoe UI,Roboto,sans-serif; max-width:780px;">')
+    p.append('<h1 style="font-size:20px; margin:0 0 4px;">BH Briefing → FTMO</h1>')
+    p.append(f'<p style="color:#555; font-size:13px; margin:2px 0;">'
+             f'{now_utc.strftime("%Y-%m-%d %H:%M UTC")} &nbsp;·&nbsp; account ${account_size:,.0f} '
+             f'&nbsp;·&nbsp; risk/trade {RISK_PER_TRADE_PCT*100:.2f}% &nbsp;·&nbsp; max {MAX_CONCURRENT_POSITIONS} '
+             f'&nbsp;·&nbsp; daily risk ${daily_risk_used:,.2f} / ${daily_risk_cap:,.2f}</p>')
+
+    if health:
+        p.append('<h2 style="font-size:15px; margin:14px 0 6px;">Position health</h2>')
+        p.append(f'<table style="border-collapse:collapse; width:100%; font-size:13px;"><tr>'
+                 f'<th style="{th}">Symbol</th><th style="{th}">Side</th>'
+                 f'<th style="{th}">Status</th><th style="{th}">Detail</th></tr>')
+        for h in health:
+            side = "BUY" if h["pos_dir"] == "long" else "SELL"
+            color = _STATUS_COLOR.get(h["status"], "#333")
+            p.append(f'<tr><td style="{td}">{esc(h["ftmo_symbol"])}</td>'
+                     f'<td style="{td}">{side}</td>'
+                     f'<td style="{td} font-weight:600; color:{color};">{esc(h["status"])}</td>'
+                     f'<td style="{td} color:#555;">{esc(h.get("reason", ""))}</td></tr>')
+        p.append('</table>')
+
+    p.append('<h2 style="font-size:15px; margin:14px 0 6px;">Orders to place</h2>')
+    if not annotated:
+        p.append('<p style="color:#555; font-size:13px;">No tradeable fires on this bar '
+                 '(after position + cluster filters).</p>')
+    else:
+        headers = ["#", "Symbol", "SIDE", "Cell", "Entry", "Stop", "Target",
+                   "SL pips", "TP pips", "Lots", "Risk $"]
+        p.append('<table style="border-collapse:collapse; width:100%; font-size:13px;"><tr>'
+                 + "".join(f'<th style="{th}">{c}</th>' for c in headers) + '</tr>')
+        for i, f in enumerate(annotated, 1):
+            side = "BUY" if f["direction"] == "long" else "SELL"
+            side_color = "#1a7f37" if side == "BUY" else "#cf222e"
+            prec = f["precision"]
+            pip = float(f["instrument"]["pip_size"])
+            sl_pips = abs(f["entry"] - f["stop"]) / pip
+            tp_pips = abs(f["target"] - f["entry"]) / pip
+            cols = [
+                str(i), esc(f["ftmo_symbol"]),
+                f'<b style="color:{side_color};">{side}</b>',
+                esc(f'{f["strategy"]}/{f["entry_mode"]}'),
+                f'{f["entry"]:.{prec}f}', f'{f["stop"]:.{prec}f}', f'{f["target"]:.{prec}f}',
+                f'{sl_pips:.1f}', f'{tp_pips:.1f}', f'{f["lots"]:.2f}', f'${f["actual_risk"]:.2f}',
+            ]
+            p.append('<tr>' + "".join(f'<td style="{td}">{c}</td>' for c in cols) + '</tr>')
+        p.append('</table>')
+        p.append(f'<p style="color:#777; font-size:12px; margin-top:6px;">'
+                 f'Stop/target are fixed % offsets (stop {STOP_PCT*100:.1f}% / target {TP_PCT*100:.1f}%); '
+                 f'if you fill late, re-anchor to your actual fill (pip distances barely change). '
+                 f"'limit' cells are good for the next 4h bar.</p>")
+
+    if suppressed:
+        p.append('<h2 style="font-size:15px; margin:14px 0 6px;">Suppressed</h2>')
+        p.append('<ul style="font-size:12px; color:#777; margin:0; padding-left:18px;">')
+        for f in suppressed:
+            sym = esc(f.get("ftmo_symbol", oanda_to_ftmo(f["pair"])))
+            p.append(f'<li>{sym} {esc(f["strategy"])}/{esc(f["direction"])} — '
+                     f'{esc(f["skip_reason"])}</li>')
+        p.append('</ul>')
+
+    p.append('</div>')
+    return "\n".join(p)
+
+
+def run(*, dry_run: bool = False, email: bool = False,
+        email_only_if_activity: bool = False) -> int:
     config = load_config(DEFAULT_CONFIG_PATH)
     positions = load_positions(DEFAULT_POSITIONS_PATH)
     instrument_map = build_instrument_map(config)
@@ -244,6 +452,8 @@ def run(*, dry_run: bool = False) -> int:
 
     # Pull fires from bh_briefing (already in CELL_QUALITY_RANK descending order)
     fires_raw, _, _ = evaluate_fires()
+    # Health uses the *unfiltered* fires so signals on held pairs stay visible.
+    health = compute_position_health(positions, fires_raw, instrument_map)
     fires = annotate_fires(fires_raw, instrument_map)
 
     fires, pos_skipped = apply_position_skip(fires, positions)
@@ -274,7 +484,7 @@ def run(*, dry_run: bool = False) -> int:
     suppressed = pos_skipped + cluster_suppressed
     now_utc = datetime.now(UTC)
     print(render_console(accepted, suppressed, positions, account_size,
-                         daily_risk_used, daily_risk_cap, now_utc))
+                         daily_risk_used, daily_risk_cap, now_utc, health=health))
 
     # Write structured JSON for copy/paste into FTMO platform
     if not dry_run:
@@ -286,6 +496,9 @@ def run(*, dry_run: bool = False) -> int:
             "daily_risk_used_before": daily_risk_used,
             "daily_risk_cap": daily_risk_cap,
             "open_positions": positions,
+            "position_health": [
+                {k: v for k, v in h.items() if k != "pos_dir"} for h in health
+            ],
             "orders": [
                 {
                     "ftmo_symbol": f["ftmo_symbol"],
@@ -315,6 +528,24 @@ def run(*, dry_run: bool = False) -> int:
         ORDERS_JSON_PATH.write_text(json.dumps(orders_payload, indent=2),
                                     encoding="utf-8")
         print(f"\nOrders template: {ORDERS_JSON_PATH}")
+
+    if email:
+        html_body = render_html(accepted, suppressed, positions, account_size,
+                                daily_risk_used, daily_risk_cap, now_utc, health=health)
+        BRIEFING_DIR.mkdir(parents=True, exist_ok=True)
+        archive_path = BRIEFING_DIR / f"briefing_ftmo_{now_utc.strftime('%Y-%m-%d_%H%M')}.html"
+        archive_path.write_text(html_body, encoding="utf-8")
+        LOG.info("archived FTMO briefing → %s", archive_path)
+        # "Activity" = something actionable to show: a sized order or an open
+        # position to report health on. Stay quiet only when there's neither.
+        has_activity = bool(accepted) or bool(positions)
+        if email_only_if_activity and not has_activity:
+            LOG.info("no orders and no open positions — skipping email")
+        else:
+            n_orders = len(accepted)
+            n_pos = len(positions)
+            subject = f"[BH FTMO] {n_orders} order(s), {n_pos} position(s)"
+            _send_html_email(subject, html_body)
     return 0
 
 
@@ -323,10 +554,16 @@ def main(argv: list[str] | None = None) -> int:
         description="Generate FTMO manual orders from bh_briefing v2 cell fires")
     parser.add_argument("--dry-run", action="store_true",
                         help="Print but do not write bh_briefing_ftmo_orders.json")
+    parser.add_argument("--email", action="store_true",
+                        help="Send the briefing (orders + position health) as HTML email")
+    parser.add_argument("--email-only-if-activity", action="store_true",
+                        help="With --email, only send when there is a sized order "
+                             "or an open position to report on")
     args = parser.parse_args(argv)
     logging.basicConfig(level=logging.INFO,
                         format="%(asctime)s %(name)s %(levelname)s %(message)s")
-    return run(dry_run=args.dry_run)
+    return run(dry_run=args.dry_run, email=args.email,
+               email_only_if_activity=args.email_only_if_activity)
 
 
 if __name__ == "__main__":
