@@ -25,6 +25,7 @@ src/logs/*.csv.bak
 src/logs/*.json
 src/logs/*.md
 src/logs/briefings/
+src/logs/briefings_ftmo/
 src/models/*.joblib
 BlueHorseshoe.svg
 BlueHorseshoeBanner.png
