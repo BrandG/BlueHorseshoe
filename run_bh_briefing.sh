@@ -2,7 +2,8 @@
 # BH Briefing — H4 v2-cell signal report (cron wrapper)
 # Cron: 25 */4 * * * /root/BlueHorseshoe/run_bh_briefing.sh
 # Runs 25 minutes after each H4 close (data update is at :00, predict :15, paper :20).
-# Emails only when there are fires; HTML always archived to src/logs/briefings/.
+# Logs the v2-cell report. Emailing moved to run_bh_briefing_ftmo.sh (the sized,
+# position-aware briefing); this run no longer emails, to avoid a duplicate.
 
 REPO="/root/BlueHorseshoe"
 PYTHON="$REPO/.venv/bin/python"
@@ -21,7 +22,7 @@ LOG="$REPO/src/logs/bh_briefing.log"
 
 echo "--- BH Briefing started: $(date -u +'%Y-%m-%d %H:%M:%S UTC') ---" >> "$LOG"
 
-$PYTHON src/bh_briefing.py --email --email-only-if-fires >> "$LOG" 2>&1
+$PYTHON src/bh_briefing.py >> "$LOG" 2>&1
 EXIT_CODE=$?
 
 if [ $EXIT_CODE -ne 0 ]; then

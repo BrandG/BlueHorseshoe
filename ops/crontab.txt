@@ -22,6 +22,9 @@
 # matches 9 hours × 12 fires/hour).
 */5 13-21 * * 1-5  /root/BlueHorseshoe/run_bh_swing_monitor.sh --manage-dry-run
 
+# BH Swing Friday-flatten — 19:55 UTC Fri (15:55 ET), MKT-close book before weekend (WEEKEND_FLATTEN_EQUITIES_v1). Kill: touch .bh_swing_pause_friday_flatten
+55 19 * * 5  /root/BlueHorseshoe/run_bh_swing_friday_flatten.sh
+
 # IBGW live-account keepalive — 48 fires/full-day on Thursday in journal,
 # 2 fires Wednesday evening (started Wed late). Inferred every 30 min daily.
 0,30 * * * *  /root/BlueHorseshoe/run_ibgw_live_keepalive.sh
@@ -36,10 +39,10 @@
 15 1,5,9,13,17,21 * * *  cd /root/BlueHorseshoe && ./run.sh python src/bh_ftmo_paper.py >> /root/BlueHorseshoe/src/logs/bh_ftmo_paper.log 2>&1
 16 1,5,9,13,17,21 * * *  /root/BlueHorseshoe/run_bh_ftmo_v2_paper.sh
 20 1,5,9,13,17,21 * * *  /root/BlueHorseshoe/run_bh_briefing.sh
-25 1,5,9,13,17,21 * * *  cd /root/BlueHorseshoe && ./run.sh python src/bh_briefing_ftmo.py >> /root/BlueHorseshoe/src/logs/bh_briefing_ftmo.log 2>&1
+25 1,5,9,13,17,21 * * *  /root/BlueHorseshoe/run_bh_briefing_ftmo.sh
 
 # Extra weekday briefing at 22:30 — saw 5 fires Mon-Fri this week, no Sat/Sun.
-30 22 * * 1-5  cd /root/BlueHorseshoe && ./run.sh python src/bh_briefing_ftmo.py >> /root/BlueHorseshoe/src/logs/bh_briefing_ftmo.log 2>&1
+30 22 * * 1-5  /root/BlueHorseshoe/run_bh_briefing_ftmo.sh
 
 # ====================
 # Daily / weekly maintenance
