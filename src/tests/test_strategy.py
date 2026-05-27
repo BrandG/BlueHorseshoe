@@ -61,6 +61,27 @@ def _downtrend_pair_df(n: int = 200, start_price: float = 1.2000) -> pd.DataFram
     return pd.DataFrame(rows)
 
 
+def _enabled_weights(threshold: float = 2.0) -> dict:
+    """Baseline weights with every rule enabled (weight 1.0) and a low threshold
+    in both directions.
+
+    Mechanics tests (does an uptrend fire the trend rules? does dxy_alignment
+    fire on a falling DXY?) must not depend on the *tuned* production
+    ``bh_ftmo_weights.json`` — production disables some rules (weight 0, which is
+    stripped from ``components``), raises the threshold, and turns shorts off.
+    Deriving the key set from the live config keeps this in sync with whatever
+    rules exist while pinning the values the tests rely on.
+    """
+    keys = load_weights()["baseline"]["components"].keys()
+    return {
+        "baseline": {
+            "components": {k: 1.0 for k in keys},
+            "min_score_threshold_long": threshold,
+            "min_score_threshold_short": threshold,
+        }
+    }
+
+
 # ---- Signal dataclass --------------------------------------------------
 
 
@@ -120,17 +141,17 @@ def test_strategy_rejects_missing_block(tmp_path: Path):
 
 
 def test_baseline_exposes_component_weights():
-    strat = BaselineStrategy()
+    strat = BaselineStrategy(weights={"baseline": {"components": {"trend_supertrend_up": 2.5}}})
     cw = strat.component_weights
-    assert cw["trend_supertrend_up"] == 1.5
+    assert cw["trend_supertrend_up"] == 2.5
     # Returned dict is a copy — mutating doesn't corrupt internal state
     cw["trend_supertrend_up"] = 999.0
-    assert strat.component_weights["trend_supertrend_up"] == 1.5
+    assert strat.component_weights["trend_supertrend_up"] == 2.5
 
 
 def test_baseline_picks_up_threshold():
-    strat = BaselineStrategy()
-    assert strat.min_score_threshold == 3.0
+    strat = BaselineStrategy(weights={"baseline": {"components": {}, "min_score_threshold": 6.0}})
+    assert strat.min_score_threshold == 6.0
 
 
 # ---- score_pair: basic shape ------------------------------------------
@@ -164,7 +185,7 @@ def test_score_pair_returns_one_signal_per_bar():
 def test_uptrend_fires_trend_rules_on_late_bars():
     """Late bars in a clean uptrend should fire most trend/momentum rules."""
     df = _uptrend_pair_df(n=200)
-    sigs = BaselineStrategy().score_pair(df, symbol="EUR_USD")
+    sigs = BaselineStrategy(weights=_enabled_weights()).score_pair(df, symbol="EUR_USD")
     late = sigs[-5:]  # after all indicators have stabilised
 
     # Every late bar should fire EMA-50 (close > EMA)
@@ -183,7 +204,7 @@ def test_uptrend_fires_trend_rules_on_late_bars():
 
 def test_downtrend_fires_bearish_trend_rules():
     df = _downtrend_pair_df(n=200)
-    sigs = BaselineStrategy().score_pair(df, symbol="EUR_USD")
+    sigs = BaselineStrategy(weights=_enabled_weights()).score_pair(df, symbol="EUR_USD")
     late = sigs[-5:]
     for s in late:
         assert "trend_above_ema_50" not in s.components
@@ -241,7 +262,7 @@ def test_dxy_alignment_fires_on_usd_quote_with_falling_dxy():
     n = len(df)
     dxy_vals = np.linspace(105.0, 95.0, n)
     dxy = pd.Series(dxy_vals, index=pd.DatetimeIndex(df["timestamp"]))
-    sigs = BaselineStrategy().score_pair(df, symbol="EUR_USD", dxy=dxy)
+    sigs = BaselineStrategy(weights=_enabled_weights()).score_pair(df, symbol="EUR_USD", dxy=dxy)
     # Late bars should fire the DXY alignment rule (EUR_USD is a USD-quote pair)
     late = sigs[-5:]
     assert all("dxy_alignment" in s.components for s in late)
@@ -276,7 +297,7 @@ def test_strength_rules_fire_when_base_strong():
         },
         index=pd.DatetimeIndex(df["timestamp"]),
     )
-    sigs = BaselineStrategy().score_pair(df, symbol="EUR_USD", strengths=strengths)
+    sigs = BaselineStrategy(weights=_enabled_weights()).score_pair(df, symbol="EUR_USD", strengths=strengths)
     late = sigs[-5:]
     # Base (EUR) is rank 8 of 8 → in top 3 → fires
     assert all("strength_base_strong" in s.components for s in late)

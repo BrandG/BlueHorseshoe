@@ -12,6 +12,7 @@ from bh_ftmo.analysis import (
     Signal,
     SignalContext,
     SignalGenerator,
+    load_weights,
 )
 from bh_ftmo.analysis.signal_generator import (
     DEFAULT_STRENGTH_PAIRS,
@@ -21,6 +22,20 @@ from bh_ftmo.analysis.signal_generator import (
 
 
 # ---- helpers -----------------------------------------------------------
+
+
+def _enabled_weights(threshold: float = 2.0) -> dict:
+    """Baseline weights with every rule enabled (weight 1.0) and a low threshold,
+    so rule-firing mechanics tests don't depend on the tuned production config.
+    """
+    keys = load_weights()["baseline"]["components"].keys()
+    return {
+        "baseline": {
+            "components": {k: 1.0 for k in keys},
+            "min_score_threshold_long": threshold,
+            "min_score_threshold_short": threshold,
+        }
+    }
 
 
 def _trend_pair_df(start: float, slope: float, n: int = 200) -> pd.DataFrame:
@@ -175,7 +190,8 @@ def test_generate_skips_missing_or_empty_symbols():
 def test_generate_supplies_dxy_to_strategies():
     """When DXY is available, the dxy_alignment rule should fire on USD-side trending pairs."""
     pair_dfs = _full_universe(n=200)
-    sigs = SignalGenerator().generate(pair_dfs, symbols=["EUR_USD"])
+    gen = SignalGenerator(strategies=[BaselineStrategy(weights=_enabled_weights())])
+    sigs = gen.generate(pair_dfs, symbols=["EUR_USD"])
     # EUR_USD is rising AND USD_JPY/CHF/CAD/SEK are falling → DXY is falling →
     # alignment fires for late EUR_USD bars (USD-quote pair, falling DXY)
     late = sigs[-5:]
@@ -184,7 +200,8 @@ def test_generate_supplies_dxy_to_strategies():
 
 def test_generate_supplies_strengths_to_strategies():
     pair_dfs = _full_universe(n=200)
-    sigs = SignalGenerator().generate(pair_dfs, symbols=["EUR_USD"])
+    gen = SignalGenerator(strategies=[BaselineStrategy(weights=_enabled_weights())])
+    sigs = gen.generate(pair_dfs, symbols=["EUR_USD"])
     late = sigs[-5:]
     # EUR is the strongest currency in the synthetic universe; USD is weakest
     assert any("strength_base_strong" in s.components for s in late)
