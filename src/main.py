@@ -92,7 +92,7 @@ if __name__ == "__main__":
                             message="Maximum Likelihood optimization failed to ")
     warnings.filterwarnings("ignore", category=ConvergenceWarning)
 
-    # Arcade reports in src/graphs/ are date-stamped and preserved across runs
+    # Arcade reports in src/logs/ are date-stamped and preserved across runs
 
     if "-u" in sys.argv:
         logging.info("Performing bellwether check...")
@@ -251,7 +251,14 @@ if __name__ == "__main__":
                     logging.error("Trade idea logging failed (non-fatal): %s", e)
 
                 # ── Paper Trading ────────────────────────────────────
-                if ctx.config.paper_trading_enabled:
+                # `--no-paper` forces paper trading off regardless of config.
+                # Used by the score backfill, which replays historical dates
+                # and must never submit live orders against today's market.
+                # (An inline PAPER_TRADING_ENABLED=false env var cannot work:
+                # run.sh re-exports .env over the caller's environment.)
+                if "--no-paper" in sys.argv:
+                    logging.info("Paper trading suppressed by --no-paper flag.")
+                if ctx.config.paper_trading_enabled and "--no-paper" not in sys.argv:
                     try:
                         from bluehorseshoe.trading.paper_trader import PaperTrader, PaperTradeConfig  # pylint: disable=import-outside-toplevel
                         pt_config = PaperTradeConfig(
