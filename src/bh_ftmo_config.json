@@ -1,4 +1,14 @@
 {
+  "bh_ftmo_trader": {
+    "_comment": "Runtime policy for the unified bh_ftmo_trader.py. rising_3bar defaults to null until Brand sets the desired cap. v2 keeps the existing entry-mode behavior: limit closes after 5 days, mid has no age cap.",
+    "max_position_age_days_by_source": {
+      "rising_3bar": null,
+      "v2": {
+        "limit": 5,
+        "mid": null
+      }
+    }
+  },
   "v2_paper": {
     "_comment": "Runtime policy for bh_ftmo_v2_paper.py. Position age cap is per entry-mode: null = no cap (default), N = close after N days. Mixed cap (5d limit, null mid) is the Phase II setting from research/v2_deploy_backtest/phase2_results.json — captures most of the conservative pass-rate gain at ~30% of the cum-R cost. Disable (set both to null) once funded and scaling matters more than tail risk.",
     "max_position_age_days_by_entry_mode": {

@@ -1,4 +1,6 @@
-"""BH FTMO paper trader — rising_3bar @ 1.5%/1.5% on the OANDA practice account.
+"""DEPRECATED: use bh_ftmo_trader.py for live cron deployment.
+
+BH FTMO paper trader — rising_3bar @ 1.5%/1.5% on the OANDA practice account.
 
 Runs as a cron-driven script every 4 hours, just after the H4 data update:
   1. Pull account equity from OANDA (demo account).

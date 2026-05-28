@@ -1,4 +1,6 @@
-"""BH FTMO V2 autonomous trader — limit + mid-entry production cells.
+"""DEPRECATED: use bh_ftmo_trader.py for live cron deployment.
+
+BH FTMO V2 autonomous trader — limit + mid-entry production cells.
 
 Counterpart to bh_ftmo_paper.py (rising_3bar). Reuses the v2 cell list and
 evaluators from src/bh_briefing.py and replaces the email-out path with

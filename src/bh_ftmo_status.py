@@ -34,6 +34,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 LOGS_DIR = REPO_ROOT / "src" / "logs"
 
 JOURNALS = {
+    "bh_ftmo_trader": LOGS_DIR / "bh_ftmo_trader_journal.csv",
     "rising_3bar": LOGS_DIR / "bh_ftmo_paper_journal.csv",
     "v2_paper":    LOGS_DIR / "bh_ftmo_v2_paper_journal.csv",
     "flatten":     LOGS_DIR / "bh_ftmo_flatten_journal.csv",

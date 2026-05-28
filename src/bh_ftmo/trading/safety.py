@@ -34,6 +34,28 @@ def margin_gate_allows(summary: Mapping) -> tuple[bool, str]:
     return True, f"margin utilization {util:.1%} ok"
 
 
+def margin_headroom(summary: Mapping, cap: float = MAX_MARGIN_UTILIZATION) -> float:
+    """Return remaining account-currency margin budget under ``cap``.
+
+    Negative/zero headroom is intentional: callers can continue evaluating
+    candidates while naturally refusing new orders that do not fit.
+    """
+    nav = float(summary.get("NAV", summary.get("balance", 0.0)))
+    if nav <= 0:
+        return float("-inf")
+    return (cap * nav) - float(summary.get("marginUsed", 0.0))
+
+
+def estimate_order_margin(
+    units: int,
+    entry_price: float,
+    quote_to_account: float,
+    margin_rate: float,
+) -> float:
+    """Estimate margin for a forex order in account currency."""
+    return abs(units) * entry_price * quote_to_account * margin_rate
+
+
 def count_open_directions(positions: Iterable[Mapping]) -> tuple[int, int]:
     n_long = 0
     n_short = 0
