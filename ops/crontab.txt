@@ -36,8 +36,7 @@
 # 05→10→15→16→20 minutes past the hour. All 7-day patterns clean.
 5  1,5,9,13,17,21 * * *  cd /root/BlueHorseshoe && ./run.sh python -m bh_ftmo.data.incremental_update >> /root/BlueHorseshoe/src/logs/bh_ftmo_incremental.log 2>&1
 10 1,5,9,13,17,21 * * *  cd /root/BlueHorseshoe && ./run.sh python -m bh_ftmo.predict --equity 10000 >> /root/BlueHorseshoe/src/logs/bh_ftmo_signals.log 2>&1
-15 1,5,9,13,17,21 * * *  cd /root/BlueHorseshoe && ./run.sh python src/bh_ftmo_paper.py >> /root/BlueHorseshoe/src/logs/bh_ftmo_paper.log 2>&1
-16 1,5,9,13,17,21 * * *  /root/BlueHorseshoe/run_bh_ftmo_v2_paper.sh
+16 1,5,9,13,17,21 * * *  /root/BlueHorseshoe/run_bh_ftmo_trader.sh
 20 1,5,9,13,17,21 * * *  /root/BlueHorseshoe/run_bh_briefing.sh
 25 1,5,9,13,17,21 * * *  /root/BlueHorseshoe/run_bh_briefing_ftmo.sh
 
@@ -77,3 +76,15 @@
 # subsequent years. Safe to delete after firing.
 # ====================
 0 13 29 5 * cd /root/BlueHorseshoe && [ "$(date +\%Y)" = "2026" ] && ./run.sh python scripts/send_handoff_reminder.py --subject "Reminder: resume contrarian thread (session 9a48c5c7)" --doc docs/handoff/CONTRARIAN_NEXT.md --note "Resume with: claude --resume 9a48c5c7-fb77-4623-8bcd-20611dd14520" >> src/logs/reminder.log 2>&1
+0 13 30 5 * cd /root/BlueHorseshoe && { [ "$(date +\%Y)" = "2026" ] && ./run.sh python scripts/send_handoff_reminder.py --subject "Reminder: Gordon/Bud Tier 1 rename window is OPEN (FX weekend)" --doc docs/planning/GORDON_BUD_RENAME_PLAN.md --note "FX is dark Fri 21:00 -> Sun 21:00 UTC. Land Tier 1 today: move entry scripts into src/gordon/ + src/bud/ (descriptive stems), fix the ~4 cross-imports, update the 5 run_*.sh wrappers + the 2 inline cron lines, run pytest. Ask Bubo to prep the Codex handoff."; crontab -l | grep -v GORDON_BUD_TIER1_REMINDER | crontab -; } >> src/logs/reminder.log 2>&1
+
+# ====================
+# Score backfill — polite background scorer (added 2026-05-28)
+# ====================
+# Walks trade_scores backwards from earliest date, scoring one unscored
+# trading day per tick via main.py -p DATE --no-paper. nice/ionice'd; skips
+# ticks during the daily-pipeline blackout (00:30-03:30) or when another
+# main.py is running. Even hours 04-22 only: avoids the 00:00 slot whose
+# ~60min run would overlap the 01:00 daily pipeline (OOM risk). Pause with
+# touch .score_backfill_pause. Log: src/logs/score_backfill.log
+0 4-22/2 * * *  /root/BlueHorseshoe/run_score_backfill.sh
