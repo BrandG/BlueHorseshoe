@@ -45,3 +45,4 @@ data/swap_rates_*.json
 .codex
 .claude/*.lock
 docs/IBKR_journal.csv
+.gstack/
