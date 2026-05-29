@@ -1,8 +1,8 @@
 {
   "bh_ftmo_trader": {
-    "_comment": "Runtime policy for the unified bh_ftmo_trader.py. rising_3bar defaults to null until Brand sets the desired cap. v2 keeps the existing entry-mode behavior: limit closes after 5 days, mid has no age cap.",
+    "_comment": "Runtime policy for the unified bh_ftmo_trader.py. rising_3bar capped at 14 calendar days: the validated backtest timed out at 84 H4 bars (~18 cal days w/ weekend gaps); 14d is deliberately tighter to cut stale losers sooner (Brand's call 2026-05-29). Cap only acts on trades carrying a tradeClientExtensions tag, i.e. opened after the 8fac612 tag fix. v2 keeps the existing entry-mode behavior: limit closes after 5 days, mid has no age cap.",
     "max_position_age_days_by_source": {
-      "rising_3bar": null,
+      "rising_3bar": 14,
       "v2": {
         "limit": 5,
         "mid": null
