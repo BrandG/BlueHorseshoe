@@ -361,70 +361,153 @@ _STATUS_COLOR = {
 }
 
 
+def _pnl_color(v: float) -> str:
+    """Green for positive, red for negative, grey for flat."""
+    if v > 0:
+        return "#1a7f37"
+    if v < 0:
+        return "#cf222e"
+    return "#57606a"
+
+
+def _badge(text: str, color: str) -> str:
+    """A rounded, filled status pill (Gmail-safe inline styles)."""
+    return (f'<span style="display:inline-block; padding:1px 8px; border-radius:10px; '
+            f'background:{color}; color:#fff; font-size:11px; font-weight:600; '
+            f'white-space:nowrap;">{html.escape(text)}</span>')
+
+
+def _summary_cards(cards: list[tuple[str, str]]) -> str:
+    """A horizontal strip of label/value KPI cards (table-based for email)."""
+    cells = "".join(
+        f'<td style="padding:6px 20px 6px 0; vertical-align:top; white-space:nowrap;">'
+        f'<div style="font-size:11px; color:#8c959f; text-transform:uppercase; '
+        f'letter-spacing:.04em;">{label}</div>'
+        f'<div style="font-size:18px; font-weight:600; margin-top:2px;">{value}</div>'
+        f'</td>'
+        for label, value in cards
+    )
+    return ('<table style="border-collapse:collapse; margin:12px 0 4px;"><tr>'
+            + cells + '</tr></table>')
+
+
 def render_html(annotated: list[dict], suppressed: list[dict],
                 positions: list[dict], account_size: float,
                 daily_risk_used: float, daily_risk_cap: float,
                 now_utc: datetime,
                 health: Optional[list[dict]] = None) -> str:
-    """HTML email body: position health + sized orders + suppressed."""
+    """HTML email body: portfolio summary + position health + sized orders + suppressed."""
     esc = html.escape
-    th = "text-align:left; border-bottom:1px solid #ddd; padding:4px 8px;"
-    td = "padding:4px 8px;"
+    th = "text-align:left; border-bottom:2px solid #d0d7de; padding:5px 8px; font-size:12px; color:#57606a;"
+    thr = th + " text-align:right;"
+    td = "padding:5px 8px; border-bottom:1px solid #eaeef2;"
+    tdr = td + " text-align:right; font-variant-numeric:tabular-nums;"
+    zebra = "#f6f8fa"
+    health = health or []
     p: list[str] = []
-    p.append('<div style="font-family:-apple-system,Segoe UI,Roboto,sans-serif; max-width:780px;">')
-    p.append('<h1 style="font-size:20px; margin:0 0 4px;">BH Briefing → FTMO</h1>')
-    p.append(f'<p style="color:#555; font-size:13px; margin:2px 0;">'
-             f'{now_utc.strftime("%Y-%m-%d %H:%M UTC")} &nbsp;·&nbsp; account ${account_size:,.0f} '
-             f'&nbsp;·&nbsp; risk/trade {RISK_PER_TRADE_PCT*100:.2f}% &nbsp;·&nbsp; max {MAX_CONCURRENT_POSITIONS} '
-             f'&nbsp;·&nbsp; daily risk ${daily_risk_used:,.2f} / ${daily_risk_cap:,.2f}</p>')
+    p.append('<div style="font-family:-apple-system,Segoe UI,Roboto,sans-serif; '
+             'max-width:820px; color:#1f2328;">')
+    p.append('<h1 style="font-size:20px; margin:0 0 2px;">BH Briefing → FTMO</h1>')
+    p.append(f'<p style="color:#57606a; font-size:13px; margin:2px 0 0;">'
+             f'{esc(now_utc.strftime("%Y-%m-%d %H:%M UTC"))} &nbsp;·&nbsp; '
+             f'risk/trade {RISK_PER_TRADE_PCT*100:.2f}% &nbsp;·&nbsp; '
+             f'stop {STOP_PCT*100:.1f}% / target {TP_PCT*100:.1f}%</p>')
+
+    # --- Portfolio summary ---
+    total_unreal = sum(float(h.get("pnl_usd", 0.0) or 0.0) for h in health)
+    longs = sum(1 for pp in positions if str(pp.get("side", "")).lower() == "buy")
+    shorts = len(positions) - longs
+    new_risk = sum(float(f.get("actual_risk", 0.0) or 0.0) for f in annotated)
+    risk_pct = (daily_risk_used / daily_risk_cap * 100) if daily_risk_cap else 0.0
+    note = ' font-size:12px; color:#8c959f; font-weight:400;'
+    p.append(_summary_cards([
+        ("Account", f'${account_size:,.0f}'),
+        ("Open / max", f'{len(positions)} / {MAX_CONCURRENT_POSITIONS}'),
+        ("Unrealized P&amp;L",
+         f'<span style="color:{_pnl_color(total_unreal)};">${total_unreal:+,.0f}</span>'),
+        ("Net dir", f'{longs}L / {shorts}S'),
+        ("Risk on book",
+         f'${daily_risk_used:,.0f} <span style="{note}">/ ${daily_risk_cap:,.0f} ({risk_pct:.0f}%)</span>'),
+        ("New orders",
+         f'{len(annotated)} <span style="{note}">(${new_risk:,.0f})</span>'),
+    ]))
 
     if health:
-        p.append('<h2 style="font-size:15px; margin:14px 0 6px;">Position health</h2>')
-        p.append(f'<table style="border-collapse:collapse; width:100%; font-size:13px;"><tr>'
+        p.append('<h2 style="font-size:15px; margin:16px 0 6px;">Position health</h2>')
+        p.append('<table style="border-collapse:collapse; width:100%; font-size:13px;"><tr>'
                  f'<th style="{th}">Symbol</th><th style="{th}">Side</th>'
-                 f'<th style="{th}">Status</th><th style="{th}">Detail</th></tr>')
-        for h in health:
+                 f'<th style="{th}">Status</th><th style="{thr}">P&amp;L $</th>'
+                 f'<th style="{thr}">P&amp;L pips</th><th style="{thr}">Room to stop</th>'
+                 f'<th style="{th}">Signal</th></tr>')
+        for i, h in enumerate(health):
+            bg = f' background:{zebra};' if i % 2 else ''
             side = "BUY" if h["pos_dir"] == "long" else "SELL"
-            color = _STATUS_COLOR.get(h["status"], "#333")
-            p.append(f'<tr><td style="{td}">{esc(h["ftmo_symbol"])}</td>'
-                     f'<td style="{td}">{side}</td>'
-                     f'<td style="{td} font-weight:600; color:{color};">{esc(h["status"])}</td>'
-                     f'<td style="{td} color:#555;">{esc(h.get("reason", ""))}</td></tr>')
+            side_color = "#1a7f37" if side == "BUY" else "#cf222e"
+            status = h.get("status", "?")
+            badge = _badge(status, _STATUS_COLOR.get(status, "#57606a"))
+            if "pnl_usd" in h:
+                pnl_usd = float(h["pnl_usd"])
+                pnl_pips = float(h["pnl_pips"])
+                room = float(h.get("room_frac", 0.0)) * 100
+                room_color = "#cf222e" if room <= 25 else "#1f2328"
+                pnl_usd_c = f'<span style="color:{_pnl_color(pnl_usd)};">${pnl_usd:+,.0f}</span>'
+                pnl_pips_c = f'<span style="color:{_pnl_color(pnl_pips)};">{pnl_pips:+,.0f}</span>'
+                room_c = f'<span style="color:{room_color};">{room:.0f}%</span>'
+            else:
+                pnl_usd_c = pnl_pips_c = room_c = '<span style="color:#aaa;">—</span>'
+            signal = h.get("signal", "")
+            sig_color = ("#cf222e" if signal == "FLIPPED"
+                         else "#1a7f37" if signal == "supports" else "#8c959f")
+            p.append(
+                f'<tr style="{bg}"><td style="{td}">{esc(h["ftmo_symbol"])}</td>'
+                f'<td style="{td} color:{side_color}; font-weight:600;">{side}</td>'
+                f'<td style="{td}">{badge}</td>'
+                f'<td style="{tdr}">{pnl_usd_c}</td>'
+                f'<td style="{tdr}">{pnl_pips_c}</td>'
+                f'<td style="{tdr}">{room_c}</td>'
+                f'<td style="{td} color:{sig_color};">{esc(signal)}</td></tr>')
         p.append('</table>')
 
-    p.append('<h2 style="font-size:15px; margin:14px 0 6px;">Orders to place</h2>')
+    p.append('<h2 style="font-size:15px; margin:16px 0 6px;">Orders to place</h2>')
     if not annotated:
-        p.append('<p style="color:#555; font-size:13px;">No tradeable fires on this bar '
+        p.append('<p style="color:#57606a; font-size:13px;">No tradeable fires on this bar '
                  '(after position + cluster filters).</p>')
     else:
-        headers = ["#", "Symbol", "SIDE", "Cell", "Entry", "Stop", "Target",
-                   "SL pips", "TP pips", "Lots", "Risk $"]
-        p.append('<table style="border-collapse:collapse; width:100%; font-size:13px;"><tr>'
-                 + "".join(f'<th style="{th}">{c}</th>' for c in headers) + '</tr>')
+        left_h = ["#", "Symbol", "SIDE", "Cell"]
+        right_h = ["Entry", "Stop", "Target", "SL pips", "TP pips", "Lots", "Risk $"]
+        header = ("".join(f'<th style="{th}">{c}</th>' for c in left_h)
+                  + "".join(f'<th style="{thr}">{c}</th>' for c in right_h))
+        p.append(f'<table style="border-collapse:collapse; width:100%; font-size:13px;"><tr>'
+                 f'{header}</tr>')
         for i, f in enumerate(annotated, 1):
+            bg = f' background:{zebra};' if (i - 1) % 2 else ''
             side = "BUY" if f["direction"] == "long" else "SELL"
             side_color = "#1a7f37" if side == "BUY" else "#cf222e"
             prec = f["precision"]
             pip = float(f["instrument"]["pip_size"])
             sl_pips = abs(f["entry"] - f["stop"]) / pip
             tp_pips = abs(f["target"] - f["entry"]) / pip
-            cols = [
+            left = [
                 str(i), esc(f["ftmo_symbol"]),
                 f'<b style="color:{side_color};">{side}</b>',
                 esc(f'{f["strategy"]}/{f["entry_mode"]}'),
+            ]
+            right = [
                 f'{f["entry"]:.{prec}f}', f'{f["stop"]:.{prec}f}', f'{f["target"]:.{prec}f}',
                 f'{sl_pips:.1f}', f'{tp_pips:.1f}', f'{f["lots"]:.2f}', f'${f["actual_risk"]:.2f}',
             ]
-            p.append('<tr>' + "".join(f'<td style="{td}">{c}</td>' for c in cols) + '</tr>')
+            row = ("".join(f'<td style="{td}">{c}</td>' for c in left)
+                   + "".join(f'<td style="{tdr}">{c}</td>' for c in right))
+            p.append(f'<tr style="{bg}">{row}</tr>')
         p.append('</table>')
-        p.append(f'<p style="color:#777; font-size:12px; margin-top:6px;">'
+        p.append(f'<p style="color:#8c959f; font-size:12px; margin-top:6px;">'
                  f'Stop/target are fixed % offsets (stop {STOP_PCT*100:.1f}% / target {TP_PCT*100:.1f}%); '
                  f'if you fill late, re-anchor to your actual fill (pip distances barely change). '
                  f"'limit' cells are good for the next 4h bar.</p>")
 
     if suppressed:
-        p.append('<h2 style="font-size:15px; margin:14px 0 6px;">Suppressed</h2>')
-        p.append('<ul style="font-size:12px; color:#777; margin:0; padding-left:18px;">')
+        p.append('<h2 style="font-size:15px; margin:16px 0 6px;">Suppressed</h2>')
+        p.append('<ul style="font-size:12px; color:#8c959f; margin:0; padding-left:18px;">')
         for f in suppressed:
             sym = esc(f.get("ftmo_symbol", oanda_to_ftmo(f["pair"])))
             p.append(f'<li>{sym} {esc(f["strategy"])}/{esc(f["direction"])} — '
