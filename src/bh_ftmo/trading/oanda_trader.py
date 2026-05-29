@@ -240,7 +240,9 @@ class OandaTrader:
             },
         }
         if client_tag is not None:
-            order["clientExtensions"] = {"tag": str(client_tag)[:128]}
+            ext = {"tag": str(client_tag)[:128]}
+            order["clientExtensions"] = ext
+            order["tradeClientExtensions"] = ext
 
         path = f"/accounts/{self.config.account_id}/orders"
         response = self._request("POST", path, json_body={"order": order})
@@ -296,7 +298,9 @@ class OandaTrader:
         else:
             order["timeInForce"] = "GTC"
         if client_tag is not None:
-            order["clientExtensions"] = {"tag": str(client_tag)[:128]}
+            ext = {"tag": str(client_tag)[:128]}
+            order["clientExtensions"] = ext
+            order["tradeClientExtensions"] = ext
 
         path = f"/accounts/{self.config.account_id}/orders"
         response = self._request("POST", path, json_body={"order": order})

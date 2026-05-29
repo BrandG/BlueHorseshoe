@@ -123,18 +123,37 @@ def _reject_response() -> dict[str, Any]:
 def test_market_order_fill_returns_response():
     payload = _fill_response()
     trader, session = _make_trader(payload)
+    tag = "rising3bar:202605291200"
 
     result = trader.create_market_order_with_bracket(
         instrument="EUR_USD",
         units=1000,
         stop_loss_price=1.1000,
         take_profit_price=1.1200,
+        client_tag=tag,
     )
 
     assert result == payload
     order = session.calls[0]["json"]["order"]
     assert order["type"] == "MARKET"
     assert order["timeInForce"] == "FOK"
+    assert order["clientExtensions"]["tag"] == tag
+    assert order["tradeClientExtensions"]["tag"] == tag
+
+
+def test_market_order_omits_client_extensions_without_tag():
+    trader, session = _make_trader(_fill_response())
+
+    trader.create_market_order_with_bracket(
+        instrument="EUR_USD",
+        units=1000,
+        stop_loss_price=1.1000,
+        take_profit_price=1.1200,
+    )
+
+    order = session.calls[0]["json"]["order"]
+    assert "clientExtensions" not in order
+    assert "tradeClientExtensions" not in order
 
 
 def test_market_order_cancelled_at_create_raises():
@@ -164,6 +183,7 @@ def test_market_order_rejected_at_create_raises():
 def test_limit_order_fill_returns_response():
     payload = _fill_response()
     trader, session = _make_trader(payload)
+    tag = "rising3bar:202605291200"
 
     result = trader.create_limit_order_with_bracket(
         instrument="EUR_USD",
@@ -171,12 +191,31 @@ def test_limit_order_fill_returns_response():
         limit_price=1.1050,
         stop_loss_price=1.1000,
         take_profit_price=1.1200,
+        client_tag=tag,
     )
 
     assert result == payload
     order = session.calls[0]["json"]["order"]
     assert order["type"] == "LIMIT"
     assert order["timeInForce"] == "GTC"
+    assert order["clientExtensions"]["tag"] == tag
+    assert order["tradeClientExtensions"]["tag"] == tag
+
+
+def test_limit_order_omits_client_extensions_without_tag():
+    trader, session = _make_trader(_fill_response())
+
+    trader.create_limit_order_with_bracket(
+        instrument="EUR_USD",
+        units=1000,
+        limit_price=1.1050,
+        stop_loss_price=1.1000,
+        take_profit_price=1.1200,
+    )
+
+    order = session.calls[0]["json"]["order"]
+    assert "clientExtensions" not in order
+    assert "tradeClientExtensions" not in order
 
 
 def test_limit_order_cancelled_at_create_raises():
