@@ -391,6 +391,33 @@ def _summary_cards(cards: list[tuple[str, str]]) -> str:
             + cells + '</tr></table>')
 
 
+def _positions_records(annotated: list[dict], now_utc: datetime) -> list[dict]:
+    """Recast accepted orders into ``bh_lite_positions.json`` shape for copy-paste.
+
+    Uses the *suggested* entry (re-anchor manually if you fill elsewhere). Maps
+    the v2 cell fields onto the positions schema: ``strategy/entry_mode`` ->
+    ``entry_strategy``, ``quality_rank`` -> ``entry_score``, run date -> ``opened``.
+    """
+    opened = now_utc.strftime("%Y-%m-%d")
+    records = []
+    for f in annotated:
+        prec = f["precision"]
+        records.append({
+            "ftmo_symbol": f["ftmo_symbol"],
+            "name": f["instrument"].get("name", f["ftmo_symbol"]),
+            "side": "buy" if f["direction"] == "long" else "sell",
+            "entry": round(f["entry"], prec),
+            "stop": round(f["stop"], prec),
+            "target": round(f["target"], prec),
+            "lots": f["lots"],
+            "risk_usd": round(f["actual_risk"], 2),
+            "entry_score": round(float(f.get("quality_rank", 0.0)), 4),
+            "entry_strategy": f'{f["strategy"]}/{f["entry_mode"]}',
+            "opened": opened,
+        })
+    return records
+
+
 def render_html(annotated: list[dict], suppressed: list[dict],
                 positions: list[dict], account_size: float,
                 daily_risk_used: float, daily_risk_cap: float,
@@ -513,6 +540,19 @@ def render_html(annotated: list[dict], suppressed: list[dict],
             p.append(f'<li>{sym} {esc(f["strategy"])}/{esc(f["direction"])} — '
                      f'{esc(f["skip_reason"])}</li>')
         p.append('</ul>')
+
+    if annotated:
+        blob = esc(json.dumps(_positions_records(annotated, now_utc), indent=2))
+        p.append('<h2 style="font-size:15px; margin:16px 0 6px;">Copy into '
+                 '<code>bh_lite_positions.json</code></h2>')
+        p.append('<p style="color:#8c959f; font-size:12px; margin:0 0 6px;">'
+                 'Accepted orders in positions-file shape (suggested entry). Paste the '
+                 'ones you actually filled into the open-positions list; delete the rest.</p>')
+        p.append(f'<pre style="background:#f6f8fa; border:1px solid #d0d7de; '
+                 f'border-radius:6px; padding:10px 12px; font-size:12px; overflow:auto; '
+                 f'white-space:pre; '
+                 f'font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;">'
+                 f'{blob}</pre>')
 
     p.append('</div>')
     return "\n".join(p)
