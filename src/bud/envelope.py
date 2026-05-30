@@ -16,8 +16,12 @@ import json
 import os
 from typing import Dict, List, Sequence
 
-DEFAULT_CONFIG_PATH = os.path.join(os.path.dirname(__file__), "bh_lite_config.json")
-DEFAULT_POSITIONS_PATH = os.path.join(os.path.dirname(__file__), "bh_lite_positions.json")
+# The bh_lite_*.json files still live at src/ (Tier 3 will move them with the
+# rest of the config envelope). envelope.py moved to src/bud/, so anchor to
+# this file's grandparent (== src/) rather than its parent (== src/bud/).
+_SRC_DIR = os.path.dirname(os.path.dirname(__file__))
+DEFAULT_CONFIG_PATH = os.path.join(_SRC_DIR, "bh_lite_config.json")
+DEFAULT_POSITIONS_PATH = os.path.join(_SRC_DIR, "bh_lite_positions.json")
 
 
 def load_config(path: str = DEFAULT_CONFIG_PATH) -> dict:

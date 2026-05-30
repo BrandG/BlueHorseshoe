@@ -35,7 +35,7 @@ from bh_ftmo.trading.oanda_trader import (
 )
 from bh_ftmo.trading.safety import margin_utilization
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = Path(__file__).resolve().parents[2]  # src/bud/<this> -> repo root
 JOURNAL_PATH = REPO_ROOT / "src" / "logs" / "bh_ftmo_flatten_journal.csv"
 
 DEFAULT_TARGET_UTIL = 0.25

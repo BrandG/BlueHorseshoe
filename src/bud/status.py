@@ -30,7 +30,7 @@ from bh_ftmo.trading.safety import (
     margin_utilization,
 )
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = Path(__file__).resolve().parents[2]  # src/bud/<this> -> repo root
 LOGS_DIR = REPO_ROOT / "src" / "logs"
 
 JOURNALS = {

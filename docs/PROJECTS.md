@@ -16,20 +16,37 @@ for Gekko's "Blue Horseshoe loves Anacott Steel" tip:
 BlueHorseshoe (umbrella repo)
 │
 ├── GORDON  — US equities, via IBKR
-│   ├── Engine    signal + prediction        src/bluehorseshoe/  + src/main.py
-│   └── Manager   post-fill position mgmt     src/bh_swing/
+│   ├── Engine    signal + prediction        src/bluehorseshoe/ + src/main.py
+│   └── Manager   post-fill position mgmt     src/bh_swing/ (package) + src/gordon/ (entry scripts)
 │
 └── BUD     — forex, via OANDA (toward FTMO funding)
-    ├── Lab        research + backtest        src/bh_ftmo/
-    ├── Auto       autonomous paper traders   src/bh_ftmo_paper.py, src/bh_ftmo_v2_paper.py
-    ├── Briefing   human-in-loop signals      src/bh_briefing.py, src/bh_briefing_ftmo.py
-    └── Envelope   shared config/state        src/bh_lite_*.json   (engine retired; config kept)
+    ├── Lab        research + backtest        src/bh_ftmo/ (package)
+    ├── Auto       autonomous paper traders   src/bud/auto_rising3bar.py, src/bud/auto_v2.py
+    │              (active production: src/bh_ftmo_trader.py — unified, pending Bud rename)
+    ├── Briefing   human-in-loop signals      src/bud/briefing.py, src/bud/briefing_ftmo.py
+    ├── Operator   dashboards + flatten        src/bud/status.py, src/bud/flatten.py
+    └── Envelope   shared config/state        src/bud/envelope.py + src/bh_lite_*.json
+                                              (engine retired; positions tool src/bh_positions.py
+                                              and JSONs stay at src/ for Tier 3)
 ```
 
-The two products are deliberately **not** co-mingled in code: `bluehorseshoe/`
-and `bh_swing/` are GORDON; `bh_ftmo/` and the `bh_briefing*` / `bh_ftmo_*`
-scripts are BUD. They share only the repo, the venv (`run.sh`), MongoDB, and
-the cron host.
+The two products are deliberately **not** co-mingled in code: `bluehorseshoe/`,
+`bh_swing/`, and `src/gordon/` are GORDON; `bh_ftmo/` and `src/bud/` are BUD.
+They share only the repo, the venv (`run.sh`), MongoDB, and the cron host.
+
+**Tier 1 status (Phase A + B shipped 2026-05-30):** entry scripts grouped under
+`src/gordon/` and `src/bud/` with descriptive stems. Packages (`bluehorseshoe`,
+`bh_ftmo`, `bh_swing`) unchanged — see
+[`planning/GORDON_BUD_RENAME_PLAN.md`](planning/GORDON_BUD_RENAME_PLAN.md) for the
+tiers and why. Two scoped-out scripts still at top-level:
+
+- **`src/bh_ftmo_trader.py`** — the active unified autonomous trader that
+  replaced `bh_ftmo_paper.py` + `bh_ftmo_v2_paper.py` (cron `:16` every 4h).
+  Postdates the rename plan; needs its own Bud naming decision (`bud/auto.py`?
+  `bud/trader.py`?) before it moves. Its imports already point at `bud.*`.
+- **`src/bh_positions.py`** — operator tool for managing
+  `bh_lite_positions.json`. Deferred to **Tier 3** along with the
+  `bh_lite_*.json` rename.
 
 ---
 

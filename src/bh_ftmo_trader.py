@@ -17,7 +17,7 @@ from typing import Optional, Protocol
 
 import pandas as pd
 
-from bh_briefing import (
+from bud.briefing import (
     CELLS,
     H4_BAR_HOURS,
     LOOKBACK_BARS as V2_LOOKBACK_BARS,
@@ -41,7 +41,7 @@ from bh_ftmo.trading.safety import (
     estimate_order_margin,
     margin_headroom,
 )
-from bh_ftmo_paper import (
+from bud.auto_rising3bar import (
     LOOKBACK_BARS as R3B_LOOKBACK_BARS,
     RISK_PER_TRADE_PCT as R3B_RISK_PER_TRADE_PCT,
     RSI_AMPLIFIER_RISK_MULTIPLIER,

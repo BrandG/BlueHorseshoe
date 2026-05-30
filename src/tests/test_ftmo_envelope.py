@@ -1,7 +1,7 @@
 """Tests for the shared FTMO trade-envelope helpers (extracted from bh_lite)."""
 import json
 
-from ftmo_envelope import (
+from bud.envelope import (
     DEFAULT_CONFIG_PATH,
     DEFAULT_POSITIONS_PATH,
     load_config,

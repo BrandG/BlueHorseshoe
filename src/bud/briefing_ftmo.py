@@ -36,20 +36,17 @@ from typing import Any, Optional
 
 from bh_ftmo.data.fx_store import FxStore
 
-# Import sibling modules (bh_briefing, ftmo_envelope) from the same src/ dir.
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-
-from bh_briefing import (
+from bud.briefing import (
     CELLS, CELL_QUALITY_RANK, TP_PCT, STOP_PCT,
     evaluate_fires, _price_precision, _send_html_email,
 )
-from ftmo_envelope import (
+from bud.envelope import (
     DEFAULT_CONFIG_PATH, DEFAULT_POSITIONS_PATH,
     load_config, load_positions,
     symbol_to_clusters_map,
 )
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = Path(__file__).resolve().parents[2]  # src/bud/<this> -> repo root
 ORDERS_JSON_PATH = REPO_ROOT / "src" / "bh_briefing_ftmo_orders.json"
 BRIEFING_DIR = REPO_ROOT / "src" / "logs" / "briefings_ftmo"
 

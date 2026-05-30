@@ -23,7 +23,7 @@ LOG="$REPO/src/logs/bh_briefing_ftmo.log"
 
 echo "--- BH Briefing FTMO started: $(date -u +'%Y-%m-%d %H:%M:%S UTC') ---" >> "$LOG"
 
-$PYTHON src/bh_briefing_ftmo.py --email --email-only-if-activity >> "$LOG" 2>&1
+$PYTHON src/bud/briefing_ftmo.py --email --email-only-if-activity >> "$LOG" 2>&1
 EXIT_CODE=$?
 
 if [ $EXIT_CODE -ne 0 ]; then

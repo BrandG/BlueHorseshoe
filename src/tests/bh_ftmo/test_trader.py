@@ -6,9 +6,9 @@ import pandas as pd
 import pytest
 
 import bh_ftmo_trader as trader
-from bh_briefing import Cell
+from bud.briefing import Cell
 from bh_ftmo.trading import safety
-from bh_ftmo_paper import PairSpec
+from bud.auto_rising3bar import PairSpec
 
 
 class FakeTrader:

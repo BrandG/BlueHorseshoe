@@ -1,7 +1,7 @@
 """Tests for bh_briefing_ftmo position-health assessment (pure logic)."""
 import pytest
 
-from bh_briefing_ftmo import _assess_position
+from bud.briefing_ftmo import _assess_position
 
 INST = {"pip_size": 0.0001, "dollar_per_pip_per_lot": 10.0}
 

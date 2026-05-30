@@ -48,7 +48,7 @@ from bh_ftmo.trading.safety import (
     margin_gate_allows,
 )
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = Path(__file__).resolve().parents[2]  # src/bud/<this> -> repo root
 CONFIG_PATH = REPO_ROOT / "src" / "bh_ftmo_config.json"
 JOURNAL_PATH = REPO_ROOT / "src" / "logs" / "bh_ftmo_paper_journal.csv"
 

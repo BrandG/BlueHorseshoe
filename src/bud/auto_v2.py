@@ -52,7 +52,7 @@ from typing import Optional
 import pandas as pd
 
 # Reuse cell defs + evaluators from the briefing tool
-from bh_briefing import (
+from bud.briefing import (
     CELLS,
     H4_BAR_HOURS,
     STOP_PCT,
@@ -77,10 +77,10 @@ from bh_ftmo.trading.safety import (
     margin_gate_allows,
 )
 
-# Mirror bh_ftmo_paper helpers we want directly
-from bh_ftmo_paper import _split, latest_mid_close, quote_to_account_rate
+# Mirror auto_rising3bar helpers we want directly
+from bud.auto_rising3bar import _split, latest_mid_close, quote_to_account_rate
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = Path(__file__).resolve().parents[2]  # src/bud/<this> -> repo root
 CONFIG_PATH = REPO_ROOT / "src" / "bh_ftmo_config.json"
 JOURNAL_PATH = REPO_ROOT / "src" / "logs" / "bh_ftmo_v2_paper_journal.csv"
 

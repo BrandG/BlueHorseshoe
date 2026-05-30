@@ -46,7 +46,7 @@ from bh_ftmo.indicators import (
     stochastic,
 )
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = Path(__file__).resolve().parents[2]  # src/bud/<this> -> repo root
 CONFIG_PATH = REPO_ROOT / "src" / "bh_ftmo_config.json"
 BRIEFING_DIR = REPO_ROOT / "src" / "logs" / "briefings"
 

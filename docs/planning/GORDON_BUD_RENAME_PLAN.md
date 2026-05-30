@@ -90,7 +90,17 @@ config in Tier 3, or move now and leave the config path absolute.
 
 ---
 
-## Tier 1 — entry scripts + wrappers + crons (RECOMMENDED)
+## Tier 1 — entry scripts + wrappers + crons (✅ SHIPPED 2026-05-30)
+
+**Phase A** (Gordon swing scripts → `src/gordon/`): commit `bac129b`.
+**Phase B** (Bud forex scripts → `src/bud/`): see commit log on master.
+
+Two follow-ups landed at the same time but scoped *out* of Tier 1:
+- `src/bh_ftmo_trader.py` — newer unified autonomous trader. Its imports were
+  updated to point at `bud.*` so the move can be done in isolation later,
+  pending a Bud naming decision (`bud/auto.py`? `bud/trader.py`?).
+- `src/bh_positions.py` — kept here pending Tier 3 (config-envelope rename).
+
 
 Delivers ~80% of the clarity at low, contained risk. Do GORDON and BUD as two
 separate atomic changes so a mistake only ever endangers one product.

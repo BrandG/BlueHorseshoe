@@ -22,7 +22,7 @@ LOG="$REPO/src/logs/bh_briefing.log"
 
 echo "--- BH Briefing started: $(date -u +'%Y-%m-%d %H:%M:%S UTC') ---" >> "$LOG"
 
-$PYTHON src/bh_briefing.py >> "$LOG" 2>&1
+$PYTHON src/bud/briefing.py >> "$LOG" 2>&1
 EXIT_CODE=$?
 
 if [ $EXIT_CODE -ne 0 ]; then

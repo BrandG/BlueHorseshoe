@@ -21,7 +21,7 @@ LOG="$REPO/src/logs/bh_ftmo_v2_paper.log"
 
 echo "--- BH FTMO V2 paper started: $(date -u +'%Y-%m-%d %H:%M:%S UTC') ---" >> "$LOG"
 
-$PYTHON src/bh_ftmo_v2_paper.py >> "$LOG" 2>&1
+$PYTHON src/bud/auto_v2.py >> "$LOG" 2>&1
 EXIT_CODE=$?
 
 if [ $EXIT_CODE -ne 0 ]; then
