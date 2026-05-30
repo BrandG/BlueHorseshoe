@@ -95,10 +95,11 @@ config in Tier 3, or move now and leave the config path absolute.
 **Phase A** (Gordon swing scripts → `src/gordon/`): commit `bac129b`.
 **Phase B** (Bud forex scripts → `src/bud/`): see commit log on master.
 
-Two follow-ups landed at the same time but scoped *out* of Tier 1:
-- `src/bh_ftmo_trader.py` — newer unified autonomous trader. Its imports were
-  updated to point at `bud.*` so the move can be done in isolation later,
-  pending a Bud naming decision (`bud/auto.py`? `bud/trader.py`?).
+Two follow-ups originally scoped *out* of Tier 1:
+- `src/bh_ftmo_trader.py` — newer unified autonomous trader. **Moved to
+  `src/bud/auto_trader.py` in a follow-up commit shortly after Phase B**
+  (descriptive `auto_*` stem, matches the legacy `auto_rising3bar.py` /
+  `auto_v2.py` siblings).
 - `src/bh_positions.py` — kept here pending Tier 3 (config-envelope rename).
 
 

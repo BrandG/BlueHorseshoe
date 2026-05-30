@@ -55,7 +55,7 @@ from bud.auto_rising3bar import (
     quote_to_account_rate,
 )
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = Path(__file__).resolve().parents[2]  # src/bud/<this> -> repo root
 CONFIG_PATH = REPO_ROOT / "src" / "bh_ftmo_config.json"
 JOURNAL_PATH = REPO_ROOT / "src" / "logs" / "bh_ftmo_trader_journal.csv"
 

@@ -25,7 +25,7 @@ LOG="$REPO/src/logs/bh_ftmo_trader.log"
 
 echo "--- BH FTMO trader started: $(date -u +'%Y-%m-%d %H:%M:%S UTC') ---" >> "$LOG"
 
-$PYTHON src/bh_ftmo_trader.py >> "$LOG" 2>&1
+$PYTHON src/bud/auto_trader.py >> "$LOG" 2>&1
 EXIT_CODE=$?
 
 if [ $EXIT_CODE -ne 0 ]; then

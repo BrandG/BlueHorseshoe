@@ -1,4 +1,4 @@
-"""DEPRECATED: use bh_ftmo_trader.py for live cron deployment.
+"""DEPRECATED: use src/bud/auto_trader.py for live cron deployment.
 
 BH FTMO V2 autonomous trader — limit + mid-entry production cells.
 

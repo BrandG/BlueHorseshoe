@@ -21,8 +21,8 @@ BlueHorseshoe (umbrella repo)
 │
 └── BUD     — forex, via OANDA (toward FTMO funding)
     ├── Lab        research + backtest        src/bh_ftmo/ (package)
-    ├── Auto       autonomous paper traders   src/bud/auto_rising3bar.py, src/bud/auto_v2.py
-    │              (active production: src/bh_ftmo_trader.py — unified, pending Bud rename)
+    ├── Auto       autonomous paper trader     src/bud/auto_trader.py (live, unified)
+    │              legacy single-strategy:     src/bud/auto_rising3bar.py, src/bud/auto_v2.py
     ├── Briefing   human-in-loop signals      src/bud/briefing.py, src/bud/briefing_ftmo.py
     ├── Operator   dashboards + flatten        src/bud/status.py, src/bud/flatten.py
     └── Envelope   shared config/state        src/bud/envelope.py + src/bh_lite_*.json
@@ -40,13 +40,13 @@ They share only the repo, the venv (`run.sh`), MongoDB, and the cron host.
 [`planning/GORDON_BUD_RENAME_PLAN.md`](planning/GORDON_BUD_RENAME_PLAN.md) for the
 tiers and why. Two scoped-out scripts still at top-level:
 
-- **`src/bh_ftmo_trader.py`** — the active unified autonomous trader that
-  replaced `bh_ftmo_paper.py` + `bh_ftmo_v2_paper.py` (cron `:16` every 4h).
-  Postdates the rename plan; needs its own Bud naming decision (`bud/auto.py`?
-  `bud/trader.py`?) before it moves. Its imports already point at `bud.*`.
 - **`src/bh_positions.py`** — operator tool for managing
   `bh_lite_positions.json`. Deferred to **Tier 3** along with the
   `bh_lite_*.json` rename.
+
+(`src/bh_ftmo_trader.py` was the active unified autonomous trader, postdating
+the original rename plan. Moved to `src/bud/auto_trader.py` in a follow-up
+commit shortly after Phase B.)
 
 ---
 

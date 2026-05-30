@@ -5,7 +5,7 @@ from datetime import UTC, datetime, timedelta
 import pandas as pd
 import pytest
 
-import bh_ftmo_trader as trader
+from bud import auto_trader as trader
 from bud.briefing import Cell
 from bh_ftmo.trading import safety
 from bud.auto_rising3bar import PairSpec
