@@ -84,17 +84,24 @@ if __name__ == "__main__":
     start_time = time.time()
 
     # Logfire observability. No-op without LOGFIRE_TOKEN (safe on dev machines).
-    # Wrapped so instrumentation can NEVER break a prediction/update run.
+    # Bounded against exporter hangs — see docs/planning/LOGFIRE_FAILSAFE_BUG.md
+    # (2026-05-30: a CLOSE_WAIT on the OTLP socket wedged the main thread for 1h
+    # because the BatchSpanProcessor flush is OUTSIDE the try/except).
+    os.environ.setdefault("OTEL_EXPORTER_OTLP_TIMEOUT", "10")  # per-request, seconds
     try:
+        import atexit  # pylint: disable=import-outside-toplevel
         import logfire  # pylint: disable=import-outside-toplevel
         logfire.configure(service_name="gordon", send_to_logfire="if-token-present",
                           inspect_arguments=False)
-        _lf_handler = logfire.LogfireLoggingHandler()
-        _lf_handler.setLevel(logging.INFO)  # INFO+ only, not the DEBUG firehose
-        logging.getLogger().addHandler(_lf_handler)
+        # Bound the atexit flush so a wedged exporter can't hold the process open.
+        atexit.register(lambda: logfire.force_flush(timeout_millis=5000))
         _LOGFIRE = logfire
     except Exception:  # pylint: disable=broad-exception-caught
         _LOGFIRE = None  # observability must never break the pipeline
+    # NOTE: LogfireLoggingHandler intentionally NOT installed. Routing every INFO+
+    # stdlib log through the OTLP exporter turned thousands of per-symbol log
+    # lines into individual remote writes — the volume amplifier behind the hang.
+    # The gordon.update / gordon.predict spans carry enough operational signal.
 
     def _span(name, **attrs):
         """Logfire span if configured, else a no-op context manager."""
