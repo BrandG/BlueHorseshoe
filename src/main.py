@@ -83,6 +83,24 @@ if __name__ == "__main__":
     logging.info('Starting BlueHorseshoe at %s...', time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()))
     start_time = time.time()
 
+    # Logfire observability. No-op without LOGFIRE_TOKEN (safe on dev machines).
+    # Wrapped so instrumentation can NEVER break a prediction/update run.
+    try:
+        import logfire  # pylint: disable=import-outside-toplevel
+        logfire.configure(service_name="gordon", send_to_logfire="if-token-present",
+                          inspect_arguments=False)
+        _lf_handler = logfire.LogfireLoggingHandler()
+        _lf_handler.setLevel(logging.INFO)  # INFO+ only, not the DEBUG firehose
+        logging.getLogger().addHandler(_lf_handler)
+        _LOGFIRE = logfire
+    except Exception:  # pylint: disable=broad-exception-caught
+        _LOGFIRE = None  # observability must never break the pipeline
+
+    def _span(name, **attrs):
+        """Logfire span if configured, else a no-op context manager."""
+        from contextlib import nullcontext  # pylint: disable=import-outside-toplevel
+        return _LOGFIRE.span(name, **attrs) if _LOGFIRE else nullcontext()
+
     # Suppress specific warnings
     warnings.filterwarnings("ignore", category=UserWarning, message="Non-invertible starting MA parameters found. " +
                             "Using zeros as starting parameters.")
@@ -120,7 +138,7 @@ if __name__ == "__main__":
 
         active_only = "--all" not in sys.argv  # active-only by default; use --all to override
 
-        with create_cli_context(read_only_store=False) as ctx:
+        with _span("gordon.update", active_only=active_only), create_cli_context(read_only_store=False) as ctx:
             if "--refresh-overviews" in sys.argv:
                 ov_limit = None
                 if "--ov-limit" in sys.argv:
@@ -171,7 +189,7 @@ if __name__ == "__main__":
             logging.info("Full historical data updated.")
     elif "-p" in sys.argv:
         logging.info('Predicting next midpoints...')
-        with create_cli_context() as ctx:
+        with _span("gordon.predict"), create_cli_context() as ctx:
             target_date = None
             try:
                 p_idx = sys.argv.index("-p")
