@@ -13,7 +13,7 @@ from bh_ftmo.backtest.pip_value import pip_value_in_account_ccy, quote_to_accoun
 from bh_ftmo.backtest.types import PairSpec
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
-LITE_CONFIG_PATH = REPO_ROOT / "src" / "bh_lite_config.json"
+LITE_CONFIG_PATH = REPO_ROOT / "src" / "bud" / "config.json"
 
 
 

@@ -25,24 +25,21 @@ BlueHorseshoe (umbrella repo)
     │              legacy single-strategy:     src/bud/auto_rising3bar.py, src/bud/auto_v2.py
     ├── Briefing   human-in-loop signals      src/bud/briefing.py, src/bud/briefing_ftmo.py
     ├── Operator   dashboards + flatten        src/bud/status.py, src/bud/flatten.py
-    └── Envelope   shared config/state        src/bud/envelope.py + src/bh_lite_*.json
-                                              (engine retired; positions tool src/bh_positions.py
-                                              and JSONs stay at src/ for Tier 3)
+    ├── Envelope   shared config + loaders     src/bud/envelope.py
+    │              live state                  src/bud/config.json, src/bud/positions.json,
+    │                                          src/bud/orders.json, src/bud/positions_closed.json
+    └── Position-CLI                            src/bud/positions.py (list/add/close commands)
 ```
 
 The two products are deliberately **not** co-mingled in code: `bluehorseshoe/`,
 `bh_swing/`, and `src/gordon/` are GORDON; `bh_ftmo/` and `src/bud/` are BUD.
 They share only the repo, the venv (`run.sh`), MongoDB, and the cron host.
 
-**Tier 1 status (Phase A + B shipped 2026-05-30):** entry scripts grouped under
-`src/gordon/` and `src/bud/` with descriptive stems. Packages (`bluehorseshoe`,
-`bh_ftmo`, `bh_swing`) unchanged — see
-[`planning/GORDON_BUD_RENAME_PLAN.md`](planning/GORDON_BUD_RENAME_PLAN.md) for the
-tiers and why. Two scoped-out scripts still at top-level:
-
-- **`src/bh_positions.py`** — operator tool for managing
-  `bh_lite_positions.json`. Deferred to **Tier 3** along with the
-  `bh_lite_*.json` rename.
+**Tier 1 + Tier 3 shipped 2026-05-30.** Every Bud-related file lives under
+`src/bud/` or `src/bh_ftmo/`. The retired `bh_lite_*` prefix is gone from
+active code paths; only the docs/planning history still mentions it. See
+[`planning/GORDON_BUD_RENAME_PLAN.md`](planning/GORDON_BUD_RENAME_PLAN.md) for
+the per-tier details.
 
 (`src/bh_ftmo_trader.py` was the active unified autonomous trader, postdating
 the original rename plan. Moved to `src/bud/auto_trader.py` in a follow-up

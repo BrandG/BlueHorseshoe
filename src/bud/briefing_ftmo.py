@@ -1,24 +1,24 @@
 """BH Briefing → FTMO live-order generator.
 
-Wraps bh_briefing.evaluate_fires() to produce manually-placeable FTMO orders:
+Wraps bud.briefing.evaluate_fires() to produce manually-placeable FTMO orders:
 maps OANDA pairs to FTMO .sim symbols, computes lot sizing per the v2_paper
 risk profile (0.5% × $10K = $50/R, max 5 concurrent), applies cluster
-suppression from bh_lite_config, and reads bh_lite_positions.json to skip
+suppression from bud/config.json, and reads bud/positions.json to skip
 pairs already open on the live challenge.
 
-Reuses bh_lite's account, risk, instruments, and clusters config so the FTMO
-trading envelope stays consistent across the daily-bar (bh_lite) and H4
-(this tool) channels. Risk per trade and concurrency cap are overridden to
-match v2_paper.
+Account, risk, instruments, and clusters live in the shared FTMO trade
+envelope (bud/config.json + bud/envelope.py), kept consistent across the
+H4 cron channel (this tool) and any human-driven order placement. Risk per
+trade and concurrency cap are overridden to match v2_paper.
 
 Two cadences:
-  - every H4 close (cron, runs after bh_briefing)
-  - once-daily summary at 22:30 UTC (replaces/companions bh_lite)
+  - every H4 close (cron, runs after bud.briefing)
+  - once-daily summary at 22:30 UTC weekday
 
 Output:
   - Console table: # | FTMO Symbol | Cluster | Cell | Entry | Stop | Target | Lots | Risk$ | Rank
-  - JSON file (bh_briefing_ftmo_orders.json) for clipboard/copy use
-  - Position-aware: skips fires on pairs already in bh_lite_positions.json
+  - JSON file (src/bh_briefing_ftmo_orders.json) for clipboard/copy use
+  - Position-aware: skips fires on pairs already in src/bud/positions.json
   - Cluster-aware: suppresses fires whose cluster is occupied by an open
     position OR by an earlier (higher-ranked) fire in the same run
 """
@@ -50,10 +50,10 @@ REPO_ROOT = Path(__file__).resolve().parents[2]  # src/bud/<this> -> repo root
 ORDERS_JSON_PATH = REPO_ROOT / "src" / "bh_briefing_ftmo_orders.json"
 BRIEFING_DIR = REPO_ROOT / "src" / "logs" / "briefings_ftmo"
 
-# Overrides applied on top of bh_lite_config — matches v2_paper risk envelope
-RISK_PER_TRADE_PCT = 0.005    # 0.5% (bh_lite default is 1%)
-MAX_CONCURRENT_POSITIONS = 5   # matches v2_paper (bh_lite default is 3)
-MAX_DAILY_RISK_PCT = 0.04      # unchanged from bh_lite
+# Overrides applied on top of bud/config.json — matches v2_paper risk envelope
+RISK_PER_TRADE_PCT = 0.005    # 0.5% (envelope default is 1%)
+MAX_CONCURRENT_POSITIONS = 5   # matches v2_paper (envelope default is 3)
+MAX_DAILY_RISK_PCT = 0.04      # unchanged from envelope
 
 LOG = logging.getLogger("bh_briefing.ftmo")
 
@@ -281,7 +281,7 @@ def render_console(annotated: list[dict], suppressed: list[dict],
                  f"  daily risk: ${daily_risk_used:,.2f} / ${daily_risk_cap:,.2f}")
     if positions:
         lines.append("")
-        lines.append("Open positions (read from bh_lite_positions.json):")
+        lines.append("Open positions (read from src/bud/positions.json):")
         for p in positions:
             lines.append(f"  {p['ftmo_symbol']:<14} {p['side']:<5} "
                          f"{p['lots']:>5} lots  entry {p['entry']:<9}  "
@@ -389,7 +389,7 @@ def _summary_cards(cards: list[tuple[str, str]]) -> str:
 
 
 def _positions_records(annotated: list[dict], now_utc: datetime) -> list[dict]:
-    """Recast accepted orders into ``bh_lite_positions.json`` shape for copy-paste.
+    """Recast accepted orders into ``src/bud/positions.json`` shape for copy-paste.
 
     Uses the *suggested* entry (re-anchor manually if you fill elsewhere). Maps
     the v2 cell fields onto the positions schema: ``strategy/entry_mode`` ->
@@ -541,7 +541,7 @@ def render_html(annotated: list[dict], suppressed: list[dict],
     if annotated:
         blob = esc(json.dumps(_positions_records(annotated, now_utc), indent=2))
         p.append('<h2 style="font-size:15px; margin:16px 0 6px;">Copy into '
-                 '<code>bh_lite_positions.json</code></h2>')
+                 '<code>src/bud/positions.json</code></h2>')
         p.append('<p style="color:#8c959f; font-size:12px; margin:0 0 6px;">'
                  'Accepted orders in positions-file shape (suggested entry). Paste the '
                  'ones you actually filled into the open-positions list; delete the rest.</p>')

@@ -1,6 +1,6 @@
-"""Manage open-position state shared by bh_lite and bh_briefing_ftmo.
+"""Manage open-position state for the FTMO trading envelope.
 
-Both signal generators read bh_lite_positions.json for:
+``bud.briefing_ftmo`` (the H4 cron) reads ``src/bud/positions.json`` for:
   - skip pairs already open
   - cluster-suppression (an open NZDCAD blocks new CADCHF)
   - daily-risk budget tracking
@@ -8,20 +8,20 @@ Both signal generators read bh_lite_positions.json for:
 This helper keeps that file honest. Three commands:
 
   list                   — print current open positions
-  add FTMO_SYMBOL        — read bh_briefing_ftmo_orders.json (or
-                           bh_lite_orders.json), find the order for
+  add FTMO_SYMBOL        — read src/bh_briefing_ftmo_orders.json (or
+                           src/bud/orders.json), find the order for
                            FTMO_SYMBOL, append it to positions with
                            today's date. Manual override via --entry
                            --stop --target --lots --side flags.
   close FTMO_SYMBOL      — remove from positions, append a record
-                           to bh_positions_closed.json with close
+                           to src/bud/positions_closed.json with close
                            timestamp + optional --close-price / --pnl
 
 Usage:
-  ./run.sh python src/bh_positions.py list
-  ./run.sh python src/bh_positions.py add NZDCHF.sim
-  ./run.sh python src/bh_positions.py add EURJPY.sim --entry 162.45 --stop 164.07 --target 161.64 --lots 0.06 --side sell
-  ./run.sh python src/bh_positions.py close NZDCAD.sim --close-price 0.8200 --pnl +49.20
+  ./run.sh python src/bud/positions.py list
+  ./run.sh python src/bud/positions.py add NZDCHF.sim
+  ./run.sh python src/bud/positions.py add EURJPY.sim --entry 162.45 --stop 164.07 --target 161.64 --lots 0.06 --side sell
+  ./run.sh python src/bud/positions.py close NZDCAD.sim --close-price 0.8200 --pnl +49.20
 """
 from __future__ import annotations
 
@@ -32,16 +32,17 @@ from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
-POSITIONS_PATH = REPO_ROOT / "src" / "bh_lite_positions.json"
-CLOSED_LOG_PATH = REPO_ROOT / "src" / "bh_positions_closed.json"
+REPO_ROOT = Path(__file__).resolve().parents[2]  # src/bud/<this> -> repo root
+BUD_DIR = REPO_ROOT / "src" / "bud"
+POSITIONS_PATH = BUD_DIR / "positions.json"
+CLOSED_LOG_PATH = BUD_DIR / "positions_closed.json"
 BRIEFING_ORDERS_PATH = REPO_ROOT / "src" / "bh_briefing_ftmo_orders.json"
-BH_LITE_ORDERS_PATH = REPO_ROOT / "src" / "bh_lite_orders.json"
-LITE_CONFIG_PATH = REPO_ROOT / "src" / "bh_lite_config.json"
+BH_LITE_ORDERS_PATH = BUD_DIR / "orders.json"
+LITE_CONFIG_PATH = BUD_DIR / "config.json"
 
 
 def _load_instrument_map() -> dict[str, dict]:
-    """Index bh_lite_config instruments by FTMO .sim symbol."""
+    """Index the envelope config's instruments by FTMO .sim symbol."""
     if not LITE_CONFIG_PATH.exists():
         return {}
     cfg = json.loads(LITE_CONFIG_PATH.read_text(encoding="utf-8"))
@@ -132,7 +133,7 @@ def cmd_list(_args: argparse.Namespace) -> int:
 
 
 def _find_in_orders(ftmo_symbol: str) -> dict | None:
-    """Search bh_briefing_ftmo_orders.json first, then bh_lite_orders.json."""
+    """Search bh_briefing_ftmo_orders.json first, then src/bud/orders.json."""
     for path in (BRIEFING_ORDERS_PATH, BH_LITE_ORDERS_PATH):
         if not path.exists():
             continue
@@ -170,7 +171,7 @@ def cmd_add(args: argparse.Namespace) -> int:
         risk_usd = compute_risk_usd(args.ftmo_symbol, entry, stop, lots)
         if risk_usd is None:
             print(f"WARN: no instrument config for {args.ftmo_symbol} — "
-                  f"risk_usd will be blank. Add it to bh_lite_config.json "
+                  f"risk_usd will be blank. Add it to src/bud/config.json "
                   f"or pass --side/--entry/--stop/--lots after editing config.",
                   file=sys.stderr)
     else:
@@ -249,7 +250,7 @@ def cmd_close(args: argparse.Namespace) -> int:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        description="Manage bh_lite_positions.json (shared by bh_lite + bh_briefing_ftmo)")
+        description="Manage src/bud/positions.json (shared FTMO trading envelope)")
     sub = parser.add_subparsers(dest="cmd", required=True)
 
     sub.add_parser("list", help="show open positions")

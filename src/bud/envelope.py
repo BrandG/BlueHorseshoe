@@ -2,13 +2,13 @@
 
 These small, pure helpers define the FTMO trading envelope (account/risk/
 instruments/clusters config and open-position state) consumed by the live
-briefing tools. They were extracted from ``bh_lite.py`` so that
-``bh_briefing_ftmo.py`` no longer depends on the (superseded, dormant) bh_lite
-scoring module. See docs/planning/BH_LITE_SUNDOWN.md.
+briefing tools. They were extracted from the retired ``bh_lite.py`` so that
+``bud.briefing_ftmo`` no longer depends on the dormant bh_lite scoring module.
+See docs/planning/BH_LITE_SUNDOWN.md.
 
-The JSON filenames (``bh_lite_config.json`` / ``bh_lite_positions.json``) are
-retained as-is; renaming them has blast radius across the briefing code and is
-deferred.
+State files live next to this module under ``src/bud/`` after Tier 3
+(2026-05-30): ``config.json`` (shared envelope) and ``positions.json``
+(live FTMO position state).
 """
 from __future__ import annotations
 
@@ -16,12 +16,10 @@ import json
 import os
 from typing import Dict, List, Sequence
 
-# The bh_lite_*.json files still live at src/ (Tier 3 will move them with the
-# rest of the config envelope). envelope.py moved to src/bud/, so anchor to
-# this file's grandparent (== src/) rather than its parent (== src/bud/).
-_SRC_DIR = os.path.dirname(os.path.dirname(__file__))
-DEFAULT_CONFIG_PATH = os.path.join(_SRC_DIR, "bh_lite_config.json")
-DEFAULT_POSITIONS_PATH = os.path.join(_SRC_DIR, "bh_lite_positions.json")
+# State files live in src/bud/ alongside this module.
+_BUD_DIR = os.path.dirname(__file__)
+DEFAULT_CONFIG_PATH = os.path.join(_BUD_DIR, "config.json")
+DEFAULT_POSITIONS_PATH = os.path.join(_BUD_DIR, "positions.json")
 
 
 def load_config(path: str = DEFAULT_CONFIG_PATH) -> dict:

@@ -166,21 +166,22 @@ No imports changed.
 
 ---
 
-## Tier 3 — config/state file rename (OPTIONAL, higher care)
+## Tier 3 — config/state file rename (✅ SHIPPED 2026-05-30)
 
-Only if the `bh_lite_*.json` names still grate after Tiers 1–2. These hold live
-state, so:
+Done in the FX-weekend window. Files moved:
 
-1. Pick a quiet window (no Bud cron for ≥30 min; ideally weekend).
-2. `git mv bh_lite_config.json bud/config.json` etc. **and** update the 5 code
-   refs (`bud/positions.py`, `bud/briefing_ftmo.py`, `bud/envelope.py`, 2 tests)
-   in the *same* commit.
-3. Confirm `bh_lite_positions.json` content (open positions) carried over intact
-   — diff before/after.
-4. Verify the next brief reads the right open positions before trusting it.
+- `src/bh_lite_config.json` → `src/bud/config.json`
+- `src/bh_lite_positions.json` → `src/bud/positions.json` (5 live FTMO positions
+  preserved intact)
+- `src/bh_lite_orders.json` → `src/bud/orders.json`
+- `src/bh_positions_closed.json` → `src/bud/positions_closed.json`
+- `src/bh_positions.py` → `src/bud/positions.py` (operator CLI)
 
-Defer indefinitely unless the payoff is felt; this is the lowest clarity-per-risk
-of all the tiers.
+Code refs updated in the same commit: `bud/envelope.py` (path anchor), `bud/positions.py`
+(REPO_ROOT + path constants), `bud/briefing_ftmo.py` (4 user-facing text refs),
+`tests/test_ftmo_envelope.py`, `tests/bh_ftmo/backtest/test_pip_value.py`,
+`.gitignore`, `bud/__init__.py`, `PROJECTS.md`. The retired `bh_lite_*` prefix
+no longer appears in active code paths.
 
 ---
 

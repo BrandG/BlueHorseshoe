@@ -10,9 +10,11 @@ from bud.envelope import (
 )
 
 
-def test_default_paths_point_at_bh_lite_files():
-    assert DEFAULT_CONFIG_PATH.endswith("bh_lite_config.json")
-    assert DEFAULT_POSITIONS_PATH.endswith("bh_lite_positions.json")
+def test_default_paths_point_at_bud_state_files():
+    assert DEFAULT_CONFIG_PATH.endswith("config.json")
+    assert "bud" in DEFAULT_CONFIG_PATH
+    assert DEFAULT_POSITIONS_PATH.endswith("positions.json")
+    assert "bud" in DEFAULT_POSITIONS_PATH
 
 
 def test_load_config(tmp_path):

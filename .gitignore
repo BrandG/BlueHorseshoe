@@ -34,12 +34,12 @@ data/*.duckdb
 data/*.duckdb.wal
 .venv/*
 data/trade_history.csv
-src/bh_lite_positions.json
-src/bh_lite_orders.json
+src/bud/positions.json
+src/bud/orders.json
+src/bud/positions_closed.json
 src/bh_ftmo_positions.json
 src/bh_ftmo_orders.json
 src/bh_briefing_ftmo_orders.json
-src/bh_positions_closed.json
 data/fx_backfill_checkpoint.json
 data/swap_rates_*.json
 .codex
