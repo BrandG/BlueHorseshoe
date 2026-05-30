@@ -60,7 +60,7 @@ if __name__ == "__main__":
         live = "--live" in sys.argv
         refresh = "--refresh-token" in sys.argv
         if not (live or refresh):
-            print("Use `./run.sh python src/bh_swing_status.py` for the "
+            print("Use `./run.sh python src/gordon/swing_status.py` for the "
                   "paper account, `-s --live` for a live snapshot, or "
                   "`-s --refresh-token` to roll the live 7-day session "
                   "(triggers 2FA on your phone).", file=sys.stderr)

@@ -1,4 +1,4 @@
-"""Integration tests for bh_swing_monitor entrypoint.
+"""Integration tests for the GORDON · Manager swing_monitor entrypoint.
 
 Verifies the monitor's branching on broker reachability without standing up a
 real IB Gateway.
@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-import bh_swing_monitor
+from gordon import swing_monitor as bh_swing_monitor
 from bh_swing import journal
 
 

@@ -25,7 +25,7 @@ mkdir -p "$(dirname "$LOG")"
 
 echo "--- bh_swing_friday_flatten started: $(date -u +'%Y-%m-%d %H:%M:%S UTC') ---" >> "$LOG"
 
-$PYTHON src/bh_swing_friday_flatten.py "$@" >> "$LOG" 2>&1
+$PYTHON src/gordon/swing_friday_flatten.py "$@" >> "$LOG" 2>&1
 EXIT_CODE=$?
 
 if [ $EXIT_CODE -ne 0 ]; then

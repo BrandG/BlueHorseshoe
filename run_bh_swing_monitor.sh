@@ -23,7 +23,7 @@ mkdir -p "$(dirname "$LOG")"
 
 echo "--- bh_swing_monitor started: $(date -u +'%Y-%m-%d %H:%M:%S UTC') ---" >> "$LOG"
 
-$PYTHON src/bh_swing_monitor.py "$@" >> "$LOG" 2>&1
+$PYTHON src/gordon/swing_monitor.py "$@" >> "$LOG" 2>&1
 EXIT_CODE=$?
 
 if [ $EXIT_CODE -ne 0 ]; then
