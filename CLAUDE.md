@@ -44,7 +44,8 @@ The repo is **two products** named after *Wall Street* (1987). Full map:
   (signal/prediction, the original). **Manager** = `bh_swing/` (post-fill stop
   management of the orders the Engine placed — *not* its own universe).
 - **BUD** = forex/FTMO (OANDA). **Lab** = `bh_ftmo/` (research/backtest).
-  **Auto** = `bh_ftmo_paper.py` + `bh_ftmo_v2_paper.py` (autonomous). **Briefing**
+  **Auto** = `src/bud/auto_trader.py` (autonomous, unified trader; runs v2 cells —
+  rising_3bar retired 2026-05-31 after failing the v2 cell-selection gate). **Briefing**
   = `bh_briefing.py` + `bh_briefing_ftmo.py` (human-in-loop; supersedes bh_lite).
   **Envelope** = `bh_lite_*.json` (engine retired; config files still load-bearing —
   don't delete).

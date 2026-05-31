@@ -55,7 +55,17 @@ The reframe that produced this: Brand wants a daily-decision aid where *he* pick
 
 **Commits:** `6d6195f` (briefing tool, on master), `5c928a0` (v2 research artifacts including sizing sim, on master).
 
-### 🔥 PRIORITY — Validate `rising_3bar` paper performance + grow the amplifier list (added 2026-04-30)
+### ✅ RESOLVED (2026-05-31) — `rising_3bar` RETIRED; amplifier question closed (added 2026-04-30)
+
+**Resolution:** rising_3bar was re-tested through the same v2 cell-selection gate every
+v2 cell had to clear (its config = stoch `k14/d3/thr20/rec3/long`, already a row in the
+stoch v2 sweep). At the v2-standard 1%/1% RR it survives on **1/40 pairs (CHF_JPY long)**
+— a pair v2 already trades in 5 strategies, so zero additive edge. Brand judged this
+sufficient (skipped the 1.5%-RR re-run). **Removed `Rising3BarSource` from
+`src/bud/auto_trader.py`**; v2 untouched. Open positions flattened on retirement (staged
+for market open). The amplifier (priority 1 below) is moot — the base signal it amplified
+is retired. Full record: memory `project_rising3bar_retired.md`. Historical case kept
+below for the research record.
 
 **State of the case:** The "find a signal with measurable edge" search succeeded. `rising_3bar_from_oversold` (stochastic %K rising 3 consecutive bars from below 20) at 1.5%/1.5% RR survives all friction layers we know how to test:
 

@@ -623,8 +623,11 @@ def run(*, dry_run: bool) -> int:
             LOG.error("Failed to fetch open positions: %s", exc)
             return 1
 
+        # rising_3bar retired 2026-05-31: re-tested through the v2 cell-selection
+        # gate (k14/d3/thr20/rec3/long), it survived on only 1/40 pairs at 1%/1% RR
+        # (CHF_JPY long), which v2 already trades in 5 strategies — zero additive
+        # edge. To re-enable, restore Rising3BarSource(pair_specs) below.
         sources: list[SignalSource] = [
-            Rising3BarSource(pair_specs),
             V2CellSource(),
         ]
         candidates: list[OrderCandidate] = []
