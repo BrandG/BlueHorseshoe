@@ -18,6 +18,7 @@ src/logs/fail_script.log
 .env
 docker/.env
 src/logs/*.log
+src/logs/*.log.[0-9]*
 src/logs/*.html
 src/logs/*.txt
 src/logs/*.csv

@@ -76,7 +76,6 @@
 # subsequent years. Safe to delete after firing.
 # ====================
 0 13 29 5 * cd /root/BlueHorseshoe && [ "$(date +\%Y)" = "2026" ] && ./run.sh python scripts/send_handoff_reminder.py --subject "Reminder: resume contrarian thread (session 9a48c5c7)" --doc docs/handoff/CONTRARIAN_NEXT.md --note "Resume with: claude --resume 9a48c5c7-fb77-4623-8bcd-20611dd14520" >> src/logs/reminder.log 2>&1
-0 13 30 5 * cd /root/BlueHorseshoe && { [ "$(date +\%Y)" = "2026" ] && ./run.sh python scripts/send_handoff_reminder.py --subject "Reminder: Gordon/Bud Tier 1 rename window is OPEN (FX weekend)" --doc docs/planning/GORDON_BUD_RENAME_PLAN.md --note "FX is dark Fri 21:00 -> Sun 21:00 UTC. Land Tier 1 today: move entry scripts into src/gordon/ + src/bud/ (descriptive stems), fix the ~4 cross-imports, update the 5 run_*.sh wrappers + the 2 inline cron lines, run pytest. Ask Bubo to prep the Codex handoff."; crontab -l | grep -v GORDON_BUD_TIER1_REMINDER | crontab -; } >> src/logs/reminder.log 2>&1
 
 # ====================
 # Score backfill — polite background scorer (added 2026-05-28)
@@ -88,3 +87,13 @@
 # ~60min run would overlap the 01:00 daily pipeline (OOM risk). Pause with
 # touch .score_backfill_pause. Log: src/logs/score_backfill.log
 0 4-22/2 * * *  /root/BlueHorseshoe/run_score_backfill.sh
+
+# ====================
+# Log rotation (added 2026-05-30)
+# ====================
+# Caps src/logs/*.log at 20k-line tails (keeps one .1 backup), prunes report
+# HTML + graph dumps older than 21d. Added after src/logs ballooned to 558M —
+# daily_pipeline.log alone was 236M and nothing was rotating it. Runs 03:30
+# UTC, after the 01:00 daily pipeline. Script: scripts/rotate_logs.sh
+# Tunables: ROTATE_MAX_LINES, ROTATE_KEEP_DAYS env vars.
+30 3 * * *  /root/BlueHorseshoe/scripts/rotate_logs.sh >> /root/BlueHorseshoe/src/logs/rotate_logs.log 2>&1
