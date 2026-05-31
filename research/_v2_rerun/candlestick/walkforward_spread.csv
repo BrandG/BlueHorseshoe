@@ -1,2 +1,0 @@
-tr_n,tr_mean_r,tr_se_r,tr_ci_low_r,tr_ci_high_r,te_n,te_mean_r,te_se_r,te_ci_low_r,te_ci_high_r,pair,pattern,strict,direction,total_n
-291,0.12336762281890189,0.05578243227179603,0.014034055566181675,0.2327011900716221,125,0.1721953345143403,0.08767239952704886,0.00035743144132452387,0.34403323758735604,USD_JPY,bull_engulf,False,long,416
