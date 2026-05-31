@@ -25,31 +25,37 @@ What's been exercised (journal 05-28 → 05-31): clean `event` values flowing (`
 
 **Commits:** `262e1e4` (original v2_paper), unified-trader refactor + `34d41c4` (rising_3bar retirement), on master.
 
-### 🔥 PRIORITY — Validate BH Briefing in real morning use + decide on filter integration (added 2026-05-06)
+### 🔥 PRIORITY — Validate BH Briefing in real morning use + decide on filter integration (added 2026-05-06; split into two briefings 2026-05-27)
 
-**State of the case:** Track 1 of the two-track plan (`project_two_track_plan.md`) shipped end-to-end. `src/bh_briefing.py` evaluates 34 v2 production cells across 17 pairs on the most-recently-closed H4 bar (stoch 4, bb 5, macd 5 limit, sma 3, ema 4, rsi 3, cci 5, atr 3 limit, ichimoku 1 limit, candlestick 1) and emails an inline-styled HTML briefing. Cron installed at `20 1,5,9,13,17,21 * * *` (20 min after each H4 close). Companion shell wrapper at `run_bh_briefing.sh`. All 4 FTMO crons shifted to the bar-close-aligned schedule (incremental :05, predict :10, paper :15, briefing :20) — worst-case latency dropped from ~3h25m to ~20m.
+**State of the case:** Track 1 of the two-track plan (`project_two_track_plan.md`) shipped, then split into **two cooperating briefings** (both in `src/bud/`, moved there from `src/bh_briefing*.py` in the Gordon/Bud rename):
 
-The reframe that produced this: Brand wants a daily-decision aid where *he* picks signals, not an autonomous trader. Concurrency / FTMO sizing-sim survival are NOT engineering concerns for Track 1 — Brand is the gate. The FTMO sizing simulator (`research/ftmo_sizing_sim/`) and conservative-vs-realistic intra-trade analysis inform Track 2, not Track 1.
+- **Signal briefing** — `src/bud/briefing.py` (~877 lines): evaluates 34 v2 production cells across 17 pairs (stoch 4, bb 5, macd 5 limit, sma 3, ema 4, rsi 3, cci 5, atr 3 limit, ichimoku 1 limit, candlestick 1) on the most-recently-closed H4 bar. Cron `20 1,5,9,13,17,21` via `run_bh_briefing.sh` — **console/log only, no email anymore** (emailing moved to the FTMO briefing 2026-05-27).
+- **FTMO briefing (the one Brand reads)** — `src/bud/briefing_ftmo.py`: wraps `briefing.evaluate_fires()`, then sizes each fire to the 2-Step Swing 10k account, applies position-skip + cluster filters, and **emails** the inline-styled HTML (portfolio summary + position health + "Orders to place" + suppressed). Cron `25 1,5,9,13,17,21` via `run_bh_briefing_ftmo.sh --email --email-only-if-activity`. Reads/writes `src/bud/positions.json`.
+
+All 4 FTMO crons run on the bar-close-aligned schedule (incremental :05, predict :10, trader :16, signal-briefing :20, FTMO-briefing :25) — worst-case latency ~25m.
+
+The reframe that produced this: Brand wants a daily-decision aid where *he* picks signals, not an autonomous trader. Brand is the gate. (The FTMO sizing simulator that informed Track 2 lived in `research/ftmo_sizing_sim/`, deleted in the 2026-05-31 research cleanup — recoverable from git.)
 
 **Validation steps now:**
 
-1. **Watch the first 1-2 weeks of cron-fired briefings.** Confirm timing (does `:20 UTC` post-H4-close land in the inbox before Brand wakes up?), email rendering on his actual inbox, and the multi-confirmation grouping when 2+ strategies overlap on the same pair/direction. Iterate on format only after enough live runs to know what's missing — don't pre-optimize.
+1. **Watch real morning use of the FTMO briefing.** Confirm timing (does the `:25 UTC` email land before Brand wakes up?), rendering on his actual inbox, position-health accuracy, and the sizing/cluster/position-skip suppression footprint. Iterate on format only after enough live runs — don't pre-optimize.
 
-2. **✅ DONE 2026-05-31 — session + D1-alignment findings wired into the briefing as annotations.** Decided: *annotate, don't suppress* (the briefing is a human-in-loop aid; Brand is the gate, so give him the edge-relevant metadata rather than hiding signals). Each fire now shows a **D1 with-trend / counter-trend** tag (with-trend carried ~3.3× per-trade R in the diagnostic) and its **session** (asia/london/overlap/ny), in both console and HTML. ATR + candlestick fires that go counter-trend get a ⚠ "negative counter-trend (historical money-loser)" warning (those are the 3 indicators with negative counter-trend mean_R per `MULTITF_FILTER_v1.md`). Reuses `bh_ftmo.indicators.sessions.session_label` + `pivots.daily_ohlc` (same definitions as the research). Helpers `d1_alignment()` / `session_of()` in `src/bud/briefing.py`; tests in `src/tests/test_briefing_annotations.py`. Memory: `project_briefing_filter_annotations`.
+2. **✅ DONE 2026-05-31 — session + D1-alignment findings wired in as annotations (both briefings).** Decided: *annotate, don't suppress* (Brand is the gate — give him the edge-relevant metadata, don't hide signals). Each fire is tagged with **D1 with-trend / counter-trend** (with-trend carried ~3.3× per-trade R in the diagnostic) and its **session** (asia/london/overlap/ny). ATR + candlestick fires going counter-trend get a ⚠ "negative counter-trend (historical money-loser)" warning (the 3 indicator/modes with negative counter-trend mean_R per `MULTITF_FILTER_v1.md`). `evaluate_fires()` attaches `d1_align`/`session`/`ct_warn` to every fire (helpers `d1_alignment()`/`session_of()` reuse `sessions.session_label` + `pivots.daily_ohlc` — research-exact defs). Rendered in the signal briefing (`briefing.py` console + HTML) **and** in the emailed FTMO briefing's "Orders to place" table (`briefing_ftmo.py` — a new "Trend" column + session in the Cell field). Tests: `src/tests/test_briefing_annotations.py`. Memory: `project_briefing_filter_annotations`.
    - **Deferred (separate play):** the +245-pair *universe expansion* from the D1 filter is a V2 cell-selection change, not a briefing change — revisit for the autonomous trader, not here. Combining both filters (drop overlap AND require D1) is still untested. The per-indicator session *suppression* variant (drop OVERLAP) was rejected for the briefing in favor of annotation.
 
 3. **Mid-day check-in mode.** Right now the briefing only reports fires from the most-recently-closed bar. If Brand checks at lunch and the morning's bar fired but he missed it, he sees nothing. Decision: do we add a `--since-last-N-bars` mode (or just bake it into the default — show fires from last 24h, sorted newest-first)? Wait until live use surfaces the need.
 
-4. **Strategy graduation pipeline (Track 1 → Track 2).** As Brand develops trust in the briefing's signals, individual strategies (or the multi-confirmation subset of cells) can graduate to autonomous-paper deployment alongside `rising_3bar`. No code change needed yet — when a candidate emerges, the pattern is the same as `bh_ftmo_paper.py` (cron-driven, OANDA practice account, clear logging).
+4. **Strategy graduation pipeline (briefing → autonomous).** As Brand develops trust in the briefing's signals, the cell set (or its multi-confirmation subset) is already what the autonomous trader runs — both the briefing and `src/bud/auto_trader.py` (V2) share `briefing.CELLS`. So "graduation" is really tuning which cells the trader's `DEPLOYED_STRATEGIES` predicate accepts, not standing up new infra. (The old `rising_3bar` / `bh_ftmo_paper.py` autonomous path is retired — see the V2 section above.)
 
 **Files:**
-- `src/bh_briefing.py` (730 lines) — Cell defs + 10 evaluators + console/HTML rendering + email delivery
-- `run_bh_briefing.sh` — cron wrapper
-- `research/ftmo_sizing_sim/` — sizing sim + sweep results (Track 2 input only)
-- `src/bh_ftmo_swing_config.json` — 2-Step Swing 10k FTMO rules used by sizing sim
-- Memory: `project_two_track_plan.md`
+- `src/bud/briefing.py` (~877 lines) — Cell defs + 10 evaluators + `evaluate_fires()` + D1/session annotations + console/HTML rendering. Console/log only.
+- `src/bud/briefing_ftmo.py` — the emailed briefing: sizing + position/cluster filters + position health + HTML email. The artifact Brand actually reads.
+- `run_bh_briefing.sh` (signal, :20) / `run_bh_briefing_ftmo.sh` (FTMO email, :25) — cron wrappers
+- `src/bud/positions.json` — open-position state read by the FTMO briefing
+- `src/bh_ftmo_swing_config.json` — 2-Step Swing 10k FTMO rules
+- Memory: `project_two_track_plan.md`, `project_briefing_filter_annotations`
 
-**Commits:** `6d6195f` (briefing tool, on master), `5c928a0` (v2 research artifacts including sizing sim, on master).
+**Commits:** `6d6195f` (briefing tool), `5c928a0` (v2 research artifacts), Gordon/Bud rename (→ `src/bud/`), `3dc152f` + the FTMO-render follow-up (D1/session annotations) — all on master.
 
 ### ✅ RESOLVED (2026-05-31) — `rising_3bar` RETIRED; amplifier question closed (added 2026-04-30)
 

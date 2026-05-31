@@ -301,13 +301,14 @@ def render_console(annotated: list[dict], suppressed: list[dict],
     else:
         lines.append("== ORDERS TO PLACE ==")
         lines.append(f"  {'#':>2}  {'FTMO Symbol':<14}  {'SIDE':<6}  "
-                     f"{'Cluster':<16}  {'Cell':<18}  "
+                     f"{'Cluster':<16}  {'Cell':<18}  {'Trend':<16}  "
                      f"{'Entry':>10}  {'Stop':>10}  {'Target':>10}  "
                      f"{'SL pips':>8}  {'TP pips':>8}  "
                      f"{'Lots':>6}  {'Risk $':>8}  {'Rank':>7}")
         for i, f in enumerate(annotated, 1):
             side = "BUY" if f["direction"] == "long" else "SELL"
-            cell_desc = f"{f['strategy']}/{f['entry_mode']}"
+            cell_desc = f"{f['strategy']}/{f['entry_mode']} · {f.get('session', '?')}"
+            trend = f.get("d1_align", "flat") + (" ⚠" if f.get("ct_warn") else "")
             cluster = (f.get("clusters") or [""])[0] or "—"
             precision = f["precision"]
             ent = f"{f['entry']:.{precision}f}"
@@ -327,7 +328,7 @@ def render_console(annotated: list[dict], suppressed: list[dict],
                     warn = "  !! GEOMETRY MISMATCH — review before placing"
 
             lines.append(f"  {i:>2}  {f['ftmo_symbol']:<14}  {side:<6}  "
-                         f"{cluster:<16}  {cell_desc:<18}  "
+                         f"{cluster:<16}  {cell_desc:<18}  {trend:<16}  "
                          f"{ent:>10}  {stp:>10}  {tgt:>10}  "
                          f"{sl_pips:>8.1f}  {tp_pips:>8.1f}  "
                          f"{f['lots']:>6.2f}  ${f['actual_risk']:>6.2f}  "
@@ -497,7 +498,7 @@ def render_html(annotated: list[dict], suppressed: list[dict],
         p.append('<p style="color:#57606a; font-size:13px;">No tradeable fires on this bar '
                  '(after position + cluster filters).</p>')
     else:
-        left_h = ["#", "Symbol", "SIDE", "Cell"]
+        left_h = ["#", "Symbol", "SIDE", "Cell", "Trend"]
         right_h = ["Entry", "Stop", "Target", "SL pips", "TP pips", "Lots", "Risk $"]
         header = ("".join(f'<th style="{th}">{c}</th>' for c in left_h)
                   + "".join(f'<th style="{thr}">{c}</th>' for c in right_h))
@@ -511,10 +512,19 @@ def render_html(annotated: list[dict], suppressed: list[dict],
             pip = float(f["instrument"]["pip_size"])
             sl_pips = abs(f["entry"] - f["stop"]) / pip
             tp_pips = abs(f["target"] - f["entry"]) / pip
+            # D1-alignment + session (from evaluate_fires). with-trend carried ~3.3x
+            # the per-trade R in the diagnostic; ⚠ marks the negative-counter-trend
+            # indicators (atr/candle). See project_briefing_filter_annotations.
+            align = f.get("d1_align", "flat")
+            align_color = {"with-trend": "#1a7f37",
+                           "counter-trend": "#9a6700"}.get(align, "#8c959f")
+            trend_txt = align + (" ⚠" if f.get("ct_warn") else "")
+            sess = f.get("session", "?")
             left = [
                 str(i), esc(f["ftmo_symbol"]),
                 f'<b style="color:{side_color};">{side}</b>',
-                esc(f'{f["strategy"]}/{f["entry_mode"]}'),
+                esc(f'{f["strategy"]}/{f["entry_mode"]} · {sess}'),
+                f'<span style="color:{align_color}; font-weight:600;">{esc(trend_txt)}</span>',
             ]
             right = [
                 f'{f["entry"]:.{prec}f}', f'{f["stop"]:.{prec}f}', f'{f["target"]:.{prec}f}',
