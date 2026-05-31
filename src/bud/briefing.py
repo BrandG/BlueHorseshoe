@@ -45,6 +45,8 @@ from bh_ftmo.indicators import (
     sma,
     stochastic,
 )
+from bh_ftmo.indicators.pivots import daily_ohlc
+from bh_ftmo.indicators.sessions import Session, session_label
 
 REPO_ROOT = Path(__file__).resolve().parents[2]  # src/bud/<this> -> repo root
 CONFIG_PATH = REPO_ROOT / "src" / "bh_ftmo_config.json"
@@ -61,6 +63,45 @@ LOOKBACK_BARS = 300  # enough warmup for the slowest indicator (BB period=50)
 H4_BAR_HOURS = 4  # FxStore stores the bar's OPEN time; close = open + this
 
 LOG = logging.getLogger("bh_ftmo.briefing")
+
+# Indicators whose COUNTER-TREND trades have negative test mean_R per the D1
+# alignment diagnostic (docs/planning/MULTITF_FILTER_v1.md): ATR (both mid+limit)
+# and candlestick (mid). When one of these fires against the daily trend the
+# briefing flags it as a historical money-loser. Annotation only — nothing is
+# suppressed; Brand remains the gate.
+NEG_COUNTER_TREND_STRATEGIES = frozenset({"atr", "candle"})
+
+
+def d1_alignment(mid: pd.DataFrame, timestamps: pd.Series, direction: str) -> str:
+    """Classify a fire against the daily-bar trend at the trigger bar's NY date.
+
+    D1 direction = sign(D1 close − D1 open) for the day containing the most recent
+    (trigger) bar — the same definition as the research diagnostic. Returns
+    "with-trend" if the trade direction matches the daily bar's direction,
+    "counter-trend" if opposite, "flat" if the daily bar is doji/unavailable.
+    With-trend trades carried ~3.3× the per-trade R in the diagnostic.
+    """
+    try:
+        daily = daily_ohlc(mid, timestamps=timestamps)
+    except Exception:  # defensive: never let annotation break a briefing
+        return "flat"
+    if daily.empty:
+        return "flat"
+    d1_open = float(daily["open"].iloc[-1])
+    d1_close = float(daily["close"].iloc[-1])
+    if d1_close > d1_open:
+        d1_dir = "long"
+    elif d1_close < d1_open:
+        d1_dir = "short"
+    else:
+        return "flat"
+    return "with-trend" if d1_dir == direction else "counter-trend"
+
+
+def session_of(bar_ts: pd.Timestamp) -> str:
+    """Forex session (asia/london/overlap/ny/closed) at the trigger bar's open time."""
+    label = session_label(pd.Series([pd.Timestamp(bar_ts)])).iloc[0]
+    return label.value if isinstance(label, Session) else str(label)
 
 
 @dataclass(frozen=True)
@@ -533,6 +574,9 @@ def render_console_report(
                 lines.append(f"             stop {it['stop']:.{prec}f}   "
                              f"target {it['target']:.{prec}f}   "
                              f"({STOP_PCT*100:.1f}% / {TP_PCT*100:.1f}%)")
+                align = it.get("d1_align", "flat")
+                warn = "  ⚠ negative counter-trend (historical money-loser)" if it.get("ct_warn") else ""
+                lines.append(f"             D1 {align:<13} session {it.get('session', '?')}{warn}")
             lines.append("")
 
     if verbose and cells is not None:
@@ -631,6 +675,22 @@ def render_html_report(
                              f' &nbsp; <span style="color:#777;">RR</span>'
                              f' {STOP_PCT*100:.1f}% / {TP_PCT*100:.1f}%'
                              f'</div>')
+                # D1-alignment + session annotations (annotate-only; nothing suppressed)
+                align = it.get("d1_align", "flat")
+                align_bg = {"with-trend": "#0a7d2c", "counter-trend": "#9a6700"}.get(align, "#777")
+                tag_base = ("display: inline-block; padding: 1px 6px; border-radius: 3px; "
+                            "color: #fff; font-size: 11px; margin-right: 6px; font-weight: 600;")
+                neutral_tag = ("display: inline-block; padding: 1px 6px; border-radius: 3px; "
+                               "border: 1px solid #c8c8c8; color: #555; font-size: 11px; "
+                               "margin-right: 6px;")
+                parts.append(f'<div style="{row_style}">'
+                             f'<span style="{tag_base} background: {align_bg};">'
+                             f'{html.escape(align)}</span>'
+                             f'<span style="{neutral_tag}">{html.escape(it.get("session", "?"))}</span>'
+                             + (f'<span style="color:#b1390e; font-weight:600;">'
+                                f'⚠ negative counter-trend (historical money-loser)</span>'
+                                if it.get("ct_warn") else "")
+                             + '</div>')
             parts.append('</div>')
     parts.append('</div>')
 
@@ -740,16 +800,22 @@ def evaluate_fires() -> tuple[list[dict], list[Cell], dict[str, pd.Timestamp]]:
         if not evaluate_cell(cell, mid):
             continue
         entry, stop, target = compute_entry_stop_target(cell, mid)
+        bar_ts = pd.Timestamp(df["timestamp"].iloc[-1])
+        align = d1_alignment(mid, df["timestamp"], cell.direction)
         fires.append({
             "strategy": cell.strategy,
             "pair": cell.pair,
             "direction": cell.direction,
             "entry_mode": cell.entry_mode,
-            "bar_ts": pd.Timestamp(df["timestamp"].iloc[-1]),
+            "bar_ts": bar_ts,
             "entry": entry,
             "stop": stop,
             "target": target,
             "precision": _price_precision(cell.pair),
+            "d1_align": align,
+            "session": session_of(bar_ts),
+            "ct_warn": align == "counter-trend"
+                       and cell.strategy in NEG_COUNTER_TREND_STRATEGIES,
         })
     return fires, ordered_cells, bar_ts_by_pair
 
