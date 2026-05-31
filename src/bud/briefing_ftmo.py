@@ -348,8 +348,10 @@ def render_console(annotated: list[dict], suppressed: list[dict],
         lines.append("== SUPPRESSED ==")
         for f in suppressed:
             cell_desc = f"{f['strategy']:>9}/{f['direction']:<5}"
+            trend = f.get("d1_align", "flat") + (" ⚠" if f.get("ct_warn") else "")
+            trend_sess = f"{trend} · {f.get('session', '?')}"
             lines.append(f"  {f.get('ftmo_symbol', f['pair']):<14}  "
-                         f"{cell_desc:<22}  {f['skip_reason']}")
+                         f"{cell_desc:<22}  {trend_sess:<22}  {f['skip_reason']}")
     return "\n".join(lines)
 
 
@@ -544,7 +546,14 @@ def render_html(annotated: list[dict], suppressed: list[dict],
         p.append('<ul style="font-size:12px; color:#8c959f; margin:0; padding-left:18px;">')
         for f in suppressed:
             sym = esc(f.get("ftmo_symbol", oanda_to_ftmo(f["pair"])))
-            p.append(f'<li>{sym} {esc(f["strategy"])}/{esc(f["direction"])} — '
+            align = f.get("d1_align", "flat")
+            align_color = {"with-trend": "#1a7f37",
+                           "counter-trend": "#9a6700"}.get(align, "#8c959f")
+            trend_txt = align + (" ⚠" if f.get("ct_warn") else "")
+            sess = f.get("session", "?")
+            p.append(f'<li>{sym} {esc(f["strategy"])}/{esc(f["direction"])} '
+                     f'<span style="color:{align_color}; font-weight:600;">{esc(trend_txt)}</span> '
+                     f'<span style="color:#8c959f;">· {esc(sess)}</span> — '
                      f'{esc(f["skip_reason"])}</li>')
         p.append('</ul>')
 
