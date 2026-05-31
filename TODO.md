@@ -2,31 +2,28 @@
 
 ## Near Term
 
-### 🔥 PRIORITY — Validate `bh_ftmo_v2_paper` autonomous trader in live practice (added 2026-05-06)
+### 🔥 PRIORITY — Validate V2 autonomous trader in live practice (added 2026-05-06; rearchitected to unified trader 2026-05-30; rising_3bar retired 2026-05-31)
 
-**State of the case:** Track 2 of the two-track plan shipped. `src/bh_ftmo_v2_paper.py` reuses Cell list + evaluators from `bh_briefing` and submits OANDA limit orders for filtered v2 production cells. First deploy = 5 macd-limit cells (briefing has no cci-limit cells yet — see open question below). 0.5% NAV per trade, 1.0%/1.0% RR, GTD = next H4 close. Cron at `16 1,5,9,13,17,21 * * *`. Journal at `src/logs/bh_ftmo_v2_paper_journal.csv`.
+**State of the case:** Track 2 shipped, then got folded into a **single unified trader**. The standalone `bh_ftmo_v2_paper.py` is gone — both it and the rising_3bar paper trader were merged into `src/bud/auto_trader.py` (`SignalSource` protocol; one process pulls broker state once, runs every source's candidates through shared safety gates). As of 2026-05-31 the active source list is **V2-only** (`sources = [V2CellSource()]`); `Rising3BarSource` is retired but kept dormant in-file with re-enable instructions (see `auto_trader.py:626`). V2 deploys all graduated cells whose strategy is in `DEPLOYED_STRATEGIES` (9 of 10: every family except candlestick — `deploy_predicate` at `auto_trader.py:104`), **not** the old 5-macd-cell first deploy. 0.5% NAV per trade (`V2_RISK_PER_TRADE_PCT = 0.005`), 1.0%/1.0% RR, GTD = next H4 close. Cron `16 1,5,9,13,17,21 * * *` via `run_bh_ftmo_trader.sh`. Journal: `src/logs/bh_ftmo_trader_journal.csv` (per-candidate `source` column: `v2` / `rising_3bar`).
+
+What's been exercised (journal 05-28 → 05-31): clean `event` values flowing (`order_placed`, `skip_already_open`, `skip_direction_imbalance`, `skip_conflict`, `no_candidates`, `skip_margin_budget`, `skip_cap`). OANDA LIMIT body + GTD + bracket confirmed on live `order_placed` rows. V2 landed **only 1 of 8** orders in the window — the rest were rising_3bar (now retired). See memory `project_v2_order_flow_post_retirement.md`.
 
 **Validation steps now:**
 
-1. **Watch first cron-fired runs.** Confirm wrapper loads `.env` properly under cron (same pattern that works for `bh_ftmo_paper`/`bh_briefing`, but new file). Check the journal for clean `event` values: `no_fires`, `skip_already_open`, `skip_no_conversion`, `would_open` (in dry-run), `order_placed` (in live), `order_failed`. Watch for any `skip_zero_units` (would suggest a sizing math edge case).
+1. **🔬 Measure V2 order flow after the rising_3bar retirement clears (the open experiment).** The post-retirement window so far is entirely the weekend forex halt, and rising_3bar's 7 longs are *still open* pending the flatten — so V2's headroom hasn't materialized yet. After forex reopens (~Sun 21:00 UTC) and the flatten closes those 7: at the 21:16 run and the days after, did V2 `order_placed` rate rise? Did `skip_direction_imbalance` (was the #1 blocker — rising_3bar's long-only flood ate 47/61) and `skip_already_open` (v2: 27) drop? The retirement targets exactly these two chokepoints.
 
-2. **Watch the first actual `order_placed`.** OANDA accepts the LIMIT body. The GTD timestamp parses correctly. The bracket (stop + target) attaches. The order auto-cancels at GTD if not filled. None of these have been exercised yet — the smoke test only confirmed signal evaluation + dry-run logging.
+2. **If V2 throughput stays low even with rising_3bar gone**, the limiter is the **net-direction-imbalance gate** (net-long cap 12) and/or `skip_already_open`, not source contention. Revisit the gate sizing or a per-cell NAV slice. `skip_conflict` is benign — it's v2-internal same-pair dedup (two v2 strategies firing one pair), not a policy problem.
 
-3. **Conflict-skip footprint.** Right now rising_3bar holds 31 open positions on the practice account. V2 will skip on those pairs. As rising_3bar positions close, V2's effective universe expands. Worth tracking: how often does V2 actually get to place an order? If the answer is "almost never," it's structurally subordinate to rising_3bar and the conflict policy needs revisiting (e.g. allow simultaneous opposing positions, or a per-strategy NAV slice).
-
-4. **Open: should cci-limit cells join the briefing?** The FTMO sim showed `cci limit (D1)` passing 100/100 conservative at 0.5% — but those cells aren't in `bh_briefing.CELLS` (briefing has cci-mid). Two paths:
-   - Add `cci limit` cells to the briefing using the surviving cells from `research/_v2_rerun/cci/walkforward_spread_limit.csv` (selection rule: per pair, largest `te_n` with `tr_ci_low_r > 0` and `te_ci_low_r > 0`). They'll auto-deploy via DEPLOY_PREDICATE.
-   - Stay macd-only for now; revisit after a few weeks of macd live data.
-
-5. **Open: graduation of more cells over time.** When V2 macd-limit accumulates a track record (~50+ filled orders), check live R distribution against the v2 backtest expectation (mean_R ~+0.30 R/trade per the macd planning doc). If aligned, expand DEPLOY_PREDICATE to include more cell types. Candidates from the FTMO sim conservative-model survivors: `sma mid` (99/100 pass), `ema mid` (99/100), `rsi limit unfilt` (99/100), `stoch limit (D1)` (99/100).
+3. **Graduation of more cells / live-R check.** Once V2 accumulates a track record (~50+ filled orders), check the live R distribution against the v2 backtest expectation (e.g. macd-limit mean_R ~+0.30 R/trade per the macd planning doc). `DEPLOYED_STRATEGIES` already spans 9 families, so "graduation" now means *pruning* underperformers, not adding — the inverse of the original plan.
 
 **Files:**
-- `src/bh_ftmo_v2_paper.py` (~340 lines) — trader logic, journal schema, DEPLOY_PREDICATE
-- `run_bh_ftmo_v2_paper.sh` — cron wrapper
-- `src/bh_ftmo/trading/oanda_trader.py` — `create_limit_order_with_bracket` added (with GTD support)
-- `src/logs/bh_ftmo_v2_paper.log` (run log) and `bh_ftmo_v2_paper_journal.csv` (per-signal record)
+- `src/bud/auto_trader.py` (~680 lines) — unified trader: `SignalSource` protocol, `V2CellSource`, dormant `Rising3BarSource`, `deploy_predicate`, journal schema, safety-gate composition
+- `src/bud/auto_v2.py` / `src/bud/auto_rising3bar.py` — per-source signal logic imported by the unified trader (standalone entrypoints superseded; `bh_ftmo_v2_paper_journal.csv` dead since 2026-05-28)
+- `run_bh_ftmo_trader.sh` — cron wrapper (runs `src/bud/auto_trader.py`)
+- `src/bh_ftmo/trading/oanda_trader.py` — `create_limit_order_with_bracket` (GTD support)
+- `src/logs/bh_ftmo_trader.log` (run log) and `bh_ftmo_trader_journal.csv` (per-candidate record)
 
-**Commit:** `262e1e4`, on master.
+**Commits:** `262e1e4` (original v2_paper), unified-trader refactor + `34d41c4` (rising_3bar retirement), on master.
 
 ### 🔥 PRIORITY — Validate BH Briefing in real morning use + decide on filter integration (added 2026-05-06)
 
