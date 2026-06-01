@@ -52,11 +52,44 @@ tr:last-child td { border-bottom: none; }
 .event-run_error { color: #dc2626; }
 .event-skip_paused { color: #d97706; }
 .num { text-align: right; }
+.pnl-positive { color: #16a34a; }
+.pnl-negative { color: #dc2626; }
+.sparkline { background: white; border-radius: 8px; padding: 12px 14px;
+             box-shadow: 0 1px 2px rgba(0,0,0,0.05); margin-bottom: 16px; }
+.sparkline svg { width: 100%; height: 90px; display: block; }
+.sparkline .axis { stroke: #e5e7eb; stroke-width: 1; }
+.sparkline .line { fill: none; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
 """
 
 
 def _fmt_money(v: float) -> str:
     return f"${v:,.2f}"
+
+
+def _fmt_money_optional(v) -> str:
+    if v is None:
+        return "—"
+    try:
+        return _fmt_money(float(v))
+    except (TypeError, ValueError):
+        return "—"
+
+
+def _pnl_class(v) -> str:
+    try:
+        value = float(v)
+    except (TypeError, ValueError):
+        return ""
+    return "pnl-positive" if value >= 0 else "pnl-negative"
+
+
+def _safe_float(value):
+    if value in (None, ""):
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
 
 
 def _fmt_int(v) -> str:
@@ -87,12 +120,91 @@ def _trade_row(trade) -> dict:
         return {"symbol": "?", "status": f"render_error: {e}"}
 
 
+def _strategy_pnl_section(pnl_current: Mapping | None, pnl_history: Iterable[Mapping] | None) -> str:
+    """Best-effort strategy P&L HTML. Errors stay local to this section."""
+    try:
+        current = pnl_current or {}
+        unrealized = _safe_float(current.get("unrealized"))
+        realized = _safe_float(current.get("realized_cum")) or 0.0
+        total = _safe_float(current.get("total"))
+        if total is None and unrealized is not None:
+            total = realized + unrealized
+
+        cards = []
+        for label, value in (
+            ("Unrealized P&L", unrealized),
+            ("Realized P&L", realized),
+            ("Total P&L", total),
+        ):
+            cls = _pnl_class(value)
+            cards.append(
+                f'<div class="card"><div class="label">{html.escape(label)}</div>'
+                f'<div class="value {cls}">{_fmt_money_optional(value)}</div></div>'
+            )
+
+        values = []
+        for row in pnl_history or []:
+            row_realized = _safe_float(row.get("realized_cum"))
+            row_unrealized = _safe_float(row.get("unrealized"))
+            if row_realized is None or row_unrealized is None:
+                continue
+            values.append(row_realized + row_unrealized)
+        if total is not None and (not values or values[-1] != total):
+            values.append(total)
+
+        sparkline = '<div class="empty">No strategy P&L history yet.</div>'
+        if values:
+            width = 640
+            height = 90
+            pad = 8
+            if len(values) == 1:
+                points = [(pad, height / 2)]
+            else:
+                min_v = min(values)
+                max_v = max(values)
+                span = max(max_v - min_v, 1.0)
+                usable_w = width - (pad * 2)
+                usable_h = height - (pad * 2)
+                points = [
+                    (
+                        pad + (idx * usable_w / (len(values) - 1)),
+                        pad + ((max_v - value) * usable_h / span),
+                    )
+                    for idx, value in enumerate(values)
+                ]
+            point_attr = " ".join(f"{x:.1f},{y:.1f}" for x, y in points)
+            color = "#16a34a" if values[-1] >= 0 else "#dc2626"
+            zero_line = ""
+            min_v = min(values)
+            max_v = max(values)
+            if min_v < 0 < max_v:
+                y = pad + ((max_v - 0.0) * (height - (pad * 2)) / (max_v - min_v))
+                zero_line = f'<line class="axis" x1="0" y1="{y:.1f}" x2="{width}" y2="{y:.1f}" />'
+            sparkline = (
+                '<div class="sparkline">'
+                f'<svg viewBox="0 0 {width} {height}" role="img" aria-label="Strategy P&L sparkline">'
+                f'{zero_line}<polyline class="line" stroke="{color}" points="{point_attr}" />'
+                '</svg></div>'
+            )
+
+        return (
+            "<h2>Strategy P&L</h2>"
+            f"<div class=\"cards\">{''.join(cards)}</div>"
+            f"{sparkline}"
+        )
+    except Exception as e:  # noqa: BLE001
+        logger.warning("Failed to render strategy P&L section: %s", e)
+        return '<h2>Strategy P&L</h2><div class="empty">Strategy P&L unavailable.</div>'
+
+
 def render(
     account: Mapping[str, float],
     positions: Iterable[Mapping],
     open_trades: Iterable,
     recent_events: Iterable[Mapping[str, str]],
     *,
+    pnl_current: Mapping | None = None,
+    pnl_history: Iterable[Mapping] | None = None,
     output_path: str = TRACKER_PATH,
 ) -> str:
     """Write the tracker HTML and return the path."""
@@ -111,6 +223,7 @@ def render(
             f'<div class="value">{_fmt_money(float(account.get(key, 0.0) or 0.0))}</div></div>'
         )
     account_id = html.escape(str(account.get("account_id", "")))
+    strategy_pnl_html = _strategy_pnl_section(pnl_current, pnl_history)
 
     pos_list = list(positions)
     if pos_list:
@@ -196,6 +309,7 @@ def render(
 <body>
 <h1>BH Swing Tracker</h1>
 <div class="meta">Account {account_id} &middot; Rendered {now}</div>
+{strategy_pnl_html}
 <div class="cards">{''.join(cards)}</div>
 <h2>Open Positions</h2>
 {positions_table}

@@ -8,13 +8,14 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from gordon import swing_monitor as bh_swing_monitor
-from bh_swing import journal
+from bh_swing import journal, pnl_history
 
 
 @pytest.fixture
 def temp_journal(tmp_path, monkeypatch):
     p = tmp_path / "bh_swing_journal.csv"
     monkeypatch.setattr(journal, "JOURNAL_PATH", str(p))
+    monkeypatch.setattr(pnl_history, "PNL_HISTORY_PATH", str(tmp_path / "pnl_history.csv"))
     return str(p)
 
 

@@ -24,12 +24,13 @@ import argparse
 import logging
 import os
 import sys
+from datetime import datetime, timezone
 
 from bluehorseshoe.core.config import get_settings
 from bluehorseshoe.core.container import create_app_container
 from bluehorseshoe.data.ibkr_client import IBKRClient, IBKRConfig
 
-from bh_swing import journal
+from bh_swing import journal, pnl_history
 from bh_swing.trading import manager, reconciler, tracker_html
 
 logger = logging.getLogger("bh_swing.monitor")
@@ -133,6 +134,50 @@ def main(argv: list[str] | None = None) -> int:
         )
         logger.info("Reconciler: %s", summary)
 
+        current_pnl = None
+        history = []
+        try:
+            nonzero_positions = [
+                p for p in positions
+                if float(p.get("position", 0.0) or 0.0) != 0.0
+            ]
+            n_positions = len(nonzero_positions)
+            has_short = any(
+                float(p.get("position", 0.0) or 0.0) < 0.0
+                for p in nonzero_positions
+            )
+            realized_cum = pnl_history.cumulative_realized()
+            unrealized = None
+            if has_short:
+                logger.warning(
+                    "Strategy P&L snapshot has short position; "
+                    "writing blank unrealized P&L for this tick."
+                )
+            else:
+                cost_basis = sum(
+                    float(p.get("position", 0.0) or 0.0)
+                    * float(p.get("avg_cost", 0.0) or 0.0)
+                    for p in nonzero_positions
+                )
+                unrealized = float(account.get("gross_position_value", 0.0) or 0.0) - cost_basis
+            ts_utc = datetime.now(timezone.utc).isoformat(timespec="seconds")
+            pnl_history.append_snapshot(
+                ts_utc,
+                net_liq=nav,
+                unrealized=unrealized,
+                realized_cum=realized_cum,
+                n_positions=n_positions,
+            )
+            current_pnl = {
+                "unrealized": unrealized,
+                "realized_cum": realized_cum,
+                "total": None if unrealized is None else unrealized + realized_cum,
+                "n_positions": n_positions,
+            }
+            history = pnl_history.read_history()
+        except Exception as e:  # noqa: BLE001
+            logger.warning("Strategy P&L snapshot failed: %s", e)
+
         if manage_mode != "off":
             try:
                 container = create_app_container()
@@ -165,6 +210,8 @@ def main(argv: list[str] | None = None) -> int:
             positions=positions,
             open_trades=open_trades,
             recent_events=recent,
+            pnl_current=current_pnl,
+            pnl_history=history,
         )
         logger.info("Tracker written: %s", path)
 

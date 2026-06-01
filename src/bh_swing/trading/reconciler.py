@@ -74,6 +74,7 @@ def reconcile(
             price=float(fill.get("price") or 0.0),
             order_id=str(fill.get("order_id") or ""),
             exec_id=exec_id,
+            pnl=float(fill.get("realized_pnl") or 0.0),
             nav=nav,
             settled_cash=settled_cash,
             note=f"exec_time={fill.get('exec_time', '')}",

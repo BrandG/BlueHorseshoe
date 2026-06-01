@@ -337,6 +337,13 @@ class IBKRClient:
                 commission = 0.0
                 if commission_report and _safe_float(commission_report.commission) is not None:
                     commission = commission_report.commission
+                realized_pnl = 0.0
+                if commission_report:
+                    raw_realized = _safe_float(
+                        getattr(commission_report, "realizedPNL", None)
+                    )
+                    if raw_realized is not None and abs(raw_realized) < 1e307:
+                        realized_pnl = raw_realized
 
                 results.append({
                     "exec_id": execution.execId,
@@ -345,6 +352,7 @@ class IBKRClient:
                     "quantity": float(execution.shares),
                     "price": float(execution.price),
                     "commission": commission,
+                    "realized_pnl": realized_pnl,
                     "exec_time": execution.time,
                     "order_id": execution.orderId,
                 })
