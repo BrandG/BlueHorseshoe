@@ -194,6 +194,12 @@ class OandaTrader:
         payload = self._request("GET", path)
         return list(payload.get("trades", []))
 
+    def get_closed_trades(self, count: int = 200) -> list[dict[str, Any]]:
+        """Return recently-closed trades (most recent first)."""
+        path = f"/accounts/{self.config.account_id}/trades"
+        payload = self._request("GET", path, params={"state": "CLOSED", "count": count})
+        return list(payload.get("trades", []))
+
     def _raise_if_rejected(self, response: dict[str, Any]) -> None:
         """Surface OANDA create-time rejects that arrive in otherwise-successful responses."""
         cancel = response.get("orderCancelTransaction")

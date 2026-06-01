@@ -27,6 +27,20 @@ from bud.briefing import (
     evaluate_cell,
     ranked_cells,
 )
+from bud.auto_rising3bar import (
+    LOOKBACK_BARS as R3B_LOOKBACK_BARS,
+    RISK_PER_TRADE_PCT as R3B_RISK_PER_TRADE_PCT,
+    RSI_AMPLIFIER_RISK_MULTIPLIER,
+    RSI_OVERSOLD_THRESHOLD,
+    STOP_PCT as R3B_STOP_PCT,
+    TARGET_PCT as R3B_TARGET_PCT,
+    PairSpec,
+    evaluate_trigger_on_last_bar,
+    latest_mid_close,
+    load_pair_specs,
+    quote_to_account_rate,
+)
+from bud.reconcile import reconcile_outcomes
 from bh_ftmo.data.fx_store import FxStore
 from bh_ftmo.indicators import ohlc_mid
 from bh_ftmo.trading.oanda_trader import (
@@ -40,19 +54,6 @@ from bh_ftmo.trading.safety import (
     direction_gate_allows,
     estimate_order_margin,
     margin_headroom,
-)
-from bud.auto_rising3bar import (
-    LOOKBACK_BARS as R3B_LOOKBACK_BARS,
-    RISK_PER_TRADE_PCT as R3B_RISK_PER_TRADE_PCT,
-    RSI_AMPLIFIER_RISK_MULTIPLIER,
-    RSI_OVERSOLD_THRESHOLD,
-    STOP_PCT as R3B_STOP_PCT,
-    TARGET_PCT as R3B_TARGET_PCT,
-    PairSpec,
-    evaluate_trigger_on_last_bar,
-    latest_mid_close,
-    load_pair_specs,
-    quote_to_account_rate,
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[2]  # src/bud/<this> -> repo root
@@ -568,6 +569,15 @@ def close_aged_positions(
     return closed
 
 
+def _reconcile_outcomes_safely(trader: OandaTrader, *, dry_run: bool) -> None:
+    try:
+        written = reconcile_outcomes(trader, dry_run=dry_run)
+    except Exception as exc:  # pylint: disable=broad-exception-caught
+        LOG.warning("outcome reconcile failed: %s", exc)
+        return
+    LOG.info("outcome reconcile: wrote %d row(s)", written)
+
+
 def _load_all_bars(pair_specs: list[PairSpec]) -> tuple[dict[str, pd.DataFrame], dict[str, float]]:
     lookback = max(R3B_LOOKBACK_BARS, V2_LOOKBACK_BARS)
     bars_by_pair: dict[str, pd.DataFrame] = {}
@@ -648,6 +658,7 @@ def run(*, dry_run: bool) -> int:
                 "event": "no_candidates",
                 "equity": f"{equity:.2f}",
             })
+            _reconcile_outcomes_safely(trader, dry_run=dry_run)
             return 0
 
         n_placed = place_candidates(
@@ -660,6 +671,7 @@ def run(*, dry_run: bool) -> int:
             equity=equity,
             dry_run=dry_run,
         )
+        _reconcile_outcomes_safely(trader, dry_run=dry_run)
         LOG.info("done: placed %d new order(s) (mode=%s)", n_placed, "dry" if dry_run else "live")
     return 0
 
