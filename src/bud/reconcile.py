@@ -90,17 +90,21 @@ def _load_existing_trade_ids() -> set[str]:
         return {row.get("trade_id", "") for row in csv.DictReader(f) if row.get("trade_id")}
 
 
-def _load_placements_by_tag() -> dict[str, dict[str, str]]:
+def _load_placements() -> dict[tuple[str, str], dict[str, str]]:
+    # Keyed by (tag, pair): the tag alone is NOT unique — a v2 strategy can fire
+    # several pairs the same direction on one bar (all share v2:<strategy>:<dir>:<ts>),
+    # and rising_3bar's tag carries no pair at all. Folding the pair into the key
+    # keeps each trade joined to its own placement (risk_dollars, stop, target).
     if not JOURNAL_PATH.exists():
         return {}
-    placements: dict[str, dict[str, str]] = {}
+    placements: dict[tuple[str, str], dict[str, str]] = {}
     with open(JOURNAL_PATH, "r", newline="", encoding="utf-8") as f:
         for row in csv.DictReader(f):
             if row.get("event") != "order_placed":
                 continue
             tag = _tag_from_row(row)
             if tag:
-                placements[tag] = row
+                placements[(tag, row.get("pair", ""))] = row
     return placements
 
 
@@ -202,7 +206,7 @@ def reconcile_outcomes(trader, *, dry_run: bool = False) -> int:
     """Append newly-closed tagged trades to the outcome journal."""
     trades = trader.get_closed_trades()
     known_trade_ids = _load_existing_trade_ids()
-    placements = _load_placements_by_tag()
+    placements = _load_placements()
     reconciled_ts = datetime.now(UTC).isoformat()
     rows: list[dict[str, str]] = []
 
@@ -216,7 +220,8 @@ def reconcile_outcomes(trader, *, dry_run: bool = False) -> int:
         parsed = _parse_tag(tag)
         if parsed is None:
             continue
-        rows.append(_outcome_row(trade, tag, parsed, placements.get(tag), reconciled_ts))
+        placement = placements.get((tag, str(trade.get("instrument") or "")))
+        rows.append(_outcome_row(trade, tag, parsed, placement, reconciled_ts))
 
     if dry_run:
         for row in rows:
