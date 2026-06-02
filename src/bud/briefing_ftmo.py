@@ -127,10 +127,16 @@ def _assess_position(
 
     if room_frac <= 0:
         status = "AT/PAST STOP"
+    elif signal == "FLIPPED" or (signal == "none" and pnl_usd < 0):
+        # CRITICAL = get out now. Replaces the retired score-degradation check:
+        # the cell quality rank is static and can't decay, so the live "thesis
+        # broke" signal is either an opposite-direction fire (FLIPPED) or the
+        # entry setup no longer firing in our direction while we're losing.
+        # Outranks NEAR STOP — a thesis inversion is more actionable than price
+        # drifting toward a stop the broker will honor automatically.
+        status = "CRITICAL"
     elif room_frac <= 0.25:
         status = "NEAR STOP"
-    elif signal == "FLIPPED":
-        status = "FLIPPED"
     elif pnl_usd < 0:
         status = "UNDERWATER"
     else:
@@ -357,7 +363,8 @@ def render_console(annotated: list[dict], suppressed: list[dict],
 
 _STATUS_COLOR = {
     "OK": "#1a7f37", "UNDERWATER": "#9a6700", "FLIPPED": "#9a6700",
-    "NEAR STOP": "#b35900", "AT/PAST STOP": "#cf222e", "NO DATA": "#888",
+    "CRITICAL": "#cf222e", "NEAR STOP": "#b35900",
+    "AT/PAST STOP": "#cf222e", "NO DATA": "#888",
 }
 
 

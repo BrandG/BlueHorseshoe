@@ -26,14 +26,17 @@ def test_long_in_profit_is_ok():
     assert h["room_frac"] > 1.0        # above entry → more than full risk distance to stop
 
 
-def test_long_losing_but_clear_is_underwater():
-    h = _assess_position(_long(), current=1.0980, inst=INST, fire_dirs=set())
+def test_long_losing_but_supported_is_underwater():
+    # Losing, but the entry cell still fires in our direction → UNDERWATER,
+    # not CRITICAL (CRITICAL needs the signal gone or flipped).
+    h = _assess_position(_long(), current=1.0980, inst=INST, fire_dirs={"long"})
     assert h["status"] == "UNDERWATER"
     assert h["pnl_usd"] < 0
 
 
-def test_long_near_stop():
-    h = _assess_position(_long(), current=1.0960, inst=INST, fire_dirs=set())
+def test_long_near_stop_while_supported():
+    # Near stop but the cell still supports the position → NEAR STOP.
+    h = _assess_position(_long(), current=1.0960, inst=INST, fire_dirs={"long"})
     assert h["status"] == "NEAR STOP"   # 10 of 50 pips room = 20% <= 25%
 
 
@@ -42,13 +45,38 @@ def test_long_past_stop():
     assert h["status"] == "AT/PAST STOP"
 
 
-# ---- signal verdict ----------------------------------------------------
+# ---- CRITICAL (get-out) status ----------------------------------------
 
-def test_opposite_signal_flips_even_when_in_profit():
+def test_critical_on_opposite_fire_even_in_profit():
+    # Opposite-direction cell fires → thesis inverted → CRITICAL, even in
+    # profit. The signal column still reads FLIPPED independently.
     h = _assess_position(_long(), current=1.1030, inst=INST, fire_dirs={"short"})
     assert h["signal"] == "FLIPPED"
-    assert h["status"] == "FLIPPED"
+    assert h["status"] == "CRITICAL"
 
+
+def test_critical_when_signal_gone_and_underwater():
+    # Entry setup no longer fires in our direction AND we're losing → CRITICAL.
+    h = _assess_position(_long(), current=1.0980, inst=INST, fire_dirs=set())
+    assert h["signal"] == "none"
+    assert h["pnl_usd"] < 0
+    assert h["status"] == "CRITICAL"
+
+
+def test_critical_outranks_near_stop():
+    # Near the stop AND flipped → CRITICAL wins over NEAR STOP (precedence).
+    h = _assess_position(_long(), current=1.0960, inst=INST, fire_dirs={"short"})
+    assert h["status"] == "CRITICAL"
+
+
+def test_signal_gone_but_in_profit_is_not_critical():
+    # No signal but still in profit → not CRITICAL (CRITICAL needs underwater).
+    h = _assess_position(_long(), current=1.1030, inst=INST, fire_dirs=set())
+    assert h["signal"] == "none"
+    assert h["status"] == "OK"
+
+
+# ---- signal verdict ----------------------------------------------------
 
 def test_same_direction_signal_supports():
     h = _assess_position(_long(), current=1.1030, inst=INST, fire_dirs={"long"})
@@ -71,15 +99,16 @@ def test_short_in_profit_when_price_falls():
     assert h["status"] == "OK"
 
 
-def test_short_underwater_when_price_rises():
-    h = _assess_position(_short(), current=1.1030, inst=INST, fire_dirs=set())
+def test_short_losing_but_supported_is_underwater():
+    h = _assess_position(_short(), current=1.1030, inst=INST, fire_dirs={"short"})
     assert h["pnl_pips"] == pytest.approx(-30.0)
     assert h["status"] == "UNDERWATER"
 
 
-def test_short_flip_is_long_signal():
+def test_short_flip_is_critical():
     h = _assess_position(_short(), current=1.0970, inst=INST, fire_dirs={"long"})
     assert h["signal"] == "FLIPPED"
+    assert h["status"] == "CRITICAL"
 
 
 # ---- missing data ------------------------------------------------------
