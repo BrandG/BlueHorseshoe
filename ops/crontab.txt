@@ -20,7 +20,7 @@
 # BH Swing monitor — 5-min cadence during US market hours, Mon-Fri.
 # Reconstructed window 13:00-21:00 UTC = 09:00-17:00 ET (108 fires/weekday,
 # matches 9 hours × 12 fires/hour).
-*/5 13-21 * * 1-5  /root/BlueHorseshoe/run_bh_swing_monitor.sh --manage-dry-run
+*/5 13-21 * * 1-5  /root/BlueHorseshoe/run_bh_swing_monitor.sh --manage
 
 # BH Swing Friday-flatten — 19:55 UTC Fri (15:55 ET), MKT-close book before weekend (WEEKEND_FLATTEN_EQUITIES_v1). Kill: touch .bh_swing_pause_friday_flatten
 55 19 * * 5  /root/BlueHorseshoe/run_bh_swing_friday_flatten.sh
@@ -89,11 +89,11 @@
 0 4-22/2 * * *  /root/BlueHorseshoe/run_score_backfill.sh
 
 # ====================
-# Log rotation (added 2026-05-30)
+# Log rotation — caps src/logs/*.log at 20k-line tails (one .1 backup),
+# prunes report HTML + graph dumps >21d. Added 2026-05-30 after src/logs
+# hit 558M (daily_pipeline.log alone was 236M, nothing was rotating it).
+# Runs 03:30 UTC, after the 01:00 daily pipeline finishes. Script: scripts/rotate_logs.sh
 # ====================
-# Caps src/logs/*.log at 20k-line tails (keeps one .1 backup), prunes report
-# HTML + graph dumps older than 21d. Added after src/logs ballooned to 558M —
-# daily_pipeline.log alone was 236M and nothing was rotating it. Runs 03:30
-# UTC, after the 01:00 daily pipeline. Script: scripts/rotate_logs.sh
-# Tunables: ROTATE_MAX_LINES, ROTATE_KEEP_DAYS env vars.
 30 3 * * *  /root/BlueHorseshoe/scripts/rotate_logs.sh >> /root/BlueHorseshoe/src/logs/rotate_logs.log 2>&1
+# rising_3bar retirement flatten — self-removing one-shot, fires hourly at :17 until market open closes the 7 positions (installed 2026-05-31)
+15 3 * * *  /root/BlueHorseshoe/run_index_etf_refresh.sh
