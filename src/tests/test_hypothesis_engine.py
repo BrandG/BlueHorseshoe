@@ -261,6 +261,15 @@ def test_get_hold_days_unknown_defaults_neutral(engine):
     assert engine._get_hold_days({"market_regime": {"status": "Unknown"}}) == 5
 
 
+def test_is_mature_uses_calendar_not_store(engine):
+    # Bullish hold_days=5 + buffer 5 = 10 sessions needed. ~21 sessions in a month.
+    assert engine._is_mature("2026-04-08", hold_days=5, as_of_date="2026-05-08") is True
+    # Only ~4 sessions after the batch -> not yet mature.
+    assert engine._is_mature("2026-04-08", hold_days=5, as_of_date="2026-04-14") is False
+    # Maturity is decided without touching the (possibly stale) price store.
+    engine._store.load_symbol.assert_not_called()
+
+
 def test_find_mature_batches_skips_immature(engine):
     batch_cursor = MagicMock()
     batch_cursor.sort.return_value = [{"batch_date": "2026-03-01", "market_regime": {"status": "Bearish"}}]

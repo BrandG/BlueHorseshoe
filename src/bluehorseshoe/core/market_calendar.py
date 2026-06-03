@@ -2,8 +2,9 @@
 from __future__ import annotations
 
 import datetime as _dt
-from typing import Dict, Optional, Set
+from typing import Dict, Optional, Set, Union
 
+import pandas as pd
 from pandas.tseries.holiday import (
     AbstractHolidayCalendar,
     GoodFriday,
@@ -20,7 +21,10 @@ __all__ = [
     "NYSEHolidayCalendar",
     "nyse_holidays_for_year",
     "get_holiday_warning",
+    "trading_days_after",
 ]
+
+_DateLike = Union[str, _dt.date, _dt.datetime, "pd.Timestamp"]
 
 
 class NYSEHolidayCalendar(AbstractHolidayCalendar):
@@ -52,6 +56,30 @@ def nyse_holidays_for_year(year: int) -> Set[_dt.date]:
         holidays = _nyse_calendar.holidays(start=start, end=end)
         _nyse_holiday_cache[year] = {d.date() for d in holidays}
     return _nyse_holiday_cache[year]
+
+
+def trading_days_after(start_date: _DateLike, as_of_date: _DateLike) -> int:
+    """Count NYSE trading sessions strictly after *start_date* through *as_of_date*.
+
+    Mirrors the semantics of "OHLCV bars whose date > batch_date and <= as_of":
+    weekends and NYSE holidays are excluded. Independent of any price store, so
+    maturity can be judged even when index-ETF data is briefly stale. Returns 0
+    when *as_of_date* is not strictly after *start_date*.
+    """
+    start = pd.Timestamp(start_date).normalize()
+    end = pd.Timestamp(as_of_date).normalize()
+    if end <= start:
+        return 0
+
+    sessions = pd.bdate_range(start=start + pd.Timedelta(days=1), end=end)
+    if len(sessions) == 0:
+        return 0
+
+    holidays: Set[_dt.date] = set()
+    for year in range(start.year, end.year + 1):
+        holidays |= nyse_holidays_for_year(year)
+
+    return sum(1 for d in sessions if d.date() not in holidays)
 
 
 def get_holiday_warning(today: Optional[_dt.date] = None) -> Optional[Dict]:

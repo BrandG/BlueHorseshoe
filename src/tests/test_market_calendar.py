@@ -5,7 +5,33 @@ import datetime as dt
 from bluehorseshoe.core.market_calendar import (
     get_holiday_warning,
     nyse_holidays_for_year,
+    trading_days_after,
 )
+
+
+class TestTradingDaysAfter:
+    """Coverage for the calendar-based trading-day counter."""
+
+    def test_counts_weekdays_excluding_weekends(self):
+        # Mon 2026-06-01 -> Fri 2026-06-05 inclusive is 4 sessions *after* Mon.
+        assert trading_days_after("2026-06-01", "2026-06-05") == 4
+
+    def test_excludes_nyse_holidays(self):
+        # Span includes Memorial Day (Mon 2026-05-25). Tue–Fri = 4 sessions.
+        assert trading_days_after("2026-05-22", "2026-05-29") == 4
+
+    def test_strictly_after_start(self):
+        # Same day, and end before start, both yield 0.
+        assert trading_days_after("2026-06-01", "2026-06-01") == 0
+        assert trading_days_after("2026-06-05", "2026-06-01") == 0
+
+    def test_skips_weekend_only_span(self):
+        # Sat 2026-06-06 -> Sun 2026-06-07: no sessions.
+        assert trading_days_after("2026-06-06", "2026-06-07") == 0
+
+    def test_does_not_depend_on_price_store(self):
+        # Maturity must be judgeable far past any stale OHLCV: ~21 sessions in a month.
+        assert trading_days_after("2026-04-08", "2026-05-08") >= 20
 
 
 class TestGetHolidayWarning:

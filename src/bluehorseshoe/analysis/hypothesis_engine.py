@@ -10,6 +10,7 @@ from pymongo.errors import BulkWriteError
 
 from bluehorseshoe.analysis.constants import REGIME_PROFILES
 from bluehorseshoe.analysis.trade_evaluator import TradeEvalConfig, evaluate_bars
+from bluehorseshoe.core.market_calendar import trading_days_after
 from bluehorseshoe.data.duckdb_store import DuckDBStore
 
 logger = logging.getLogger(__name__)
@@ -47,14 +48,18 @@ class HypothesisEngine:
         )
 
     def _is_mature(self, batch_date: str, hold_days: int, as_of_date: str) -> bool:
-        """Check if enough trading days have elapsed since the batch date."""
-        spy_df = self._store.load_symbol("SPY", start_date=batch_date, end_date=as_of_date)
-        if spy_df is None or spy_df.empty:
-            return False
+        """Check if enough trading days have elapsed since the batch date.
 
-        bars_after = spy_df[spy_df["date"].astype(str).str[:10] > batch_date]
+        Uses the NYSE calendar rather than counting SPY bars in the store. The
+        old SPY-bar approach silently wedged the whole feed whenever index-ETF
+        OHLCV went stale: SPY/QQQ aren't in the daily ``-u`` universe, so once
+        their data froze, no batch after that date could ever accumulate the
+        required post-batch bars and matured signals stopped flowing. The
+        calendar is the source of truth for "has time passed"; price freshness
+        is the evaluator's concern, not the gate's.
+        """
         needed = hold_days + self.MATURITY_BUFFER_TRADING_DAYS
-        return len(bars_after) >= needed
+        return trading_days_after(batch_date, as_of_date) >= needed
 
     def _get_hold_days(self, batch_doc: dict) -> int:
         """Resolve hold_days from the batch market regime."""
