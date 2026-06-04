@@ -156,6 +156,10 @@ class Settings(BaseSettings):
     paper_trading_enabled: bool = False
     paper_total_investment: float = 10000.0
     paper_max_positions: int = 10
+    # Reserved slots for the deep_oversold sleeve (of paper_max_positions). The
+    # remainder is shared by the legacy strategies. Spillover is allowed: idle
+    # reserved slots on one side are filled by the other so capital isn't idle.
+    paper_slots_deep_oversold: int = 3
 
     # Yahoo Finance
     yahoo_enabled: bool = True

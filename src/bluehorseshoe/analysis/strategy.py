@@ -921,7 +921,7 @@ class SwingTrader:
         # 4. Report & Collect Data
         # We print to console/txt via ReportSingleton inside these helpers
         # Report top candidates per strategy
-        _strategy_titles = {"baseline": "Baseline (Trend)", "mean_reversion": "Mean Reversion (Dip)"}
+        _strategy_titles = {"baseline": "Baseline (Trend)", "mean_reversion": "Mean Reversion (Dip)", "deep_oversold": "Deep Oversold (Persistent Dip)"}
         for strat in self.strategies:
             title = _strategy_titles.get(strat.name, strat.display_name)
             self._report_top_candidates(

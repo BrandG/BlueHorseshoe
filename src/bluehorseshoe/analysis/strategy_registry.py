@@ -16,6 +16,7 @@ from typing import Dict, List
 
 from bluehorseshoe.analysis.strategy_interface import (
     BaselineStrategy,
+    DeepOversoldStrategy,
     MeanReversionStrategy,
     TradingStrategy,
 )
@@ -26,10 +27,12 @@ from bluehorseshoe.analysis.strategy_interface import (
 
 _BASELINE = BaselineStrategy()
 _MEAN_REVERSION = MeanReversionStrategy()
+_DEEP_OVERSOLD = DeepOversoldStrategy()
 
 _REGISTRY: Dict[str, TradingStrategy] = {
     _BASELINE.name: _BASELINE,
     _MEAN_REVERSION.name: _MEAN_REVERSION,
+    _DEEP_OVERSOLD.name: _DEEP_OVERSOLD,
 }
 
 

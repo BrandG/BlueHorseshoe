@@ -87,6 +87,30 @@ ENABLE_DYNAMIC_ENTRY = True  # Set to False to revert to 0.2 ATR default
 MIN_MARKET_CAP = 300_000_000  # $300M — approximate Russell 3000 floor
 
 # ---------------------------------------------------------------------------
+# Deep-Oversold strategy (validated 2026-06-04 — research/indicator_screen/)
+# The one entry edge to clear the honest gauntlet (de-overlap → era → crash →
+# cost/liquidity). The signal is PERSISTENCE, not the RSI<30 crossing: forward
+# bracket return rises monotonically with how long RSI has stayed below 30
+# (onset≈0 → age6+ = +0.44R nonbull). Mechanical & ML-free by design — the
+# validated backtest used none of the MR scorer's ML/context/motif machinery.
+# Survives realistic frictions at +0.142R/trade (t6.2), STRONGEST in liquid
+# names, so a hard $-volume floor is part of the edge, not just hygiene.
+# ---------------------------------------------------------------------------
+DEEP_OVERSOLD_RSI_THRESHOLD = 30.0       # RSI(14) below this = "oversold"
+DEEP_OVERSOLD_MIN_AGE = 3                # require >= this many consecutive oversold bars
+DEEP_OVERSOLD_MIN_DOLLAR_VOLUME = 25_000_000.0   # 20d avg $-volume floor (>$25M tier: +0.139R t4.6)
+DEEP_OVERSOLD_STOP_MULT = 1.0            # SL = 1*ATR below entry  (the validated 2:1 bracket)
+DEEP_OVERSOLD_TARGET_MULT = 2.0          # TP = 2*ATR above entry
+DEEP_OVERSOLD_MIN_RR = 1.5               # 2:1 geometry clears this; guards against degenerate ATR
+DEEP_OVERSOLD_PRIOR_WINRATE = 0.43       # backtest win-rate, shown as ml_prob (no trained model)
+# Score = BASE + (age - MIN_AGE)*STEP so qualifying signals are slot-competitive with strong
+# Baseline/MR scores and rank INTERNALLY by oversold depth (the validated dimension). Tunable:
+# raising BASE prioritizes deep-oversold for the shared paper slots; lowering it defers to the
+# legacy strategies. BASE=14.5 = the "HIGH" signal-strength tier (top ~5%).
+DEEP_OVERSOLD_BASE_SCORE = 14.5
+DEEP_OVERSOLD_AGE_STEP = 1.5
+
+# ---------------------------------------------------------------------------
 # Regime-aware parameter profiles
 # Derived from assumption_tester v2 research (2000 trades, 100 dates).
 # Key finding: bearish regimes favor wide stops (let bounces develop),

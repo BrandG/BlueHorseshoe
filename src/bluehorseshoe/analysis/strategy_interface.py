@@ -566,3 +566,148 @@ class MeanReversionStrategy(TradingStrategy):
             target_multiplier=ml_target_multiplier,
             regime_status=regime_status or "Neutral",
         )
+
+
+# ---------------------------------------------------------------------------
+# Deep Oversold (Persistent Dip) — validated entry edge, 2026-06-04
+# ---------------------------------------------------------------------------
+
+class DeepOversoldStrategy(TradingStrategy):
+    """Buy persistent oversold dislocation in liquid names.
+
+    The one entry signal to survive the honest gauntlet. Mechanical and ML-free
+    on purpose: the validated +0.142R/trade backtest used a fixed 2:1 ATR bracket
+    and *none* of the MR scorer's ML / intraday / motif machinery, so this strategy
+    reproduces exactly that rule and nothing else.
+
+    Fires when, on the signal bar:
+      * RSI(14) has been below ``DEEP_OVERSOLD_RSI_THRESHOLD`` for at least
+        ``DEEP_OVERSOLD_MIN_AGE`` *consecutive* bars (the edge is in persistence —
+        forward return rises monotonically with oversold age), AND
+      * 20-day average dollar-volume >= ``DEEP_OVERSOLD_MIN_DOLLAR_VOLUME`` (the
+        edge is strongest in liquid names, absent in the thin <$1M tail), AND
+      * price in [MIN_STOCK_PRICE, MAX_STOCK_PRICE] and the 1*ATR stop is within
+        MAX_RISK_PERCENT (``is_realistic``).
+
+    Score is ``BASE + (age - MIN_AGE) * STEP`` — slot-competitive with strong
+    Baseline/MR scores and monotone in oversold depth, the validated ranking axis.
+    """
+
+    @property
+    def name(self) -> str:
+        return "deep_oversold"
+
+    @property
+    def display_name(self) -> str:
+        return "DeepOS"
+
+    @property
+    def score_key(self) -> str:
+        return "deep_os_score"
+
+    @property
+    def setup_key(self) -> str:
+        return "deep_os_setup"
+
+    @property
+    def ml_prob_key(self) -> str:
+        return "deep_os_ml_prob"
+
+    @property
+    def components_key(self) -> str:
+        return "deep_os_components"
+
+    @property
+    def weight_prefix(self) -> str:
+        return "deep_os_"
+
+    @property
+    def default_stop_multiplier(self) -> float:
+        from bluehorseshoe.analysis.constants import DEEP_OVERSOLD_STOP_MULT
+        return DEEP_OVERSOLD_STOP_MULT
+
+    @property
+    def default_target_multiplier(self) -> float:
+        from bluehorseshoe.analysis.constants import DEEP_OVERSOLD_TARGET_MULT
+        return DEEP_OVERSOLD_TARGET_MULT
+
+    @property
+    def min_rr_ratio(self) -> float:
+        from bluehorseshoe.analysis.constants import DEEP_OVERSOLD_MIN_RR
+        return DEEP_OVERSOLD_MIN_RR
+
+    # -- Shared evaluation (no ML / overview / sentiment needed) -------------
+
+    @staticmethod
+    def _oversold_age(rsi, threshold: float) -> int:
+        """Consecutive bars (ending at the last bar) with RSI below threshold."""
+        age = 0
+        for value in reversed(rsi):
+            if value == value and value < threshold:  # value==value rejects NaN
+                age += 1
+            else:
+                break
+        return age
+
+    def _evaluate(self, trader, df, regime_status):
+        import numpy as np
+        import talib
+        from bluehorseshoe.analysis.constants import (
+            DEEP_OVERSOLD_RSI_THRESHOLD, DEEP_OVERSOLD_MIN_AGE,
+            DEEP_OVERSOLD_MIN_DOLLAR_VOLUME, DEEP_OVERSOLD_STOP_MULT,
+            DEEP_OVERSOLD_TARGET_MULT, DEEP_OVERSOLD_BASE_SCORE,
+            DEEP_OVERSOLD_AGE_STEP, DEEP_OVERSOLD_PRIOR_WINRATE,
+        )
+
+        if df is None or len(df) < 40:
+            return None
+        close = df['close'].to_numpy(dtype=float)
+        volume = df['volume'].to_numpy(dtype=float)
+
+        rsi = talib.RSI(close, 14)
+        age = self._oversold_age(rsi, DEEP_OVERSOLD_RSI_THRESHOLD)
+        if age < DEEP_OVERSOLD_MIN_AGE:
+            return None
+
+        # 20-day average dollar volume (incl. signal bar) — liquidity floor is part of the edge
+        dollar_vol_20 = float(np.nanmean((close * volume)[-20:]))
+        if dollar_vol_20 < DEEP_OVERSOLD_MIN_DOLLAR_VOLUME:
+            return None
+
+        setup = trader.calculate_mean_reversion_setup(
+            df,
+            ml_stop_multiplier=DEEP_OVERSOLD_STOP_MULT,
+            ml_target_multiplier=DEEP_OVERSOLD_TARGET_MULT,
+        )
+        if not setup['is_realistic']:
+            return None
+        entry_price = setup['entry_price']
+        if not MIN_STOCK_PRICE < entry_price < MAX_STOCK_PRICE:
+            return None
+        if setup['rr_ratio'] < self.min_rr_ratio:
+            return None
+
+        score = DEEP_OVERSOLD_BASE_SCORE + (age - DEEP_OVERSOLD_MIN_AGE) * DEEP_OVERSOLD_AGE_STEP
+        components = {
+            "oversold_age": float(age),
+            "rsi": float(rsi[-1]),
+            "dollar_vol_M": round(dollar_vol_20 / 1e6, 1),
+        }
+        return StrategyResult(
+            score=float(score),
+            components=components,
+            setup=setup,
+            ml_prob=DEEP_OVERSOLD_PRIOR_WINRATE,
+            stop_multiplier=DEEP_OVERSOLD_STOP_MULT,
+            target_multiplier=DEEP_OVERSOLD_TARGET_MULT,
+            regime_status=regime_status or "Neutral",
+        )
+
+    def process(self, trader, df, symbol, yesterday, ctx):
+        regime_status = (ctx.market_health or {}).get('status')
+        return self._evaluate(trader, df, regime_status)
+
+    def process_worker(self, trader, df, symbol, yesterday, worker_state,
+                       overview, sentiment):
+        regime_status = (worker_state.get('market_health') or {}).get('status')
+        return self._evaluate(trader, df, regime_status)

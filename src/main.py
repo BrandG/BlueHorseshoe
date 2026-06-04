@@ -290,6 +290,7 @@ if __name__ == "__main__":
                             total_investment=ctx.config.paper_total_investment,
                             max_positions=ctx.config.paper_max_positions,
                             logs_path=ctx.config.logs_path,
+                            slots_deep_oversold=ctx.config.paper_slots_deep_oversold,
                         )
                         paper_trader = PaperTrader(
                             ibkr_client=ctx.ibkr,

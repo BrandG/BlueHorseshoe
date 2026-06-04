@@ -25,6 +25,10 @@ class PaperTradeConfig:
     total_investment: float = 10000.0
     max_positions: int = 10
     logs_path: str = f"{REPO_ROOT}/src/logs"
+    # Slots reserved for the deep_oversold sleeve (of max_positions); remainder
+    # shared by legacy strategies. Spillover allowed (idle reserved slots on one
+    # side fill from the other). 0 disables reservation (pure global top-N).
+    slots_deep_oversold: int = 3
 
 
 @dataclass
@@ -118,7 +122,7 @@ class PaperTrader:
 
         slots_available = max(0, self._config.max_positions - len(occupied))
         eligible = [c for c in candidates if c.get("symbol", "") not in occupied]
-        top = eligible[:slots_available]
+        top = self._select_with_reservation(eligible, occupied, slots_available)
         per_position = self._config.total_investment / self._config.max_positions
 
         logger.info(
@@ -270,6 +274,80 @@ class PaperTrader:
                 occupied.add(symbol)
 
         return occupied
+
+    def _occupied_by_strategy(self, occupied: Set[str], deepos_display: str) -> int:
+        """How many currently-occupied symbols were opened by deep_oversold.
+
+        The broker doesn't track strategy, so map each occupied symbol to the
+        strategy on its most-recent ``paper_trades`` record. Symbols with no
+        record bucket as legacy — that protects the DeepOS reservation from
+        phantom occupancy rather than silently eating its slots.
+        """
+        if self._collection is None or not occupied:
+            return 0
+        deep = 0
+        for sym in occupied:
+            doc = self._collection.find_one({"symbol": sym}, sort=[("date", -1)])
+            if doc and doc.get("strategy") == deepos_display:
+                deep += 1
+        return deep
+
+    def _select_with_reservation(
+        self, eligible: List[dict], occupied: Set[str], slots_available: int
+    ) -> List[dict]:
+        """Choose which eligible candidates to submit, honoring the deep_oversold
+        slot reservation with spillover.
+
+        DeepOS gets up to ``slots_deep_oversold`` concurrent positions; legacy
+        strategies share the rest. Reserved-but-idle slots on one side spill over
+        to the other so capital isn't idle. Everything stays capped at the global
+        ``slots_available`` — the "at most N on the book" invariant is preserved
+        by counting *existing* per-strategy occupancy, not just new submissions.
+        """
+        if slots_available <= 0:
+            return []
+        deep_reserved = max(0, min(self._config.slots_deep_oversold,
+                                   self._config.max_positions))
+        if deep_reserved == 0:
+            return eligible[:slots_available]  # reservation disabled → global top-N
+
+        # Local import: keep the trading layer decoupled from analysis at import time.
+        from bluehorseshoe.analysis.strategy_registry import get_strategy
+        deepos_display = get_strategy("deep_oversold").display_name
+        legacy_reserved = max(0, self._config.max_positions - deep_reserved)
+
+        deep_occupied = self._occupied_by_strategy(occupied, deepos_display)
+        legacy_occupied = len(occupied) - deep_occupied
+        deep_slots = max(0, deep_reserved - deep_occupied)
+        legacy_slots = max(0, legacy_reserved - legacy_occupied)
+
+        deep_cands = [c for c in eligible if c.get("strategy") == deepos_display]
+        legacy_cands = [c for c in eligible if c.get("strategy") != deepos_display]
+
+        # Reserved (guaranteed) picks first; if the global cap binds, highest score wins.
+        guaranteed = sorted(
+            deep_cands[:deep_slots] + legacy_cands[:legacy_slots],
+            key=lambda c: c.get("score", 0), reverse=True,
+        )
+        selected = guaranteed[:slots_available]
+
+        # Spillover: fill remaining global slots from leftover candidates by score.
+        if len(selected) < slots_available:
+            leftover = sorted(
+                deep_cands[deep_slots:] + legacy_cands[legacy_slots:],
+                key=lambda c: c.get("score", 0), reverse=True,
+            )
+            selected += leftover[: slots_available - len(selected)]
+
+        n_deep = sum(1 for c in selected if c.get("strategy") == deepos_display)
+        logger.info(
+            "Slot reservation: DeepOS %d reserved (%d occ → %d open), "
+            "legacy %d reserved (%d occ → %d open); selected %d (DeepOS %d, legacy %d)",
+            deep_reserved, deep_occupied, deep_slots,
+            legacy_reserved, legacy_occupied, legacy_slots,
+            len(selected), n_deep, len(selected) - n_deep,
+        )
+        return selected
 
     @staticmethod
     def _validate_prices(
