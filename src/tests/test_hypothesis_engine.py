@@ -343,3 +343,170 @@ def test_compute_spy_return(engine):
 def test_run_no_mature_batches(engine):
     with patch.object(engine, "find_mature_batches", return_value=[]):
         assert engine.run() == []
+
+
+def test_strategy_hold_days_resolution(engine):
+    assert engine._strategy_hold_days("deep_oversold", "Bullish") == 10
+    assert engine._strategy_hold_days("baseline", "Bearish") == 7
+    assert engine._strategy_hold_days("baseline", "Bullish") == 5
+    assert engine._strategy_hold_days("nope", "Bullish") == 5
+
+    assert engine._strategy_entry_style("deep_oversold") == "marketable_next_open"
+    assert engine._strategy_entry_style("baseline") == "limit_below"
+    assert engine._strategy_entry_style("nope") == "limit_below"
+
+
+def test_evaluate_batch_defers_immature_deep_oversold(engine):
+    batch_doc = {"batch_date": "2026-03-01", "market_regime": {"status": "Bullish"}}
+    signals = [
+        {
+            "batch_date": "2026-03-01",
+            "symbol": "AAPL",
+            "strategy": "baseline",
+            "composite_score": 10.0,
+            "signal_strength": "HIGH",
+            "rank": 1,
+            "ml_win_probability": 0.7,
+            "entry_price": 100.0,
+            "stop_loss": 95.0,
+            "take_profit_t2": 105.0,
+        },
+        {
+            "batch_date": "2026-03-01",
+            "symbol": "MSFT",
+            "strategy": "deep_oversold",
+            "composite_score": 9.0,
+            "signal_strength": "HIGH",
+            "rank": 2,
+            "ml_win_probability": 0.65,
+            "entry_price": 50.0,
+            "stop_loss": 45.0,
+            "take_profit_t2": 55.0,
+        },
+    ]
+    engine._signals.find.return_value = signals
+    engine._store.load_symbols_bulk.return_value = {
+        "AAPL": make_bars([
+            ("2026-03-02", 100.0, 106.0, 98.0, 105.0, 1000),
+            ("2026-03-03", 105.0, 106.0, 104.0, 105.5, 1000),
+        ]),
+        "MSFT": make_bars([
+            ("2026-03-02", 51.0, 52.0, 50.5, 51.5, 1000),
+            ("2026-03-03", 49.0, 56.0, 48.0, 55.0, 1000),
+        ]),
+        "SPY": make_bars([
+            ("2026-03-02", 500.0, 505.0, 499.0, 504.0, 1000),
+            ("2026-03-03", 504.0, 506.0, 503.0, 505.0, 1000),
+        ]),
+    }
+    engine._results.insert_many.return_value = MagicMock(inserted_ids=[1])
+
+    engine.evaluate_batch(batch_doc, as_of_date="2026-03-16")
+
+    result_docs = engine._results.insert_many.call_args.args[0]
+    assert len(result_docs) == 1
+    assert result_docs[0]["strategy"] == "baseline"
+    assert result_docs[0]["hold_days"] == 5
+
+
+def test_evaluate_batch_deep_oversold_uses_hold_10_when_mature(engine):
+    batch_doc = {"batch_date": "2026-03-01", "market_regime": {"status": "Bullish"}}
+    signals = [
+        {
+            "batch_date": "2026-03-01",
+            "symbol": "AAPL",
+            "strategy": "baseline",
+            "composite_score": 10.0,
+            "signal_strength": "HIGH",
+            "rank": 1,
+            "ml_win_probability": 0.7,
+            "entry_price": 100.0,
+            "stop_loss": 95.0,
+            "take_profit_t2": 105.0,
+        },
+        {
+            "batch_date": "2026-03-01",
+            "symbol": "MSFT",
+            "strategy": "deep_oversold",
+            "composite_score": 9.0,
+            "signal_strength": "HIGH",
+            "rank": 2,
+            "ml_win_probability": 0.65,
+            "entry_price": 50.0,
+            "stop_loss": 45.0,
+            "take_profit_t2": 55.0,
+        },
+    ]
+    engine._signals.find.return_value = signals
+    engine._store.load_symbols_bulk.return_value = {
+        "AAPL": make_bars([
+            ("2026-03-02", 100.0, 106.0, 98.0, 105.0, 1000),
+            ("2026-03-03", 105.0, 106.0, 104.0, 105.5, 1000),
+        ]),
+        "MSFT": make_bars([
+            ("2026-03-02", 51.0, 52.0, 50.5, 51.5, 1000),
+            ("2026-03-03", 49.0, 56.0, 48.0, 55.0, 1000),
+        ]),
+        "SPY": make_bars([
+            ("2026-03-02", 500.0, 505.0, 499.0, 504.0, 1000),
+            ("2026-03-03", 504.0, 506.0, 503.0, 505.0, 1000),
+        ]),
+    }
+    engine._results.insert_many.return_value = MagicMock(inserted_ids=[1, 2])
+
+    engine.evaluate_batch(batch_doc, as_of_date="2026-03-30")
+
+    result_docs = engine._results.insert_many.call_args.args[0]
+    deep_doc = next(doc for doc in result_docs if doc["strategy"] == "deep_oversold")
+    assert deep_doc["hold_days"] == 10
+    assert deep_doc["strategy"] == "deep_oversold"
+
+
+def test_evaluate_batch_unknown_strategy_falls_back(engine):
+    batch_doc = {"batch_date": "2026-03-01", "market_regime": {"status": "Bullish"}}
+    engine._signals.find.return_value = [{
+        "batch_date": "2026-03-01",
+        "symbol": "AAPL",
+        "strategy": "legacy_unknown",
+        "composite_score": 10.0,
+        "signal_strength": "HIGH",
+        "rank": 1,
+        "ml_win_probability": 0.7,
+        "entry_price": 100.0,
+        "stop_loss": 95.0,
+        "take_profit_t2": 105.0,
+    }]
+    engine._store.load_symbols_bulk.return_value = {
+        "AAPL": make_bars([
+            ("2026-03-02", 100.0, 106.0, 98.0, 105.0, 1000),
+            ("2026-03-03", 105.0, 106.0, 104.0, 105.5, 1000),
+        ]),
+        "SPY": make_bars([
+            ("2026-03-02", 500.0, 505.0, 499.0, 504.0, 1000),
+            ("2026-03-03", 504.0, 506.0, 503.0, 505.0, 1000),
+        ]),
+    }
+    engine._results.insert_many.return_value = MagicMock(inserted_ids=[1])
+
+    summary = engine.evaluate_batch(batch_doc, as_of_date="2026-03-16")
+
+    result_docs = engine._results.insert_many.call_args.args[0]
+    assert summary["errors"] == 0
+    assert len(result_docs) == 1
+    assert result_docs[0]["strategy"] == "legacy_unknown"
+    assert result_docs[0]["hold_days"] == 5
+
+
+def test_find_mature_batches_ages_out_stuck_batch(engine):
+    batch_cursor = MagicMock()
+    batch_cursor.sort.return_value = [
+        {"batch_date": "2026-01-02", "market_regime": {"status": "Bullish"}}
+    ]
+    engine._batches.find.return_value = batch_cursor
+    engine._signals.count_documents.return_value = 1
+    engine._results.count_documents.return_value = 0
+
+    with patch.object(engine, "_is_mature", return_value=True):
+        result = engine.find_mature_batches(as_of_date="2026-06-01")
+
+    assert result == []

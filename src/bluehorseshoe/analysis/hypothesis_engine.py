@@ -9,6 +9,7 @@ from pymongo.database import Database
 from pymongo.errors import BulkWriteError
 
 from bluehorseshoe.analysis.constants import REGIME_PROFILES
+from bluehorseshoe.analysis.strategy_registry import get_all_strategies, get_strategy
 from bluehorseshoe.analysis.trade_evaluator import TradeEvalConfig, evaluate_bars
 from bluehorseshoe.core.market_calendar import trading_days_after
 from bluehorseshoe.data.duckdb_store import DuckDBStore
@@ -25,6 +26,7 @@ class HypothesisEngine:
     """
 
     MATURITY_BUFFER_TRADING_DAYS = 5
+    PIN_GRACE_TRADING_DAYS = 10   # extra slack before a stuck (unevaluable) batch is dropped
     ENTRY_BUFFER_PCT = 0.001   # 0.1% below entry
     SCORE_THRESHOLD = 0        # Evaluate all signals with score > 0
 
@@ -67,6 +69,24 @@ class HypothesisEngine:
         profile = REGIME_PROFILES.get(regime, REGIME_PROFILES.get("Neutral", {}))
         return profile.get("hold_days", 5)
 
+    def _strategy_hold_days(self, strategy_name: str, regime_status: str) -> int:
+        """Per-strategy hold horizon; falls back to the regime default for
+        unknown/legacy strategy names."""
+        try:
+            return get_strategy(strategy_name).get_hold_days(regime_status)
+        except Exception:
+            profile = REGIME_PROFILES.get(
+                regime_status or "Neutral", REGIME_PROFILES.get("Neutral", {})
+            )
+            return profile.get("hold_days", 5)
+
+    def _strategy_entry_style(self, strategy_name: str) -> str:
+        """Per-strategy entry-fill model; falls back to 'limit_below'."""
+        try:
+            return get_strategy(strategy_name).entry_style
+        except Exception:
+            return "limit_below"
+
     def find_mature_batches(self, as_of_date: Optional[str] = None) -> List[dict]:
         """Find mature batches that still have unevaluated signals."""
         if as_of_date is None:
@@ -90,6 +110,18 @@ class HypothesisEngine:
             if result_count >= signal_count:
                 continue
 
+            # Batch-pin age-out: stop re-scanning a batch whose strategies are all long
+            # past maturity but which still has unevaluable signals (e.g. missing price
+            # data) — accept the partial evaluation rather than re-scanning forever.
+            regime = batch_doc.get("market_regime", {}).get("status", "Neutral")
+            max_hold = max((s.get_hold_days(regime) for s in get_all_strategies()),
+                           default=hold_days)
+            aged_threshold = (
+                max_hold + self.MATURITY_BUFFER_TRADING_DAYS + self.PIN_GRACE_TRADING_DAYS
+            )
+            if trading_days_after(batch_date, as_of_date) >= aged_threshold:
+                continue
+
             mature_batches.append(batch_doc)
 
         return mature_batches
@@ -111,11 +143,13 @@ class HypothesisEngine:
             return 0.0
         return (spy_exit - spy_entry) / spy_entry
 
-    def evaluate_batch(self, batch_doc: dict) -> dict:
+    def evaluate_batch(self, batch_doc: dict, as_of_date: Optional[str] = None) -> dict:
         """Evaluate all positive-score signals in a matured batch."""
         batch_date = batch_doc["batch_date"]
-        hold_days = self._get_hold_days(batch_doc)
         regime = batch_doc.get("market_regime", {}).get("status", "Unknown")
+        if as_of_date is None:
+            as_of_date = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        regime_hold = self._get_hold_days(batch_doc)   # batch baseline, for the summary line
 
         signals = list(self._signals.find({
             "batch_date": batch_date,
@@ -125,16 +159,22 @@ class HypothesisEngine:
         symbols = list({s["symbol"] for s in signals} | {"SPY"})
         price_data = self._store.load_symbols_bulk(symbols, start_date=batch_date)
         spy_df = price_data.get("SPY")
-        config = TradeEvalConfig(
-            hold_days=hold_days,
-            entry_buffer_pct=self.ENTRY_BUFFER_PCT,
-        )
 
         result_docs: List[Dict[str, Any]] = []
         errors = 0
 
         for signal in signals:
             try:
+                strat_name = signal.get("strategy", "")
+                strat_hold = self._strategy_hold_days(strat_name, regime)
+                if not self._is_mature(batch_date, strat_hold, as_of_date):
+                    continue   # this strategy hasn't matured yet for this batch — pick up on a later run
+                entry_style = self._strategy_entry_style(strat_name)
+                config = TradeEvalConfig(
+                    hold_days=strat_hold,
+                    entry_buffer_pct=self.ENTRY_BUFFER_PCT,
+                    entry_style=entry_style,
+                )
                 symbol = signal["symbol"]
                 symbol_df = price_data.get(symbol)
                 if symbol_df is None or symbol_df.empty:
@@ -163,7 +203,7 @@ class HypothesisEngine:
                         spy_df, eval_result["entry_date"], eval_result["exit_date"]
                     )
                 elif spy_df is not None and not spy_df.empty:
-                    spy_slice = spy_df.head(hold_days)
+                    spy_slice = spy_df.head(strat_hold)
                     if not spy_slice.empty:
                         spy_open = float(spy_slice.iloc[0]["open"])
                         if spy_open != 0:
@@ -183,7 +223,7 @@ class HypothesisEngine:
                     "stop_loss": stop_loss,
                     "take_profit": take_profit,
                     "market_regime": regime,
-                    "hold_days": hold_days,
+                    "hold_days": strat_hold,
                     "outcome": eval_result["outcome"],
                     "adjusted_entry": entry_price * (1 - self.ENTRY_BUFFER_PCT),
                     "actual_entry": eval_result["actual_entry"],
@@ -230,7 +270,7 @@ class HypothesisEngine:
         return {
             "batch_date": batch_date,
             "regime": regime,
-            "hold_days": hold_days,
+            "hold_days": regime_hold,
             "evaluated": inserted,
             "skipped_duplicates": len(result_docs) - inserted,
             "errors": errors,
@@ -239,6 +279,8 @@ class HypothesisEngine:
 
     def run(self, as_of_date: Optional[str] = None) -> List[dict]:
         """Find mature batches and evaluate them. Returns per-batch summaries."""
+        if as_of_date is None:
+            as_of_date = datetime.now(timezone.utc).strftime("%Y-%m-%d")
         mature = self.find_mature_batches(as_of_date=as_of_date)
         if not mature:
             logger.info("HypothesisEngine: No mature batches to evaluate.")
@@ -248,7 +290,7 @@ class HypothesisEngine:
         summaries = []
         for batch_doc in mature:
             try:
-                summary = self.evaluate_batch(batch_doc)
+                summary = self.evaluate_batch(batch_doc, as_of_date=as_of_date)
                 summaries.append(summary)
                 logger.info(
                     "HypothesisEngine: Batch %s — %d evaluated, outcomes: %s",

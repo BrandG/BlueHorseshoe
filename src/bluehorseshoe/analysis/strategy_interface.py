@@ -126,6 +126,28 @@ class TradingStrategy(ABC):
             return profile.get(f"target_multiplier_{self.name}", self.default_target_multiplier)
         return self.default_target_multiplier
 
+    def get_hold_days(self, regime_status: Optional[str] = None) -> int:
+        """Hold horizon (bars) the hypothesis evaluator uses before time-exit.
+
+        Defaults to the market-regime profile so Baseline/MeanReversion behave
+        exactly as before. Strategies with a fixed validated horizon override this.
+        """
+        profile = REGIME_PROFILES.get(
+            regime_status or "Neutral", REGIME_PROFILES.get("Neutral", {})
+        )
+        return profile.get("hold_days", 5)
+
+    @property
+    def entry_style(self) -> str:
+        """Entry-fill model the hypothesis evaluator should apply.
+
+        'limit_below'          — resting limit at/under entry, scanned from the
+                                 signal bar (Baseline, MeanReversion; unchanged).
+        'marketable_next_open' — marketable DAY limit above prior close, valid
+                                 for the next session only (DeepOversold).
+        """
+        return "limit_below"
+
     # --- Core methods -------------------------------------------------------
 
     @abstractmethod
@@ -635,6 +657,14 @@ class DeepOversoldStrategy(TradingStrategy):
     def min_rr_ratio(self) -> float:
         from bluehorseshoe.analysis.constants import DEEP_OVERSOLD_MIN_RR
         return DEEP_OVERSOLD_MIN_RR
+
+    def get_hold_days(self, regime_status=None) -> int:
+        from bluehorseshoe.analysis.constants import DEEP_OVERSOLD_HOLD_DAYS
+        return DEEP_OVERSOLD_HOLD_DAYS
+
+    @property
+    def entry_style(self) -> str:
+        return "marketable_next_open"
 
     # -- Shared evaluation (no ML / overview / sentiment needed) -------------
 

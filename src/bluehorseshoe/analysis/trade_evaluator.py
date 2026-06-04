@@ -10,6 +10,7 @@ class TradeEvalConfig:
 
     hold_days: int = 5
     entry_buffer_pct: float = 0.001  # 0.1% below entry price
+    entry_style: str = "limit_below"  # or "marketable_next_open"
 
 
 @dataclass
@@ -67,6 +68,46 @@ def check_entry(row: dict, bar_idx: int, state: TradeEvalState, hold_days: int) 
         state.status = "limit_expired"
 
 
+def check_entry_marketable(row: dict, bar_idx: int, state: TradeEvalState, hold_days: int) -> None:
+    """Marketable DAY limit at entry_price, valid for the single next session.
+
+    Models DeepOversold: a limit placed above the prior close, resting for the
+    next session only. bar_idx 0 is the signal bar (limit not yet live — avoids
+    look-ahead); bar_idx 1 is the one session the DAY order can fill. No entry
+    buffer is applied in this mode.
+    """
+    if bar_idx == 0:
+        return                                    # signal bar — limit not live yet
+    if bar_idx >= 2:
+        state.status = "limit_expired"            # DAY order lapsed unfilled
+        return
+
+    # bar_idx == 1: the single eligible session
+    if row["open"] <= state.entry_price:
+        fill = row["open"]                        # gap through the limit fills at open
+    elif row["low"] <= state.entry_price:
+        fill = state.entry_price                  # intraday touch fills at the limit
+    else:
+        state.status = "limit_expired"            # never reached the limit -> NOT_ENTERED
+        return
+
+    state.status = "active"
+    state.entry_idx = bar_idx
+    state.entry_date = _date_str(row["date"])
+    state.actual_entry = fill
+
+    # same-bar exit checks (mirror check_entry's post-fill logic)
+    if row["low"] <= state.stop_loss:
+        state.status = "stopped_out"
+        state.exit_price = row["open"] if row["open"] < state.stop_loss else state.stop_loss
+        state.exit_date = _date_str(row["date"])
+        return
+    if row["high"] >= state.take_profit:
+        state.status = "target_hit"
+        state.exit_price = row["open"] if row["open"] > state.take_profit else state.take_profit
+        state.exit_date = _date_str(row["date"])
+
+
 def check_active_trade(row: dict, bar_idx: int, state: TradeEvalState, hold_days: int) -> None:
     """
     Check exit conditions for an active trade. Track MAE/MFE.
@@ -120,7 +161,10 @@ def evaluate_bars(
     for bar_idx, (_, row) in enumerate(bars_df.reset_index(drop=True).iterrows()):
         row_dict = row.to_dict()
         if state.status == "pending":
-            check_entry(row_dict, bar_idx, state, config.hold_days)
+            if config.entry_style == "marketable_next_open":
+                check_entry_marketable(row_dict, bar_idx, state, config.hold_days)
+            else:
+                check_entry(row_dict, bar_idx, state, config.hold_days)
         elif state.status == "active":
             check_active_trade(row_dict, bar_idx, state, config.hold_days)
 

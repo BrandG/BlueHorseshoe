@@ -109,6 +109,7 @@ DEEP_OVERSOLD_TARGET_MULT = 2.0          # TP = 2*ATR above entry
 # this entry, so a fill at-or-below it keeps R:R >= 2:1. Over a multi-day hold the
 # premium is immaterial to total R. Tunable; calibrate from live fill rates.
 DEEP_OVERSOLD_ENTRY_PREMIUM = 0.01       # +1% above prior close
+DEEP_OVERSOLD_HOLD_DAYS = 10             # validated forward horizon (+0.142R @ hold 10); the hypothesis evaluator must use this, not the regime default
 DEEP_OVERSOLD_MIN_RR = 1.5               # 2:1 geometry clears this; guards against degenerate ATR
 DEEP_OVERSOLD_PRIOR_WINRATE = 0.43       # backtest win-rate, shown as ml_prob (no trained model)
 # Score = BASE + (age - MIN_AGE)*STEP so qualifying signals are slot-competitive with strong
