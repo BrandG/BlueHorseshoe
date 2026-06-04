@@ -101,6 +101,14 @@ DEEP_OVERSOLD_MIN_AGE = 3                # require >= this many consecutive over
 DEEP_OVERSOLD_MIN_DOLLAR_VOLUME = 25_000_000.0   # 20d avg $-volume floor (>$25M tier: +0.139R t4.6)
 DEEP_OVERSOLD_STOP_MULT = 1.0            # SL = 1*ATR below entry  (the validated 2:1 bracket)
 DEEP_OVERSOLD_TARGET_MULT = 2.0          # TP = 2*ATR above entry
+# Entry = prior close * (1 + premium), as a DAY limit. A limit AT the prior close
+# only fills the names that fade all the way back (or never gapped); a small premium
+# also catches names that stabilize slightly above close after the opening spike,
+# while still skipping the true runners (whose limit never reaches) — which we WANT
+# to skip (spent bounce, bad 2:1 geometry from a high fill). Stop/target anchor to
+# this entry, so a fill at-or-below it keeps R:R >= 2:1. Over a multi-day hold the
+# premium is immaterial to total R. Tunable; calibrate from live fill rates.
+DEEP_OVERSOLD_ENTRY_PREMIUM = 0.01       # +1% above prior close
 DEEP_OVERSOLD_MIN_RR = 1.5               # 2:1 geometry clears this; guards against degenerate ATR
 DEEP_OVERSOLD_PRIOR_WINRATE = 0.43       # backtest win-rate, shown as ml_prob (no trained model)
 # Score = BASE + (age - MIN_AGE)*STEP so qualifying signals are slot-competitive with strong

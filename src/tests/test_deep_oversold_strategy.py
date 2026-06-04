@@ -67,6 +67,21 @@ class TestDeepOversoldGates:
         assert s["stop_loss"] < s["entry_price"] < s["take_profit"]
         assert res.score >= C.DEEP_OVERSOLD_BASE_SCORE
 
+    def test_entry_uses_premium_above_close_with_anchored_2to1(self, trader):
+        strat = DeepOversoldStrategy()
+        closes = _falling_then_floor(n_fall=40, floor_len=0)
+        df = _frame(closes, volume=10_000_000)
+        res = strat._evaluate(trader, df, regime_status="Bearish")
+        assert res is not None
+        last_close = df["close"].iloc[-1]
+        # entry sits the configured premium above the prior close
+        assert res.setup["entry_price"] == pytest.approx(
+            last_close * (1 + C.DEEP_OVERSOLD_ENTRY_PREMIUM), rel=1e-6)
+        # stop/target anchored to entry → ~2:1 (minus the 2% target haircut)
+        s = res.setup
+        assert s["rr_ratio"] == pytest.approx(2.0 * 0.98, rel=1e-3)
+        assert s["actual_close"] == pytest.approx(last_close, rel=1e-9)
+
     def test_no_signal_when_not_oversold(self, trader):
         strat = DeepOversoldStrategy()
         # Steady uptrend → RSI high, age 0.

@@ -657,6 +657,7 @@ class DeepOversoldStrategy(TradingStrategy):
             DEEP_OVERSOLD_MIN_DOLLAR_VOLUME, DEEP_OVERSOLD_STOP_MULT,
             DEEP_OVERSOLD_TARGET_MULT, DEEP_OVERSOLD_BASE_SCORE,
             DEEP_OVERSOLD_AGE_STEP, DEEP_OVERSOLD_PRIOR_WINRATE,
+            DEEP_OVERSOLD_ENTRY_PREMIUM, MAX_RISK_PERCENT,
         )
 
         if df is None or len(df) < 40:
@@ -674,18 +675,35 @@ class DeepOversoldStrategy(TradingStrategy):
         if dollar_vol_20 < DEEP_OVERSOLD_MIN_DOLLAR_VOLUME:
             return None
 
-        setup = trader.calculate_mean_reversion_setup(
-            df,
-            ml_stop_multiplier=DEEP_OVERSOLD_STOP_MULT,
-            ml_target_multiplier=DEEP_OVERSOLD_TARGET_MULT,
-        )
-        if not setup['is_realistic']:
+        # Build the bracket directly: entry = prior close * (1 + premium), submitted as
+        # a DAY limit; stop/target anchor to THAT entry so a fill at-or-below it keeps
+        # the 2:1. ATR via talib(14) to match the research harness exactly.
+        high = df['high'].to_numpy(dtype=float)
+        low = df['low'].to_numpy(dtype=float)
+        atr = talib.ATR(high, low, close, 14)[-1]
+        if not atr > 0 or np.isnan(atr):
             return None
-        entry_price = setup['entry_price']
+        last_close = float(close[-1])
+        entry_price = last_close * (1 + DEEP_OVERSOLD_ENTRY_PREMIUM)
         if not MIN_STOCK_PRICE < entry_price < MAX_STOCK_PRICE:
             return None
-        if setup['rr_ratio'] < self.min_rr_ratio:
+        stop_loss = entry_price - DEEP_OVERSOLD_STOP_MULT * atr
+        take_profit = entry_price + DEEP_OVERSOLD_TARGET_MULT * atr * 0.98  # 2% delta haircut
+        risk = entry_price - stop_loss
+        rr_ratio = (take_profit - entry_price) / risk if risk > 0 else 0.0
+        risk_pct = risk / entry_price if entry_price > 0 else 1.0
+        if risk_pct > MAX_RISK_PERCENT:        # 1*ATR stop too wide for this name
             return None
+        if rr_ratio < self.min_rr_ratio:
+            return None
+        setup = {
+            "entry_price": float(entry_price),
+            "stop_loss": float(stop_loss),
+            "take_profit": float(take_profit),
+            "rr_ratio": float(rr_ratio),
+            "actual_close": last_close,
+            "is_realistic": True,
+        }
 
         score = DEEP_OVERSOLD_BASE_SCORE + (age - DEEP_OVERSOLD_MIN_AGE) * DEEP_OVERSOLD_AGE_STEP
         components = {
