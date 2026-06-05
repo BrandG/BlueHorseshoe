@@ -1149,6 +1149,10 @@ class HTMLReporter:
                 'sentiment_composite': float(c.get('sentiment_composite', 0)),
                 'reasons': c.get('reasons', []),
                 'components': {},
+                'actual_close': float(c.get('actual_close', 0) or 0),
+                'cloud_age': int(c.get('cloud_age', 0) or 0),
+                'confluence_star': bool(c.get('confluence_star', False)),
+                'chronic_dislocation': bool(c.get('chronic_dislocation', False)),
             }
             if c.get('connors_rsi2') is not None:
                 rc['connors_rsi2'] = float(c['connors_rsi2'])
@@ -1733,10 +1737,16 @@ function renderLeaderboard() {
       pipsHtml += '<div class="ml-pip ' + (j < mlPips ? 'filled ' + mlColor : '') + '"></div>';
     }
     var selKey = c.symbol + '|' + c.strategy;
+    var cloudBadge = '';
+    if (c.confluence_star && c.cloud_age) {
+      cloudBadge = '<span title="Confluence: ' + c.cloud_age + ' bars below Ichimoku cloud AND RSI<30" style="color:#f1c40f;font-size:0.75rem;margin-left:3px">&#11088;' + c.cloud_age + 'd</span>';
+    } else if (c.chronic_dislocation && c.cloud_age) {
+      cloudBadge = '<span title="Chronic dislocation: ' + c.cloud_age + ' bars below Ichimoku cloud (RSI≥30)" style="color:#5dade2;font-size:0.75rem;margin-left:3px">&#9670;' + c.cloud_age + 'd</span>';
+    }
     row.innerHTML =
       '<div class="col-check"><input type="checkbox" class="portfolio-check"' + (state.selected[selKey] ? ' checked' : '') + ' onclick="toggleSelection(\'' + selKey + '\', event)"></div>' +
       '<div class="col-rank"><span class="rank-num">' + String(rank).padStart(2, '0') + '</span></div>' +
-      '<div class="col-symbol"><span class="symbol-name">' + c.symbol + '</span><span class="strategy-badge ' + stratClass + '">' + stratLabel + '</span></div>' +
+      '<div class="col-symbol"><span class="symbol-name">' + c.symbol + '</span><span class="strategy-badge ' + stratClass + '">' + stratLabel + '</span>' + cloudBadge + '</div>' +
       '<div class="col-score"><div class="health-bar"><div class="health-bar-fill ' + scoreClass + '" style="width:' + scoreWidth + '%"></div></div><span class="score-value ' + scoreTextClass + '">' + score.toFixed(1) + '</span></div>' +
       '<div class="col-sent ' + sentClass + '">' + sentLabel + '</div>' +
       '<div class="col-price">$' + c.close.toFixed(2) + '</div>' +
@@ -1783,6 +1793,8 @@ function buildSentimentHTML(c) {
 }
 
 function buildDetailHTML(c) {
+  const entryDistHtml = (c.actual_close && c.actual_close > 0)
+    ? ' <small style="color:var(--pixel-gray)">(' + ((c.actual_close - c.close) / c.actual_close * 100).toFixed(2) + '%)</small>' : '';
   const riskPct = c.close > 0 ? (((c.close - c.stop_loss) / c.close) * 100).toFixed(2) : 0;
   const rewardPct = c.close > 0 ? (((c.target - c.close) / c.close) * 100).toFixed(2) : 0;
   const totalRange = c.target - c.stop_loss;
@@ -1817,7 +1829,7 @@ function buildDetailHTML(c) {
     '<div class="rr-entry-marker" style="left:' + riskWidth + '%"></div>' +
     t1Html +
     '<span class="rr-label stop">STOP $' + c.stop_loss.toFixed(2) + '</span>' +
-    '<span class="rr-label entry" style="left:' + riskWidth + '%">ENTRY $' + c.close.toFixed(2) + '</span>' +
+    '<span class="rr-label entry" style="left:' + riskWidth + '%">ENTRY $' + c.close.toFixed(2) + entryDistHtml + '</span>' +
     '<span class="rr-label target">T2 $' + c.target.toFixed(2) + '</span></div>' +
     '<div style="display:flex;gap:20px;margin-top:10px;font-size:0.7rem;">' +
     '<span style="color:var(--neon-red)">RISK: ' + riskPct + '%</span>' +
