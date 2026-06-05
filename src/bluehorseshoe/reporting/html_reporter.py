@@ -13,6 +13,7 @@ from typing import List, Dict, Any
 from bluehorseshoe.analysis.strategy_registry import get_all_strategies
 from bluehorseshoe.core.market_calendar import get_holiday_warning
 from bluehorseshoe.data.historical_data import load_historical_data
+from bluehorseshoe.reporting.track_record import compute_track_record
 
 class HTMLReporter:
     """
@@ -22,6 +23,9 @@ class HTMLReporter:
     TOP_CANDIDATES_PER_STRATEGY = 5
     # Number of candidates to show in main "Top Candidates" table
     TOP_CANDIDATES_TABLE_LIMIT = 10
+    # Signal Track Record: rolling window (days) and rank-depth tiers to report.
+    TRACK_RECORD_LOOKBACK_DAYS = 60
+    TRACK_RECORD_TIERS = (10, 50)
 
     def __init__(self, output_dir: str = "src/logs", graphs_dir: str = "src/graphs", database=None):
         """
@@ -275,6 +279,19 @@ class HTMLReporter:
             return f'<span class="badge badge-bear">{status}</span>'
         return f'<span class="badge badge-neutral">{status}</span>'
 
+    def _cloud_signal_badge(self, cand: Dict[str, Any]) -> str:
+        """Advisory Ichimoku cloud-dislocation marker (research-validated, liquid >=$25M only).
+        ⭐ = confluence cell (>=26 bars below cloud & RSI<30); ◆ = chronic dislocation (RSI>=30).
+        Age (consecutive bars below cloud) shown inline."""
+        age = cand.get('cloud_age', 0)
+        if cand.get('confluence_star'):
+            return (f"<span title='Confluence: {age} bars below the Ichimoku cloud AND RSI&lt;30 — "
+                    f"the super-additive dislocation cell' style='color:#f1c40f;font-weight:bold'>&#11088; {age}d</span>")
+        if cand.get('chronic_dislocation'):
+            return (f"<span title='Chronic dislocation: {age} bars below the Ichimoku cloud (RSI&ge;30)' "
+                    f"style='color:#5dade2;font-weight:bold'>&#9670; {age}d</span>")
+        return ""
+
     def _get_score_class(self, score: float) -> str:
         if score >= 80:
             return "score-high"
@@ -417,6 +434,164 @@ class HTMLReporter:
             '</div>',
         ]
 
+    # ── Signal Track Record ────────────────────────────────────────────
+    def _track_record(self, date: str):
+        """Compute the track record for *date*, fail-safe (never breaks a report)."""
+        try:
+            return compute_track_record(
+                self.database, date,
+                lookback_days=self.TRACK_RECORD_LOOKBACK_DAYS,
+                tiers=self.TRACK_RECORD_TIERS,
+            )
+        except Exception:  # pragma: no cover - defensive; query layer already guards
+            return None
+
+    @staticmethod
+    def _fmt_pf(pf) -> str:
+        if pf is None:
+            return "&infin;"
+        return f"{pf:.2f}"
+
+    @staticmethod
+    def _signed(value: float, suffix: str = "%") -> str:
+        """+/- value with green/red coloring for the standard report."""
+        color = "#27ae60" if value > 0 else ("#c0392b" if value < 0 else "#777")
+        return f"<span style='color:{color};font-weight:bold'>{value:+.2f}{suffix}</span>"
+
+    def _track_record_html(self, tr: Dict[str, Any]):
+        """Collapsible Signal Track Record section for the full HTML report."""
+        if not tr:
+            return [
+                "<details>",
+                "<summary style='cursor:pointer; font-size: 1.5em; font-weight: bold; "
+                "color: var(--heading-color); padding-bottom: 10px;'>📊 Signal Track Record</summary>",
+                "<hr style='border: 0; border-bottom: 2px solid var(--border-color); margin: 0 0 20px 0;'>",
+                "<p style='color:#777'>No matured signals in the lookback window yet — "
+                "the track record populates as daily batches mature (~2 weeks after each signal).</p>",
+                "</details>",
+            ]
+
+        w = tr["window"]
+        tiers = sorted(tr["tiers"].keys())
+
+        def metric_row(label, fn, hint=""):
+            cells = "".join(f"<td>{fn(tr['tiers'][n]['overall'])}</td>" for n in tiers)
+            th = f"<th style='text-align:left'{(' title=' + chr(39) + hint + chr(39)) if hint else ''}>{label}</th>"
+            return f"<tr>{th}{cells}</tr>"
+
+        html = [
+            "<details open>",
+            "<summary style='cursor:pointer; font-size: 1.5em; font-weight: bold; "
+            "color: var(--heading-color); padding-bottom: 10px;'>📊 Signal Track Record "
+            f"<small style='font-size:0.6em; color:#777'>{w['first_batch']} → {w['last_batch']} "
+            f"· {w['n_batches']} batches · last {w['lookback_days']}d</small></summary>",
+            "<hr style='border: 0; border-bottom: 2px solid var(--border-color); margin: 0 0 20px 0;'>",
+            "<p style='color:#777; font-size:0.9em'>Hypothetical outcomes of the published daily picks "
+            "(entry at the stated levels, exit at target / stop / time-out). Ranks are per-strategy; "
+            "<strong>Top 10</strong> ≈ the depth actually traded. Not live broker fills.</p>",
+            "<table>",
+            "<tr><th style='text-align:left'>Metric</th>"
+            + "".join(f"<th>Top {n} / strat</th>" for n in tiers) + "</tr>",
+            metric_row("Signals", lambda m: f"{m['total']} <small>({m['entered']} entered)</small>"),
+            metric_row("Entry rate", lambda m: f"{m['entry_rate']*100:.0f}%",
+                       "Share of picks whose entry limit was actually hit"),
+            metric_row("Win rate", lambda m: f"{m['win_rate']*100:.0f}% <small>({m['wins']}/{m['entered']})</small>",
+                       "Entered trades closing profitable"),
+            metric_row("Avg P&amp;L / trade", lambda m: self._signed(m['avg_pnl_pct'])),
+            metric_row("Avg α vs SPY", lambda m: self._signed(m['avg_alpha_pct']),
+                       "Mean return minus SPY over the same hold"),
+            metric_row("Profit factor", lambda m: self._fmt_pf(m['profit_factor']),
+                       "Gross profit / gross loss"),
+            metric_row("Target / Stop / Time",
+                       lambda m: f"{m['target_hits']} / {m['stops']} / {m['timeouts']}"),
+            metric_row("Avg hold (days)", lambda m: f"{m['avg_days_held']:.1f}"),
+            "</table>",
+        ]
+
+        # Per-strategy split at the tightest tier.
+        tight = tr["tight_tier"]
+        ts = tr["tiers"][tight]
+        html.append(f"<h3>By strategy — Top {tight}</h3>")
+        html.append("<table>")
+        html.append("<tr><th style='text-align:left'>Metric</th><th>Baseline (Trend)</th><th>Mean Reversion</th></tr>")
+        for label, fn in [
+            ("Signals (entered)", lambda m: f"{m['total']} ({m['entered']})"),
+            ("Win rate", lambda m: f"{m['win_rate']*100:.0f}%"),
+            ("Avg P&amp;L / trade", lambda m: self._signed(m['avg_pnl_pct'])),
+            ("Avg α vs SPY", lambda m: self._signed(m['avg_alpha_pct'])),
+            ("Profit factor", lambda m: self._fmt_pf(m['profit_factor'])),
+        ]:
+            html.append(
+                f"<tr><th style='text-align:left'>{label}</th>"
+                f"<td>{fn(ts['baseline'])}</td><td>{fn(ts['mean_reversion'])}</td></tr>"
+            )
+        html.append("</table>")
+
+        # Best / worst entered trades (tight tier).
+        def movers_table(title, rows):
+            out = [f"<div class='top-list'><h3>{title}</h3>",
+                   "<div class='top-list-header-grid'><span>Symbol</span> <span>Strategy</span> "
+                   "<span>P&amp;L</span> <span>α</span></div>"]
+            if not rows:
+                out.append("<div class='top-list-row'>None.</div>")
+            for r in rows:
+                strat = "MeanRev" if r.get("strategy") == "mean_reversion" else "Baseline"
+                url = f"https://finance.yahoo.com/quote/{r['symbol']}"
+                out.append(
+                    "<div class='top-list-row' style='display:grid; "
+                    "grid-template-columns: 1fr 1fr 1fr 1fr; gap:4px'>"
+                    f"<span><a href='{url}' target='_blank' class='symbol-link'><strong>{r['symbol']}</strong></a></span>"
+                    f"<span><small>{strat}</small></span>"
+                    f"<span>{self._signed((r.get('pnl_pct') or 0)*100)}</span>"
+                    f"<span>{self._signed((r.get('alpha_pct') or 0)*100)}</span></div>"
+                )
+            out.append("</div>")
+            return out
+
+        html.append("<div class='top-lists-wrapper'>")
+        html.extend(movers_table(f"Top Winners (Top {tight})", tr.get("top_winners", [])))
+        html.extend(movers_table(f"Top Losers (Top {tight})", tr.get("top_losers", [])))
+        html.append("</div>")
+        html.append("</details>")
+        return html
+
+    def _track_record_email_html(self, tr: Dict[str, Any]):
+        """Inline-styled Signal Track Record for the email report (no JS/classes)."""
+        if not tr:
+            return [
+                "<h2>Signal Track Record</h2>",
+                "<p class='small-text'>No matured signals in the lookback window yet — "
+                "populates as daily batches mature.</p>",
+            ]
+        w = tr["window"]
+        tiers = sorted(tr["tiers"].keys())
+
+        def sign(v):
+            color = "#27ae60" if v > 0 else ("#c0392b" if v < 0 else "#777")
+            return f"<span style='color:{color};font-weight:bold'>{v:+.2f}%</span>"
+
+        rows = [
+            ("Signals (entered)", lambda m: f"{m['total']} ({m['entered']})"),
+            ("Entry rate", lambda m: f"{m['entry_rate']*100:.0f}%"),
+            ("Win rate", lambda m: f"{m['win_rate']*100:.0f}% ({m['wins']}/{m['entered']})"),
+            ("Avg P&amp;L / trade", lambda m: sign(m['avg_pnl_pct'])),
+            ("Avg α vs SPY", lambda m: sign(m['avg_alpha_pct'])),
+            ("Profit factor", lambda m: self._fmt_pf(m['profit_factor'])),
+            ("Target / Stop / Time", lambda m: f"{m['target_hits']} / {m['stops']} / {m['timeouts']}"),
+        ]
+        html = [
+            "<h2>Signal Track Record</h2>",
+            f"<p class='small-text'>Hypothetical outcomes of the published picks · "
+            f"{w['first_batch']} → {w['last_batch']} · {w['n_batches']} batches (last {w['lookback_days']}d). "
+            "Ranks per-strategy; Top 10 ≈ depth traded. Not live fills.</p>",
+            "<table>",
+            "<tr><th>Metric</th>" + "".join(f"<th>Top {n} / strat</th>" for n in tiers) + "</tr>",
+        ]
+        for label, fn in rows:
+            cells = "".join(f"<td>{fn(tr['tiers'][n]['overall'])}</td>" for n in tiers)
+            html.append(f"<tr><td><strong>{label}</strong></td>{cells}</tr>")
+        html.append("</table>")
+        return html
 
     def generate_report(self, date: str, regime: Dict[str, Any], candidates: List[Dict[str, Any]], charts: List[str]) -> str:
         """
@@ -468,6 +643,9 @@ class HTMLReporter:
             "</table>",
             f"<p><strong>Commentary:</strong> {regime.get('commentary', 'No commentary available.')}</p>",
             "</details>",
+
+            # Signal Track Record (how matured picks actually performed)
+            *self._track_record_html(self._track_record(date)),
 
             # Share Calculator Widget (Collapsible)
             "<details>",
@@ -558,7 +736,7 @@ class HTMLReporter:
                                reverse=True)[:self.TOP_CANDIDATES_TABLE_LIMIT]
         html.append(f"<h2>Top Candidates ({len(top_candidates)})</h2>")
         html.append("<table>")
-        html.append("<tr><th>Symbol</th><th>Exchange</th><th>Strategy</th><th>Score</th><th title='AlphaVantage NEWS_SENTIMENT API'>Sentiment (AV)</th><th title='Tiingo News API &mdash; headlines scored with VADER'>Sentiment (Tiingo)</th><th title='StockTwits &mdash; bull/bear tag ratio from public messages'>Sentiment (ST)</th><th title='Finviz &mdash; news headlines scored with VADER'>Sentiment (FV)</th><th title='Z-score normalized composite'>Sent (C)</th><th>Close Price</th><th>Indicators</th></tr>")
+        html.append("<tr><th>Symbol</th><th>Exchange</th><th>Strategy</th><th>Score</th><th title='Ichimoku cloud-dislocation (advisory): &#11088; = &ge;26 bars below cloud &amp; RSI&lt;30 (confluence cell); &#9670; = &ge;26 bars below cloud &amp; RSI&ge;30 (chronic). Liquid &ge;$25M only.'>Signal</th><th title='AlphaVantage NEWS_SENTIMENT API'>Sentiment (AV)</th><th title='Tiingo News API &mdash; headlines scored with VADER'>Sentiment (Tiingo)</th><th title='StockTwits &mdash; bull/bear tag ratio from public messages'>Sentiment (ST)</th><th title='Finviz &mdash; news headlines scored with VADER'>Sentiment (FV)</th><th title='Z-score normalized composite'>Sent (C)</th><th>Close Price</th><th>Indicators</th></tr>")
 
 
         for cand in top_candidates:
@@ -574,6 +752,7 @@ class HTMLReporter:
             html.append(f"<td><small>{cand.get('exchange', 'Unknown')}</small></td>")
             html.append(f"<td>{cand.get('strategy', 'N/A')}</td>")
             html.append(f"<td class='{score_cls}'>{score:.2f}</td>")
+            html.append(f"<td>{self._cloud_signal_badge(cand)}</td>")
             html.append(f"<td>{self._get_sentiment_display(cand.get('sentiment', 0.0))}</td>")
             html.append(f"<td>{self._get_sentiment_display(cand.get('sentiment_tiingo', 0.0))}</td>")
             html.append(f"<td>{self._get_sentiment_display(cand.get('sentiment_stocktwits', 0.0))}</td>")
@@ -708,6 +887,9 @@ class HTMLReporter:
             cnn_cell = f"{cnn_cell} ({regime['cnn_rating']})"
         html.append(f"<td>{cnn_cell}</td></tr>")
         html.append("</table>")
+
+        # Signal Track Record (how matured picks actually performed)
+        html.extend(self._track_record_email_html(self._track_record(date)))
 
         # Top Baseline Candidates
         html.append("<div class='strategy-section'>")
@@ -998,6 +1180,7 @@ class HTMLReporter:
             'date': date,
             'regime': report_regime,
             'candidates': report_candidates,
+            'track_record': self._track_record(date),
         }
 
         data_json = json.dumps(report_data,
@@ -1291,6 +1474,21 @@ body::after {
 .stat-item { text-align: center; }
 .stat-num { font-size: 0.7rem; color: var(--neon-green); text-shadow: var(--glow-green); }
 .stat-label { font-size: 0.35rem; color: var(--pixel-gray); margin-top: 4px; letter-spacing: 1px; }
+.track-record { margin: 16px; padding: 14px; background: rgba(22,22,42,0.6); border: 2px solid var(--neon-blue-dim); border-radius: 4px; }
+.tr-header { font-size: 0.6rem; color: var(--neon-blue); text-shadow: var(--glow-blue); margin-bottom: 6px; }
+.tr-window { font-size: 0.4rem; color: var(--pixel-gray); text-shadow: none; margin-left: 6px; }
+.tr-note { font-size: 0.4rem; color: var(--pixel-gray); margin-bottom: 12px; line-height: 1.5; }
+.tr-table { display: flex; flex-direction: column; gap: 2px; margin-bottom: 14px; }
+.tr-row { display: grid; grid-template-columns: 1.4fr 1fr 1fr; gap: 8px; font-size: 0.5rem; padding: 5px 6px; color: var(--pixel-white); align-items: center; }
+.tr-row:nth-child(even) { background: rgba(0,212,255,0.04); }
+.tr-head { color: var(--neon-amber); text-shadow: 0 0 4px var(--neon-amber-dim); border-bottom: 1px solid var(--neon-blue-dim); }
+.tr-label { color: var(--pixel-gray); }
+.tr-movers { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.tr-mover-col { display: flex; flex-direction: column; gap: 3px; }
+.tr-mover-title { font-size: 0.45rem; color: var(--neon-amber); margin-bottom: 4px; letter-spacing: 1px; }
+.tr-mover { display: flex; justify-content: space-between; font-size: 0.5rem; color: var(--pixel-white); padding: 2px 0; }
+.tr-mover small { color: var(--pixel-gray); }
+@media (max-width: 640px) { .tr-note { font-size: 0.5rem; } .tr-row, .tr-mover, .tr-mover-title { font-size: 0.6rem; } }
 .modal-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(5,5,8,0.85); z-index: 5000; justify-content: center; align-items: center; }
 .modal-overlay.open { display: flex; }
 .modal-box { border: 3px solid var(--neon-pink); background: var(--crt-bg); padding: 32px; max-width: 700px; width: 90%; box-shadow: var(--glow-pink); position: relative; }
@@ -1389,11 +1587,67 @@ function renderAll() {
   renderStatusBar();
   renderLeaderboard();
   renderStats();
+  renderTrackRecord();
   renderTicker();
   document.getElementById('stratTabs').style.display = 'flex';
   document.querySelectorAll('.strategy-tab').forEach(t => {
     t.classList.toggle('active', t.dataset.filter === state.currentFilter);
   });
+}
+
+function trSign(v) {
+  if (v === null || v === undefined) return '---';
+  var color = v > 0 ? 'var(--neon-green)' : (v < 0 ? 'var(--neon-red)' : 'var(--pixel-gray)');
+  var sign = v > 0 ? '+' : '';
+  return '<span style="color:' + color + '">' + sign + v.toFixed(2) + '%</span>';
+}
+
+function trPF(pf) { return (pf === null || pf === undefined) ? '&infin;' : pf.toFixed(2); }
+
+function renderTrackRecord() {
+  var tr = REPORT_DATA.track_record;
+  var panel = document.getElementById('trackRecord');
+  if (!panel) return;
+  if (!tr) { panel.style.display = 'none'; return; }
+  panel.style.display = 'block';
+
+  var w = tr.window;
+  var tiers = Object.keys(tr.tiers).map(Number).sort(function(a, b) { return a - b; });
+  document.getElementById('trWindow').textContent =
+    w.first_batch + ' → ' + w.last_batch + ' · ' + w.n_batches + ' BATCHES · LAST ' + w.lookback_days + 'D';
+
+  var defs = [
+    ['SIGNALS', function(m) { return m.total + ' (' + m.entered + ' ENT)'; }],
+    ['ENTRY RATE', function(m) { return Math.round(m.entry_rate * 100) + '%'; }],
+    ['WIN RATE', function(m) { return Math.round(m.win_rate * 100) + '% (' + m.wins + '/' + m.entered + ')'; }],
+    ['AVG P&L', function(m) { return trSign(m.avg_pnl_pct); }],
+    ['AVG α vs SPY', function(m) { return trSign(m.avg_alpha_pct); }],
+    ['PROFIT FACTOR', function(m) { return trPF(m.profit_factor); }],
+    ['TGT/STOP/TIME', function(m) { return m.target_hits + '/' + m.stops + '/' + m.timeouts; }]
+  ];
+
+  var head = '<div class="tr-row tr-head"><div>METRIC</div>' +
+    tiers.map(function(n) { return '<div>TOP ' + n + '</div>'; }).join('') + '</div>';
+  var body = defs.map(function(d) {
+    return '<div class="tr-row"><div class="tr-label">' + d[0] + '</div>' +
+      tiers.map(function(n) { return '<div>' + d[1](tr.tiers[n].overall) + '</div>'; }).join('') +
+      '</div>';
+  }).join('');
+  document.getElementById('trTable').innerHTML = head + body;
+
+  var tight = tr.tight_tier;
+  function movers(rows) {
+    if (!rows || !rows.length) return '<div class="tr-mover">NONE</div>';
+    return rows.map(function(r) {
+      var strat = r.strategy === 'mean_reversion' ? 'MR' : 'BL';
+      return '<div class="tr-mover"><span>' + r.symbol + ' <small>' + strat + '</small></span>' +
+        '<span>' + trSign((r.pnl_pct || 0) * 100) + '</span></div>';
+    }).join('');
+  }
+  document.getElementById('trWinners').innerHTML =
+    '<div class="tr-mover-title">TOP WINNERS</div>' + movers(tr.top_winners);
+  document.getElementById('trLosers').innerHTML =
+    '<div class="tr-mover-title">TOP LOSERS</div>' + movers(tr.top_losers);
 }
 
 function renderStatusBar() {
@@ -1951,6 +2205,16 @@ document.addEventListener('DOMContentLoaded', function() {
             '<div class="stat-item"><div class="stat-num" id="statAvgScore">0</div><div class="stat-label">AVG SCORE</div></div>',
             '<div class="stat-item"><div class="stat-num" id="statAvgML">0%</div><div class="stat-label">AVG ML PROB</div></div>',
             '<div class="stat-item"><div class="stat-num" id="statBest">---</div><div class="stat-label">TOP PICK</div></div>',
+            '</div>',
+
+            # Signal Track Record panel
+            '<div class="track-record" id="trackRecord" style="display:none">',
+            '<div class="tr-header">📊 SIGNAL TRACK RECORD <span class="tr-window" id="trWindow"></span></div>',
+            '<div class="tr-note">HYPOTHETICAL OUTCOMES OF PUBLISHED PICKS · ENTRY AT STATED LEVELS, '
+            'EXIT AT TARGET / STOP / TIME · TOP 10 ≈ DEPTH TRADED · NOT LIVE FILLS</div>',
+            '<div class="tr-table" id="trTable"></div>',
+            '<div class="tr-movers"><div class="tr-mover-col" id="trWinners"></div>'
+            '<div class="tr-mover-col" id="trLosers"></div></div>',
             '</div>',
 
             # Divider + Footer

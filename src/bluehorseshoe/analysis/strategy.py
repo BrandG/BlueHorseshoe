@@ -446,6 +446,8 @@ class SwingTrader:
         if ctx.benchmark_df is not None:
             rs_ratio = self.calculate_relative_strength(df, ctx.benchmark_df)
 
+        cloud_flags = compute_cloud_dislocation_flags(df)
+
         ret_val = {
             'symbol': symbol,
             'name': price_data.get('full_name', symbol),
@@ -455,6 +457,7 @@ class SwingTrader:
             'connors_flag': connors_flag,
             'connors_rsi2': connors_rsi2,
             'connors_sma200': connors_sma200,
+            **cloud_flags,
         }
 
         for strategy in self.strategies:
@@ -828,6 +831,9 @@ class SwingTrader:
                             "connors_flag": r.get("connors_flag", False),
                             "connors_rsi2": r.get("connors_rsi2"),
                             "connors_sma200": r.get("connors_sma200"),
+                            "cloud_age": r.get("cloud_age", 0),
+                            "confluence_star": r.get("confluence_star", False),
+                            "chronic_dislocation": r.get("chronic_dislocation", False),
                             "sentiment": r.get("sentiment", 0.0),
                             "sentiment_tiingo": r.get("sentiment_tiingo", 0.0),
                             "sentiment_stocktwits": r.get("sentiment_stocktwits", 0.0),
@@ -1161,6 +1167,58 @@ def _worker_ml_predict_profit_target(components, overview, sentiment, strategy="
     return max(1.5, min(2.5, recommended_multiplier))
 
 
+# Liquidity floor for the cloud-dislocation annotation: the research net-of-cost edge
+# (research/indicator_screen/) held on names with >=$25M 20-day dollar-volume.
+CLOUD_DISLOCATION_LIQ_MIN = 25_000_000.0
+
+
+def compute_cloud_dislocation_flags(df) -> Dict:
+    """Ichimoku cloud-dislocation annotation flags for the report (research-validated, advisory only).
+
+    Cell = price stuck below the (displaced) Ichimoku cloud for >=26 consecutive bars. Split by RSI(14):
+      confluence_star  : age>=26 AND rsi<30  (the super-additive 'recently slammed + chronically broken' cell)
+      chronic_dislocation: age>=26 AND rsi>=30  (below_not_os & age26 — the RSI-orthogonal cell)
+    Both gated to liquid names (>=$25M 20d dollar-volume), where the net-of-cost edge was validated.
+    `cloud_age` (consecutive bars below cloud through the signal bar) is always reported for the tooltip.
+    """
+    out = {'cloud_age': 0, 'confluence_star': False, 'chronic_dislocation': False}
+    if df is None or len(df) < 78:  # need 52-bar Span B + 26-bar forward displacement
+        return out
+    high, low, close = df['high'], df['low'], df['close']
+    tenkan = (high.rolling(9).max() + low.rolling(9).min()) / 2
+    kijun = (high.rolling(26).max() + low.rolling(26).min()) / 2
+    span_a = ((tenkan + kijun) / 2).shift(26)
+    span_b = ((high.rolling(52).max() + low.rolling(52).min()) / 2).shift(26)
+    bottom = pd.concat([span_a, span_b], axis=1).min(axis=1)
+    below = (close < bottom).to_numpy()
+    age = 0
+    for i in range(len(below) - 1, -1, -1):
+        if below[i]:
+            age += 1
+        else:
+            break
+    out['cloud_age'] = int(age)
+    if age < 26:
+        return out
+    # liquidity gate (research edge validated only on >=$25M dollar-volume names)
+    vol20 = df['volume'].rolling(20).mean().iloc[-1] if 'volume' in df.columns else float('nan')
+    last_close = float(close.iloc[-1])
+    dollar_vol = last_close * float(vol20) if not pd.isna(vol20) else 0.0
+    if dollar_vol < CLOUD_DISLOCATION_LIQ_MIN:
+        return out
+    if 'rsi_14' in df.columns and not pd.isna(df['rsi_14'].iloc[-1]):
+        rsi = float(df['rsi_14'].iloc[-1])
+    else:
+        import talib as ta
+        rsi_arr = ta.RSI(close.to_numpy(dtype=float), timeperiod=14)
+        rsi = float(rsi_arr[-1]) if not pd.isna(rsi_arr[-1]) else 50.0
+    if rsi < 30:
+        out['confluence_star'] = True
+    else:
+        out['chronic_dislocation'] = True
+    return out
+
+
 def _score_symbol_worker(work_item):
     """
     CPU worker for ProcessPoolExecutor.
@@ -1213,6 +1271,8 @@ def _score_symbol_worker(work_item):
         if benchmark_df is not None:
             rs_ratio = trader.calculate_relative_strength(df, benchmark_df)
 
+        cloud_flags = compute_cloud_dislocation_flags(df)
+
         result = {
             'symbol': symbol,
             'name': full_name,
@@ -1223,6 +1283,7 @@ def _score_symbol_worker(work_item):
             'connors_flag': connors_flag,
             'connors_rsi2': connors_rsi2,
             'connors_sma200': connors_sma200,
+            **cloud_flags,
         }
 
         for strategy in strategies:

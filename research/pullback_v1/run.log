@@ -1,0 +1,27 @@
+universe sample: 2500 symbols
+  0/2500
+  500/2500
+  1000/2500
+  1500/2500
+  2000/2500
+pullback trades: 166836
+random-baseline trades: 11650
+
+==== RESULTS ====
+PULLBACK  ALL : {'n': 166836, 'mean_R': 0.0756, 'se': 0.0029, 'lo95': 0.0699, 'win': 0.452, 'gate_pass': True}
+RANDOM    ALL : {'n': 11650, 'mean_R': 0.0906, 'se': 0.0109, 'lo95': 0.0692, 'win': 0.458, 'gate_pass': True}
+
+by regime:
+  pullback/bull      {'n': 142724, 'mean_R': 0.0795, 'se': 0.0031, 'lo95': 0.0734, 'win': 0.452, 'gate_pass': True}
+  random/bull        {'n': 9368, 'mean_R': 0.0865, 'se': 0.0122, 'lo95': 0.0625, 'win': 0.454, 'gate_pass': True}
+  pullback/nonbull   {'n': 24112, 'mean_R': 0.0523, 'se': 0.0075, 'lo95': 0.0376, 'win': 0.449, 'gate_pass': True}
+  random/nonbull     {'n': 2282, 'mean_R': 0.1076, 'se': 0.0244, 'lo95': 0.0597, 'win': 0.474, 'gate_pass': True}
+
+by config (pullback):
+  pullback rr1.5/h5      {'n': 41709, 'mean_R': 0.0616, 'se': 0.0053, 'lo95': 0.0513, 'win': 0.476, 'gate_pass': True}
+  pullback rr1.5/h10     {'n': 41709, 'mean_R': 0.076, 'se': 0.0058, 'lo95': 0.0647, 'win': 0.451, 'gate_pass': True}
+  pullback rr2.0/h5      {'n': 41709, 'mean_R': 0.0698, 'se': 0.0056, 'lo95': 0.0588, 'win': 0.462, 'gate_pass': True}
+  pullback rr2.0/h10     {'n': 41709, 'mean_R': 0.095, 'se': 0.0064, 'lo95': 0.0823, 'win': 0.418, 'gate_pass': True}
+
+edge vs random (ALL): mean_R 0.0756 - 0.0906
+saved -> research/pullback_v1/results.json

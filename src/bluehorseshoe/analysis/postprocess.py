@@ -96,6 +96,9 @@ class CandidateAssembler:
             }
             if result.get("connors_flag"):
                 candidate["connors_flag"] = True
+            candidate["cloud_age"] = result.get("cloud_age", 0)
+            candidate["confluence_star"] = result.get("confluence_star", False)
+            candidate["chronic_dislocation"] = result.get("chronic_dislocation", False)
             candidates.append(candidate)
         return candidates
 
