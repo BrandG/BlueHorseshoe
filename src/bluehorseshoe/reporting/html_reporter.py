@@ -508,24 +508,28 @@ class HTMLReporter:
             "</table>",
         ]
 
-        # Per-strategy split at the tightest tier.
+        # Per-strategy split at the tightest tier — one column per strategy that
+        # actually fired in-window (registry-driven, so new sleeves appear automatically).
         tight = tr["tight_tier"]
         ts = tr["tiers"][tight]
-        html.append(f"<h3>By strategy — Top {tight}</h3>")
-        html.append("<table>")
-        html.append("<tr><th style='text-align:left'>Metric</th><th>Baseline (Trend)</th><th>Mean Reversion</th></tr>")
-        for label, fn in [
-            ("Signals (entered)", lambda m: f"{m['total']} ({m['entered']})"),
-            ("Win rate", lambda m: f"{m['win_rate']*100:.0f}%"),
-            ("Avg P&amp;L / trade", lambda m: self._signed(m['avg_pnl_pct'])),
-            ("Avg α vs SPY", lambda m: self._signed(m['avg_alpha_pct'])),
-            ("Profit factor", lambda m: self._fmt_pf(m['profit_factor'])),
-        ]:
+        strat_items = list(ts.get("by_strategy", {}).items())  # [(name, {display, metrics}), …]
+        if strat_items:
+            html.append(f"<h3>By strategy — Top {tight}</h3>")
+            html.append("<table>")
             html.append(
-                f"<tr><th style='text-align:left'>{label}</th>"
-                f"<td>{fn(ts['baseline'])}</td><td>{fn(ts['mean_reversion'])}</td></tr>"
+                "<tr><th style='text-align:left'>Metric</th>"
+                + "".join(f"<th>{v['display']}</th>" for _, v in strat_items) + "</tr>"
             )
-        html.append("</table>")
+            for label, fn in [
+                ("Signals (entered)", lambda m: f"{m['total']} ({m['entered']})"),
+                ("Win rate", lambda m: f"{m['win_rate']*100:.0f}%"),
+                ("Avg P&amp;L / trade", lambda m: self._signed(m['avg_pnl_pct'])),
+                ("Avg α vs SPY", lambda m: self._signed(m['avg_alpha_pct'])),
+                ("Profit factor", lambda m: self._fmt_pf(m['profit_factor'])),
+            ]:
+                cells = "".join(f"<td>{fn(v['metrics'])}</td>" for _, v in strat_items)
+                html.append(f"<tr><th style='text-align:left'>{label}</th>{cells}</tr>")
+            html.append("</table>")
 
         # Best / worst entered trades (tight tier).
         def movers_table(title, rows):
@@ -534,8 +538,9 @@ class HTMLReporter:
                    "<span>P&amp;L</span> <span>α</span></div>"]
             if not rows:
                 out.append("<div class='top-list-row'>None.</div>")
+            labels = tr.get("strategy_labels", {})
             for r in rows:
-                strat = "MeanRev" if r.get("strategy") == "mean_reversion" else "Baseline"
+                strat = labels.get(r.get("strategy"), r.get("strategy") or "—")
                 url = f"https://finance.yahoo.com/quote/{r['symbol']}"
                 out.append(
                     "<div class='top-list-row' style='display:grid; "
@@ -1640,10 +1645,11 @@ function renderTrackRecord() {
   document.getElementById('trTable').innerHTML = head + body;
 
   var tight = tr.tight_tier;
+  var stratLabels = tr.strategy_labels || {};
   function movers(rows) {
     if (!rows || !rows.length) return '<div class="tr-mover">NONE</div>';
     return rows.map(function(r) {
-      var strat = r.strategy === 'mean_reversion' ? 'MR' : 'BL';
+      var strat = stratLabels[r.strategy] || r.strategy || '—';
       return '<div class="tr-mover"><span>' + r.symbol + ' <small>' + strat + '</small></span>' +
         '<span>' + trSign((r.pnl_pct || 0) * 100) + '</span></div>';
     }).join('');

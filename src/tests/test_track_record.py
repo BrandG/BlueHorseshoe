@@ -75,6 +75,27 @@ def test_metrics_math():
     assert out["tiers"][10]["mean_reversion"]["entered"] == 1
 
 
+def test_by_strategy_split_is_registry_driven():
+    """Every strategy that fired in-window gets its own split — incl. the HA sleeve."""
+    docs = [
+        _doc("2026-05-18", "baseline", 1, "WIN", 0.04),
+        _doc("2026-05-18", "mean_reversion", 2, "LOSS", -0.02),
+        _doc("2026-05-18", "deep_oversold", 3, "WIN", 0.06),
+        _doc("2026-05-18", "deep_oversold_ha", 4, "WIN", 0.09),
+    ]
+    out = tr.compute_track_record(_FakeDB(docs), "2026-05-20", tiers=(10,))
+    by_strat = out["tiers"][10]["by_strategy"]
+    assert set(by_strat) == {"baseline", "mean_reversion", "deep_oversold", "deep_oversold_ha"}
+    assert by_strat["deep_oversold_ha"]["display"] == "DeepOS+HA"
+    assert by_strat["deep_oversold_ha"]["metrics"]["entered"] == 1
+    # strategy_labels lets the renderers map name -> display (movers, JS).
+    assert out["strategy_labels"]["deep_oversold_ha"] == "DeepOS+HA"
+    # Strategies with no in-window signals are omitted (no empty columns).
+    out2 = tr.compute_track_record(
+        _FakeDB([_doc("2026-05-18", "baseline", 1, "WIN", 0.01)]), "2026-05-20", tiers=(10,))
+    assert set(out2["tiers"][10]["by_strategy"]) == {"baseline"}
+
+
 def test_profit_factor_infinite_when_no_losers():
     docs = [_doc("2026-05-18", "baseline", 1, "WIN", 0.03)]
     out = tr.compute_track_record(_FakeDB(docs), "2026-05-20", tiers=(10,))

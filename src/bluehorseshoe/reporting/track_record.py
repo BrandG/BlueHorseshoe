@@ -111,6 +111,12 @@ def compute_track_record(
     if not rows:
         return None
 
+    # Registry-driven so every strategy (incl. deep_oversold, deep_oversold_ha, and
+    # any future sleeve) splits out automatically instead of being hardcoded.
+    from bluehorseshoe.analysis.strategy_registry import get_all_strategies
+    strat_defs = [(s.name, s.display_name) for s in get_all_strategies()]
+    strategy_labels = {name: display for name, display in strat_defs}
+
     batch_dates = sorted({r["batch_date"] for r in rows})
     result: Dict[str, Any] = {
         "window": {
@@ -121,13 +127,22 @@ def compute_track_record(
             "first_batch": batch_dates[0],
             "last_batch": batch_dates[-1],
         },
+        "strategy_labels": strategy_labels,
         "tiers": {},
     }
 
     for n in tiers:
         tier_rows = [r for r in rows if (r.get("rank") or 10**9) <= n]
+        # Per-strategy split: only strategies that actually fired in-window get a column.
+        by_strategy = {
+            name: {"display": display, "metrics": _metrics(s_rows)}
+            for name, display in strat_defs
+            if (s_rows := [r for r in tier_rows if r.get("strategy") == name])
+        }
         result["tiers"][n] = {
             "overall": _metrics(tier_rows),
+            "by_strategy": by_strategy,
+            # Backward-compat aliases (legacy consumers/tests read these directly).
             "baseline": _metrics([r for r in tier_rows if r.get("strategy") == "baseline"]),
             "mean_reversion": _metrics([r for r in tier_rows if r.get("strategy") == "mean_reversion"]),
         }
