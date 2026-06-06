@@ -1,0 +1,59 @@
+2000 symbols
+  0/2000
+  400/2000
+  800/2000
+  1200/2000
+  1600/2000
+
+################ HEIKEN-ASHI DEEP DIVE — DE-OVERLAP vs FULL-POP vs NEWEY-WEST ################
+  bracket TP2:SL1 hold10, vol_floor 0.005, $vol>=1,000,000
+  Deployed shape = ha_3green (trend-continuation). ha_3green_PROD = production non-recursive open.
+  FLAG ▲ = buried-edge signature (de-overlap<=0 AND NW>0 t>=3).
+
+  ===================== regime=nonbull =====================
+    signal                         DE-OVERLAP     FULL-POP(clus)             NEWEY-WEST  flag
+   -- ANCHOR (known +) --
+    rsi_oversold                -0.035R t-1.6     +0.180R t+12.4   +0.093R t+7.8 n26261  ▲ buried?
+   -- HA trend-continuation --
+    ha_green                    -0.028R t-3.5      -0.007R t-1.7  -0.005R t-1.1 n212189  
+    ha_2green                   -0.022R t-2.6      -0.038R t-6.2  -0.034R t-6.1 n157609  
+    ha_3green                   -0.091R t-8.9      -0.073R t-9.5 -0.065R t-10.1 n116790  
+    ha_3green_PROD              -0.058R t-5.1      -0.078R t-9.4   -0.068R t-9.8 n73394  
+    ha_strong_green             -0.006R t-0.6      -0.039R t-6.0  -0.029R t-4.9 n116104  
+   -- HA reversal (suspect +) --
+    ha_flip_up                  +0.017R t+1.8     +0.073R t+11.3  +0.078R t+12.4 n54251  
+    ha_flip_after_3red          -0.002R t-0.2      +0.057R t+7.3   +0.061R t+7.5 n27854  ▲ buried?
+    ha_flip_after_5red          +0.016R t+0.9      +0.031R t+2.9   +0.040R t+3.6 n14694  
+   -- HA dislocation (suspect +) --
+    ha_red                      -0.027R t-3.3      +0.004R t+0.8  +0.006R t+1.2 n204160  
+    ha_3red                     -0.063R t-5.6      -0.006R t-0.8  -0.005R t-0.9 n109989  
+    ha_redrun5                  -0.134R t-8.7      +0.006R t+0.7   +0.008R t+1.0 n59759  
+    ha_redrun8                  +0.020R t+1.0     +0.153R t+11.4   +0.100R t+8.2 n24241  
+    ha_strong_red               -0.041R t-3.9      -0.027R t-4.0  -0.022R t-3.9 n110474  
+   -- RANDOM --
+    RANDOM                      -0.057R t-7.7      +0.000R t+0.0  -0.000R t-0.0 n416370  
+
+  ===================== regime=all =====================
+    signal                         DE-OVERLAP     FULL-POP(clus)             NEWEY-WEST  flag
+   -- ANCHOR (known +) --
+    rsi_oversold                +0.036R t+2.2     +0.156R t+14.6  +0.080R t+10.7 n72871  
+   -- HA trend-continuation --
+    ha_green                    -0.006R t-1.2      -0.017R t-5.6  -0.014R t-5.5 n940810  
+    ha_2green                   -0.001R t-0.2      -0.029R t-7.0  -0.025R t-9.2 n701294  
+    ha_3green                   -0.011R t-1.5      -0.045R t-9.0 -0.039R t-12.3 n523535  
+    ha_3green_PROD              -0.003R t-0.4      -0.044R t-8.0  -0.034R t-9.9 n329200  
+    ha_strong_green             -0.017R t-2.5      -0.032R t-7.2  -0.021R t-7.1 n504623  
+   -- HA reversal (suspect +) --
+    ha_flip_up                  +0.004R t+0.6      +0.018R t+4.6  +0.021R t+6.8 n239344  
+    ha_flip_after_3red          +0.015R t+1.8      +0.026R t+5.4  +0.023R t+5.9 n123323  
+    ha_flip_after_5red          +0.020R t+1.8      +0.019R t+2.9   +0.016R t+3.1 n64171  
+   -- HA dislocation (suspect +) --
+    ha_red                      +0.002R t+0.4      +0.020R t+5.6  +0.015R t+6.3 n855427  
+    ha_3red                     +0.016R t+2.0      +0.039R t+7.4  +0.026R t+8.7 n444117  
+    ha_redrun5                  -0.005R t-0.5      +0.050R t+7.4  +0.034R t+8.3 n231661  ▲ buried?
+    ha_redrun8                  +0.029R t+2.2     +0.094R t+10.7  +0.067R t+10.1 n87541  
+    ha_strong_red               -0.001R t-0.2      +0.019R t+4.0  +0.013R t+4.7 n436007  ▲ buried?
+   -- RANDOM --
+    RANDOM                      -0.004R t-0.8      +0.000R t+0.0 -0.000R t-0.0 n1796259  
+
+done.

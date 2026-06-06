@@ -1,0 +1,28 @@
+2000 symbols
+  0/2000
+  400/2000
+  800/2000
+  1200/2000
+  1600/2000
+
+################ HEIKEN-ASHI INCREMENTAL EDGE (nonbull) ################
+  Q: is HA reversal edge NEW, or rsi<30 / below-cloud in disguise?  known = (rsi<30 OR below_cloud)
+
+  --- ha_flip_up ---
+    overlap with known dislocation: 47.3% of fires are also rsi<30 or below-cloud
+    ha_flip_up (all):                 +0.078R t+12.5 n55081
+    ha_flip_up AND NOT known (resid): -0.009R t-1.0 n28742   <-- the part anchors can't see
+    ha_flip_up AND known:             +0.176R t+19.3 n25796
+
+  --- ha_redrun8 ---
+    overlap with known dislocation: 87.7% of fires are also rsi<30 or below-cloud
+    ha_redrun8 (all):                 +0.062R t+5.1 n24852
+    ha_redrun8 AND NOT known (resid): -0.115R t-2.7 n2018   <-- the part anchors can't see
+    ha_redrun8 AND known:             +0.076R t+5.9 n21707
+
+  --- reference: known dislocation factor itself ---
+    known (rsi<30 OR below_cloud):   +0.067R t+12.1 n204672
+    known AND NOT ha_flip_up:        +0.051R t+9.2 n178482
+    known AND NOT ha_redrun8:        +0.065R t+11.2 n182530
+
+done.
