@@ -1,4 +1,36 @@
-# Gordon indicator teardown — session handoff (updated 2026-06-04)
+# Gordon indicator teardown — session handoff (updated 2026-06-06)
+
+## ⚠️ METHOD SUPERSEDED 2026-06-05 — de-overlap was BIASED; the standard is now NEWEY-WEST
+The "honest measurement method" below used **episode-start de-overlap**, which we proved is a *biased*
+estimator for persisting dislocation signals (keeps the onset/falling-knife bar, drops the deeper-in-run
+bars where reversion lives). It SIGN-FLIPPED real edge to null. **New standard = keep ALL firings +
+Newey-West (Bartlett kernel, L=hold−1)** on the full population. Wired into `clean_harness.py` PASS 2 as
+three columns: DE-OVERLAP | FULL-POP(cluster) | FULL-POP(NW). Re-read everything below through that lens.
+Full story + all results: memory `project_deoverlap_signflip_newey_west` (the owning thread).
+
+## NW RE-AUDIT RESULTS (2026-06-06) — the book is mapped
+- **RSI (the load-bearing one): re-validated REAL under NW.** `rsi_oversold(<30)` NW +0.079R t6.6 nonbull /
+  +0.080 t10.5 all (de-overlap had falsely read it −0.066 t−3.2). COVID-fragile (only neg year = 2020).
+  Moderate oversold reverts; rsi<20 extreme is a knife (−0.156 t−4.0 nonbull).
+- **The dislocation factor is BROAD and SLOW.** Whole slow-below family positive under NW both regimes
+  (below_sma200 +0.053 t9.4, far_below_sma50 +0.069 t9.8 nonbull) — the cloud is just its visible tip.
+  Slow-MA version is all-regime year-stable (+11/−0 incl COVID), beats COVID-fragile RSI. Monetizes
+  (nonbull +0.06R lift post-cost) but is the SAME factor as the cloud (redundant, not new coverage).
+- **TIMESCALE is the discriminant.** Slow/smoothed/persistent dislocation = alpha; fast/sharp (stoch, cci,
+  BB-break, gap-down) = bull-beta that knifes in nonbull. Confidence store must separate by timescale.
+- **PSAR/ADX: re-confirmed negative-for-LONG, rigorously** (NW *more* negative). ADX(21)-nonbull was a real
+  de-overlap false-negative but the incremental + depth-control tests proved it redundant with dislocation
+  and NOT an amplifier (it *destroys* the oversold edge within fixed depth). No standalone long edge.
+- **TREND FAMILY = year-stable SHORT-selector, NOT dead** (`feedback_trend_family_not_dead` — Brand's
+  correction, substantiated). Negative-long ⇒ short leg of the mean-reversion factor. adx_uptrend short
+  +0.102R t7.0 nonbull (+11/−0 yr); above_sma200/golden_cross/rsi_strong all +11/−0. RELATIVE + nonbull-only;
+  not shortable outright (drift). Only persistent-state trend signals translate (breakout EVENTS don't).
+
+## NEXT DOOR — market-neutral long-short prototype
+Long dislocation (below_cloud/below_sma200) + short trend-extension (above_sma200/adx_uptrend), dollar-neutral,
+nonbull-gated. Up-drift cancels in the pair → harvest the two alphas. Needs a REAL paired-portfolio backtest
+(leg overlap, sizing, turnover, actual borrow), not two single-leg numbers added. First deployable-product
+candidate of the teardown. (The original "NEXT ACTION — RSI" below is DONE; kept for method context.)
 
 ## The mission
 Going through Gordon's ~41 indicators **one at a time** to decide, for each, whether it carries

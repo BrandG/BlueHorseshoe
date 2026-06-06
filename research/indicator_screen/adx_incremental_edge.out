@@ -1,0 +1,46 @@
+2000 symbols
+  0/2000
+  400/2000
+  800/2000
+  1200/2000
+  1600/2000
+
+############### ADX(21) incremental-edge decomposition vs dislocation (below_cloud | rsi<30) ###############
+  KEY ROW = 'ADX_aged&clean': aged-ADX edge on bars that are NEITHER below-cloud NOR oversold.
+  if it collapses to ~0/neg => the ember IS the dislocation factor (redundant). if it holds => orthogonal.
+
+  === regime=nonbull ===   (full-pop cluster | Newey-West, R-lift vs random)
+   -- age>= 6 --
+     ADX_aged6                       +0.037R t+3.5 ns=1087 |      +0.034R t+3.9 nfire=75138
+     ADX_aged6&disloc                +0.180R t+14.0 ns=985 |     +0.127R t+11.8 nfire=49867
+     ADX_aged6&clean                 -0.251R t-13.1 ns=768 |      -0.147R t-9.6 nfire=24885
+     disloc(ref6)                   +0.077R t+12.2 ns=1201 |    +0.066R t+11.9 nfire=201377
+     disloc&~ADXaged6                +0.055R t+6.9 ns=1174 |     +0.046R t+7.2 nfire=151359
+     -> of ADX_aged6 firings, 66% are dislocation bars
+
+   -- age>= 3 --
+     ADX_aged3                       +0.027R t+2.8 ns=1097 |      +0.027R t+3.2 nfire=84578
+     ADX_aged3&disloc               +0.168R t+13.6 ns=1001 |     +0.119R t+11.7 nfire=55568
+     ADX_aged3&clean                 -0.242R t-13.3 ns=812 |     -0.149R t-10.4 nfire=28694
+     disloc(ref3)                   +0.077R t+12.2 ns=1201 |    +0.066R t+11.9 nfire=201377
+     disloc&~ADXaged3                +0.055R t+6.7 ns=1170 |     +0.046R t+7.1 nfire=145637
+     -> of ADX_aged3 firings, 66% are dislocation bars
+
+  === regime=all ===   (full-pop cluster | Newey-West, R-lift vs random)
+   -- age>= 6 --
+     ADX_aged6                       -0.011R t-1.8 ns=1392 |     -0.009R t-2.0 nfire=340910
+     ADX_aged6&disloc               +0.108R t+10.4 ns=1246 |     +0.060R t+8.7 nfire=129541
+     ADX_aged6&clean                 -0.087R t-9.9 ns=1333 |     -0.051R t-9.2 nfire=211228
+     disloc(ref6)                    +0.039R t+6.9 ns=1388 |     +0.029R t+9.3 nfire=681766
+     disloc&~ADXaged6                +0.027R t+4.2 ns=1351 |     +0.022R t+6.3 nfire=552124
+     -> of ADX_aged6 firings, 38% are dislocation bars
+
+   -- age>= 3 --
+     ADX_aged3                       -0.012R t-2.0 ns=1398 |     -0.009R t-2.2 nfire=379773
+     ADX_aged3&disloc               +0.103R t+10.5 ns=1255 |     +0.058R t+8.8 nfire=144802
+     ADX_aged3&clean                -0.084R t-10.1 ns=1345 |     -0.051R t-9.7 nfire=234844
+     disloc(ref3)                    +0.039R t+6.9 ns=1388 |     +0.029R t+9.3 nfire=681766
+     disloc&~ADXaged3                +0.026R t+4.0 ns=1349 |     +0.021R t+6.0 nfire=536872
+     -> of ADX_aged3 firings, 38% are dislocation bars
+
+done.

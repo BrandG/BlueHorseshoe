@@ -2,6 +2,17 @@
 
 ## Near Term
 
+### 🔬 GORDON — Newey-West indicator re-audit COMPLETE; next door = market-neutral long-short prototype (added 2026-06-06)
+
+**The re-audit (this session):** de-overlap was a *biased* estimator that buried the slow-dislocation factor; the standard is now **Newey-West (keep all firings, Bartlett L=hold−1)**. Re-swept the whole book (2000 syms, liquid >$25M, NW). Result = **one mean-reversion factor, mapped on both sides:**
+- **Long leg — persistent DISLOCATION reverts up:** below_cloud, below_sma200/far-below (all-regime year-stable +11/−0 incl COVID; the cloud is just the visible tip), rsi<30 (COVID-fragile), mfi/ultosc. Monetizes nonbull +0.06R post-cost. Slow-MA = same factor as cloud, simpler trigger.
+- **Short leg — persistent EXTENSION reverts down:** adx_uptrend (+0.102R t7.0 nonbull, the *best* — and the one I'd wrongly called "dead"), above_sma200/golden_cross/rsi_strong (all +11/−0 yr). RELATIVE + nonbull-only; **not shortable outright** (drift).
+- **TIMESCALE is the discriminant:** persistent *states* revert (both directions); sharp *events* (breakout, BB-break, gap) don't. ⚠️ Trend family is the SHORT leg, NOT dead — see memory `feedback_trend_family_not_dead`.
+
+**Next door (parked for go-ahead):** build a **real dollar-neutral long-short prototype** — long dislocation / short trend-extension, nonbull-gated. Drift cancels in the pair → harvest both alphas (~+0.06R + ~+0.08–0.12R, nonbull). MUST be a paired-portfolio backtest (leg overlap, sizing, turnover, actual borrow on selected names), NOT two single-leg numbers added. First deployable-product candidate of the teardown. Then: populate the factor-based, **timescale-separated** confidence store (replaces additive `weights.json`; zero fast-oscillator longs in nonbull).
+
+**Scripts** (`research/indicator_screen/`): `psar_adx_nw`, `adx_incremental_edge`, `adx_depth_control`, `nw_broad_sweep`, `slow_ma_deploy`, `trend_short_test` (+ `.out`s). Full detail: memory `project_deoverlap_signflip_newey_west`. Handoff: `docs/handoff/GORDON_TEARDOWN_NEXT.md`.
+
 ### 🔥 PRIORITY — Validate V2 autonomous trader in live practice (added 2026-05-06; rearchitected to unified trader 2026-05-30; rising_3bar retired 2026-05-31)
 
 **State of the case:** Track 2 shipped, then got folded into a **single unified trader**. The standalone `bh_ftmo_v2_paper.py` is gone — both it and the rising_3bar paper trader were merged into `src/bud/auto_trader.py` (`SignalSource` protocol; one process pulls broker state once, runs every source's candidates through shared safety gates). As of 2026-05-31 the active source list is **V2-only** (`sources = [V2CellSource()]`); `Rising3BarSource` is retired but kept dormant in-file with re-enable instructions (see `auto_trader.py:626`). V2 deploys all graduated cells whose strategy is in `DEPLOYED_STRATEGIES` (9 of 10: every family except candlestick — `deploy_predicate` at `auto_trader.py:104`), **not** the old 5-macd-cell first deploy. 0.5% NAV per trade (`V2_RISK_PER_TRADE_PCT = 0.005`), 1.0%/1.0% RR, GTD = next H4 close. Cron `16 1,5,9,13,17,21 * * *` via `run_bh_ftmo_trader.sh`. Journal: `src/logs/bh_ftmo_trader_journal.csv` (per-candidate `source` column: `v2` / `rising_3bar`).
