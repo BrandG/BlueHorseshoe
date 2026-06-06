@@ -7,6 +7,7 @@ import pytest
 from bluehorseshoe.analysis.strategy_interface import (
     BaselineStrategy,
     DeepOversoldStrategy,
+    DeepOversoldHAStrategy,
     MeanReversionStrategy,
     TradingStrategy,
 )
@@ -34,6 +35,11 @@ class TestGetStrategy:
         assert isinstance(strat, DeepOversoldStrategy)
         assert strat.name == "deep_oversold"
 
+    def test_deep_oversold_ha(self):
+        strat = get_strategy("deep_oversold_ha")
+        assert isinstance(strat, DeepOversoldHAStrategy)
+        assert strat.name == "deep_oversold_ha"
+
     def test_unknown_raises(self):
         with pytest.raises(ValueError, match="Unknown strategy 'bogus'"):
             get_strategy("bogus")
@@ -41,9 +47,9 @@ class TestGetStrategy:
 
 class TestGetAllStrategies:
 
-    def test_returns_three(self):
+    def test_returns_four(self):
         strats = get_all_strategies()
-        assert len(strats) == 3
+        assert len(strats) == 4
 
     def test_all_are_trading_strategies(self):
         for s in get_all_strategies():
@@ -51,7 +57,7 @@ class TestGetAllStrategies:
 
     def test_order(self):
         names = [s.name for s in get_all_strategies()]
-        assert names == ["baseline", "mean_reversion", "deep_oversold"]
+        assert names == ["baseline", "mean_reversion", "deep_oversold", "deep_oversold_ha"]
 
 
 class TestGetStrategyKeys:
@@ -81,6 +87,15 @@ class TestGetStrategyKeys:
             'setup_key': 'deep_os_setup',
             'ml_prob_key': 'deep_os_ml_prob',
             'components_key': 'deep_os_components',
+        }
+
+    def test_deep_oversold_ha_keys(self):
+        keys = get_strategy_keys("deep_oversold_ha")
+        assert keys == {
+            'score_key': 'deep_os_ha_score',
+            'setup_key': 'deep_os_ha_setup',
+            'ml_prob_key': 'deep_os_ha_ml_prob',
+            'components_key': 'deep_os_ha_components',
         }
 
     def test_unknown_raises(self):

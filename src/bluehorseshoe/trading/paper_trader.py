@@ -133,6 +133,12 @@ class PaperTrader:
         )
 
         results: List[OrderResult] = []
+        # Overlapping sleeves (e.g. DeepOS and DeepOS+HA) can both surface the same
+        # symbol in one run. Candidates arrive score-sorted, so the first occurrence
+        # wins its slot; any later same-symbol candidate is skipped to avoid placing
+        # two bracket orders (double exposure) on one name. Hypothesis-engine tracking
+        # is unaffected — it reads the frozen per-strategy scores, not these orders.
+        submitted_this_run: Set[str] = set()
 
         for cand in top:
             symbol = cand.get("symbol", "")
@@ -142,6 +148,16 @@ class PaperTrader:
             take_profit = cand.get("target", 0)
             t1_target = cand.get("t1_target", entry_price * 1.02 if entry_price > 0 else 0)
             cand_idea_id = idea_lookup.get((symbol, strategy))
+
+            if symbol in submitted_this_run:
+                results.append(OrderResult(
+                    symbol=symbol, strategy=strategy, entry_price=entry_price,
+                    stop_loss_price=stop_loss, take_profit_price=take_profit,
+                    status="skipped",
+                    error="symbol already submitted this run (other sleeve)",
+                    idea_id=cand_idea_id,
+                ))
+                continue
 
             # Validate prices
             if not self._validate_prices(entry_price, stop_loss, take_profit):
@@ -162,6 +178,9 @@ class PaperTrader:
                     idea_id=cand_idea_id,
                 ))
                 continue
+
+            # Past every pre-flight gate: this symbol now owns its slot for the run.
+            submitted_this_run.add(symbol)
 
             # Calculate total position size then split into halves
             total_quantity = math.floor(per_position / entry_price)

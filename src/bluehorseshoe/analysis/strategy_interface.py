@@ -759,3 +759,124 @@ class DeepOversoldStrategy(TradingStrategy):
                        overview, sentiment):
         regime_status = (worker_state.get('market_health') or {}).get('status')
         return self._evaluate(trader, df, regime_status)
+
+
+# ---------------------------------------------------------------------------
+# Deep Oversold × Heiken-Ashi green (high-conviction contrarian tier) — locked 2026-06-06
+# ---------------------------------------------------------------------------
+
+class DeepOversoldHAStrategy(DeepOversoldStrategy):
+    """DeepOversold + a Heiken-Ashi green confirmation, gated to nonbull regime.
+
+    The high-conviction tier of the contrarian sleeve. Spec frozen in
+    ``research/indicator_screen/HA_DEEP_OVERSOLD_LOCKED_v1.md``. Identical to
+    :class:`DeepOversoldStrategy` in every mechanic — same RSI-age / $-vol floor /
+    2:1 ATR bracket / hold-10 / marketable-next-open / scoring / ML-free prior —
+    PLUS two research-validated gates layered on the *front*:
+
+      * **Regime (mandatory):** SPY is nonbull, i.e. NOT(close > EMA200 AND
+        EMA50 > EMA200) on SPY daily closes — the exact gate the gauntlet used.
+        All-regime the HA overlay is a NET-NEGATIVE filter (−0.057R vs bare deep),
+        so the gate is not optional; we fail closed if SPY history is unavailable.
+      * **Heiken-Ashi green:** the current *true recursive* HA candle is bullish
+        (``HA_close > HA_open``). NOTE: this deliberately does NOT use the
+        production ``TechnicalAnalyzer.calculate_heiken_ashi`` (non-recursive open
+        approximation) — the recursive open is what the research validated.
+
+    Gauntlet (nonbull, realistic frictions): deep+HA-green +0.404R/trade vs bare
+    deep +0.244R. Low-frequency, high-conviction (~68 nonbull trades/yr universe-wide).
+    Shares DeepOversold's ``DEEP_OVERSOLD_MIN_AGE`` so it reads as a clean
+    "DeepOS + 2 gates" overlay (a 1-bar difference from the research age convention,
+    immaterial to the monotone-in-depth edge). Tracked by the hypothesis engine and
+    eligible for live paper orders via the legacy slot pool.
+    """
+
+    _HA_WINDOW = 150  # recursive HA_open converges far faster; 150 bars is exact to float precision
+
+    @property
+    def name(self) -> str:
+        return "deep_oversold_ha"
+
+    @property
+    def display_name(self) -> str:
+        return "DeepOS+HA"
+
+    @property
+    def score_key(self) -> str:
+        return "deep_os_ha_score"
+
+    @property
+    def setup_key(self) -> str:
+        return "deep_os_ha_setup"
+
+    @property
+    def ml_prob_key(self) -> str:
+        return "deep_os_ha_ml_prob"
+
+    @property
+    def components_key(self) -> str:
+        return "deep_os_ha_components"
+
+    @property
+    def weight_prefix(self) -> str:
+        return "deep_os_ha_"
+
+    # -- Gates ---------------------------------------------------------------
+
+    @staticmethod
+    def spy_is_nonbull(benchmark_df) -> Optional[bool]:
+        """SPY-EMA regime gate matching the research harness.
+
+        Returns True (nonbull), False (bull), or None when it cannot be
+        determined (missing/short SPY history) — callers fail closed on None.
+        """
+        import numpy as np
+        import talib
+        if benchmark_df is None or len(benchmark_df) < 200:
+            return None
+        close = benchmark_df['close'].to_numpy(dtype=float)
+        ema50 = talib.EMA(close, 50)
+        ema200 = talib.EMA(close, 200)
+        if np.isnan(ema200[-1]) or np.isnan(ema50[-1]):
+            return None
+        bull = (close[-1] > ema200[-1]) and (ema50[-1] > ema200[-1])
+        return not bull
+
+    @classmethod
+    def heiken_ashi_last_is_green(cls, df) -> bool:
+        """True-recursive Heiken-Ashi: is the latest candle bullish (HA_close>HA_open)?"""
+        import numpy as np
+        if df is None or len(df) < 2:
+            return False
+        tail = df.iloc[-cls._HA_WINDOW:] if len(df) > cls._HA_WINDOW else df
+        o = tail['open'].to_numpy(dtype=float)
+        h = tail['high'].to_numpy(dtype=float)
+        low = tail['low'].to_numpy(dtype=float)
+        c = tail['close'].to_numpy(dtype=float)
+        ha_close = (o + h + low + c) / 4.0
+        ha_open = np.empty(len(c))
+        ha_open[0] = (o[0] + c[0]) / 2.0
+        for t in range(1, len(c)):
+            ha_open[t] = (ha_open[t - 1] + ha_close[t - 1]) / 2.0
+        return bool(ha_close[-1] > ha_open[-1])
+
+    def _gates_pass(self, df, benchmark_df) -> bool:
+        # nonbull is mandatory; None (undeterminable) and False (bull) both fail closed
+        if self.spy_is_nonbull(benchmark_df) is not True:
+            return False
+        return self.heiken_ashi_last_is_green(df)
+
+    # -- Scoring (delegate to DeepOversold once the gates pass) ----------------
+
+    def process(self, trader, df, symbol, yesterday, ctx):
+        if not self._gates_pass(df, getattr(ctx, 'benchmark_df', None)):
+            return None
+        regime_status = (ctx.market_health or {}).get('status')
+        return self._evaluate(trader, df, regime_status)
+
+    def process_worker(self, trader, df, symbol, yesterday, worker_state,
+                       overview, sentiment):
+        if not self._gates_pass(df, worker_state.get('benchmark_df')):
+            return None
+        regime_status = (worker_state.get('market_health') or {}).get('status')
+        return self._evaluate(trader, df, regime_status)
