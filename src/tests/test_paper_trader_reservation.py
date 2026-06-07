@@ -74,6 +74,30 @@ class TestSelectWithReservation:
         assert trader._select_with_reservation(eligible, {"X", "Y"}, 0) == []
 
 
+class TestTrackingOnlyExclusion:
+    """submit_orders drops paper_tradeable=False sleeves (e.g. ADX-Down) before any live order."""
+
+    def _live_trader(self):
+        client = MagicMock()
+        client.get_account_summary.return_value = {"account_id": "DU123"}  # reachable
+        client.get_positions.return_value = []
+        client.get_open_trades.return_value = []
+        client.place_bracket_order.return_value = {"status": "submitted", "order_ids": [1, 2]}
+        config = PaperTradeConfig(total_investment=10000.0, max_positions=10,
+                                  logs_path="/tmp", slots_deep_oversold=3)
+        return PaperTrader(ibkr_client=client, config=config, database=None), client
+
+    def test_adx_down_candidate_is_never_submitted(self):
+        trader, client = self._live_trader()
+        cands = [_cand("DEEP1", "DeepOS", 20), _cand("ADXD1", "ADX-Down", 25)]
+        results = trader.execute(cands, "2026-06-07")
+        # The tracking-only sleeve must not appear in results or reach the broker.
+        assert all(r.strategy != "ADX-Down" for r in results)
+        ordered_symbols = {c.kwargs.get("symbol") for c in client.place_bracket_order.call_args_list}
+        assert "ADXD1" not in ordered_symbols
+        assert "DEEP1" in ordered_symbols  # the live sleeve still trades
+
+
 class TestOccupiedByStrategy:
 
     def test_counts_deepos_positions_on_book(self):

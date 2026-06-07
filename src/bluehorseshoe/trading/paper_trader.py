@@ -107,6 +107,14 @@ class PaperTrader:
         if idea_lookup is None:
             idea_lookup = {}
 
+        # Drop tracking-only sleeves: they flow to the hypothesis engine for forward-R
+        # but must never reach live broker slots (paper_tradeable=False). Candidates key
+        # 'strategy' by display_name, so map those back through the registry.
+        from bluehorseshoe.analysis.strategy_registry import get_all_strategies
+        no_trade = {s.display_name for s in get_all_strategies() if not s.paper_tradeable}
+        if no_trade:
+            candidates = [c for c in candidates if c.get("strategy") not in no_trade]
+
         # Treat max_positions as "have at most this many on the book," not
         # "submit this many now." Without this, running -p with N still-working
         # brackets from yesterday submits N more today and the book grows

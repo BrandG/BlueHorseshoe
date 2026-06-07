@@ -120,6 +120,18 @@ DEEP_OVERSOLD_BASE_SCORE = 14.5
 DEEP_OVERSOLD_AGE_STEP = 1.5
 
 # ---------------------------------------------------------------------------
+# Deep-downtrend contrarian sleeve (adx_diDown) — TRACKING-ONLY, 2026-06-07
+# A strong, established downtrend (ADX>threshold & -DI>+DI) reverts in nonbull regimes. The gauntlet
+# (research/indicator_screen/adx_didown_gauntlet.out) best form enters DEEP (state run-length>=MIN_RUN,
+# where the age gradient peaked): nonbull S4-realistic +0.149R t7.8, positive every sampled year.
+# Modest (≈half the HA confluence, mostly dip-beta with ~+0.05R selection alpha) → tracked for OOS
+# forward-R, NOT live-traded. Reuses the DeepOversold 2:1 ATR / hold-10 / next-open bracket entirely.
+ADX_DOWN_ADX_THRESHOLD = 25.0
+ADX_DOWN_MIN_RUN = 7        # consecutive strong-downtrend bars (= the gauntlet's 0-indexed age>=6)
+ADX_DOWN_BASE_SCORE = 14.0
+ADX_DOWN_AGE_STEP = 1.0
+
+# ---------------------------------------------------------------------------
 # Regime-aware parameter profiles
 # Derived from assumption_tester v2 research (2000 trades, 100 dates).
 # Key finding: bearish regimes favor wide stops (let bounces develop),

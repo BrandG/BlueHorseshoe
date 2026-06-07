@@ -29,6 +29,30 @@ from bluehorseshoe.core.config import weights_config
 
 
 # ---------------------------------------------------------------------------
+# Shared regime gate (contrarian sleeves)
+# ---------------------------------------------------------------------------
+
+def spy_is_nonbull(benchmark_df) -> Optional[bool]:
+    """SPY-EMA regime gate matching the research harness, shared by the contrarian sleeves.
+
+    nonbull = NOT(SPY close > EMA200 AND EMA50 > EMA200). Returns True (nonbull),
+    False (bull), or None when it cannot be determined (missing/short SPY history) —
+    callers fail closed on None.
+    """
+    import numpy as np
+    import talib
+    if benchmark_df is None or len(benchmark_df) < 200:
+        return None
+    close = benchmark_df['close'].to_numpy(dtype=float)
+    ema50 = talib.EMA(close, 50)
+    ema200 = talib.EMA(close, 200)
+    if np.isnan(ema200[-1]) or np.isnan(ema50[-1]):
+        return None
+    bull = (close[-1] > ema200[-1]) and (ema50[-1] > ema200[-1])
+    return not bull
+
+
+# ---------------------------------------------------------------------------
 # Result container
 # ---------------------------------------------------------------------------
 
@@ -147,6 +171,18 @@ class TradingStrategy(ABC):
                                  for the next session only (DeepOversold).
         """
         return "limit_below"
+
+    @property
+    def paper_tradeable(self) -> bool:
+        """Whether PaperTrader may submit live bracket orders for this strategy.
+
+        Default True. A 'tracking-only' sleeve sets this False: it still flows
+        through scores → journal freeze → hypothesis evaluation (forward-R in
+        journal_hypothetical_trades), but PaperTrader filters it out so it never
+        competes for live broker slots. Use for lower-conviction signals being
+        measured out-of-sample before any live deployment.
+        """
+        return True
 
     # --- Core methods -------------------------------------------------------
 
@@ -679,26 +715,25 @@ class DeepOversoldStrategy(TradingStrategy):
                 break
         return age
 
-    def _evaluate(self, trader, df, regime_status):
+    def _bracket_result(self, df, regime_status, score, components):
+        """Build the validated 2:1 ATR / entry-premium bracket + StrategyResult.
+
+        Shared by the deep-oversold sleeves (oversold, +HA, and adx-down): all use the
+        identical execution geometry — $-vol floor, entry = prior close * (1 + premium)
+        as a DAY limit, stop/target anchored to entry for 2:1, hold-10, marketable
+        next-open, ML-free prior — and differ ONLY in their firing gate and ``score``
+        / ``components`` (computed by the caller). Returns ``None`` if the liquidity,
+        price, ATR, realism, or R:R gate fails.
+        """
         import numpy as np
         import talib
         from bluehorseshoe.analysis.constants import (
-            DEEP_OVERSOLD_RSI_THRESHOLD, DEEP_OVERSOLD_MIN_AGE,
             DEEP_OVERSOLD_MIN_DOLLAR_VOLUME, DEEP_OVERSOLD_STOP_MULT,
-            DEEP_OVERSOLD_TARGET_MULT, DEEP_OVERSOLD_BASE_SCORE,
-            DEEP_OVERSOLD_AGE_STEP, DEEP_OVERSOLD_PRIOR_WINRATE,
+            DEEP_OVERSOLD_TARGET_MULT, DEEP_OVERSOLD_PRIOR_WINRATE,
             DEEP_OVERSOLD_ENTRY_PREMIUM, MAX_RISK_PERCENT,
         )
-
-        if df is None or len(df) < 40:
-            return None
         close = df['close'].to_numpy(dtype=float)
         volume = df['volume'].to_numpy(dtype=float)
-
-        rsi = talib.RSI(close, 14)
-        age = self._oversold_age(rsi, DEEP_OVERSOLD_RSI_THRESHOLD)
-        if age < DEEP_OVERSOLD_MIN_AGE:
-            return None
 
         # 20-day average dollar volume (incl. signal bar) — liquidity floor is part of the edge
         dollar_vol_20 = float(np.nanmean((close * volume)[-20:]))
@@ -734,13 +769,7 @@ class DeepOversoldStrategy(TradingStrategy):
             "actual_close": last_close,
             "is_realistic": True,
         }
-
-        score = DEEP_OVERSOLD_BASE_SCORE + (age - DEEP_OVERSOLD_MIN_AGE) * DEEP_OVERSOLD_AGE_STEP
-        components = {
-            "oversold_age": float(age),
-            "rsi": float(rsi[-1]),
-            "dollar_vol_M": round(dollar_vol_20 / 1e6, 1),
-        }
+        components = {**components, "dollar_vol_M": round(dollar_vol_20 / 1e6, 1)}
         return StrategyResult(
             score=float(score),
             components=components,
@@ -750,6 +779,23 @@ class DeepOversoldStrategy(TradingStrategy):
             target_multiplier=DEEP_OVERSOLD_TARGET_MULT,
             regime_status=regime_status or "Neutral",
         )
+
+    def _evaluate(self, trader, df, regime_status):
+        import talib
+        from bluehorseshoe.analysis.constants import (
+            DEEP_OVERSOLD_RSI_THRESHOLD, DEEP_OVERSOLD_MIN_AGE,
+            DEEP_OVERSOLD_BASE_SCORE, DEEP_OVERSOLD_AGE_STEP,
+        )
+        if df is None or len(df) < 40:
+            return None
+        close = df['close'].to_numpy(dtype=float)
+        rsi = talib.RSI(close, 14)
+        age = self._oversold_age(rsi, DEEP_OVERSOLD_RSI_THRESHOLD)
+        if age < DEEP_OVERSOLD_MIN_AGE:
+            return None
+        score = DEEP_OVERSOLD_BASE_SCORE + (age - DEEP_OVERSOLD_MIN_AGE) * DEEP_OVERSOLD_AGE_STEP
+        components = {"oversold_age": float(age), "rsi": float(rsi[-1])}
+        return self._bracket_result(df, regime_status, score, components)
 
     def process(self, trader, df, symbol, yesterday, ctx):
         regime_status = (ctx.market_health or {}).get('status')
@@ -825,22 +871,8 @@ class DeepOversoldHAStrategy(DeepOversoldStrategy):
 
     @staticmethod
     def spy_is_nonbull(benchmark_df) -> Optional[bool]:
-        """SPY-EMA regime gate matching the research harness.
-
-        Returns True (nonbull), False (bull), or None when it cannot be
-        determined (missing/short SPY history) — callers fail closed on None.
-        """
-        import numpy as np
-        import talib
-        if benchmark_df is None or len(benchmark_df) < 200:
-            return None
-        close = benchmark_df['close'].to_numpy(dtype=float)
-        ema50 = talib.EMA(close, 50)
-        ema200 = talib.EMA(close, 200)
-        if np.isnan(ema200[-1]) or np.isnan(ema50[-1]):
-            return None
-        bull = (close[-1] > ema200[-1]) and (ema50[-1] > ema200[-1])
-        return not bull
+        """SPY-EMA regime gate (delegates to the shared module-level helper)."""
+        return spy_is_nonbull(benchmark_df)
 
     @classmethod
     def heiken_ashi_last_is_green(cls, df) -> bool:
@@ -877,6 +909,112 @@ class DeepOversoldHAStrategy(DeepOversoldStrategy):
     def process_worker(self, trader, df, symbol, yesterday, worker_state,
                        overview, sentiment):
         if not self._gates_pass(df, worker_state.get('benchmark_df')):
+            return None
+        regime_status = (worker_state.get('market_health') or {}).get('status')
+        return self._evaluate(trader, df, regime_status)
+
+
+# ---------------------------------------------------------------------------
+# Deep Downtrend (adx_diDown contrarian) — TRACKING-ONLY sleeve, 2026-06-07
+# ---------------------------------------------------------------------------
+
+class DeepDownAdxStrategy(DeepOversoldStrategy):
+    """Buy a strong, *deep* established downtrend in nonbull regimes (textbook ADX inverted).
+
+    The one PSAR/ADX signal to survive the clean re-audit + incremental + cost gauntlet
+    (research/indicator_screen/adx_didown_*.out). A strong directional downtrend
+    (ADX(14) > threshold AND -DI > +DI), held for ``ADX_DOWN_MIN_RUN`` consecutive bars
+    (enter DEEP — where the age gradient peaked), reverts on the same validated 2:1 ATR /
+    hold-10 / marketable-next-open bracket as DeepOversold. Two front gates:
+      * **Regime (mandatory):** SPY nonbull (all-regime the edge is ~flat, neg 2018).
+      * **Deep downtrend run:** state run-length >= ADX_DOWN_MIN_RUN.
+
+    TRACKING-ONLY (``paper_tradeable = False``): the edge is real but MODEST (gauntlet
+    nonbull S4 +0.149R t7.8, but only ~+0.05R selection alpha over dip-beta, ≈half the HA
+    confluence, and it overlaps the dislocation factor the HA/oversold sleeves already
+    harvest). So it flows to the hypothesis engine for out-of-sample forward-R but does NOT
+    compete for live broker slots. Promote to live only if the OOS record justifies it.
+    """
+
+    @property
+    def name(self) -> str:
+        return "adx_didown"
+
+    @property
+    def display_name(self) -> str:
+        return "ADX-Down"
+
+    @property
+    def score_key(self) -> str:
+        return "adx_didown_score"
+
+    @property
+    def setup_key(self) -> str:
+        return "adx_didown_setup"
+
+    @property
+    def ml_prob_key(self) -> str:
+        return "adx_didown_ml_prob"
+
+    @property
+    def components_key(self) -> str:
+        return "adx_didown_components"
+
+    @property
+    def weight_prefix(self) -> str:
+        return "adx_didown_"
+
+    @property
+    def paper_tradeable(self) -> bool:
+        return False  # tracking-only: hypothesis-engine forward-R, no live orders
+
+    @staticmethod
+    def _downtrend_run(adx, pdi, mdi, threshold) -> int:
+        """Consecutive bars (ending at the last bar) in a strong downtrend
+        (ADX>threshold AND -DI>+DI). 0 if the last bar isn't one."""
+        import numpy as np
+        run = 0
+        for a, p, m in zip(reversed(adx), reversed(pdi), reversed(mdi)):
+            if a == a and p == p and m == m and a > threshold and m > p:  # x==x rejects NaN
+                run += 1
+            else:
+                break
+        return run
+
+    def _evaluate(self, trader, df, regime_status):
+        import talib
+        from bluehorseshoe.analysis.constants import (
+            ADX_DOWN_ADX_THRESHOLD, ADX_DOWN_MIN_RUN,
+            ADX_DOWN_BASE_SCORE, ADX_DOWN_AGE_STEP,
+        )
+        if df is None or len(df) < 40:
+            return None
+        high = df['high'].to_numpy(dtype=float)
+        low = df['low'].to_numpy(dtype=float)
+        close = df['close'].to_numpy(dtype=float)
+        adx = talib.ADX(high, low, close, 14)
+        pdi = talib.PLUS_DI(high, low, close, 14)
+        mdi = talib.MINUS_DI(high, low, close, 14)
+        run = self._downtrend_run(adx, pdi, mdi, ADX_DOWN_ADX_THRESHOLD)
+        if run < ADX_DOWN_MIN_RUN:
+            return None
+        score = ADX_DOWN_BASE_SCORE + (run - ADX_DOWN_MIN_RUN) * ADX_DOWN_AGE_STEP
+        components = {
+            "downtrend_run": float(run),
+            "adx": float(adx[-1]),
+            "minus_di": float(mdi[-1]),
+        }
+        return self._bracket_result(df, regime_status, score, components)
+
+    def process(self, trader, df, symbol, yesterday, ctx):
+        if spy_is_nonbull(getattr(ctx, 'benchmark_df', None)) is not True:
+            return None
+        regime_status = (ctx.market_health or {}).get('status')
+        return self._evaluate(trader, df, regime_status)
+
+    def process_worker(self, trader, df, symbol, yesterday, worker_state,
+                       overview, sentiment):
+        if spy_is_nonbull(worker_state.get('benchmark_df')) is not True:
             return None
         regime_status = (worker_state.get('market_health') or {}).get('status')
         return self._evaluate(trader, df, regime_status)

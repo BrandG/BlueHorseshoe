@@ -6,6 +6,7 @@ import pytest
 
 from bluehorseshoe.analysis.strategy_interface import (
     BaselineStrategy,
+    DeepDownAdxStrategy,
     DeepOversoldStrategy,
     DeepOversoldHAStrategy,
     MeanReversionStrategy,
@@ -40,6 +41,11 @@ class TestGetStrategy:
         assert isinstance(strat, DeepOversoldHAStrategy)
         assert strat.name == "deep_oversold_ha"
 
+    def test_adx_didown(self):
+        strat = get_strategy("adx_didown")
+        assert isinstance(strat, DeepDownAdxStrategy)
+        assert strat.name == "adx_didown"
+
     def test_unknown_raises(self):
         with pytest.raises(ValueError, match="Unknown strategy 'bogus'"):
             get_strategy("bogus")
@@ -47,9 +53,9 @@ class TestGetStrategy:
 
 class TestGetAllStrategies:
 
-    def test_returns_four(self):
+    def test_returns_five(self):
         strats = get_all_strategies()
-        assert len(strats) == 4
+        assert len(strats) == 5
 
     def test_all_are_trading_strategies(self):
         for s in get_all_strategies():
@@ -57,7 +63,16 @@ class TestGetAllStrategies:
 
     def test_order(self):
         names = [s.name for s in get_all_strategies()]
-        assert names == ["baseline", "mean_reversion", "deep_oversold", "deep_oversold_ha"]
+        assert names == [
+            "baseline", "mean_reversion", "deep_oversold",
+            "deep_oversold_ha", "adx_didown",
+        ]
+
+    def test_paper_tradeable_flags(self):
+        # adx_didown is tracking-only; everything else is live-tradeable.
+        flags = {s.name: s.paper_tradeable for s in get_all_strategies()}
+        assert flags["adx_didown"] is False
+        assert all(v for k, v in flags.items() if k != "adx_didown")
 
 
 class TestGetStrategyKeys:
@@ -96,6 +111,15 @@ class TestGetStrategyKeys:
             'setup_key': 'deep_os_ha_setup',
             'ml_prob_key': 'deep_os_ha_ml_prob',
             'components_key': 'deep_os_ha_components',
+        }
+
+    def test_adx_didown_keys(self):
+        keys = get_strategy_keys("adx_didown")
+        assert keys == {
+            'score_key': 'adx_didown_score',
+            'setup_key': 'adx_didown_setup',
+            'ml_prob_key': 'adx_didown_ml_prob',
+            'components_key': 'adx_didown_components',
         }
 
     def test_unknown_raises(self):
