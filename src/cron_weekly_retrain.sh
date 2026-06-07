@@ -10,6 +10,17 @@ PYTHON="$REPO/.venv/bin/python"
 export PYTHONPATH="$REPO/src"
 cd "$REPO"
 
+# Load .env so cron has ALPHAVANTAGE_KEY, MONGO_URI, etc. (cron does not inherit the
+# interactive shell environment). Without this, every --symbols/--history fetch fails
+# with "ALPHAVANTAGE_KEY not set" and --retrain can't reach authenticated Mongo.
+# Mirrors run_daily_pipeline.sh.
+if [ -f "$REPO/.env" ]; then
+  while IFS= read -r line || [ -n "$line" ]; do
+    [[ "$line" =~ ^#.*$ || -z "$line" ]] && continue
+    export "$line" 2>/dev/null || true
+  done < "$REPO/.env"
+fi
+
 EXEC="$PYTHON -m bluehorseshoe.core.maintenance"
 
 echo "--- Weekly Retraining Started: $(date) ---"
