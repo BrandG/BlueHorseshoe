@@ -970,11 +970,41 @@ class SwingTrader:
             market_health=market_health,
         )
 
+        self._annotate_planned_sizing(top_candidates)
+
         return {
             "regime": market_health,
             "candidates": top_candidates,
             "charts": [] # TODO: Add chart generation logic if needed
         }
+
+    def _annotate_planned_sizing(self, candidates: list[dict]) -> None:
+        """Tag candidates with the bot's intended FRACTIONAL position size for the report.
+
+        The report shows the unfloored ideal (`planned_shares`/`planned_dollars`); the
+        live paper trader floors to whole shares at execution. Reuses the trader's real
+        selection + conviction sizing (broker-free, empty-book assumption). Non-fatal.
+        """
+        try:
+            from bluehorseshoe.trading.paper_trader import (  # pylint: disable=import-outside-toplevel
+                PaperTrader, PaperTradeConfig,
+            )
+            cfg = PaperTradeConfig(
+                total_investment=self.config.paper_total_investment,
+                max_positions=self.config.paper_max_positions,
+                slots_deep_oversold=self.config.paper_slots_deep_oversold,
+                conviction_sizing=self.config.paper_conviction_sizing,
+                max_position_mult=self.config.paper_max_position_mult,
+            )
+            plan = PaperTrader(ibkr_client=None, config=cfg,
+                               database=None).preview_fractional_plan(candidates)
+            for cand in candidates:
+                sized = plan.get(id(cand))
+                if sized:
+                    cand['planned_shares'] = sized['shares']
+                    cand['planned_dollars'] = sized['dollars']
+        except Exception as exc:  # pylint: disable=broad-exception-caught
+            logging.warning("Planned-sizing annotation failed (non-fatal): %s", exc)
 
 
 # =====================================================================

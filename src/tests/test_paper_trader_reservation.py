@@ -142,6 +142,30 @@ class TestConvictionSizing:
         assert abs(sizes[id(deep)] - 2000.0) < 1e-6  # gets the whole pot
 
 
+class TestPreviewFractionalPlan:
+    """preview_fractional_plan: report-side sizing — unfloored, conviction-weighted, empty book."""
+
+    def test_fractional_unfloored_and_conviction_weighted(self):
+        trader = _trader(slots_deep=0)
+        ha = _cand("HA", "DeepOS+HA", 16)
+        deep = _cand("DEEP", "DeepOS", 22)
+        plan = trader.preview_fractional_plan([ha, deep])
+        # both selected (empty book, 2 < 10 slots); HA out-dollars DeepOS (higher edge)
+        assert plan[id(ha)]["dollars"] > plan[id(deep)]["dollars"]
+        # shares ≈ dollars/price (within 4dp/2dp rounding), NOT floored to int
+        assert abs(plan[id(ha)]["shares"] - plan[id(ha)]["dollars"] / 50.0) < 1e-2
+        assert plan[id(ha)]["shares"] != int(plan[id(ha)]["shares"])  # genuinely fractional
+
+    def test_tracking_only_excluded(self):
+        # Baseline is tracking-only (paper_tradeable False) → never in the plan.
+        trader = _trader(slots_deep=0)
+        base = _cand("BL", "Baseline", 99)
+        deep = _cand("DEEP", "DeepOS", 10)
+        plan = trader.preview_fractional_plan([base, deep])
+        assert id(base) not in plan
+        assert id(deep) in plan
+
+
 class TestTrackingOnlyExclusion:
     """submit_orders drops paper_tradeable=False sleeves (e.g. ADX-Down) before any live order."""
 

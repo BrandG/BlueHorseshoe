@@ -378,7 +378,7 @@ class HTMLReporter:
         price_info = (f"{entry_display} "
                       f"S:<b style='color:var(--badge-bear)'>${stop:.2f}</b><small style='color:var(--badge-bear)'> ({stop_pct:.1f}%)</small> "
                       f"T:<b style='color:var(--badge-bull)'>${target:.2f}</b><small style='color:var(--badge-bull)'> (+{target_pct:.1f}%)</small>")
-        
+
         summary_html = f"""
             <div class='top-list-row'>
                 <span><a href='{url}' target='_blank' class='symbol-link'><b>{symbol}</b></a>:<small>{c.get('exchange','UNK')}</small></span>
@@ -1158,6 +1158,10 @@ class HTMLReporter:
                 'cloud_age': int(c.get('cloud_age', 0) or 0),
                 'confluence_star': bool(c.get('confluence_star', False)),
                 'chronic_dislocation': bool(c.get('chronic_dislocation', False)),
+                # Bot's intended FRACTIONAL position (unfloored ideal); 0 = not in
+                # today's plan. Live paper floors this to whole shares at execution.
+                'planned_shares': float(c.get('planned_shares', 0) or 0),
+                'planned_dollars': float(c.get('planned_dollars', 0) or 0),
             }
             if c.get('connors_rsi2') is not None:
                 rc['connors_rsi2'] = float(c['connors_rsi2'])
@@ -1749,10 +1753,15 @@ function renderLeaderboard() {
     } else if (c.chronic_dislocation && c.cloud_age) {
       cloudBadge = '<span title="Chronic dislocation: ' + c.cloud_age + ' bars below Ichimoku cloud (RSI≥30)" style="color:#5dade2;font-size:0.75rem;margin-left:3px">&#9670;' + c.cloud_age + 'd</span>';
     }
+    // Bot's intended FRACTIONAL position (unfloored ideal; live paper floors to whole shares).
+    var planBadge = '';
+    if (c.planned_shares) {
+      planBadge = '<span title="Bot plan: ' + c.planned_shares.toFixed(4) + ' sh (≈$' + Math.round(c.planned_dollars).toLocaleString() + '); fractional ideal — live floors to whole shares" style="color:var(--neon-pink);font-size:0.7rem;margin-left:4px">&#128208;' + c.planned_shares.toFixed(2) + '</span>';
+    }
     row.innerHTML =
       '<div class="col-check"><input type="checkbox" class="portfolio-check"' + (state.selected[selKey] ? ' checked' : '') + ' onclick="toggleSelection(\'' + selKey + '\', event)"></div>' +
       '<div class="col-rank"><span class="rank-num">' + String(rank).padStart(2, '0') + '</span></div>' +
-      '<div class="col-symbol"><span class="symbol-name">' + c.symbol + '</span><span class="strategy-badge ' + stratClass + '">' + stratLabel + '</span>' + cloudBadge + '</div>' +
+      '<div class="col-symbol"><span class="symbol-name">' + c.symbol + '</span><span class="strategy-badge ' + stratClass + '">' + stratLabel + '</span>' + cloudBadge + planBadge + '</div>' +
       '<div class="col-score"><div class="health-bar"><div class="health-bar-fill ' + scoreClass + '" style="width:' + scoreWidth + '%"></div></div><span class="score-value ' + scoreTextClass + '">' + score.toFixed(1) + '</span></div>' +
       '<div class="col-sent ' + sentClass + '">' + sentLabel + '</div>' +
       '<div class="col-price">$' + c.close.toFixed(2) + '</div>' +

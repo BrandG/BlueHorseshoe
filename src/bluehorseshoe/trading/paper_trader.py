@@ -376,6 +376,32 @@ class PaperTrader:
         cap = getattr(self._config, "max_position_mult", 2.5) * base
         return {id(c): min(pot * w / total_w, cap) for c, w in zip(selected, weights)}
 
+    def preview_fractional_plan(self, candidates: List[dict]) -> Dict[int, Dict[str, float]]:
+        """Preview the bot's intended sizing for the prediction report — FRACTIONAL.
+
+        Runs the SAME selection + conviction sizing the live trader uses, but
+        broker-free and assuming an empty book (all ``max_positions`` slots open) —
+        the deterministic "what the bot intends today" view. Tracking-only sleeves
+        are excluded exactly as in live submission. Shares are the exact
+        ``dollars / entry`` with NO flooring: the report shows the unfloored ideal,
+        while live execution floors to whole shares (``_split_quantity``).
+
+        Returns ``{id(candidate): {'shares': float, 'dollars': float}}`` for the
+        selected candidates only (others would not get a slot today).
+        """
+        from bluehorseshoe.analysis.strategy_registry import get_all_strategies
+        no_trade = {s.display_name for s in get_all_strategies() if not s.paper_tradeable}
+        eligible = [c for c in candidates if c.get("strategy") not in no_trade]
+        selected = self._select_with_reservation(eligible, set(), self._config.max_positions)
+        dollars = self._position_sizes(selected)
+        plan: Dict[int, Dict[str, float]] = {}
+        for c in selected:
+            d = dollars.get(id(c), 0.0)
+            px = c.get("close", 0) or 0
+            if d > 0 and px > 0:
+                plan[id(c)] = {"shares": round(d / px, 4), "dollars": round(d, 2)}
+        return plan
+
     def _split_quantity(self, dollars: float, entry_price: float) -> Tuple[float, float, float]:
         """Return ``(total, t1, t2)`` share quantities for a dollar target.
 
