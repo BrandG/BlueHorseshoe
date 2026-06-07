@@ -230,7 +230,7 @@ class IBKRClient:
     def place_bracket_order(
         self,
         symbol: str,
-        quantity: int,
+        quantity: float,
         limit_price: float,
         take_profit_price: float,
         stop_loss_price: float,
@@ -245,7 +245,11 @@ class IBKRClient:
 
         Args:
             symbol: Stock ticker symbol (e.g., "AAPL")
-            quantity: Number of shares to buy
+            quantity: Number of shares to buy. May be fractional — IBKR fractional
+                trading must be enabled on the account and the symbol must be
+                fractional-eligible. The TP/SL child legs ride as GTC; GTC-fractional
+                support is broker/contract-dependent, so verify on the paper gateway
+                (a rejection surfaces as a captured error, not a silent miss).
             limit_price: Limit price for the entry order
             take_profit_price: Limit price for the take-profit (sell) order
             stop_loss_price: Stop price for the stop-loss (sell) order
@@ -288,7 +292,7 @@ class IBKRClient:
                 order_ids.append(trade.order.orderId)
 
             logger.info(
-                "Bracket order placed for %s: qty=%d entry=%.2f tp=%.2f sl=%.2f ids=%s",
+                "Bracket order placed for %s: qty=%s entry=%.2f tp=%.2f sl=%.2f ids=%s",
                 symbol, quantity, limit_price, take_profit_price, stop_loss_price, order_ids,
             )
             return {"order_ids": order_ids, "status": "submitted", "error": None}

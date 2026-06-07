@@ -163,6 +163,25 @@ class Settings(BaseSettings):
     # score scale), there's no weaker tier to protect a floor from — let the
     # highest scores win the slots. Set >0 again to floor-reserve a sleeve.
     paper_slots_deep_oversold: int = 0
+    # Conviction-weighted sizing (2026-06-07): split the pot proportional to each
+    # sleeve's validated per-trade R (edge_weight) instead of flat-equal, so a
+    # higher-edge fill gets more capital. The pot is unchanged (len(selected)*base),
+    # so total deployment matches flat sizing — only the DISTRIBUTION tilts. Reduces
+    # exactly to flat when the book is one sleeve. False = legacy flat sizing.
+    paper_conviction_sizing: bool = True
+    # Cap on any single position, as a multiple of the equal-weight slot (base =
+    # total/max_positions). Bounds single-name concentration; 2.5 = up to 25% of
+    # capital at default config. Excess above the cap is left undeployed.
+    paper_max_position_mult: float = 2.5
+    # Fractional shares (2026-06-07): deploy the exact target dollars instead of
+    # flooring to whole shares — removes the rounding leak (worse under conviction
+    # sizing) and lets small/precise allocations fill. False = legacy whole-share
+    # flooring. NOTE: requires fractional-share permission on the IBKR account, and
+    # GTC fractional on the bracket child (TP/SL) legs must be verified on the paper
+    # gateway — flip this False to roll back to whole shares if the broker rejects it.
+    paper_fractional_shares: bool = True
+    paper_fractional_precision: int = 4    # decimals to round fractional share qty
+    paper_min_order_value: float = 1.0     # skip positions whose notional is below this ($)
 
     # Yahoo Finance
     yahoo_enabled: bool = True

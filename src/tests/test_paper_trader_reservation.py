@@ -14,10 +14,12 @@ def _cand(symbol, strategy, score):
             "close": 50.0, "stop_loss": 47.5, "target": 55.0}
 
 
-def _trader(slots_deep=3, db=None):
+def _trader(slots_deep=3, db=None, conviction_sizing=True, max_position_mult=2.5):
     client = MagicMock(spec=["get_account_summary", "get_positions", "get_open_trades"])
     config = PaperTradeConfig(total_investment=10000.0, max_positions=10,
-                              logs_path="/tmp", slots_deep_oversold=slots_deep)
+                              logs_path="/tmp", slots_deep_oversold=slots_deep,
+                              conviction_sizing=conviction_sizing,
+                              max_position_mult=max_position_mult)
     return PaperTrader(ibkr_client=client, config=config, database=db)
 
 
@@ -90,6 +92,54 @@ class TestSelectWithReservation:
         trader = _trader()
         eligible = [_cand("D0", "DeepOS", 20)]
         assert trader._select_with_reservation(eligible, {"X", "Y"}, 0) == []
+
+
+class TestConvictionSizing:
+    """_position_sizes: pot split proportional to sleeve edge_weight (base=$1000)."""
+
+    def test_single_sleeve_is_flat(self):
+        # One sleeve → equal weights → reduces exactly to flat $1000 each.
+        trader = _trader()
+        cands = [_cand(f"D{i}", "DeepOS", 20 - i) for i in range(3)]
+        sizes = trader._position_sizes(cands)
+        assert all(abs(v - 1000.0) < 1e-6 for v in sizes.values())
+
+    def test_mixed_book_tilts_to_higher_edge(self):
+        # [HA, DeepOS]: pot=2000, HA 0.404 vs DeepOS 0.142 → HA ~1479.85, DeepOS ~520.15.
+        trader = _trader()
+        ha, deep = _cand("HA", "DeepOS+HA", 16), _cand("DEEP", "DeepOS", 22)
+        sizes = trader._position_sizes([ha, deep])
+        assert sizes[id(ha)] > sizes[id(deep)]
+        assert abs(sizes[id(ha)] + sizes[id(deep)] - 2000.0) < 1e-6  # pot conserved
+        assert abs(sizes[id(ha)] - 2000.0 * 0.404 / 0.546) < 1e-3
+
+    def test_cap_bounds_concentration(self):
+        # cap = 1.0 * base = 1000 → HA's 1479.85 is clamped to 1000.
+        trader = _trader(max_position_mult=1.0)
+        ha, deep = _cand("HA", "DeepOS+HA", 16), _cand("DEEP", "DeepOS", 22)
+        sizes = trader._position_sizes([ha, deep])
+        assert abs(sizes[id(ha)] - 1000.0) < 1e-6
+
+    def test_disabled_is_flat(self):
+        trader = _trader(conviction_sizing=False)
+        ha, deep = _cand("HA", "DeepOS+HA", 16), _cand("DEEP", "DeepOS", 22)
+        sizes = trader._position_sizes([ha, deep])
+        assert sizes[id(ha)] == 1000.0 and sizes[id(deep)] == 1000.0
+
+    def test_all_unvalidated_falls_back_to_flat(self):
+        # Connors only (edge_weight 0) → total_w 0 → flat fallback (slot not wasted).
+        trader = _trader()
+        c1, c2 = _cand("X", "Connors", 50), _cand("Y", "Connors", 40)
+        sizes = trader._position_sizes([c1, c2])
+        assert sizes[id(c1)] == 1000.0 and sizes[id(c2)] == 1000.0
+
+    def test_unvalidated_among_validated_sizes_to_zero(self):
+        # Connors (0) in a validated set → $0 (its slot's capital flows to DeepOS).
+        trader = _trader()
+        conn, deep = _cand("CONN", "Connors", 99), _cand("DEEP", "DeepOS", 10)
+        sizes = trader._position_sizes([conn, deep])
+        assert sizes[id(conn)] == 0.0
+        assert abs(sizes[id(deep)] - 2000.0) < 1e-6  # gets the whole pot
 
 
 class TestTrackingOnlyExclusion:

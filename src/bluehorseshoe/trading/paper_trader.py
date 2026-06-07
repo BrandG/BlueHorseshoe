@@ -29,6 +29,17 @@ class PaperTradeConfig:
     # shared by legacy strategies. Spillover allowed (idle reserved slots on one
     # side fill from the other). 0 disables reservation (pure global top-N).
     slots_deep_oversold: int = 3
+    # Conviction-weighted sizing: split the pot proportional to sleeve edge_weight
+    # (validated per-trade R) rather than flat-equal. Pot unchanged → same total
+    # capital, tilted distribution. Reduces to flat for a single-sleeve book.
+    conviction_sizing: bool = True
+    # Per-position cap as a multiple of the equal-weight slot; bounds concentration.
+    max_position_mult: float = 2.5
+    # Fractional shares: deploy exact target dollars instead of flooring to whole
+    # shares. False = legacy whole-share flooring. See Settings for the IBKR caveat.
+    fractional_shares: bool = True
+    fractional_precision: int = 4    # decimals to round fractional share quantities
+    min_order_value: float = 1.0     # skip positions with notional below this ($)
 
 
 @dataclass
@@ -36,7 +47,7 @@ class OrderResult:
     """Result of a single bracket order attempt."""
     symbol: str
     strategy: str
-    quantity: int = 0
+    quantity: float = 0.0  # float: fractional shares supported
     entry_price: float = 0.0
     take_profit_price: float = 0.0
     stop_loss_price: float = 0.0
@@ -46,8 +57,8 @@ class OrderResult:
     idea_id: Optional[str] = None
     t1_order_ids: List[int] = field(default_factory=list)
     t2_order_ids: List[int] = field(default_factory=list)
-    t1_qty: int = 0
-    t2_qty: int = 0
+    t1_qty: float = 0.0
+    t2_qty: float = 0.0
     t1_target: float = 0.0
 
 
@@ -132,7 +143,9 @@ class PaperTrader:
         slots_available = max(0, self._config.max_positions - len(occupied))
         eligible = [c for c in candidates if c.get("symbol", "") not in occupied]
         top = self._select_with_reservation(eligible, occupied, slots_available)
-        per_position = self._config.total_investment / self._config.max_positions
+        # Conviction-weighted sizing: distribute the pot (what flat sizing would
+        # deploy for this many slots) proportional to each sleeve's validated edge.
+        size_for = self._position_sizes(top)
 
         logger.info(
             "Paper trading: %d occupied, %d slots available, "
@@ -191,39 +204,37 @@ class PaperTrader:
             # Past every pre-flight gate: this symbol now owns its slot for the run.
             submitted_this_run.add(symbol)
 
-            # Calculate total position size then split into halves
-            total_quantity = math.floor(per_position / entry_price)
-            if total_quantity < 2:
-                # Need at least 2 shares to split; fall back to single order
-                if total_quantity < 1:
-                    results.append(OrderResult(
-                        symbol=symbol, strategy=strategy, entry_price=entry_price,
-                        stop_loss_price=stop_loss, take_profit_price=take_profit,
-                        status="skipped", error="insufficient capital for 1 share",
-                        idea_id=cand_idea_id,
-                    ))
-                    continue
-                # 1 share: place single T2 order
+            # Calculate total position size then split into halves (fractional-aware)
+            total_quantity, t1_qty, t2_qty = self._split_quantity(
+                size_for.get(id(cand), 0.0), entry_price
+            )
+            if total_quantity <= 0:
+                results.append(OrderResult(
+                    symbol=symbol, strategy=strategy, entry_price=entry_price,
+                    stop_loss_price=stop_loss, take_profit_price=take_profit,
+                    status="skipped", error="insufficient capital for minimum order",
+                    idea_id=cand_idea_id,
+                ))
+                continue
+            if t1_qty <= 0:
+                # Too small to split into two viable legs: place a single T2 order.
                 order_result = self._client.place_bracket_order(
-                    symbol=symbol, quantity=1, limit_price=entry_price,
+                    symbol=symbol, quantity=t2_qty, limit_price=entry_price,
                     take_profit_price=take_profit, stop_loss_price=stop_loss,
                 )
                 t2_ids = order_result.get("order_ids", [])
                 results.append(OrderResult(
-                    symbol=symbol, strategy=strategy, quantity=1,
+                    symbol=symbol, strategy=strategy, quantity=t2_qty,
                     entry_price=entry_price, stop_loss_price=stop_loss,
                     take_profit_price=take_profit,
                     order_ids=t2_ids,
                     status=order_result.get("status", "error"),
                     error=order_result.get("error"),
                     idea_id=cand_idea_id,
-                    t2_order_ids=t2_ids, t2_qty=1,
+                    t2_order_ids=t2_ids, t2_qty=t2_qty,
                     t1_target=t1_target,
                 ))
                 continue
-
-            t1_qty = total_quantity // 2
-            t2_qty = total_quantity - t1_qty
 
             all_order_ids = []
             combined_status = "submitted"
@@ -332,6 +343,66 @@ class PaperTrader:
             from bluehorseshoe.analysis.strategy_registry import get_all_strategies
             self._edge_weights = {s.display_name: s.edge_weight for s in get_all_strategies()}
         return self._edge_weights
+
+    def _position_sizes(self, selected: List[dict]) -> Dict[int, float]:
+        """Target dollars per selected candidate, keyed by ``id(candidate)``.
+
+        Conviction-weighted: the pot (``len(selected) * base``, where
+        ``base = total_investment / max_positions``) is exactly what flat sizing
+        would deploy for this many slots, split proportional to each sleeve's
+        validated edge (``edge_weight``). Total capital is therefore unchanged from
+        flat sizing — only its DISTRIBUTION tilts toward higher-edge sleeves. Each
+        position is capped at ``max_position_mult * base`` to bound single-name
+        concentration (excess left undeployed).
+
+        Falls back to flat (``base`` each) when conviction sizing is off or every
+        selected sleeve has zero validated edge. A zero-weight sleeve in an
+        otherwise-validated set (e.g. the unregistered Connors) sizes to $0 — it
+        held a leftover slot but earns no capital, so that capital flows to the
+        validated names.
+        """
+        base = self._config.total_investment / self._config.max_positions
+        flat = {id(c): base for c in selected}
+        if not getattr(self._config, "conviction_sizing", True) or not selected:
+            return flat
+        wmap = self._edge_weight_map()
+        weights = [wmap.get(c.get("strategy", ""), 0.0) for c in selected]
+        total_w = sum(weights)
+        if total_w <= 0:
+            return flat  # all-unvalidated → flat-equal
+        pot = len(selected) * base
+        cap = getattr(self._config, "max_position_mult", 2.5) * base
+        return {id(c): min(pot * w / total_w, cap) for c, w in zip(selected, weights)}
+
+    def _split_quantity(self, dollars: float, entry_price: float) -> Tuple[float, float, float]:
+        """Return ``(total, t1, t2)`` share quantities for a dollar target.
+
+        Fractional mode (default): exact ``dollars / price`` rounded to
+        ``fractional_precision``, split in half — no rounding leak. Below
+        ``min_order_value`` notional → ``(0,0,0)`` (skip); below 2x that → a single
+        (T2-only) leg, signalled by ``t1 == 0`` (too small to split into two viable
+        broker orders). Whole-share mode (``fractional_shares=False``): the legacy
+        floor with its ">=2 to split, >=1 to trade" rules.
+        """
+        if entry_price <= 0:
+            return 0.0, 0.0, 0.0
+        if not getattr(self._config, "fractional_shares", True):
+            total = math.floor(dollars / entry_price)
+            if total < 1:
+                return 0.0, 0.0, 0.0
+            if total < 2:
+                return 1.0, 0.0, 1.0          # single leg (can't split 1 share)
+            t1 = total // 2
+            return float(total), float(t1), float(total - t1)
+        prec = getattr(self._config, "fractional_precision", 4)
+        min_val = getattr(self._config, "min_order_value", 1.0)
+        total = round(dollars / entry_price, prec)
+        if total * entry_price < min_val:
+            return 0.0, 0.0, 0.0              # too small to place at all
+        if total * entry_price < 2 * min_val:
+            return total, 0.0, total          # too small to split → single leg
+        t1 = round(total / 2, prec)
+        return total, t1, round(total - t1, prec)
 
     def _select_with_reservation(
         self, eligible: List[dict], occupied: Set[str], slots_available: int

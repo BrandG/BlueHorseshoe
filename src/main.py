@@ -291,6 +291,11 @@ if __name__ == "__main__":
                             max_positions=ctx.config.paper_max_positions,
                             logs_path=ctx.config.logs_path,
                             slots_deep_oversold=ctx.config.paper_slots_deep_oversold,
+                            conviction_sizing=ctx.config.paper_conviction_sizing,
+                            max_position_mult=ctx.config.paper_max_position_mult,
+                            fractional_shares=ctx.config.paper_fractional_shares,
+                            fractional_precision=ctx.config.paper_fractional_precision,
+                            min_order_value=ctx.config.paper_min_order_value,
                         )
                         paper_trader = PaperTrader(
                             ibkr_client=ctx.ibkr,

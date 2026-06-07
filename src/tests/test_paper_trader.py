@@ -34,11 +34,16 @@ def _make_candidate(
     }
 
 
-def _make_trader(tmp_path, db=None, client=None):
+def _make_trader(tmp_path, db=None, client=None, fractional_shares=False):
     """Create a PaperTrader with mocked client and optional mock db.
 
     Default mock client = healthy broker with nothing on the book. Tests
     that need a non-empty book or a wedged gateway pass their own client.
+
+    fractional_shares defaults False here so the whole-share sizing tests below
+    (floor math, single-share fallback) stay valid as the whole-share regression
+    suite. Production defaults True; fractional sizing is covered in
+    TestFractionalSizing.
     """
     if client is None:
         client = MagicMock(spec=[
@@ -61,6 +66,7 @@ def _make_trader(tmp_path, db=None, client=None):
         total_investment=10000.0,
         max_positions=10,
         logs_path=str(tmp_path),
+        fractional_shares=fractional_shares,
     )
     return PaperTrader(ibkr_client=client, config=config, database=db)
 
@@ -134,7 +140,54 @@ class TestPositionSizing:
         )
 
         assert results[0].status == "skipped"
-        assert results[0].error == "insufficient capital for 1 share"
+        assert results[0].error == "insufficient capital for minimum order"
+
+
+class TestFractionalSizing:
+    """Fractional shares deploy exact dollars (no whole-share flooring leak)."""
+
+    def test_no_flooring_leak(self, tmp_path):
+        """$1000 / $33 = 30.303 shares exactly, split into two ~15.15 legs."""
+        client = MagicMock()
+        client.place_bracket_order.return_value = {
+            "order_ids": [1, 2, 3], "status": "submitted", "error": None,
+        }
+        trader = _make_trader(tmp_path, client=client, fractional_shares=True)
+        results = trader.execute(
+            [_make_candidate(close=33.0, stop_loss=31.0, target=36.0)], "2026-01-15",
+        )
+        r = results[0]
+        assert abs(r.quantity - round(1000.0 / 33.0, 4)) < 1e-9   # 30.3030, not floored to 30
+        assert abs(r.t1_qty + r.t2_qty - r.quantity) < 1e-9        # halves sum to total
+        # fractional qty reaches the broker call
+        assert any(abs(c.kwargs["quantity"] - r.t1_qty) < 1e-9
+                   for c in client.place_bracket_order.call_args_list)
+
+    def test_pricey_name_now_tradeable(self, tmp_path):
+        """A $2000 name that floored to 0 whole shares trades fractionally ($1000 → 0.5 sh)."""
+        client = MagicMock()
+        client.place_bracket_order.return_value = {
+            "order_ids": [1, 2, 3], "status": "submitted", "error": None,
+        }
+        trader = _make_trader(tmp_path, client=client, fractional_shares=True)
+        results = trader.execute(
+            [_make_candidate(close=2000.0, stop_loss=1900.0, target=2100.0)], "2026-01-15",
+        )
+        r = results[0]
+        assert r.status == "submitted"
+        assert abs(r.quantity - 0.5) < 1e-9
+
+    def test_below_min_order_value_skipped(self, tmp_path):
+        """Notional below min_order_value is skipped (not a degenerate dust order)."""
+        client = MagicMock()
+        config = PaperTradeConfig(
+            total_investment=5.0, max_positions=10, logs_path=str(tmp_path),
+            fractional_shares=True, min_order_value=1.0,
+        )  # $0.50/position → below $1 min
+        trader = PaperTrader(ibkr_client=client, config=config)
+        results = trader.execute([_make_candidate(close=50.0)], "2026-01-15")
+        assert results[0].status == "skipped"
+        assert results[0].error == "insufficient capital for minimum order"
 
 
 # ── Price validation ─────────────────────────────────────────────────
@@ -638,6 +691,7 @@ class TestTradeOrderLogging:
         }
         config = PaperTradeConfig(
             total_investment=600.0, max_positions=10, logs_path=str(tmp_path),
+            fractional_shares=False,  # whole-share single-share fallback under test
         )
         trader = PaperTrader(ibkr_client=client, config=config)
         # $600 / 10 = $60 per position, floor(60/50) = 1 share
