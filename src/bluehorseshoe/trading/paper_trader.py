@@ -36,8 +36,10 @@ class PaperTradeConfig:
     # Per-position cap as a multiple of the equal-weight slot; bounds concentration.
     max_position_mult: float = 2.5
     # Fractional shares: deploy exact target dollars instead of flooring to whole
-    # shares. False = legacy whole-share flooring. See Settings for the IBKR caveat.
-    fractional_shares: bool = True
+    # shares. DEFAULT FALSE — IBKR rejects API fractional orders (Error 10243); see
+    # Settings.paper_fractional_shares. Re-enable only after account-level fractional
+    # is turned on and src/verify_fractional_bracket.py returns PASS.
+    fractional_shares: bool = False
     fractional_precision: int = 4    # decimals to round fractional share quantities
     min_order_value: float = 1.0     # skip positions with notional below this ($)
 

@@ -173,13 +173,16 @@ class Settings(BaseSettings):
     # total/max_positions). Bounds single-name concentration; 2.5 = up to 25% of
     # capital at default config. Excess above the cap is left undeployed.
     paper_max_position_mult: float = 2.5
-    # Fractional shares (2026-06-07): deploy the exact target dollars instead of
-    # flooring to whole shares — removes the rounding leak (worse under conviction
-    # sizing) and lets small/precise allocations fill. False = legacy whole-share
-    # flooring. NOTE: requires fractional-share permission on the IBKR account, and
-    # GTC fractional on the bracket child (TP/SL) legs must be verified on the paper
-    # gateway — flip this False to roll back to whole shares if the broker rejects it.
-    paper_fractional_shares: bool = True
+    # Fractional shares (2026-06-07): deploy exact target dollars instead of flooring
+    # to whole shares. Code is complete and correct, but DEFAULT IS FALSE because the
+    # IBKR account currently REJECTS API fractional orders:
+    #   Error 10243 "Fractional-sized order cannot be placed via API" (verified via
+    #   src/verify_fractional_bracket.py on paper acct DUE616654, 2026-06-07).
+    # With conviction sizing almost every order is fractional, so True here would make
+    # the broker reject EVERY bracket → zero fills. Re-enable ONLY after enabling
+    # fractional-share trading on the IBKR account AND re-running the verify script to
+    # a PASS. Until then this stays False and we floor to whole shares (tiny leak).
+    paper_fractional_shares: bool = False
     paper_fractional_precision: int = 4    # decimals to round fractional share qty
     paper_min_order_value: float = 1.0     # skip positions whose notional is below this ($)
 
