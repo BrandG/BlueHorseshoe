@@ -69,10 +69,16 @@ class TestGetAllStrategies:
         ]
 
     def test_paper_tradeable_flags(self):
-        # adx_didown is tracking-only; everything else is live-tradeable.
+        # Only the gauntlet-validated deep-oversold sleeves are live-tradeable.
+        # baseline / mean_reversion (no validated entry edge) and adx_didown
+        # (modest, overlapping) are tracking-only — forward-R in the hypothesis
+        # engine, no live broker slots.
         flags = {s.name: s.paper_tradeable for s in get_all_strategies()}
+        live = {k for k, v in flags.items() if v}
+        assert live == {"deep_oversold", "deep_oversold_ha"}
+        assert flags["baseline"] is False
+        assert flags["mean_reversion"] is False
         assert flags["adx_didown"] is False
-        assert all(v for k, v in flags.items() if k != "adx_didown")
 
 
 class TestGetStrategyKeys:

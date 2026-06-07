@@ -262,6 +262,15 @@ class BaselineStrategy(TradingStrategy):
     def min_rr_ratio(self) -> float:
         return MIN_RR_RATIO_BASELINE
 
+    @property
+    def paper_tradeable(self) -> bool:
+        # Tracking-only (2026-06-07). The trend/breakout scorer has no validated
+        # entry edge: it anti-selects (top-10 picks worst) and its positive R is
+        # beta + bracket geometry, not signal. It still flows through scores →
+        # journal → hypothesis-engine forward-R, but must not compete with the
+        # gauntlet-validated DeepOS / DeepOS+HA sleeves for live broker slots.
+        return False
+
     # -- Main-process scoring ------------------------------------------------
 
     def process(self, trader, df, symbol, yesterday, ctx):
@@ -497,6 +506,14 @@ class MeanReversionStrategy(TradingStrategy):
     @property
     def min_rr_ratio(self) -> float:
         return MIN_RR_RATIO_MEAN_REVERSION
+
+    @property
+    def paper_tradeable(self) -> bool:
+        # Tracking-only (2026-06-07). The MR scorer never cleared the honest
+        # gauntlet; its validated descendant is DeepOversold (mechanical, ML-free,
+        # +0.142R/trade after costs). Keep MR's forward-R in the hypothesis engine
+        # but stop it from competing for live broker slots.
+        return False
 
     # -- Main-process scoring ------------------------------------------------
 
