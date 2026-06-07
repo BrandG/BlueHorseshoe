@@ -1,0 +1,60 @@
+9123 symbols; deep-oversold fires, bracket 2:1 hold 10
+  0/9123 (fires so far: 0)
+  500/9123 (fires so far: 1212)
+  1000/9123 (fires so far: 5630)
+  1500/9123 (fires so far: 10328)
+  2000/9123 (fires so far: 11327)
+  2500/9123 (fires so far: 15542)
+  3000/9123 (fires so far: 19380)
+  3500/9123 (fires so far: 20375)
+  4000/9123 (fires so far: 24463)
+/root/BlueHorseshoe/research/indicator_screen/deep_os_ml_selection.py:114: RuntimeWarning: invalid value encountered in divide
+  "dist_20d_low":(c-roll_lo)/c,"dist_20d_high":(roll_hi-c)/c,
+/root/BlueHorseshoe/research/indicator_screen/deep_os_ml_selection.py:114: RuntimeWarning: divide by zero encountered in divide
+  "dist_20d_low":(c-roll_lo)/c,"dist_20d_high":(roll_hi-c)/c,
+  4500/9123 (fires so far: 27510)
+  5000/9123 (fires so far: 31077)
+  5500/9123 (fires so far: 36975)
+  6000/9123 (fires so far: 42510)
+  6500/9123 (fires so far: 48976)
+  7000/9123 (fires so far: 53142)
+  7500/9123 (fires so far: 56252)
+  8000/9123 (fires so far: 59400)
+  8500/9123 (fires so far: 63270)
+  9000/9123 (fires so far: 68465)
+
+total fires: 70271  win-rate(all): 0.433  mean R(all): +0.1470
+train fires: 27455  test fires: 42816
+
+TEST AUC (win discrimination): 0.4981  [0.5 = no signal; >0.55 = meaningful]
+
+[ALL REGIMES] n=42816  mean R / win-rate:
+  take-every-fire (baseline): +0.1403R  0.431
+  MODEL top-quartile        : +0.1523R  0.431  (n=10704)
+  MODEL bottom-quartile     : +0.1381R  0.432
+  depth-rank top-quartile   : +0.0598R  0.393
+
+[NONBULL only] n=11632  mean R / win-rate:
+  take-every-fire (baseline): +0.4013R  0.523
+  MODEL top-quartile        : +0.2576R  0.477  (n=2908)
+  MODEL bottom-quartile     : +0.5141R  0.556
+  depth-rank top-quartile   : +0.2178R  0.463
+
+top features (permutation importance, test AUC):
+  dist_sma200      +0.01072
+  nonbull          +0.01053
+  ema9_v_21        +0.00323
+  pdi              +0.00307
+  obv_slope        +0.00294
+  roc10            +0.00272
+  oversold_age     +0.00155
+  dist_sma20       +0.00130
+  dist_sma50       +0.00128
+  stochk           +0.00094
+  log_dvol         +0.00088
+  down_streak      +0.00058
+
+READ: if MODEL top-quartile mean R <= take-every-fire (and AUC ~0.5), the indicators
+      add NO selection edge conditional on the setup (matches signal-independence /
+      entry-alpha-absent priors) -> keep the sleeve mechanical. If MODEL top clearly
+      beats both baselines AND beats depth-rank, it earns a full cost/OOS gauntlet next.
