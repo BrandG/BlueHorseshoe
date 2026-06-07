@@ -60,6 +60,24 @@ class TestSelectWithReservation:
         sel = trader._select_with_reservation(eligible, set(), 10)
         assert len(sel) == 10
 
+    def test_global_topn_is_edge_weighted(self):
+        """Higher validated edge wins the slot even with a LOWER raw score.
+
+        DeepOS 20 * 0.142 = 2.84 vs DeepOS+HA 16 * 0.404 = 6.46 → HA wins.
+        """
+        trader = _trader(slots_deep=0)
+        eligible = [_cand("DEEP", "DeepOS", 20), _cand("HA", "DeepOS+HA", 16)]
+        sel = trader._select_with_reservation(eligible, set(), 1)
+        assert [c["symbol"] for c in sel] == ["HA"]
+
+    def test_unvalidated_source_fills_only_leftover(self):
+        """An unregistered sleeve (Connors, edge_weight 0) sinks below any validated
+        sleeve regardless of raw score: DeepOS 10*0.142=1.42 > Connors 99*0.0=0."""
+        trader = _trader(slots_deep=0)
+        eligible = [_cand("CONN", "Connors", 99), _cand("DEEP", "DeepOS", 10)]
+        sel = trader._select_with_reservation(eligible, set(), 1)
+        assert [c["symbol"] for c in sel] == ["DEEP"]
+
     def test_global_cap_binds(self):
         """slots_available=2 caps everything even with full reserved budgets."""
         trader = _trader()

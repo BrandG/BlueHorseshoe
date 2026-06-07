@@ -68,6 +68,7 @@ class PaperTrader:
         self._client = ibkr_client
         self._config = config
         self._db = database
+        self._edge_weights: Optional[Dict[str, float]] = None  # lazy registry-derived alloc weights
         self._collection = database["paper_trades"] if database is not None else None
         self._orders_collection = database["trade_orders"] if database is not None else None
         if self._orders_collection is not None:
@@ -319,6 +320,19 @@ class PaperTrader:
                 deep += 1
         return deep
 
+    def _edge_weight_map(self) -> Dict[str, float]:
+        """``{display_name: edge_weight}`` for cross-sleeve allocation ranking.
+
+        Derived from the registry at call time (not stamped on candidates) so it is
+        independent of which path built the candidate (``-p`` assembler vs ``-r``
+        regenerate). Unregistered sources (e.g. ``Connors``) are absent → callers
+        default them to 0.0 → they fill only leftover capacity behind validated sleeves.
+        """
+        if self._edge_weights is None:
+            from bluehorseshoe.analysis.strategy_registry import get_all_strategies
+            self._edge_weights = {s.display_name: s.edge_weight for s in get_all_strategies()}
+        return self._edge_weights
+
     def _select_with_reservation(
         self, eligible: List[dict], occupied: Set[str], slots_available: int
     ) -> List[dict]:
@@ -336,7 +350,17 @@ class PaperTrader:
         deep_reserved = max(0, min(self._config.slots_deep_oversold,
                                    self._config.max_positions))
         if deep_reserved == 0:
-            return eligible[:slots_available]  # reservation disabled → global top-N
+            # Reservation disabled → global top-N ranked by edge-weighted score
+            # (score * validated per-trade R), so the higher-edge sleeve wins a slot
+            # even when a weaker sleeve has a higher raw score. Sources with no
+            # validated edge (weight 0 — incl. the unregistered "Connors" sleeve)
+            # sort last and only fill leftover capacity.
+            wmap = self._edge_weight_map()
+            return sorted(
+                eligible,
+                key=lambda c: c.get("score", 0.0) * wmap.get(c.get("strategy", ""), 0.0),
+                reverse=True,
+            )[:slots_available]
 
         # Local import: keep the trading layer decoupled from analysis at import time.
         from bluehorseshoe.analysis.strategy_registry import get_strategy

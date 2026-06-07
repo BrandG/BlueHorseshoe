@@ -156,10 +156,13 @@ class Settings(BaseSettings):
     paper_trading_enabled: bool = False
     paper_total_investment: float = 10000.0
     paper_max_positions: int = 10
-    # Reserved slots for the deep_oversold sleeve (of paper_max_positions). The
-    # remainder is shared by the legacy strategies. Spillover is allowed: idle
-    # reserved slots on one side are filled by the other so capital isn't idle.
-    paper_slots_deep_oversold: int = 3
+    # Reserved slots for the deep_oversold sleeve (of paper_max_positions).
+    # 0 disables the reservation entirely → pure global top-N by score across all
+    # paper_tradeable sleeves. Disabled 2026-06-07: with the live book now exactly
+    # {deep_oversold, deep_oversold_ha} (both gauntlet-validated and on the same
+    # score scale), there's no weaker tier to protect a floor from — let the
+    # highest scores win the slots. Set >0 again to floor-reserve a sleeve.
+    paper_slots_deep_oversold: int = 0
 
     # Yahoo Finance
     yahoo_enabled: bool = True

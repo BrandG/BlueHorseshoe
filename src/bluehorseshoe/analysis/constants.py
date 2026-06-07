@@ -118,6 +118,12 @@ DEEP_OVERSOLD_PRIOR_WINRATE = 0.43       # backtest win-rate, shown as ml_prob (
 # legacy strategies. BASE=14.5 = the "HIGH" signal-strength tier (top ~5%).
 DEEP_OVERSOLD_BASE_SCORE = 14.5
 DEEP_OVERSOLD_AGE_STEP = 1.5
+# Validated per-trade edge (R units) for cross-sleeve slot allocation. PaperTrader
+# ranks candidates by score * edge_weight ("expected-R priority") so the higher-edge
+# sleeve wins slots even when a weaker sleeve has a higher raw (oversold-depth) score.
+# These are the gauntlet's cost/liquidity-survived numbers; re-measure if the rule changes.
+DEEP_OVERSOLD_EDGE_R = 0.142             # cost/liq-survived gauntlet, >$25M-vol tier
+DEEP_OVERSOLD_HA_EDGE_R = 0.404          # nonbull S4 realistic — the high-conviction tier (~2.8x)
 
 # ---------------------------------------------------------------------------
 # Deep-downtrend contrarian sleeve (adx_diDown) — TRACKING-ONLY, 2026-06-07
@@ -130,6 +136,7 @@ ADX_DOWN_ADX_THRESHOLD = 25.0
 ADX_DOWN_MIN_RUN = 7        # consecutive strong-downtrend bars (= the gauntlet's 0-indexed age>=6)
 ADX_DOWN_BASE_SCORE = 14.0
 ADX_DOWN_AGE_STEP = 1.0
+ADX_DOWN_EDGE_R = 0.149     # validated per-trade R; tracking-only so unused for live alloc, kept accurate for promotion
 
 # ---------------------------------------------------------------------------
 # Regime-aware parameter profiles

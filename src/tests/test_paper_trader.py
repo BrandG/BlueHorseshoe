@@ -16,7 +16,7 @@ from bluehorseshoe.trading.paper_trader import (
 
 def _make_candidate(
     symbol="AAPL",
-    strategy="Baseline",
+    strategy="DeepOS",  # a live (paper_tradeable) sleeve; Baseline is now tracking-only
     close=50.0,
     stop_loss=47.5,
     target=55.0,
@@ -293,7 +293,7 @@ class TestMongoLogging:
         mock_collection.update_one.assert_called_once()
         call_args = mock_collection.update_one.call_args
         assert call_args[0][0] == {
-            "symbol": "AAPL", "date": "2026-01-15", "strategy": "Baseline",
+            "symbol": "AAPL", "date": "2026-01-15", "strategy": "DeepOS",
         }
         assert call_args[1]["upsert"] is True
 
@@ -547,7 +547,7 @@ class TestTradeOrderLogging:
         )
         trader = PaperTrader(ibkr_client=client, config=config, database=db)
 
-        idea_lookup = {("AAPL", "Baseline"): "idea_2026-03-22_AAPL_baseline"}
+        idea_lookup = {("AAPL", "DeepOS"): "idea_2026-03-22_AAPL_baseline"}
         results = trader.execute(
             [_make_candidate(close=50.0)], "2026-03-22", idea_lookup=idea_lookup,
         )
@@ -600,7 +600,7 @@ class TestTradeOrderLogging:
         trader = PaperTrader(ibkr_client=client, config=config, database=db)
 
         # Invalid prices → skipped
-        idea_lookup = {("AAPL", "Baseline"): "idea_2026-03-22_AAPL_baseline"}
+        idea_lookup = {("AAPL", "DeepOS"): "idea_2026-03-22_AAPL_baseline"}
         results = trader.execute(
             [_make_candidate(close=50.0, stop_loss=47.5, target=49.0)],  # invalid: target < entry
             "2026-03-22", idea_lookup=idea_lookup,

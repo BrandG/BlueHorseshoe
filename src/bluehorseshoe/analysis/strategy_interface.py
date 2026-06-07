@@ -184,6 +184,20 @@ class TradingStrategy(ABC):
         """
         return True
 
+    @property
+    def edge_weight(self) -> float:
+        """Validated per-trade edge in R units, used for cross-sleeve slot ranking.
+
+        PaperTrader ranks candidates by ``score * edge_weight`` ("expected-R
+        priority") so a higher-edge sleeve wins a slot even when a weaker sleeve
+        produced a higher raw score (raw score only ranks WITHIN a sleeve, by its
+        own axis — e.g. oversold depth). Default 0.0: an unvalidated sleeve has no
+        claim on a slot and fills only leftover capacity after validated sleeves.
+        A sleeve earns a positive weight only from a cost/liquidity-survived
+        backtest. Re-measure (don't guess) when the firing rule changes.
+        """
+        return 0.0
+
     # --- Core methods -------------------------------------------------------
 
     @abstractmethod
@@ -697,6 +711,11 @@ class DeepOversoldStrategy(TradingStrategy):
         return "deep_os_"
 
     @property
+    def edge_weight(self) -> float:
+        from bluehorseshoe.analysis.constants import DEEP_OVERSOLD_EDGE_R
+        return DEEP_OVERSOLD_EDGE_R
+
+    @property
     def default_stop_multiplier(self) -> float:
         from bluehorseshoe.analysis.constants import DEEP_OVERSOLD_STOP_MULT
         return DEEP_OVERSOLD_STOP_MULT
@@ -884,6 +903,13 @@ class DeepOversoldHAStrategy(DeepOversoldStrategy):
     def weight_prefix(self) -> str:
         return "deep_os_ha_"
 
+    @property
+    def edge_weight(self) -> float:
+        # The high-conviction tier (~2.8x bare DeepOS); MUST override or it would
+        # inherit DeepOversold's weight and tie with it under cross-sleeve ranking.
+        from bluehorseshoe.analysis.constants import DEEP_OVERSOLD_HA_EDGE_R
+        return DEEP_OVERSOLD_HA_EDGE_R
+
     # -- Gates ---------------------------------------------------------------
 
     @staticmethod
@@ -984,6 +1010,13 @@ class DeepDownAdxStrategy(DeepOversoldStrategy):
     @property
     def paper_tradeable(self) -> bool:
         return False  # tracking-only: hypothesis-engine forward-R, no live orders
+
+    @property
+    def edge_weight(self) -> float:
+        # Unused while tracking-only (filtered before allocation); kept accurate
+        # so promotion to live ranks it correctly without a code change.
+        from bluehorseshoe.analysis.constants import ADX_DOWN_EDGE_R
+        return ADX_DOWN_EDGE_R
 
     @staticmethod
     def _downtrend_run(adx, pdi, mdi, threshold) -> int:

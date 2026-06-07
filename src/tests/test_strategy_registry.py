@@ -80,6 +80,15 @@ class TestGetAllStrategies:
         assert flags["mean_reversion"] is False
         assert flags["adx_didown"] is False
 
+    def test_edge_weights(self):
+        # Cross-sleeve allocation ranks by score * edge_weight (validated per-trade R).
+        # Unvalidated sleeves default to 0.0 (leftover-only); HA must out-weight bare
+        # DeepOS or it would tie under ranking (it inherits DeepOS otherwise).
+        w = {s.name: s.edge_weight for s in get_all_strategies()}
+        assert w["baseline"] == 0.0 and w["mean_reversion"] == 0.0
+        assert w["deep_oversold_ha"] > w["deep_oversold"] > 0.0
+        assert w["adx_didown"] > 0.0
+
 
 class TestGetStrategyKeys:
 

@@ -58,7 +58,17 @@ def test_strategy_entry_styles():
 
 
 def test_paper_tradeable_defaults_and_override():
-    assert BaselineStrategy().paper_tradeable is True
+    # Live book = only the gauntlet-validated deep-oversold sleeves (2026-06-07).
+    assert BaselineStrategy().paper_tradeable is False  # demoted: no validated entry edge
+    assert MeanReversionStrategy().paper_tradeable is False  # demoted
     assert DeepOversoldStrategy().paper_tradeable is True
     assert DeepOversoldHAStrategy().paper_tradeable is True
     assert DeepDownAdxStrategy().paper_tradeable is False  # tracking-only
+
+
+def test_edge_weight_ranks_ha_above_bare_deepos():
+    # HA must out-weight bare DeepOS (it inherits DeepOS's weight otherwise),
+    # and unvalidated sleeves default to 0.0 so they only fill leftover slots.
+    assert DeepOversoldHAStrategy().edge_weight > DeepOversoldStrategy().edge_weight > 0.0
+    assert BaselineStrategy().edge_weight == 0.0
+    assert MeanReversionStrategy().edge_weight == 0.0
