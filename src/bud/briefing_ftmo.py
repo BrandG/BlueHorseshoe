@@ -37,12 +37,12 @@ from typing import Any, Optional
 from bh_ftmo.data.fx_store import FxStore
 
 from bud.briefing import (
-    CELLS, CELL_QUALITY_RANK, TP_PCT, STOP_PCT,
-    evaluate_fires, _price_precision, _send_html_email,
+    CELL_QUALITY_RANK, TP_PCT, STOP_PCT,
+    evaluate_fires, _send_html_email,
 )
 from bud.envelope import (
     DEFAULT_CONFIG_PATH, DEFAULT_POSITIONS_PATH,
-    load_config, load_positions,
+    PositionsUnreadable, load_config, load_positions_strict,
     symbol_to_clusters_map,
 )
 
@@ -279,9 +279,15 @@ def render_console(annotated: list[dict], suppressed: list[dict],
                    positions: list[dict], account_size: float,
                    daily_risk_used: float, daily_risk_cap: float,
                    now_utc: datetime,
-                   health: Optional[list[dict]] = None) -> str:
+                   health: Optional[list[dict]] = None,
+                   positions_warning: Optional[str] = None) -> str:
     lines = []
     lines.append(f"BH Briefing → FTMO  ({now_utc.strftime('%Y-%m-%d %H:%M UTC')})")
+    if positions_warning:
+        lines.append("")
+        lines.append(f"⚠ POSITION DATA UNAVAILABLE — {positions_warning}")
+        lines.append("  Open positions / health below may be incomplete; do not "
+                     "trust this run's position view.")
     lines.append(f"Account: ${account_size:,.0f}  risk/trade: {RISK_PER_TRADE_PCT*100:.2f}%"
                  f"  max concurrent: {MAX_CONCURRENT_POSITIONS}"
                  f"  daily risk: ${daily_risk_used:,.2f} / ${daily_risk_cap:,.2f}")
@@ -429,7 +435,8 @@ def render_html(annotated: list[dict], suppressed: list[dict],
                 positions: list[dict], account_size: float,
                 daily_risk_used: float, daily_risk_cap: float,
                 now_utc: datetime,
-                health: Optional[list[dict]] = None) -> str:
+                health: Optional[list[dict]] = None,
+                positions_warning: Optional[str] = None) -> str:
     """HTML email body: portfolio summary + position health + sized orders + suppressed."""
     esc = html.escape
     th = "text-align:left; border-bottom:2px solid #d0d7de; padding:5px 8px; font-size:12px; color:#57606a;"
@@ -446,6 +453,20 @@ def render_html(annotated: list[dict], suppressed: list[dict],
              f'{esc(now_utc.strftime("%Y-%m-%d %H:%M UTC"))} &nbsp;·&nbsp; '
              f'risk/trade {RISK_PER_TRADE_PCT*100:.2f}% &nbsp;·&nbsp; '
              f'stop {STOP_PCT*100:.1f}% / target {TP_PCT*100:.1f}%</p>')
+
+    # --- Position-data warning banner ---
+    # When positions.json couldn't be read, the summary/health below reflect an
+    # empty position set that may be wrong — say so loudly rather than imply flat.
+    if positions_warning:
+        p.append(
+            '<div style="margin:12px 0 0; padding:10px 12px; border-radius:6px; '
+            'background:#fff1e5; border:1px solid #e0863a; color:#8a4b14; '
+            'font-size:13px;">'
+            '<strong>⚠ Position data unavailable.</strong> '
+            f'{esc(positions_warning)}<br>'
+            'Open positions and health below may be incomplete — do not trust '
+            "this run's position view; re-run the briefing once the file is fixed."
+            '</div>')
 
     # --- Portfolio summary ---
     total_unreal = sum(float(h.get("pnl_usd", 0.0) or 0.0) for h in health)
@@ -584,7 +605,15 @@ def render_html(annotated: list[dict], suppressed: list[dict],
 def run(*, dry_run: bool = False, email: bool = False,
         email_only_if_activity: bool = False) -> int:
     config = load_config(DEFAULT_CONFIG_PATH)
-    positions = load_positions(DEFAULT_POSITIONS_PATH)
+    # Strict read so a corrupt/mid-write positions.json surfaces as a warning
+    # instead of a silent position-free briefing (see PositionsUnreadable).
+    positions_warning: Optional[str] = None
+    try:
+        positions = load_positions_strict(DEFAULT_POSITIONS_PATH)
+    except PositionsUnreadable as exc:
+        positions = []
+        positions_warning = str(exc)
+        LOG.warning("position data unavailable — briefing has no health section: %s", exc)
     instrument_map = build_instrument_map(config)
     clusters = config.get("clusters", {})
     account_size = float(config["account"]["size"])
@@ -630,7 +659,8 @@ def run(*, dry_run: bool = False, email: bool = False,
     suppressed = pos_skipped + cluster_suppressed
     now_utc = datetime.now(UTC)
     print(render_console(accepted, suppressed, positions, account_size,
-                         daily_risk_used, daily_risk_cap, now_utc, health=health))
+                         daily_risk_used, daily_risk_cap, now_utc, health=health,
+                         positions_warning=positions_warning))
 
     # Write structured JSON for copy/paste into FTMO platform
     if not dry_run:
@@ -677,20 +707,25 @@ def run(*, dry_run: bool = False, email: bool = False,
 
     if email:
         html_body = render_html(accepted, suppressed, positions, account_size,
-                                daily_risk_used, daily_risk_cap, now_utc, health=health)
+                                daily_risk_used, daily_risk_cap, now_utc, health=health,
+                                positions_warning=positions_warning)
         BRIEFING_DIR.mkdir(parents=True, exist_ok=True)
         archive_path = BRIEFING_DIR / f"briefing_ftmo_{now_utc.strftime('%Y-%m-%d_%H%M')}.html"
         archive_path.write_text(html_body, encoding="utf-8")
         LOG.info("archived FTMO briefing → %s", archive_path)
-        # "Activity" = something actionable to show: a sized order or an open
-        # position to report health on. Stay quiet only when there's neither.
-        has_activity = bool(accepted) or bool(positions)
+        # "Activity" = something actionable to show: a sized order, an open
+        # position to report health on, or a position-data failure worth seeing.
+        # Stay quiet only when there's none of those.
+        has_activity = bool(accepted) or bool(positions) or bool(positions_warning)
         if email_only_if_activity and not has_activity:
             LOG.info("no orders and no open positions — skipping email")
         else:
             n_orders = len(accepted)
             n_pos = len(positions)
-            subject = f"[BH FTMO] {n_orders} order(s), {n_pos} position(s)"
+            if positions_warning:
+                subject = f"[BH FTMO] ⚠ position data unavailable — {n_orders} order(s)"
+            else:
+                subject = f"[BH FTMO] {n_orders} order(s), {n_pos} position(s)"
             _send_html_email(subject, html_body)
     return 0
 

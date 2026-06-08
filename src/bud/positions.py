@@ -30,7 +30,6 @@ import json
 import sys
 from datetime import UTC, date, datetime
 from pathlib import Path
-from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parents[2]  # src/bud/<this> -> repo root
 BUD_DIR = REPO_ROOT / "src" / "bud"
@@ -101,8 +100,12 @@ def load_positions() -> list[dict]:
 
 
 def save_positions(positions: list[dict]) -> None:
-    POSITIONS_PATH.write_text(
-        json.dumps(positions, indent=2) + "\n", encoding="utf-8")
+    # Write-then-rename so a concurrent reader (e.g. the H4 briefing cron) never
+    # catches a truncated/empty file mid-write — it sees either the old complete
+    # state or the new one. rename() is atomic on the same filesystem.
+    tmp = POSITIONS_PATH.parent / (POSITIONS_PATH.name + ".tmp")
+    tmp.write_text(json.dumps(positions, indent=2) + "\n", encoding="utf-8")
+    tmp.replace(POSITIONS_PATH)
 
 
 def append_closed(record: dict) -> None:
