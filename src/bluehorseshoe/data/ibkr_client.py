@@ -301,6 +301,81 @@ class IBKRClient:
             logger.error("Error placing bracket order for %s: %s", symbol, e)
             return {"order_ids": [], "status": "error", "error": str(e)}
 
+    def place_entry_only(
+        self, symbol: str, quantity: int, limit_price: float, tif: str = "DAY"
+    ) -> dict:
+        """
+        Place a single BUY marketable-limit entry.
+
+        Returns dict with keys: order_id, trade, status, error.
+        """
+        try:
+            self._ensure_connected()
+        except Exception as e:
+            return {"order_id": 0, "trade": None, "status": "error", "error": str(e)}
+
+        try:
+            import ib_async  # pylint: disable=import-outside-toplevel
+
+            contract = ib_async.Stock(symbol, "SMART", "USD")
+            self._ib.qualifyContracts(contract)
+            order = ib_async.LimitOrder("BUY", int(quantity), round(limit_price, 2))
+            order.tif = tif
+            trade = self._ib.placeOrder(contract, order)
+            order_id = getattr(trade.order, "orderId", 0)
+            logger.info(
+                "Entry order placed for %s: qty=%s limit=%.2f tif=%s id=%s",
+                symbol, quantity, limit_price, tif, order_id,
+            )
+            return {"order_id": order_id, "trade": trade, "status": "submitted", "error": None}
+        except Exception as e:
+            logger.error("Error placing entry order for %s: %s", symbol, e)
+            return {"order_id": 0, "trade": None, "status": "error", "error": str(e)}
+
+    def place_oca_exits(self, symbol: str, oca_group: str, legs: list) -> dict:
+        """
+        Place SELL exit legs sharing one OCA group.
+
+        ``legs`` items must contain: leg ("STOP", "T1", "T2"), order_type
+        ("STP" or "LMT"), quantity, price.
+        """
+        try:
+            self._ensure_connected()
+        except Exception as e:
+            return {"order_ids": {}, "status": "error", "error": str(e)}
+
+        try:
+            import ib_async  # pylint: disable=import-outside-toplevel
+
+            contract = ib_async.Stock(symbol, "SMART", "USD")
+            self._ib.qualifyContracts(contract)
+            order_ids = {}
+            for leg in legs:
+                qty = int(leg["quantity"])
+                price = round(float(leg["price"]), 2)
+                if qty <= 0:
+                    continue
+                if leg["order_type"] == "STP":
+                    order = ib_async.StopOrder("SELL", qty, price)
+                elif leg["order_type"] == "LMT":
+                    order = ib_async.LimitOrder("SELL", qty, price)
+                else:
+                    raise ValueError(f"unsupported OCA leg order_type: {leg['order_type']!r}")
+                order.tif = "GTC"
+                order.ocaGroup = oca_group
+                order.ocaType = 1
+                trade = self._ib.placeOrder(contract, order)
+                order_ids[leg["leg"]] = getattr(trade.order, "orderId", 0)
+
+            logger.info(
+                "OCA exits placed for %s: group=%s legs=%s ids=%s",
+                symbol, oca_group, legs, order_ids,
+            )
+            return {"order_ids": order_ids, "status": "submitted", "error": None}
+        except Exception as e:
+            logger.error("Error placing OCA exits for %s: %s", symbol, e)
+            return {"order_ids": {}, "status": "error", "error": str(e)}
+
     def get_executions(self, since: Optional[datetime] = None) -> List[dict]:
         """
         Get execution reports from IB Gateway.

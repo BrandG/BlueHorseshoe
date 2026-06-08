@@ -185,6 +185,10 @@ class Settings(BaseSettings):
     paper_fractional_shares: bool = False
     paper_fractional_precision: int = 4    # decimals to round fractional share qty
     paper_min_order_value: float = 1.0     # skip positions whose notional is below this ($)
+    # Fill-anchored execution: false preserves the legacy all-at-once bracket
+    # submission. True stages during -p and attaches exits after the real fill
+    # via --execute-open.
+    fill_anchored_execution: bool = False
 
     # Yahoo Finance
     yahoo_enabled: bool = True

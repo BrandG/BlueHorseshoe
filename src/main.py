@@ -194,6 +194,64 @@ if __name__ == "__main__":
                 limit=limit,
             )
             logging.info("Full historical data updated.")
+    elif "--execute-open" in sys.argv:
+        logging.info("Executing staged fill-anchored paper orders...")
+        with _span("gordon.execute_open"), create_cli_context() as ctx:
+            target_date = None
+            try:
+                ex_idx = sys.argv.index("--execute-open")
+                if len(sys.argv) > ex_idx + 1 and not sys.argv[ex_idx + 1].startswith("-"):
+                    target_date = sys.argv[ex_idx + 1]
+            except (ValueError, IndexError):
+                pass
+
+            if not target_date:
+                target_date = get_latest_market_date(database=ctx.db, store=ctx.store)
+                logging.info("No date provided for --execute-open, defaulting to latest: %s", target_date)
+
+            if not ctx.config.paper_trading_enabled:
+                print("Paper trading disabled; execute-open skipped.")
+                logging.error("Paper trading disabled; execute-open skipped.")
+                sys.exit(1)
+            if not ctx.config.fill_anchored_execution:
+                print("FILL_ANCHORED_EXECUTION is false; execute-open skipped.")
+                logging.error("FILL_ANCHORED_EXECUTION is false; execute-open skipped.")
+                sys.exit(1)
+
+            try:
+                from bluehorseshoe.trading.paper_trader import PaperTrader, PaperTradeConfig  # pylint: disable=import-outside-toplevel
+                pt_config = PaperTradeConfig(
+                    total_investment=ctx.config.paper_total_investment,
+                    max_positions=ctx.config.paper_max_positions,
+                    logs_path=ctx.config.logs_path,
+                    slots_deep_oversold=ctx.config.paper_slots_deep_oversold,
+                    conviction_sizing=ctx.config.paper_conviction_sizing,
+                    max_position_mult=ctx.config.paper_max_position_mult,
+                    fill_anchored_execution=ctx.config.fill_anchored_execution,
+                    fractional_shares=ctx.config.paper_fractional_shares,
+                    fractional_precision=ctx.config.paper_fractional_precision,
+                    min_order_value=ctx.config.paper_min_order_value,
+                )
+                paper_trader = PaperTrader(
+                    ibkr_client=ctx.ibkr,
+                    config=pt_config,
+                    database=ctx.db,
+                )
+                paper_results = paper_trader.execute_open(target_date=target_date)
+                submitted = sum(1 for r in paper_results if r.status == "submitted")
+                partial = sum(1 for r in paper_results if r.status == "partial")
+                skipped = sum(1 for r in paper_results if r.status == "skipped")
+                errors = sum(1 for r in paper_results if r.status == "error")
+                print(
+                    f"Paper execute-open: {submitted} live, {partial} partial, "
+                    f"{skipped} skipped, {errors} errors"
+                )
+                logging.info("Paper execute-open complete: %d live, %d partial, %d skipped, %d errors",
+                             submitted, partial, skipped, errors)
+            except Exception as e:  # pylint: disable=broad-exception-caught
+                logging.error("Paper execute-open failed: %s", e)
+                print(f"Paper execute-open error: {e}")
+                sys.exit(1)
     elif "-p" in sys.argv:
         logging.info('Predicting next midpoints...')
         with _span("gordon.predict"), create_cli_context() as ctx:
@@ -293,6 +351,7 @@ if __name__ == "__main__":
                             slots_deep_oversold=ctx.config.paper_slots_deep_oversold,
                             conviction_sizing=ctx.config.paper_conviction_sizing,
                             max_position_mult=ctx.config.paper_max_position_mult,
+                            fill_anchored_execution=ctx.config.fill_anchored_execution,
                             fractional_shares=ctx.config.paper_fractional_shares,
                             fractional_precision=ctx.config.paper_fractional_precision,
                             min_order_value=ctx.config.paper_min_order_value,
@@ -302,17 +361,27 @@ if __name__ == "__main__":
                             config=pt_config,
                             database=ctx.db,
                         )
-                        paper_results = paper_trader.execute(
-                            candidates=report_data.get('candidates', []),
-                            target_date=target_date,
-                            idea_lookup=idea_lookup,
-                        )
-                        submitted = sum(1 for r in paper_results if r.status == "submitted")
+                        if ctx.config.fill_anchored_execution:
+                            paper_results = paper_trader.stage_orders(
+                                candidates=report_data.get('candidates', []),
+                                target_date=target_date,
+                                idea_lookup=idea_lookup,
+                            )
+                            submitted_label = "staged"
+                            submitted = sum(1 for r in paper_results if r.status == "staged")
+                        else:
+                            paper_results = paper_trader.execute(
+                                candidates=report_data.get('candidates', []),
+                                target_date=target_date,
+                                idea_lookup=idea_lookup,
+                            )
+                            submitted_label = "submitted"
+                            submitted = sum(1 for r in paper_results if r.status == "submitted")
                         skipped = sum(1 for r in paper_results if r.status == "skipped")
                         errors = sum(1 for r in paper_results if r.status == "error")
-                        print(f"Paper trading: {submitted} submitted, {skipped} skipped, {errors} errors")
-                        logging.info("Paper trading complete: %d submitted, %d skipped, %d errors",
-                                     submitted, skipped, errors)
+                        print(f"Paper trading: {submitted} {submitted_label}, {skipped} skipped, {errors} errors")
+                        logging.info("Paper trading complete: %d %s, %d skipped, %d errors",
+                                     submitted, submitted_label, skipped, errors)
                     except Exception as e:  # pylint: disable=broad-exception-caught
                         logging.error("Paper trading failed (non-fatal): %s", e)
                         print(f"Paper trading error (non-fatal): {e}")

@@ -1042,6 +1042,12 @@ class HTMLReporter:
                 'stop_loss': float(c.get('stop_loss', 0)),
                 't1_target': float(c.get('t1_target', 0)),
                 'target': float(c.get('target', 0)),
+                'risk_per_share': float(c.get('close', 0)) - float(c.get('stop_loss', 0)),
+                'target_offset': float(c.get('target', 0)) - float(c.get('close', 0)),
+                't1_offset': (
+                    float(c.get('t1_target', 0)) - float(c.get('close', 0))
+                    if c.get('t1_target') else 0.0
+                ),
                 'ml_prob': float(c.get('ml_prob', 0)),
                 'sentiment': float(c.get('sentiment', 0)),
                 'sentiment_tiingo': float(c.get('sentiment_tiingo', 0)),
@@ -1271,7 +1277,7 @@ body::after {
   box-shadow: 0 0 15px rgba(255,170,0,0.1); margin-bottom: 16px;
 }
 .leaderboard-header {
-  display: grid; grid-template-columns: 28px 40px 90px 1fr 60px 100px 100px 80px 80px 110px 80px;
+  display: grid; grid-template-columns: 28px 40px 90px 1fr 60px 90px 90px 70px 90px 170px 100px 70px;
   padding: 10px 12px; border-bottom: 2px solid var(--neon-amber);
   font-size: 0.8rem; color: var(--neon-amber); text-shadow: 0 0 4px var(--neon-amber);
   letter-spacing: 1px; background: rgba(255,170,0,0.05);
@@ -1292,7 +1298,7 @@ body::after {
 .leaderboard-body::-webkit-scrollbar-thumb { background: var(--neon-amber-dim); border: 1px solid var(--neon-amber); }
 @keyframes row-enter { from { opacity: 0; transform: translateX(-20px); } to { opacity: 1; transform: translateX(0); } }
 .leaderboard-row {
-  display: grid; grid-template-columns: 28px 40px 90px 1fr 60px 100px 100px 80px 80px 110px 80px;
+  display: grid; grid-template-columns: 28px 40px 90px 1fr 60px 90px 90px 70px 90px 170px 100px 70px;
   padding: 10px 12px; border-bottom: 1px solid rgba(85,85,112,0.3);
   font-size: 0.9rem; cursor: pointer; transition: background 0.1s;
   animation: row-enter 0.3s ease-out both;
@@ -1329,6 +1335,12 @@ body::after {
 .col-price { display: flex; align-items: center; color: var(--pixel-white); }
 .col-stop { display: flex; align-items: center; color: var(--neon-red); text-shadow: 0 0 4px rgba(255,51,51,0.5); }
 .col-target { display: flex; align-items: center; color: var(--neon-green); text-shadow: 0 0 4px rgba(57,255,20,0.5); }
+.col-fillcalc { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; font-size: 0.55rem; letter-spacing: 0; }
+.fill-input { width: 72px; min-width: 0; font-family: var(--font-pixel); font-size: 0.45rem; padding: 4px; border: 1px solid var(--neon-blue-dim); background: var(--pixel-dark); color: var(--pixel-white); }
+.fill-static { color: var(--pixel-gray); }
+.calc-stop { color: var(--neon-red); text-shadow: 0 0 4px rgba(255,51,51,0.5); }
+.calc-target { color: var(--neon-green); text-shadow: 0 0 4px rgba(57,255,20,0.5); }
+.calc-t1 { color: var(--neon-amber); text-shadow: 0 0 4px rgba(255,170,0,0.5); }
 .col-ml { display: flex; align-items: center; gap: 4px; }
 .ml-meter { display: flex; gap: 1px; }
 .ml-pip { width: 6px; height: 14px; background: var(--pixel-dark); border: 1px solid rgba(85,85,112,0.3); transition: all 0.3s; }
@@ -1455,7 +1467,7 @@ body::after {
 /* Calc button in toolbar */
 .toolbar { display: flex; gap: 8px; margin-bottom: 12px; justify-content: flex-end; }
 @media (max-width: 900px) {
-  .leaderboard-header, .leaderboard-row { grid-template-columns: 24px 30px 70px 1fr 50px 80px 80px 60px 60px 90px 60px; font-size: 0.7rem; padding: 8px 6px; }
+  .leaderboard-header, .leaderboard-row { grid-template-columns: 24px 30px 70px 1fr 50px 70px 70px 60px 70px 140px 80px 60px; font-size: 0.7rem; padding: 8px 6px; }
   .marquee-title { font-size: 1rem; }
   .detail-grid { grid-template-columns: 1fr; }
   .status-bar { grid-template-columns: 1fr; }
@@ -1466,7 +1478,7 @@ body::after {
 }
 @media (max-width: 600px) {
   .leaderboard-header, .leaderboard-row { grid-template-columns: 24px 30px 1fr 70px 70px; }
-  .col-stop, .col-t1, .col-target, .col-rr, .col-ml, .col-sent { display: none; }
+  .col-stop, .col-t1, .col-target, .col-fillcalc, .col-rr, .col-ml, .col-sent { display: none; }
   .marquee-title { font-size: 0.7rem; letter-spacing: 2px; }
   .portfolio-table-header, .portfolio-table-row { grid-template-columns: 30px 1fr 60px 60px 60px 60px; }
   .portfolio-col-stop, .portfolio-col-t1, .portfolio-col-target { display: none; }
@@ -1649,8 +1661,20 @@ function renderLeaderboard() {
     const scoreWidth = Math.min(100, (score / 80) * 100);
     const mlPips = Math.round(mlPct / 10);
     const detailId = 'detail-' + i;
+    const riskShare = c.risk_per_share || Math.max(0, c.close - c.stop_loss);
+    const targetOffset = c.target_offset || (c.target - c.close);
+    const t1Offset = c.t1_offset || (c.t1_target ? c.t1_target - c.close : 0);
+    const fillCalcHtml = '<div class="col-fillcalc">' +
+      '<span class="fill-static">risk/sh $' + riskShare.toFixed(2) + ' &middot; tgt +$' + targetOffset.toFixed(2) + '</span>' +
+      '<input type="number" class="fill-input" step="0.01" min="0" placeholder="your fill $" onclick="event.stopPropagation()">' +
+      '<span>S:<span class="calc-stop">---</span></span>' +
+      (t1Offset > 0 ? '<span>T1:<span class="calc-t1">---</span></span>' : '') +
+      '<span>T2:<span class="calc-target">---</span></span></div>';
     const row = document.createElement('div');
     row.className = 'leaderboard-row ' + rankClass;
+    row.setAttribute('data-r', riskShare.toFixed(2));
+    row.setAttribute('data-tpoff', targetOffset.toFixed(2));
+    if (t1Offset > 0) row.setAttribute('data-t1off', t1Offset.toFixed(2));
     row.style.animationDelay = (i * 0.04) + 's';
     row.onclick = function() { toggleDetail(i); };
     let pipsHtml = '';
@@ -1679,6 +1703,7 @@ function renderLeaderboard() {
       '<div class="col-stop">$' + c.stop_loss.toFixed(2) + '</div>' +
       '<div class="col-t1" style="color:var(--neon-amber);text-shadow:0 0 4px var(--neon-amber)">$' + (c.t1_target ? c.t1_target.toFixed(2) : '---') + '</div>' +
       '<div class="col-target" style="color:var(--neon-green)">$' + c.target.toFixed(2) + '</div>' +
+      fillCalcHtml +
       '<div class="col-ml"><div class="ml-meter">' + pipsHtml + '</div><span class="ml-pct ' + mlTextClass + '">' + mlPct + '%</span></div>' +
       '<div class="col-rr">' + rr + 'x</div>';
     body.appendChild(row);
@@ -1688,6 +1713,27 @@ function renderLeaderboard() {
     detail.innerHTML = buildDetailHTML(c);
     body.appendChild(detail);
   });
+}
+
+function updateFillAnchoredRow(input) {
+  var row = input.closest('.leaderboard-row');
+  if (!row) return;
+  var fill = parseFloat(input.value);
+  var stopEl = row.querySelector('.calc-stop');
+  var targetEl = row.querySelector('.calc-target');
+  var t1El = row.querySelector('.calc-t1');
+  if (!(fill > 0)) {
+    if (stopEl) stopEl.textContent = '---';
+    if (targetEl) targetEl.textContent = '---';
+    if (t1El) t1El.textContent = '---';
+    return;
+  }
+  var r = parseFloat(row.dataset.r);
+  var tpoff = parseFloat(row.dataset.tpoff);
+  var t1off = parseFloat(row.dataset.t1off || '0');
+  if (stopEl) stopEl.textContent = '$' + (fill - r).toFixed(2);
+  if (targetEl) targetEl.textContent = '$' + (fill + tpoff).toFixed(2);
+  if (t1El && t1off > 0) t1El.textContent = '$' + (fill + t1off).toFixed(2);
 }
 
 function buildSentimentBar(label, value, isComposite) {
@@ -2034,6 +2080,9 @@ function renderPortfolioTable(results) {
 document.getElementById('calcModal').addEventListener('click', function(e) { if (e.target === this) closeCalcModal(); });
 document.getElementById('portfolioModal').addEventListener('click', function(e) { if (e.target === this) closePortfolioModal(); });
 document.addEventListener('keydown', function(e) { if (e.key === 'Escape') { closeCalcModal(); closePortfolioModal(); } });
+document.getElementById('leaderboardBody').addEventListener('input', function(e) {
+  if (e.target && e.target.classList.contains('fill-input')) updateFillAnchoredRow(e.target);
+});
 
 // Initialize from embedded data
 document.addEventListener('DOMContentLoaded', function() {
@@ -2047,6 +2096,9 @@ document.addEventListener('DOMContentLoaded', function() {
       stop_loss: c.stop_loss || 0,
       t1_target: c.t1_target || 0,
       target: c.target || 0,
+      risk_per_share: c.risk_per_share || 0,
+      target_offset: c.target_offset || 0,
+      t1_offset: c.t1_offset || 0,
       ml_prob: c.ml_prob || 0,
       sentiment: c.sentiment || 0,
       sentiment_tiingo: c.sentiment_tiingo || 0,
@@ -2136,6 +2188,7 @@ document.addEventListener('DOMContentLoaded', function() {
             '<div class="sortable" data-sort="stop_loss" onclick="sortBy(\'stop_loss\')" title="Sort by stop">STOP<span class="sort-arrow"></span></div>',
             '<div class="sortable" data-sort="t1_target" onclick="sortBy(\'t1_target\')" title="Sort by T1 target">T1<span class="sort-arrow"></span></div>',
             '<div class="sortable" data-sort="target" onclick="sortBy(\'target\')" title="Sort by T2 target">T2<span class="sort-arrow"></span></div>',
+            '<div title="Enter actual fill to recompute stop and targets">FILL</div>',
             '<div class="sortable" data-sort="ml_prob" onclick="sortBy(\'ml_prob\')" title="Sort by ML win probability">ML PROB<span class="sort-arrow"></span></div>',
             '<div class="sortable" data-sort="rr" onclick="sortBy(\'rr\')" title="Sort by risk/reward ratio">R:R<span class="sort-arrow"></span></div>',
             '</div>',
