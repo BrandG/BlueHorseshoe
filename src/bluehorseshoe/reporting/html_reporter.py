@@ -299,6 +299,34 @@ class HTMLReporter:
             return "score-med"
         return "score-low"
 
+    def _live_sleeves(self):
+        """Return ``(live_display_names, edge_weight_map)`` for the sleeves wired to
+        trade live — read from the SAME registry signals ``PaperTrader`` uses
+        (``paper_tradeable`` + ``edge_weight``). The report filters and ranks off
+        this so it shows exactly what the bot will actually trade, and auto-tracks
+        any promote/demote of a sleeve. See project_live_sleeve_gate.
+
+        Why ``score`` alone is not the ranking key: untraded sleeves (Baseline/
+        MeanRev/ADX-Down) anti-select on it, and the live allocator ranks by
+        ``score * edge_weight`` (the validated per-trade R), so the report mirrors
+        that. ML win-prob is deliberately NOT a sort key — it carries no selection
+        signal here (test AUC ~0.50; see project_deep_os_ml_selection)."""
+        strats = get_all_strategies()
+        live = {s.display_name for s in strats if s.paper_tradeable}
+        weights = {s.display_name: s.edge_weight for s in strats}
+        return live, weights
+
+    @staticmethod
+    def _edge_rank(candidates, live_sleeves, edge_weights, limit=None):
+        """Live-tradeable candidates ranked by ``score * edge_weight`` (the live
+        allocator's key), highest first. Optionally truncated to ``limit``."""
+        ranked = [c for c in candidates if c.get('strategy') in live_sleeves]
+        ranked.sort(
+            key=lambda c: c.get('score', 0.0) * edge_weights.get(c.get('strategy', ''), 0.0),
+            reverse=True,
+        )
+        return ranked[:limit] if limit else ranked
+
     @staticmethod
     def _get_sentiment_display(score: float) -> str:
         """Return an HTML snippet showing sentiment as a colored indicator."""
@@ -602,22 +630,10 @@ class HTMLReporter:
         """
         Builds the complete HTML string.
         """
-        # Filter top candidates for each strategy (sort by score, then ML confidence)
-        top_n = self.TOP_CANDIDATES_PER_STRATEGY
-        strategy_tops = {}
-        for strat in get_all_strategies():
-            tops = sorted(
-                [c for c in candidates if c.get('strategy') == strat.display_name],
-                key=lambda x: (x.get('score', 0), x.get('ml_prob', 0)),
-                reverse=True,
-            )[:top_n]
-            for c in tops:
-                c['chart_b64'] = self._generate_sparkline(c['symbol'])
-            strategy_tops[strat.display_name] = tops
-
-        # Keep backward-compatible aliases for rendering sections
-        baseline_top = strategy_tops.get('Baseline', [])
-        meanrev_top = strategy_tops.get('MeanRev', [])
+        # Live sleeves drive the report: same paper_tradeable gate + edge-weight
+        # the bot uses to actually trade (see project_live_sleeve_gate). Untraded
+        # sleeves (Baseline/MeanRev/ADX-Down) are no longer surfaced here.
+        live_sleeves, edge_weights = self._live_sleeves()
 
         html = [
             "<!DOCTYPE html>",
@@ -672,36 +688,7 @@ class HTMLReporter:
             "</div>",
             "</div>",
             "</details>",
-
-            # Top 5 Lists (Side-by-Side)
-            "<div class='top-lists-wrapper'>",
-            
-            # Baseline Column
-            "<div class='top-list'>",
-            f"<h3>Top {top_n} Baseline (Trend)</h3>",
-            "<div class='top-list-header-grid'><span>Symbol</span> <span>Score</span> <span>ML</span> <span>Levels</span></div>"
         ]
-
-        if baseline_top:
-            for c in baseline_top:
-                html.append(self._format_top_list_item(c))
-        else:
-            html.append("<div class='top-list-row'>No candidates found.</div>")
-
-        html.append("</div>")
-
-        # Mean Rev Column
-        html.append("<div class='top-list'>")
-        html.append(f"<h3>Top {top_n} Mean Reversion</h3>")
-        html.append("<div class='top-list-header-grid'><span>Symbol</span> <span>Score</span> <span>ML</span> <span>Levels</span></div>")
-
-        if meanrev_top:
-            for c in meanrev_top:
-                html.append(self._format_top_list_item(c))
-        else:
-            html.append("<div class='top-list-row'>No candidates found.</div>")
-
-        html.append("</div></div>")
 
         # Connors RSI(2) Setups Section
         connors_top = [c for c in candidates if c.get('strategy') == 'Connors']
@@ -735,13 +722,20 @@ class HTMLReporter:
         else:
             html.append("<p style='color:#777'>No Connors RSI(2) setups today.</p>")
 
-        # Candidates Section - limit to top N by score (primary), then ML confidence (secondary)
-        top_candidates = sorted(candidates,
-                               key=lambda x: (x.get('score', 0), x.get('ml_prob', 0)),
-                               reverse=True)[:self.TOP_CANDIDATES_TABLE_LIMIT]
+        # Candidates Section = the live trade list: only paper_tradeable sleeves,
+        # ranked by Score x edge-weight (the SAME key PaperTrader uses). Score here
+        # is oversold depth; edge-weight is the sleeve's validated per-trade R.
+        top_candidates = self._edge_rank(candidates, live_sleeves, edge_weights,
+                                         limit=self.TOP_CANDIDATES_TABLE_LIMIT)
         html.append(f"<h2>Top Candidates ({len(top_candidates)})</h2>")
+        html.append("<p style='color:#777; font-size:0.9em'>The live book trades these "
+                    "mechanically: only the validated deep-oversold sleeves, ranked by "
+                    "<strong>Score &times; edge-weight</strong> &mdash; the exact key the paper "
+                    "allocator uses. Score is oversold depth; edge-weight is the sleeve's "
+                    "validated per-trade R. ML win-probability is intentionally not a ranking "
+                    "input (no selection signal).</p>")
         html.append("<table>")
-        html.append("<tr><th>Symbol</th><th>Exchange</th><th>Strategy</th><th>Score</th><th title='Ichimoku cloud-dislocation (advisory): &#11088; = &ge;26 bars below cloud &amp; RSI&lt;30 (confluence cell); &#9670; = &ge;26 bars below cloud &amp; RSI&ge;30 (chronic). Liquid &ge;$25M only.'>Signal</th><th title='AlphaVantage NEWS_SENTIMENT API'>Sentiment (AV)</th><th title='Tiingo News API &mdash; headlines scored with VADER'>Sentiment (Tiingo)</th><th title='StockTwits &mdash; bull/bear tag ratio from public messages'>Sentiment (ST)</th><th title='Finviz &mdash; news headlines scored with VADER'>Sentiment (FV)</th><th title='Z-score normalized composite'>Sent (C)</th><th>Close Price</th><th>Indicators</th></tr>")
+        html.append("<tr><th>Symbol</th><th>Exchange</th><th>Strategy</th><th title='Validated per-trade R for the sleeve. Live allocator ranks by Score &times; this.'>Edge-wt R</th><th title='Oversold depth score within the sleeve'>Score</th><th title='Ichimoku cloud-dislocation (advisory): &#11088; = &ge;26 bars below cloud &amp; RSI&lt;30 (confluence cell); &#9670; = &ge;26 bars below cloud &amp; RSI&ge;30 (chronic). Liquid &ge;$25M only.'>Signal</th><th title='AlphaVantage NEWS_SENTIMENT API'>Sentiment (AV)</th><th title='Tiingo News API &mdash; headlines scored with VADER'>Sentiment (Tiingo)</th><th title='StockTwits &mdash; bull/bear tag ratio from public messages'>Sentiment (ST)</th><th title='Finviz &mdash; news headlines scored with VADER'>Sentiment (FV)</th><th title='Z-score normalized composite'>Sent (C)</th><th>Close Price</th><th>Indicators</th></tr>")
 
 
         for cand in top_candidates:
@@ -756,6 +750,7 @@ class HTMLReporter:
             html.append(f"<td><a href='{url}' target='_blank' class='symbol-link'><strong>{symbol}</strong></a></td>")
             html.append(f"<td><small>{cand.get('exchange', 'Unknown')}</small></td>")
             html.append(f"<td>{cand.get('strategy', 'N/A')}</td>")
+            html.append(f"<td><strong>{edge_weights.get(cand.get('strategy', ''), 0.0):.3f}</strong></td>")
             html.append(f"<td class='{score_cls}'>{score:.2f}</td>")
             html.append(f"<td>{self._cloud_signal_badge(cand)}</td>")
             html.append(f"<td>{self._get_sentiment_display(cand.get('sentiment', 0.0))}</td>")
@@ -801,17 +796,9 @@ class HTMLReporter:
         Returns:
             Email-friendly HTML string
         """
-        # Filter top candidates for each strategy (sort by score, then ML confidence)
-        top_n = self.TOP_CANDIDATES_PER_STRATEGY
-        strategy_tops = {}
-        for strat in get_all_strategies():
-            strategy_tops[strat.display_name] = sorted(
-                [c for c in candidates if c.get('strategy') == strat.display_name],
-                key=lambda x: (x.get('score', 0), x.get('ml_prob', 0)),
-                reverse=True,
-            )[:top_n]
-        baseline_top = strategy_tops.get('Baseline', [])
-        meanrev_top = strategy_tops.get('MeanRev', [])
+        # Live sleeves drive the report (paper_tradeable gate + edge-weight, the
+        # same signals PaperTrader uses). Untraded sleeves are no longer surfaced.
+        live_sleeves, edge_weights = self._live_sleeves()
 
         # Inline CSS optimized for email clients
         email_css = """
@@ -896,108 +883,6 @@ class HTMLReporter:
         # Signal Track Record (how matured picks actually performed)
         html.extend(self._track_record_email_html(self._track_record(date)))
 
-        # Top Baseline Candidates
-        html.append("<div class='strategy-section'>")
-        html.append(f"<h3>Top {top_n} Baseline (Trend Following)</h3>")
-
-        if baseline_top:
-            html.append("<table>")
-            html.append("<tr><th>Symbol</th><th>Score</th><th title='AlphaVantage NEWS_SENTIMENT API'>Sent (AV)</th><th title='Tiingo News API &mdash; headlines scored with VADER'>Sent (TI)</th><th title='StockTwits &mdash; bull/bear tag ratio from public messages'>Sent (ST)</th><th title='Finviz &mdash; news headlines scored with VADER'>Sent (FV)</th><th title='Z-score normalized composite'>Sent (C)</th><th>ML Confidence</th><th>Entry</th><th title='Required pullback from score-date close to entry limit'>&Delta;Entry</th><th>Stop</th><th>T1 (+2%)</th><th>T2 Target</th></tr>")
-            for c in baseline_top:
-                symbol = c['symbol']
-                url = f"https://finance.yahoo.com/quote/{symbol}"
-                score = c.get('score', 0)
-
-                # Score class
-                if score >= 80:
-                    score_cls = "score-high"
-                elif score >= 50:
-                    score_cls = "score-med"
-                else:
-                    score_cls = "score-low"
-
-                ml_prob = c.get('ml_prob', 0.0)
-                entry = c.get('close', 0)
-                actual_close = c.get('actual_close', 0)
-                stop = c.get('stop_loss', 0)
-                t1 = c.get('t1_target', entry * 1.02 if entry else 0)
-                target = c.get('target', 0)
-                stop_pct = ((stop - entry) / entry * 100) if entry else 0
-                target_pct = ((target - entry) / entry * 100) if entry else 0
-                entry_dist_pct = ((actual_close - entry) / actual_close * 100) if actual_close else 0
-                # "—" rather than "+0.00%" for old MongoDB docs that pre-date the field.
-                entry_dist_display = f"{entry_dist_pct:+.2f}%" if actual_close else "&mdash;"
-
-                html.append("<tr>")
-                html.append(f"<td><a href='{url}' target='_blank'><strong>{symbol}</strong></a></td>")
-                html.append(f"<td class='{score_cls}'>{score:.1f}</td>")
-                html.append(f"<td>{self._get_sentiment_display(c.get('sentiment', 0.0))}</td>")
-                html.append(f"<td>{self._get_sentiment_display(c.get('sentiment_tiingo', 0.0))}</td>")
-                html.append(f"<td>{self._get_sentiment_display(c.get('sentiment_stocktwits', 0.0))}</td>")
-                html.append(f"<td>{self._get_sentiment_display(c.get('sentiment_finviz', 0.0))}</td>")
-                html.append(f"<td><strong>{self._get_sentiment_display(c.get('sentiment_composite', 0.0))}</strong></td>")
-                html.append(f"<td>{ml_prob*100:.0f}%</td>")
-                html.append(f"<td>${entry:.2f}</td>")
-                html.append(f"<td>{entry_dist_display}</td>")
-                html.append(f"<td style='color:#c0392b;font-weight:bold'>${stop:.2f} <span style='font-size:0.85em'>({stop_pct:.1f}%)</span></td>")
-                html.append(f"<td style='color:#e67e22;font-weight:bold'>${t1:.2f} <span style='font-size:0.85em'>(+2.0%)</span></td>")
-                html.append(f"<td style='color:#27ae60;font-weight:bold'>${target:.2f} <span style='font-size:0.85em'>(+{target_pct:.1f}%)</span></td>")
-                html.append("</tr>")
-            html.append("</table>")
-        else:
-            html.append("<p>No candidates found for this strategy.</p>")
-
-        html.append("</div>")
-
-        # Top Mean Reversion Candidates
-        html.append("<div class='strategy-section'>")
-        html.append(f"<h3>Top {top_n} Mean Reversion</h3>")
-
-        if meanrev_top:
-            html.append("<table>")
-            html.append("<tr><th>Symbol</th><th>Score</th><th title='AlphaVantage NEWS_SENTIMENT API'>Sent (AV)</th><th title='Tiingo News API &mdash; headlines scored with VADER'>Sent (TI)</th><th title='StockTwits &mdash; bull/bear tag ratio from public messages'>Sent (ST)</th><th title='Finviz &mdash; news headlines scored with VADER'>Sent (FV)</th><th title='Z-score normalized composite'>Sent (C)</th><th>ML Confidence</th><th>Entry</th><th title='Mean Reversion enters at the close, so there is no required pullback'>&Delta;Entry</th><th>Stop</th><th>T1 (+2%)</th><th>T2 Target</th></tr>")
-            for c in meanrev_top:
-                symbol = c['symbol']
-                url = f"https://finance.yahoo.com/quote/{symbol}"
-                score = c.get('score', 0)
-
-                # Score class
-                if score >= 80:
-                    score_cls = "score-high"
-                elif score >= 50:
-                    score_cls = "score-med"
-                else:
-                    score_cls = "score-low"
-
-                ml_prob = c.get('ml_prob', 0.0)
-                entry = c.get('close', 0)
-                stop = c.get('stop_loss', 0)
-                t1 = c.get('t1_target', entry * 1.02 if entry else 0)
-                target = c.get('target', 0)
-                stop_pct = ((stop - entry) / entry * 100) if entry else 0
-                target_pct = ((target - entry) / entry * 100) if entry else 0
-
-                html.append("<tr>")
-                html.append(f"<td><a href='{url}' target='_blank'><strong>{symbol}</strong></a></td>")
-                html.append(f"<td class='{score_cls}'>{score:.1f}</td>")
-                html.append(f"<td>{self._get_sentiment_display(c.get('sentiment', 0.0))}</td>")
-                html.append(f"<td>{self._get_sentiment_display(c.get('sentiment_tiingo', 0.0))}</td>")
-                html.append(f"<td>{self._get_sentiment_display(c.get('sentiment_stocktwits', 0.0))}</td>")
-                html.append(f"<td>{self._get_sentiment_display(c.get('sentiment_finviz', 0.0))}</td>")
-                html.append(f"<td><strong>{self._get_sentiment_display(c.get('sentiment_composite', 0.0))}</strong></td>")
-                html.append(f"<td>{ml_prob*100:.0f}%</td>")
-                html.append(f"<td>${entry:.2f}</td>")
-                html.append(f"<td>&mdash;</td>")
-                html.append(f"<td style='color:#c0392b;font-weight:bold'>${stop:.2f} <span style='font-size:0.85em'>({stop_pct:.1f}%)</span></td>")
-                html.append(f"<td style='color:#e67e22;font-weight:bold'>${t1:.2f} <span style='font-size:0.85em'>(+2.0%)</span></td>")
-                html.append(f"<td style='color:#27ae60;font-weight:bold'>${target:.2f} <span style='font-size:0.85em'>(+{target_pct:.1f}%)</span></td>")
-                html.append("</tr>")
-            html.append("</table>")
-        else:
-            html.append("<p>No candidates found for this strategy.</p>")
-
-        html.append("</div>")
-
         # Connors RSI(2) Setups Section
         connors_top = [c for c in candidates if c.get('strategy') == 'Connors']
         html.append("<div class='strategy-section'>")
@@ -1032,14 +917,17 @@ class HTMLReporter:
             html.append("<p>No Connors RSI(2) setups today.</p>")
         html.append("</div>")
 
-        # Top Candidates Table - simplified
-        top_candidates = sorted(candidates,
-                               key=lambda x: (x.get('score', 0), x.get('ml_prob', 0)),
-                               reverse=True)[:self.TOP_CANDIDATES_TABLE_LIMIT]
+        # Top Candidates Table = the live trade list: only paper_tradeable sleeves,
+        # ranked by Score x edge-weight (the live allocator's key).
+        top_candidates = self._edge_rank(candidates, live_sleeves, edge_weights,
+                                         limit=self.TOP_CANDIDATES_TABLE_LIMIT)
 
-        html.append(f"<h2>All Top Candidates ({len(top_candidates)})</h2>")
+        html.append(f"<h2>Top Candidates ({len(top_candidates)})</h2>")
+        html.append("<p class='small-text'>Live book trades these mechanically: validated "
+                    "deep-oversold sleeves only, ranked by Score &times; edge-weight (the "
+                    "allocator's key). ML win-probability is not a ranking input.</p>")
         html.append("<table>")
-        html.append("<tr><th>Symbol</th><th>Strategy</th><th>Score</th><th title='AlphaVantage NEWS_SENTIMENT API'>Sent (AV)</th><th title='Tiingo News API &mdash; headlines scored with VADER'>Sent (TI)</th><th title='StockTwits &mdash; bull/bear tag ratio from public messages'>Sent (ST)</th><th title='Finviz &mdash; news headlines scored with VADER'>Sent (FV)</th><th title='Z-score normalized composite'>Sent (C)</th><th>ML</th><th>Price</th><th>Top Indicators</th></tr>")
+        html.append("<tr><th>Symbol</th><th>Strategy</th><th title='Validated per-trade R; allocator ranks by Score &times; this'>Edge-wt R</th><th>Score</th><th title='AlphaVantage NEWS_SENTIMENT API'>Sent (AV)</th><th title='Tiingo News API &mdash; headlines scored with VADER'>Sent (TI)</th><th title='StockTwits &mdash; bull/bear tag ratio from public messages'>Sent (ST)</th><th title='Finviz &mdash; news headlines scored with VADER'>Sent (FV)</th><th title='Z-score normalized composite'>Sent (C)</th><th>Price</th><th>Top Indicators</th></tr>")
 
         for cand in top_candidates:
             score = cand.get('score', 0)
@@ -1060,18 +948,17 @@ class HTMLReporter:
 
             symbol = cand['symbol']
             url = f"https://finance.yahoo.com/quote/{symbol}"
-            ml_prob = cand.get('ml_prob', 0.0)
 
             html.append("<tr>")
             html.append(f"<td><a href='{url}' target='_blank'><strong>{symbol}</strong></a></td>")
             html.append(f"<td>{cand.get('strategy', 'N/A')}</td>")
+            html.append(f"<td><strong>{edge_weights.get(cand.get('strategy', ''), 0.0):.3f}</strong></td>")
             html.append(f"<td class='{score_cls}'>{score:.1f}</td>")
             html.append(f"<td>{self._get_sentiment_display(cand.get('sentiment', 0.0))}</td>")
             html.append(f"<td>{self._get_sentiment_display(cand.get('sentiment_tiingo', 0.0))}</td>")
             html.append(f"<td>{self._get_sentiment_display(cand.get('sentiment_stocktwits', 0.0))}</td>")
             html.append(f"<td>{self._get_sentiment_display(cand.get('sentiment_finviz', 0.0))}</td>")
             html.append(f"<td><strong>{self._get_sentiment_display(cand.get('sentiment_composite', 0.0))}</strong></td>")
-            html.append(f"<td>{ml_prob*100:.0f}%</td>")
             html.append(f"<td>${cand.get('close', 0):.2f}</td>")
             html.append(f"<td class='small-text'>{top_indicators}</td>")
             html.append("</tr>")
@@ -1134,14 +1021,23 @@ class HTMLReporter:
         Returns:
             Complete HTML string for the arcade report
         """
+        # Only surface what the bot actually trades: paper_tradeable sleeves, plus
+        # Connors (fills leftover live capacity). Untraded Baseline/MeanRev/ADX-Down
+        # are dropped, mirroring the static reports. See project_live_sleeve_gate.
+        live_sleeves, edge_weights = self._live_sleeves()
+        shown = live_sleeves | {'Connors'}
+
         # Prepare candidates for JSON serialization
         report_candidates = []
         for c in candidates:
+            if c.get('strategy') not in shown:
+                continue
             rc = {
                 'symbol': c.get('symbol', '???'),
                 'exchange': c.get('exchange', ''),
                 'strategy': c.get('strategy', 'Baseline'),
                 'score': float(c.get('score', 0)),
+                'edge_weight': float(edge_weights.get(c.get('strategy', ''), 0.0)),
                 'close': float(c.get('close', 0)),
                 'stop_loss': float(c.get('stop_loss', 0)),
                 't1_target': float(c.get('t1_target', 0)),
@@ -1168,7 +1064,9 @@ class HTMLReporter:
             if c.get('connors_sma200') is not None:
                 rc['connors_sma200'] = float(c['connors_sma200'])
             report_candidates.append(rc)
-        report_candidates.sort(key=lambda x: x['score'], reverse=True)
+        # Rank by the live allocator's key: Score x edge-weight (Connors edge_weight
+        # is 0, so it sorts last — consistent with its leftover-only live status).
+        report_candidates.sort(key=lambda x: x['score'] * x.get('edge_weight', 0.0), reverse=True)
 
         # Prepare regime data
         report_regime = {
@@ -1413,6 +1311,7 @@ body::after {
 .strategy-badge.baseline { color: var(--neon-green); border-color: var(--neon-green-dim); background: rgba(57,255,20,0.08); }
 .strategy-badge.meanrev { color: var(--neon-purple); border-color: rgba(191,64,255,0.4); background: rgba(191,64,255,0.08); }
 .strategy-badge.connors { color: var(--neon-amber); border-color: var(--neon-amber-dim); background: rgba(255,170,0,0.08); }
+.strategy-badge.deepos { color: var(--neon-blue); border-color: rgba(0,212,255,0.4); background: rgba(0,212,255,0.08); }
 .col-score { display: flex; align-items: center; gap: 6px; }
 .health-bar { width: 60px; height: 12px; background: var(--pixel-dark); border: 1px solid var(--pixel-gray); position: relative; overflow: hidden; }
 .health-bar-fill { height: 100%; transition: width 0.5s ease-out; image-rendering: pixelated; }
@@ -1589,11 +1488,22 @@ const state = {
 };
 
 function normalizeStrategy(s) {
-  if (!s) return 'Baseline';
+  if (!s) return 'DeepOS';
   const lower = s.toLowerCase();
-  if (lower.includes('mean') || lower.includes('reversion') || lower === 'meanrev') return 'MeanRev';
+  if (lower.includes('ha')) return 'DeepOS+HA';
+  if (lower.includes('deep') || lower.includes('oversold')) return 'DeepOS';
   if (lower === 'connors') return 'Connors';
-  return 'Baseline';
+  if (lower.includes('mean') || lower.includes('reversion') || lower === 'meanrev') return 'MeanRev';
+  return 'DeepOS';
+}
+
+// Strategy badge: (cssClass, shortLabel) for the leaderboard chips.
+function strategyChip(s) {
+  if (s === 'Connors') return ['connors', 'CR'];
+  if (s === 'DeepOS+HA') return ['deepos', 'HA'];
+  if (s === 'DeepOS') return ['deepos', 'OS'];
+  if (s === 'MeanRev') return ['meanrev', 'MR'];
+  return ['baseline', 'BL'];
 }
 
 function renderAll() {
@@ -1730,8 +1640,9 @@ function renderLeaderboard() {
     const mlColor = mlPct >= 70 ? 'green' : mlPct >= 50 ? 'amber' : 'red';
     const mlTextClass = mlPct >= 70 ? 'score-high' : mlPct >= 50 ? 'score-mid' : 'score-low';
     const rankClass = rank <= 3 ? 'rank-' + rank : '';
-    const stratClass = c.strategy === 'Connors' ? 'connors' : c.strategy === 'MeanRev' ? 'meanrev' : 'baseline';
-    const stratLabel = c.strategy === 'Connors' ? 'CR' : c.strategy === 'MeanRev' ? 'MR' : 'BL';
+    const _chip = strategyChip(c.strategy);
+    const stratClass = _chip[0];
+    const stratLabel = _chip[1];
     const sent = c.sentiment_composite || 0;
     const sentClass = sent === 0 ? 'sent-neutral' : sent > 0.15 ? 'sent-bull' : sent < -0.15 ? 'sent-bear' : 'sent-neutral';
     const sentLabel = sent === 0 ? 'N/A' : (sent > 0 ? '\u25B2' : '\u25BC') + sent.toFixed(2);
@@ -2000,7 +1911,11 @@ function normalizeRR(entry, stop, target) {
   return Math.min(1, Math.log(1 + rr) / Math.log(1 + 5));
 }
 function compositeWeight(c) {
-  return 0.40 * normalizeScore(c.score) + 0.35 * normalizeMlProb(c.ml_prob || 0) + 0.25 * normalizeRR(c.close, c.stop_loss, c.target);
+  // ML win-prob dropped from the blend: it carries no selection signal here
+  // (test AUC ~0.50, see project_deep_os_ml_selection). Edge-weight (validated
+  // per-trade R) replaces it as the conviction term.
+  var edge = Math.max(0, Math.min(1, (c.edge_weight || 0) / 0.4));
+  return 0.45 * normalizeScore(c.score) + 0.30 * edge + 0.25 * normalizeRR(c.close, c.stop_loss, c.target);
 }
 function toggleSelection(key, event) {
   event.stopPropagation();
@@ -2099,8 +2014,9 @@ function renderPortfolioTable(results) {
     return;
   }
   body.innerHTML = results.map(function(r, i) {
-    var stratClass = r.strategy === 'Connors' ? 'connors' : r.strategy === 'MeanRev' ? 'meanrev' : 'baseline';
-    var stratLabel = r.strategy === 'Connors' ? 'CR' : r.strategy === 'MeanRev' ? 'MR' : 'BL';
+    var _chip = strategyChip(r.strategy);
+    var stratClass = _chip[0];
+    var stratLabel = _chip[1];
     var t1Val = r.t1_target ? '$' + r.t1_target.toFixed(2) : '---';
     return '<div class="portfolio-table-row">' +
       '<div class="portfolio-col-rank">' + String(i + 1).padStart(2, '0') + '</div>' +
@@ -2204,8 +2120,8 @@ document.addEventListener('DOMContentLoaded', function() {
             # Strategy tabs
             '<div class="strategy-tabs" id="stratTabs" style="display:none">',
             '<button class="strategy-tab active" data-filter="all" onclick="filterStrategy(\'all\', this)">ALL</button>',
-            '<button class="strategy-tab" data-filter="Baseline" onclick="filterStrategy(\'Baseline\', this)">BASELINE</button>',
-            '<button class="strategy-tab" data-filter="MeanRev" onclick="filterStrategy(\'MeanRev\', this)">MEAN REV</button>',
+            '<button class="strategy-tab" data-filter="DeepOS" onclick="filterStrategy(\'DeepOS\', this)">DEEP OS</button>',
+            '<button class="strategy-tab" data-filter="DeepOS+HA" onclick="filterStrategy(\'DeepOS+HA\', this)">DEEP OS+HA</button>',
             '<button class="strategy-tab" data-filter="Connors" onclick="filterStrategy(\'Connors\', this)">CONNORS</button>',
             '</div>',
 
