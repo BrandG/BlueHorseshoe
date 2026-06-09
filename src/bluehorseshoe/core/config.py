@@ -205,6 +205,8 @@ class Settings(BaseSettings):
 
     # Feature Flags
     holiday_mode: bool = False
+    deep_oversold_nonbull_gate: bool = False
+    deep_oversold_solvency_filter: bool = False
 
     model_config = SettingsConfigDict(
         env_file=".env",

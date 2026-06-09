@@ -124,6 +124,7 @@ DEEP_OVERSOLD_AGE_STEP = 1.5
 # These are the gauntlet's cost/liquidity-survived numbers; re-measure if the rule changes.
 DEEP_OVERSOLD_EDGE_R = 0.142             # cost/liq-survived gauntlet, >$25M-vol tier
 DEEP_OVERSOLD_HA_EDGE_R = 0.404          # nonbull S4 realistic — the high-conviction tier (~2.8x)
+DEEP_OVERSOLD_Z_DISTRESS = 1.1           # Altman-Z'' hard distress filter threshold (known-Z only)
 
 # ---------------------------------------------------------------------------
 # Deep-downtrend contrarian sleeve (adx_diDown) — TRACKING-ONLY, 2026-06-07

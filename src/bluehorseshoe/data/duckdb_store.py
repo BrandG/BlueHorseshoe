@@ -13,6 +13,7 @@ Usage:
     store.close()
 """
 import logging
+from pathlib import Path
 import threading
 from typing import Dict, List, Optional
 
@@ -36,6 +37,28 @@ _SCHEMA_COLUMNS = [
 
 # Set of column names accepted by save_symbol() — anything else is dropped.
 _CORE_COLUMNS = {"symbol", "date", "open", "high", "low", "close", "volume"}
+
+_FUNDAMENTALS_COLUMNS = [
+    ("symbol", "VARCHAR NOT NULL"),
+    ("fiscalDateEnding", "DATE NOT NULL"),
+    ("reportedDate", "DATE NOT NULL"),
+    ("altman_z", "DOUBLE"),
+    ("fscore", "INTEGER"),
+    ("n_avail", "INTEGER"),
+    ("ni_ttm", "DOUBLE"),
+    ("ocf_ttm", "DOUBLE"),
+    ("rev_ttm", "DOUBLE"),
+    ("ebit_ttm", "DOUBLE"),
+    ("total_assets", "DOUBLE"),
+    ("total_liabilities", "DOUBLE"),
+    ("total_debt", "DOUBLE"),
+    ("current_assets", "DOUBLE"),
+    ("current_liabilities", "DOUBLE"),
+    ("retained_earnings", "DOUBLE"),
+    ("shares_out", "DOUBLE"),
+]
+
+_FUNDAMENTALS_COLUMN_NAMES = [name for name, _ in _FUNDAMENTALS_COLUMNS]
 
 
 class DuckDBStore:
@@ -70,6 +93,27 @@ class DuckDBStore:
                 last_updated VARCHAR
             )
         """)
+
+        fund_cols_sql = ", ".join(f'"{name}" {dtype}' for name, dtype in _FUNDAMENTALS_COLUMNS)
+        self._con.execute(f"""
+            CREATE TABLE IF NOT EXISTS fundamentals ({fund_cols_sql})
+        """)
+
+    @staticmethod
+    def _with_altman_z(df: pd.DataFrame) -> pd.DataFrame:
+        """Return a copy with book-only Altman-Z'' computed from PIT statement fields."""
+        out = df.copy()
+        wc = out["current_assets"] - out["current_liabilities"]
+        ta = out["total_assets"]
+        tl = out["total_liabilities"]
+        equity_book = ta - tl
+        out["altman_z"] = (
+            6.56 * (wc / ta)
+            + 3.26 * (out["retained_earnings"] / ta)
+            + 6.72 * (out["ebit_ttm"] / ta)
+            + 1.05 * (equity_book / tl)
+        )
+        return out
 
     # ------------------------------------------------------------------
     # Write
@@ -116,6 +160,46 @@ class DuckDBStore:
                 INSERT OR REPLACE INTO symbol_metadata (symbol, full_name, last_updated)
                 VALUES (?, ?, ?)
             """, [symbol, full_name or symbol, ts])
+
+    def save_fundamentals(self, df: pd.DataFrame) -> None:
+        """Upsert PIT fundamentals rows keyed by symbol + fiscalDateEnding."""
+        if self._read_only:
+            raise RuntimeError("Cannot write to a read-only DuckDBStore")
+        if df is None or df.empty:
+            return
+
+        df = self._with_altman_z(df) if "altman_z" not in df.columns else df.copy()
+        df["fiscalDateEnding"] = pd.to_datetime(df["fiscalDateEnding"]).dt.date
+        df["reportedDate"] = pd.to_datetime(df["reportedDate"]).dt.date
+
+        for col in _FUNDAMENTALS_COLUMN_NAMES:
+            if col not in df.columns:
+                df[col] = None
+        df = df[_FUNDAMENTALS_COLUMN_NAMES]
+        cols_sql = ", ".join(f'"{c}"' for c in _FUNDAMENTALS_COLUMN_NAMES)
+
+        with self._lock:
+            self._con.execute("""
+                DELETE FROM fundamentals
+                WHERE (symbol, fiscalDateEnding) IN (
+                    SELECT symbol, fiscalDateEnding FROM df
+                )
+            """)
+            self._con.execute(f"""
+                INSERT INTO fundamentals ({cols_sql})
+                SELECT {cols_sql} FROM df
+            """)
+
+    def seed_fundamentals_from_parquet(self, parquet_path: str = "data/fundamentals.parquet") -> int:
+        """Load the validated research fundamentals parquet into DuckDB."""
+        path = Path(parquet_path)
+        if not path.exists():
+            raise FileNotFoundError(f"Fundamentals parquet not found: {parquet_path}")
+        df = pd.read_parquet(path)
+        before = self.fundamentals_row_count()
+        self.save_fundamentals(df)
+        after = self.fundamentals_row_count()
+        return after - before
 
     # ------------------------------------------------------------------
     # Read — single symbol
@@ -213,6 +297,51 @@ class DuckDBStore:
             result[str(sym)] = grp
         return result
 
+    def load_solvency_asof(self, date: str) -> Dict[str, float]:
+        """
+        Load latest Altman-Z'' by symbol with reportedDate <= date.
+
+        This is point-in-time safe: rows reported after the as-of date are never
+        returned.
+        """
+        with self._lock:
+            df = self._con.execute("""
+                SELECT symbol, altman_z
+                FROM (
+                    SELECT
+                        symbol,
+                        altman_z,
+                        reportedDate,
+                        ROW_NUMBER() OVER (
+                            PARTITION BY symbol
+                            ORDER BY reportedDate DESC, fiscalDateEnding DESC
+                        ) AS rn
+                    FROM fundamentals
+                    WHERE reportedDate <= CAST(? AS DATE)
+                      AND altman_z IS NOT NULL
+                )
+                WHERE rn = 1
+            """, [date]).fetchdf()
+        if df.empty:
+            return {}
+        return {str(row["symbol"]): float(row["altman_z"]) for _, row in df.iterrows()}
+
+    def get_latest_fundamental_reported_dates(self) -> Dict[str, str]:
+        """Return latest fundamentals reportedDate by symbol."""
+        with self._lock:
+            df = self._con.execute("""
+                SELECT symbol, MAX(reportedDate) AS reportedDate
+                FROM fundamentals
+                GROUP BY symbol
+            """).fetchdf()
+        if df.empty:
+            return {}
+        return {
+            str(row["symbol"]): str(row["reportedDate"])[:10]
+            for _, row in df.iterrows()
+            if pd.notna(row["reportedDate"])
+        }
+
     def load_universe_snapshot(
         self,
         date: str,
@@ -297,6 +426,17 @@ class DuckDBStore:
                 ).fetchone()
             else:
                 row = self._con.execute("SELECT COUNT(*) FROM ohlcv").fetchone()
+        return row[0] if row else 0
+
+    def fundamentals_row_count(self, symbol: Optional[str] = None) -> int:
+        """Return fundamentals row count, optionally filtered by symbol."""
+        with self._lock:
+            if symbol:
+                row = self._con.execute(
+                    "SELECT COUNT(*) FROM fundamentals WHERE symbol = ?", [symbol]
+                ).fetchone()
+            else:
+                row = self._con.execute("SELECT COUNT(*) FROM fundamentals").fetchone()
         return row[0] if row else 0
 
     # ------------------------------------------------------------------

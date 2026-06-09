@@ -68,6 +68,7 @@ class StrategyContext:
     market_health: Optional[Dict[str, Any]] = None
     symbol_map: Optional[Dict[str, str]] = None
     score_history: Optional[Dict[str, List[float]]] = None
+    solvency: Optional[Dict[str, float]] = None
 
 class SwingTrader:
     """Main class for swing trading analysis."""
@@ -673,6 +674,7 @@ class SwingTrader:
             'aggregation': ctx.aggregation,
             'score_history': score_history,
             'motif_scores': motif_scores,
+            'solvency': ctx.solvency or {},
         }
 
         # ML model paths
@@ -894,6 +896,14 @@ class SwingTrader:
 
         # 2. Setup Data
         benchmark_df = self._load_benchmark_data(target_date)
+        solvency = {}
+        if self.store is not None:
+            asof_date = (
+                target_date
+                or (self.store.get_latest_date() if hasattr(self.store, "get_latest_date") else None)
+            )
+            if asof_date and hasattr(self.store, "load_solvency_asof"):
+                solvency = self.store.load_solvency_asof(str(asof_date)[:10])
         if symbols is None:
             symbols = get_symbol_name_list(database=self.database, active_only=True)
 
@@ -918,7 +928,8 @@ class SwingTrader:
             aggregation=aggregation,
             benchmark_df=benchmark_df,
             market_health=market_health,
-            symbol_map=symbol_map
+            symbol_map=symbol_map,
+            solvency=solvency,
         )
 
         # 3. Execute
@@ -1046,6 +1057,7 @@ def _init_worker(overlay_paths, stop_loss_path, profit_target_paths, shared_ctx)
         'aggregation': shared_ctx.get('aggregation', 'sum'),
         'score_history': shared_ctx.get('score_history', {}),
         'motif_scores': shared_ctx.get('motif_scores', {}),
+        'solvency': shared_ctx.get('solvency', {}),
         'ml_overlay': {'models': {}, 'encoders': {}, 'features': {}},
         'ml_stop_loss': {'model': None, 'encoders': {}, 'features': []},
         'ml_profit_target': {'models': {}, 'encoders': {}, 'features': {}},

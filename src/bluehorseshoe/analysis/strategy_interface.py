@@ -24,8 +24,9 @@ from bluehorseshoe.analysis.constants import (
     MIN_RR_RATIO_MEAN_REVERSION,
     REGIME_PROFILES,
     REQUIRE_WEEKLY_UPTREND,
+    DEEP_OVERSOLD_Z_DISTRESS,
 )
-from bluehorseshoe.core.config import weights_config
+from bluehorseshoe.core.config import get_settings, weights_config
 
 
 # ---------------------------------------------------------------------------
@@ -833,12 +834,31 @@ class DeepOversoldStrategy(TradingStrategy):
         components = {"oversold_age": float(age), "rsi": float(rsi[-1])}
         return self._bracket_result(df, regime_status, score, components)
 
+    def _solvency_ok(self, symbol: str, solvency: Optional[Dict[str, float]]) -> bool:
+        """Keep unknown-Z names; drop only known distressed Altman-Z'' names."""
+        z_score = (solvency or {}).get(symbol)
+        return z_score is None or float(z_score) >= DEEP_OVERSOLD_Z_DISTRESS
+
     def process(self, trader, df, symbol, yesterday, ctx):
+        config = getattr(trader, "config", None) or get_settings()
+        if config.deep_oversold_nonbull_gate:
+            if spy_is_nonbull(getattr(ctx, 'benchmark_df', None)) is not True:
+                return None
+        if config.deep_oversold_solvency_filter:
+            if not self._solvency_ok(symbol, getattr(ctx, 'solvency', None)):
+                return None
         regime_status = (ctx.market_health or {}).get('status')
         return self._evaluate(trader, df, regime_status)
 
     def process_worker(self, trader, df, symbol, yesterday, worker_state,
                        overview, sentiment):
+        config = getattr(trader, "config", None) or get_settings()
+        if config.deep_oversold_nonbull_gate:
+            if spy_is_nonbull(worker_state.get('benchmark_df')) is not True:
+                return None
+        if config.deep_oversold_solvency_filter:
+            if not self._solvency_ok(symbol, worker_state.get('solvency')):
+                return None
         regime_status = (worker_state.get('market_health') or {}).get('status')
         return self._evaluate(trader, df, regime_status)
 
@@ -940,6 +960,10 @@ class DeepOversoldHAStrategy(DeepOversoldStrategy):
         if self.spy_is_nonbull(benchmark_df) is not True:
             return False
         return self.heiken_ashi_last_is_green(df)
+
+    def _solvency_ok(self, symbol: str, solvency: Optional[Dict[str, float]]) -> bool:
+        """HA is intentionally not filtered; its own gates subsume solvency."""
+        return True
 
     # -- Scoring (delegate to DeepOversold once the gates pass) ----------------
 

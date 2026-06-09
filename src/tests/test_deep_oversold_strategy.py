@@ -5,12 +5,14 @@ The strategy is mechanical and ML-free: it fires only when RSI(14) has been belo
 the floor. These tests build synthetic OHLCV frames that put RSI in known states
 and assert the gates (age, liquidity, no-signal) behave.
 """
+from types import SimpleNamespace
+
 import numpy as np
 import pandas as pd
 import pytest
 
 from bluehorseshoe.analysis.strategy import SwingTrader
-from bluehorseshoe.analysis.strategy_interface import DeepOversoldStrategy
+from bluehorseshoe.analysis.strategy_interface import DeepOversoldHAStrategy, DeepOversoldStrategy
 from bluehorseshoe.analysis import constants as C
 
 
@@ -50,6 +52,32 @@ def _falling_then_floor(n_fall, floor_len, start=100.0, drop=0.01, warmup=30):
         path.append(path[-1] * (1 - drop))
     path += [path[-1]] * floor_len
     return path
+
+
+def _spy_frame(bull=True):
+    """SPY history that deterministically trips the EMA nonbull helper."""
+    if bull:
+        closes = [100.0] * 220 + [120.0] * 30
+    else:
+        closes = [120.0] * 220 + [90.0] * 30
+    return _frame(closes, volume=10_000_000)
+
+
+def _ctx(**kwargs):
+    defaults = {
+        "market_health": {"status": "Bearish"},
+        "benchmark_df": None,
+        "solvency": {},
+    }
+    defaults.update(kwargs)
+    return SimpleNamespace(**defaults)
+
+
+def _config(nonbull=False, solvency=False):
+    return SimpleNamespace(
+        deep_oversold_nonbull_gate=nonbull,
+        deep_oversold_solvency_filter=solvency,
+    )
 
 
 class TestDeepOversoldGates:
@@ -111,3 +139,54 @@ class TestDeepOversoldGates:
         strat = DeepOversoldStrategy()
         df = _frame([100.0, 99.0, 98.0], volume=10_000_000)
         assert strat._evaluate(trader, df, regime_status="Neutral") is None
+
+    def test_solvency_filter_drops_known_distress(self, trader):
+        trader.config = _config(solvency=True)
+        strat = DeepOversoldStrategy()
+        df = _frame(_falling_then_floor(n_fall=40, floor_len=0), volume=10_000_000)
+
+        res = strat.process(
+            trader, df, "DISTRESS", dict(df.iloc[-1]),
+            _ctx(solvency={"DISTRESS": C.DEEP_OVERSOLD_Z_DISTRESS - 0.01}),
+        )
+
+        assert res is None
+
+    def test_solvency_filter_keeps_unknown_z(self, trader):
+        trader.config = _config(solvency=True)
+        strat = DeepOversoldStrategy()
+        df = _frame(_falling_then_floor(n_fall=40, floor_len=0), volume=10_000_000)
+
+        res = strat.process(trader, df, "UNKNOWN", dict(df.iloc[-1]), _ctx(solvency={}))
+
+        assert res is not None
+
+    def test_ha_solvency_filter_is_noop(self):
+        strat = DeepOversoldHAStrategy()
+
+        assert strat._solvency_ok("DISTRESS", {"DISTRESS": C.DEEP_OVERSOLD_Z_DISTRESS - 0.01})
+
+    @pytest.mark.parametrize("benchmark_df", [None, _spy_frame(bull=True)])
+    def test_nonbull_gate_fails_closed_on_missing_or_bull_spy(self, trader, benchmark_df):
+        trader.config = _config(nonbull=True)
+        strat = DeepOversoldStrategy()
+        df = _frame(_falling_then_floor(n_fall=40, floor_len=0), volume=10_000_000)
+
+        res = strat.process(
+            trader, df, "AAPL", dict(df.iloc[-1]),
+            _ctx(benchmark_df=benchmark_df),
+        )
+
+        assert res is None
+
+    def test_nonbull_gate_fires_on_nonbull_spy(self, trader):
+        trader.config = _config(nonbull=True)
+        strat = DeepOversoldStrategy()
+        df = _frame(_falling_then_floor(n_fall=40, floor_len=0), volume=10_000_000)
+
+        res = strat.process(
+            trader, df, "AAPL", dict(df.iloc[-1]),
+            _ctx(benchmark_df=_spy_frame(bull=False)),
+        )
+
+        assert res is not None

@@ -151,6 +151,62 @@ class TestBulkLoad:
         assert store.load_symbols_bulk([]) == {}
 
 
+class TestFundamentals:
+    def test_load_solvency_asof_is_point_in_time(self, store):
+        rows = pd.DataFrame({
+            "symbol": ["AAPL", "AAPL", "MSFT"],
+            "fiscalDateEnding": ["2025-03-31", "2025-06-30", "2025-03-31"],
+            "reportedDate": ["2025-04-25", "2025-07-25", "2025-04-20"],
+            "altman_z": [0.9, 5.0, 2.2],
+            "fscore": [4, 7, 6],
+            "n_avail": [9, 9, 9],
+            "ni_ttm": [1.0, 1.0, 1.0],
+            "ocf_ttm": [1.0, 1.0, 1.0],
+            "rev_ttm": [1.0, 1.0, 1.0],
+            "ebit_ttm": [1.0, 1.0, 1.0],
+            "total_assets": [10.0, 10.0, 10.0],
+            "total_liabilities": [5.0, 5.0, 5.0],
+            "total_debt": [1.0, 1.0, 1.0],
+            "current_assets": [6.0, 6.0, 6.0],
+            "current_liabilities": [3.0, 3.0, 3.0],
+            "retained_earnings": [1.0, 1.0, 1.0],
+            "shares_out": [1.0, 1.0, 1.0],
+        })
+        store.save_fundamentals(rows)
+
+        asof = store.load_solvency_asof("2025-06-01")
+
+        assert asof == {"AAPL": 0.9, "MSFT": 2.2}
+
+    def test_seed_fundamentals_from_parquet_computes_altman_z(self, store, tmp_path):
+        parquet_path = tmp_path / "fundamentals.parquet"
+        pd.DataFrame({
+            "symbol": ["AAPL"],
+            "fiscalDateEnding": ["2025-03-31"],
+            "reportedDate": ["2025-04-25"],
+            "fscore": [5],
+            "n_avail": [9],
+            "ni_ttm": [1.0],
+            "ocf_ttm": [2.0],
+            "rev_ttm": [20.0],
+            "ebit_ttm": [3.0],
+            "total_assets": [10.0],
+            "total_liabilities": [5.0],
+            "total_debt": [1.0],
+            "current_assets": [6.0],
+            "current_liabilities": [3.0],
+            "retained_earnings": [1.0],
+            "shares_out": [1.0],
+        }).to_parquet(parquet_path, index=False)
+
+        loaded = store.seed_fundamentals_from_parquet(str(parquet_path))
+        asof = store.load_solvency_asof("2025-05-01")
+
+        expected = 6.56 * 0.3 + 3.26 * 0.1 + 6.72 * 0.3 + 1.05 * 1.0
+        assert loaded == 1
+        assert asof["AAPL"] == pytest.approx(expected)
+
+
 # ------------------------------------------------------------------
 # Universe snapshot
 # ------------------------------------------------------------------
