@@ -1298,7 +1298,7 @@ body::after {
 .leaderboard-body::-webkit-scrollbar-thumb { background: var(--neon-amber-dim); border: 1px solid var(--neon-amber); }
 @keyframes row-enter { from { opacity: 0; transform: translateX(-20px); } to { opacity: 1; transform: translateX(0); } }
 .leaderboard-row {
-  display: grid; grid-template-columns: 28px 40px 130px 1fr 60px 92px 92px 92px 92px 70px;
+  display: grid; grid-template-columns: 28px 40px 130px 1fr 60px 92px 92px 92px 92px 70px 78px;
   padding: 10px 12px; border-bottom: 1px solid rgba(85,85,112,0.3);
   font-size: 0.9rem; cursor: pointer; transition: background 0.1s;
   animation: row-enter 0.3s ease-out both;
@@ -1347,6 +1347,12 @@ body::after {
 .calc-t1 { color: var(--neon-amber); text-shadow: 0 0 4px rgba(255,170,0,0.5); }
 .col-rr { display: flex; align-items: center; font-size: 0.8rem; color: var(--neon-blue); text-shadow: 0 0 4px rgba(0,212,255,0.4); }
 .col-check { display: flex; align-items: center; justify-content: center; }
+.invest-input { width: 96px; font-family: var(--font-pixel); font-size: 0.85rem; padding: 4px 6px; border: 1px solid var(--neon-pink-dim); background: var(--pixel-dark); color: var(--neon-pink); text-shadow: 0 0 4px var(--neon-pink); }
+.invest-input:focus { outline: none; border-color: var(--neon-pink); box-shadow: 0 0 6px var(--neon-pink); }
+.col-qty { display: flex; align-items: baseline; gap: 4px; color: var(--neon-pink); text-shadow: 0 0 4px rgba(255,45,123,0.5); }
+.col-qty .qty-val { font-size: 1rem; }
+.col-qty .qty-sub { font-size: 0.6rem; color: var(--pixel-gray); text-shadow: none; }
+.col-qty .qty-empty { color: var(--pixel-gray); text-shadow: none; }
 .portfolio-check { -webkit-appearance: none; appearance: none; width: 16px; height: 16px; border: 2px solid var(--pixel-gray); background: var(--pixel-dark); cursor: pointer; position: relative; transition: all 0.15s; }
 .portfolio-check:checked { border-color: var(--neon-pink); background: rgba(255,45,123,0.2); box-shadow: 0 0 6px var(--neon-pink); }
 .portfolio-check:checked::after { content: ''; position: absolute; top: 2px; left: 2px; width: 8px; height: 8px; background: var(--neon-pink); }
@@ -1464,7 +1470,7 @@ body::after {
 /* Calc button in toolbar */
 .toolbar { display: flex; gap: 8px; margin-bottom: 12px; justify-content: flex-end; }
 @media (max-width: 900px) {
-  .leaderboard-header, .leaderboard-row { grid-template-columns: 24px 30px 100px 1fr 50px 76px 76px 76px 76px 60px; font-size: 0.7rem; padding: 8px 6px; }
+  .leaderboard-header, .leaderboard-row { grid-template-columns: 24px 30px 100px 1fr 50px 76px 76px 76px 76px 60px 64px; font-size: 0.7rem; padding: 8px 6px; }
   .marquee-title { font-size: 1rem; }
   .detail-grid { grid-template-columns: 1fr; }
   .status-bar { grid-template-columns: 1fr; }
@@ -1474,7 +1480,7 @@ body::after {
   .portfolio-summary { grid-template-columns: repeat(2, 1fr); }
 }
 @media (max-width: 600px) {
-  .leaderboard-header, .leaderboard-row { grid-template-columns: 24px 30px 1fr 70px 70px; }
+  .leaderboard-header, .leaderboard-row { grid-template-columns: 24px 30px 1fr 60px 64px 64px; }
   .col-stop, .col-t1, .col-target, .col-rr, .col-sent { display: none; }
   .marquee-title { font-size: 0.7rem; letter-spacing: 2px; }
   .portfolio-table-header, .portfolio-table-row { grid-template-columns: 30px 1fr 60px 60px 60px 60px; }
@@ -1586,6 +1592,13 @@ function renderTrackRecord() {
 function renderStatusBar() {
   const bar = document.getElementById('statusBar');
   bar.style.display = 'grid';
+  const investEl = document.getElementById('inlineInvest');
+  if (investEl) {
+    try {
+      const saved = localStorage.getItem('bh_inline_invest');
+      if (saved !== null && parseFloat(saved) > 0) investEl.value = saved;
+    } catch (e) {}
+  }
   const regime = state.regime;
   const regimeEl = document.getElementById('regimeStatus');
   if (regime) {
@@ -1680,7 +1693,8 @@ function renderLeaderboard() {
       '<div class="col-stop">$' + c.stop_loss.toFixed(2) + '</div>' +
       '<div class="col-t1" style="color:var(--neon-amber);text-shadow:0 0 4px var(--neon-amber)">$' + (c.t1_target ? c.t1_target.toFixed(2) : '---') + '</div>' +
       '<div class="col-target" style="color:var(--neon-green)">$' + c.target.toFixed(2) + '</div>' +
-      '<div class="col-rr">' + rr + 'x</div>';
+      '<div class="col-rr">' + rr + 'x</div>' +
+      '<div class="col-qty" data-selkey="' + selKey + '"><span class="qty-empty">--</span></div>';
     body.appendChild(row);
     const detail = document.createElement('div');
     detail.className = 'detail-panel';
@@ -1688,6 +1702,7 @@ function renderLeaderboard() {
     detail.innerHTML = buildDetailHTML(c);
     body.appendChild(detail);
   });
+  recomputeInlineQtys();
 }
 
 function updateFillAnchoredRow(input) {
@@ -1956,6 +1971,7 @@ function toggleSelection(key, event) {
   if (state.selected[key]) delete state.selected[key];
   else state.selected[key] = true;
   updatePortfolioBadge();
+  recomputeInlineQtys();
 }
 function updatePortfolioBadge() {
   var count = Object.keys(state.selected).length;
@@ -2016,8 +2032,56 @@ function allocatePortfolio(candidates, totalInvest, topN) {
     return { symbol: c.symbol, strategy: c.strategy, close: c.close, stop_loss: c.stop_loss, t1_target: c.t1_target || 0, target: c.target, alloc: alloc, pct: pct, shares: shares, risk: risk, reward: reward };
   });
 }
+function getInlineInvest() {
+  var el = document.getElementById('inlineInvest');
+  return el ? (parseFloat(el.value) || 0) : 0;
+}
+function isPortfolioModalOpen() {
+  var m = document.getElementById('portfolioModal');
+  return !!(m && m.classList.contains('open'));
+}
+function onInlineInvestChange() {
+  // Single shared investment amount: mirror the header value into the modal
+  // input + storage, then refresh the inline QTY column and (if open) the modal
+  // table. Setting .value does not fire oninput, so this never loops.
+  var amount = getInlineInvest();
+  try { localStorage.setItem('bh_inline_invest', String(amount)); } catch (e) {}
+  var modalInput = document.getElementById('portfolioInvest');
+  if (modalInput) modalInput.value = amount;
+  recomputeInlineQtys();
+  if (isPortfolioModalOpen()) updatePortfolio();
+}
+// Conviction-weighted per-row sizing, shared with the Portfolio modal via
+// allocatePortfolio() so the inline QTY and the modal can never disagree. Each
+// row shows HALF the total shares — you place two buy orders (T1 + T2 tranche).
+function recomputeInlineQtys() {
+  var cells = document.querySelectorAll('.col-qty');
+  if (!cells.length) return;
+  var total = getInlineInvest();
+  var valid = getValidPortfolioCandidates();
+  var alloc = (total > 0) ? allocatePortfolio(valid, total, valid.length) : [];
+  var bySel = {};
+  alloc.forEach(function(r) { bySel[r.symbol + '|' + r.strategy] = r; });
+  cells.forEach(function(cell) {
+    var key = cell.getAttribute('data-selkey');
+    var r = bySel[key];
+    if (r && r.shares > 0) {
+      var perLeg = r.shares / 2;
+      cell.innerHTML = '<span class="qty-val">' + perLeg.toFixed(2) + '</span><span class="qty-sub">x2</span>';
+      cell.title = key.split('|')[0] + ': $' + Math.round(r.alloc).toLocaleString() +
+        ' → ' + r.shares.toFixed(2) + ' sh total = ' + perLeg.toFixed(2) + ' per order × 2';
+    } else {
+      cell.innerHTML = '<span class="qty-empty">--</span>';
+      cell.title = total > 0 ? 'Check the box to size this name' : 'Enter an INVESTMENT $ amount';
+    }
+  });
+}
 function openPortfolioModal() {
   document.getElementById('portfolioModal').classList.add('open');
+  // Carry the header investment amount into the modal so both views agree.
+  var modalInput = document.getElementById('portfolioInvest');
+  var headerInput = document.getElementById('inlineInvest');
+  if (modalInput && headerInput && headerInput.value) modalInput.value = headerInput.value;
   updatePortfolioBadge();
   updatePortfolio();
 }
@@ -2027,9 +2091,15 @@ function closePortfolioModal() {
 function updatePortfolio() {
   var candidates = getValidPortfolioCandidates();
   var totalInvest = parseFloat(document.getElementById('portfolioInvest').value) || 0;
+  // Mirror the modal amount back to the shared header input + storage, and keep
+  // the leaderboard QTY column consistent with what the modal shows.
+  var headerInput = document.getElementById('inlineInvest');
+  if (headerInput) headerInput.value = totalInvest;
+  try { localStorage.setItem('bh_inline_invest', String(totalInvest)); } catch (e) {}
   var results = allocatePortfolio(candidates, totalInvest, candidates.length);
   renderPortfolioSummary(results);
   renderPortfolioTable(results);
+  recomputeInlineQtys();
 }
 function renderPortfolioSummary(results) {
   var totalAlloc = results.reduce(function(s, r) { return s + r.alloc; }, 0);
@@ -2150,6 +2220,10 @@ document.addEventListener('DOMContentLoaded', function() {
             # Status bar
             '<div class="status-bar" id="statusBar" style="display:none">',
             '<div class="status-panel"><div class="label">MARKET REGIME</div><div class="value" id="regimeStatus">---</div></div>',
+            '<div class="status-panel"><div class="label">INVESTMENT $</div>'
+            '<input type="number" id="inlineInvest" class="invest-input" value="10000" min="0" step="100" '
+            'title="Total $ to split across the checked names (conviction-weighted). Each row shows the per-order share count." '
+            'oninput="onInlineInvestChange()"></div>',
             '<div class="status-panel"><div class="label">SPY</div><div class="value" id="spyValue" style="color:var(--pixel-white)">---</div></div>',
             '<div class="status-panel"><div class="label">QQQ</div><div class="value" id="qqqValue" style="color:var(--pixel-white)">---</div></div>',
             '<div class="status-panel"><div class="label">VIX</div><div class="value" id="vixValue" style="color:var(--pixel-white)">---</div></div>',
@@ -2177,6 +2251,7 @@ document.addEventListener('DOMContentLoaded', function() {
             '<div class="sortable" data-sort="t1_target" onclick="sortBy(\'t1_target\')" title="Sort by T1 target">T1<span class="sort-arrow"></span></div>',
             '<div class="sortable" data-sort="target" onclick="sortBy(\'target\')" title="Sort by T2 target">T2<span class="sort-arrow"></span></div>',
             '<div class="sortable" data-sort="rr" onclick="sortBy(\'rr\')" title="Sort by risk/reward ratio">R:R<span class="sort-arrow"></span></div>',
+            '<div title="Per-order share count for checked names: total INVESTMENT $ split by conviction, then halved (you place 2 buy orders per name).">QTY x2</div>',
             '</div>',
             '<div class="leaderboard-body" id="leaderboardBody"></div>',
             '</div>',

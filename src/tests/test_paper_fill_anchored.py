@@ -321,9 +321,41 @@ def test_arcade_fill_calculator_hooks_and_offsets():
 
     assert '"risk_per_share": 3.0' in html
     assert '"target_offset": 5.879999999999995' in html or '"target_offset": 5.88' in html
-    assert "setAttribute('data-r'" in html
-    assert "setAttribute('data-tpoff'" in html
+    # daf3b56 moved the fill calculator into the row dropdown, switching from
+    # setAttribute('data-r', ...) to an inline data-r="..." attribute (the value
+    # is templated by JS at render time, so assert the static attribute hook).
+    assert 'fill-calc-detail" data-r=' in html
+    assert '" data-tpoff=' in html
     assert 'class="fill-input"' in html
     assert 'class="calc-stop"' in html
     assert 'class="calc-target"' in html
     assert "risk/sh $" in html
+
+
+def test_arcade_inline_qty_sizing_hooks():
+    """Header investment input + per-row conviction-weighted QTY column."""
+    html = HTMLReporter().generate_arcade_report(
+        "2026-06-08",
+        {"status": "BULL", "details": {}},
+        [
+            _candidate(symbol="AAA", close=100.0, stop=97.0, target=105.88, t1=102.0),
+            _candidate(symbol="BBB", close=50.0, stop=48.5, target=52.94, t1=51.0),
+        ],
+    )
+
+    # Both candidates are embedded for the client-side allocator to size.
+    assert '"symbol": "AAA"' in html
+    assert '"symbol": "BBB"' in html
+    # Investment input lives next to the regime badge.
+    assert 'id="inlineInvest"' in html
+    assert "onInlineInvestChange()" in html
+    # QTY column: header + the per-row cell hook (selKey is templated at render time).
+    assert "QTY x2" in html
+    assert 'class="col-qty" data-selkey=' in html
+    # Live recompute reuses the conviction-weighted allocator and persists the amount.
+    assert "function recomputeInlineQtys()" in html
+    assert "allocatePortfolio(" in html
+    assert "bh_inline_invest" in html
+    # Header input and the Portfolio modal share one investment amount.
+    assert "function isPortfolioModalOpen()" in html
+    assert "if (isPortfolioModalOpen()) updatePortfolio()" in html
