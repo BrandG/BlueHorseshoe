@@ -303,8 +303,20 @@ class DuckDBStore:
 
         This is point-in-time safe: rows reported after the as-of date are never
         returned.
+
+        Fail-safe: a read-only store opened on a DB that predates the fundamentals
+        table (``_init_schema`` is skipped for read-only connections) has no such
+        table. Rather than crash ``-p`` (the loader runs regardless of the solvency
+        flag), return ``{}`` — "no fundamentals known" → every candidate is kept,
+        matching the unknown-Z policy.
         """
         with self._lock:
+            table_exists = self._con.execute(
+                "SELECT 1 FROM information_schema.tables "
+                "WHERE table_name = 'fundamentals' LIMIT 1"
+            ).fetchone()
+            if not table_exists:
+                return {}
             df = self._con.execute("""
                 SELECT symbol, altman_z
                 FROM (
