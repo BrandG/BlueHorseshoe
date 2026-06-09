@@ -20,6 +20,29 @@ fi
 LOG="$REPO/src/logs/daily_pipeline.log"
 STATUS="$PYTHON src/pipeline_status.py"
 
+# Memory preflight. The prediction ProcessPool needs ~4GB; on this 7.8GB box a
+# concurrent Claude/node session can starve it and OOM-kill a pool worker
+# (-> concurrent.futures BrokenProcessPool -> only partial scores persisted, as
+# happened 2026-06-08). Wait for headroom before the heavy step rather than
+# racing it. See memory: project_pipeline_oom_concurrent_claude.
+MIN_AVAIL_MB=3500
+wait_for_memory() {
+    local waited=0 max=900 avail
+    while :; do
+        avail=$(awk '/MemAvailable/{print int($2/1024)}' /proc/meminfo)
+        if [ "${avail:-0}" -ge "$MIN_AVAIL_MB" ]; then
+            return 0
+        fi
+        if [ "$waited" -ge "$max" ]; then
+            echo "WARNING: only ${avail}MB available after ${waited}s wait (< ${MIN_AVAIL_MB}MB); proceeding anyway at $(date)" >> "$LOG"
+            return 0
+        fi
+        echo "Low memory: ${avail}MB available (< ${MIN_AVAIL_MB}MB) — waiting 60s for headroom at $(date)" >> "$LOG"
+        sleep 60
+        waited=$((waited + 60))
+    done
+}
+
 echo "--- Daily Pipeline Started: $(date) ---" >> "$LOG"
 
 # Initialize pipeline status
@@ -45,11 +68,31 @@ $STATUS complete update
 
 # 2. Run prediction (generates report)
 $STATUS start predict
+
+# Guard: refuse to double-run if another prediction is already in flight (a
+# second pipeline or a manual -p) — two ProcessPools would OOM each other.
+if pgrep -f "bin/python src/main.py -p" >/dev/null 2>&1; then
+    echo "ERROR: another 'main.py -p' is already running; aborting to avoid OOM at $(date)" >> "$LOG"
+    $STATUS fail predict "concurrent main.py -p detected"
+    exit 1
+fi
+
+# Guard: wait for memory headroom so a concurrent session can't OOM a pool worker.
+wait_for_memory
+
 $PYTHON src/main.py -p >> "$LOG" 2>&1
 if [ $? -ne 0 ]; then
-    echo "ERROR: Prediction failed at $(date)" >> "$LOG"
-    $STATUS fail predict "Prediction failed"
-    exit 1
+    # A BrokenProcessPool (OOM-killed worker) aborts the whole run after only
+    # partial scores. Pause for memory to free, then retry once before giving up.
+    echo "WARNING: Prediction failed (possible OOM/BrokenProcessPool); waiting 120s and retrying once at $(date)" >> "$LOG"
+    sleep 120
+    wait_for_memory
+    $PYTHON src/main.py -p >> "$LOG" 2>&1
+    if [ $? -ne 0 ]; then
+        echo "ERROR: Prediction failed after retry at $(date)" >> "$LOG"
+        $STATUS fail predict "Prediction failed after retry"
+        exit 1
+    fi
 fi
 $STATUS complete predict
 
