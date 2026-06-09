@@ -1277,7 +1277,7 @@ body::after {
   box-shadow: 0 0 15px rgba(255,170,0,0.1); margin-bottom: 16px;
 }
 .leaderboard-header {
-  display: grid; grid-template-columns: 28px 40px 90px 1fr 60px 90px 90px 70px 90px 170px 100px 70px;
+  display: grid; grid-template-columns: 28px 40px 130px 1fr 60px 92px 92px 92px 92px 70px;
   padding: 10px 12px; border-bottom: 2px solid var(--neon-amber);
   font-size: 0.8rem; color: var(--neon-amber); text-shadow: 0 0 4px var(--neon-amber);
   letter-spacing: 1px; background: rgba(255,170,0,0.05);
@@ -1298,7 +1298,7 @@ body::after {
 .leaderboard-body::-webkit-scrollbar-thumb { background: var(--neon-amber-dim); border: 1px solid var(--neon-amber); }
 @keyframes row-enter { from { opacity: 0; transform: translateX(-20px); } to { opacity: 1; transform: translateX(0); } }
 .leaderboard-row {
-  display: grid; grid-template-columns: 28px 40px 90px 1fr 60px 90px 90px 70px 90px 170px 100px 70px;
+  display: grid; grid-template-columns: 28px 40px 130px 1fr 60px 92px 92px 92px 92px 70px;
   padding: 10px 12px; border-bottom: 1px solid rgba(85,85,112,0.3);
   font-size: 0.9rem; cursor: pointer; transition: background 0.1s;
   animation: row-enter 0.3s ease-out both;
@@ -1335,19 +1335,16 @@ body::after {
 .col-price { display: flex; align-items: center; color: var(--pixel-white); }
 .col-stop { display: flex; align-items: center; color: var(--neon-red); text-shadow: 0 0 4px rgba(255,51,51,0.5); }
 .col-target { display: flex; align-items: center; color: var(--neon-green); text-shadow: 0 0 4px rgba(57,255,20,0.5); }
-.col-fillcalc { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; font-size: 0.55rem; letter-spacing: 0; }
-.fill-input { width: 72px; min-width: 0; font-family: var(--font-pixel); font-size: 0.45rem; padding: 4px; border: 1px solid var(--neon-blue-dim); background: var(--pixel-dark); color: var(--pixel-white); }
-.fill-static { color: var(--pixel-gray); }
+.col-fillcalc { display: flex; flex-direction: column; gap: 11px; letter-spacing: 0; }
+.fill-static { color: var(--pixel-gray); font-size: 0.85rem; }
+.fill-input-row { display: flex; align-items: center; gap: 10px; }
+.fill-input-label { color: var(--neon-blue); font-size: 0.85rem; letter-spacing: 1px; }
+.fill-input { width: 130px; min-width: 0; font-family: var(--font-pixel); font-size: 0.95rem; padding: 8px; border: 1px solid var(--neon-blue-dim); background: var(--pixel-dark); color: var(--pixel-white); }
+.fill-result-row { display: flex; align-items: center; gap: 12px; font-size: 1.15rem; }
+.fill-result-label { color: var(--pixel-gray); min-width: 46px; font-size: 0.8rem; letter-spacing: 1px; }
 .calc-stop { color: var(--neon-red); text-shadow: 0 0 4px rgba(255,51,51,0.5); }
 .calc-target { color: var(--neon-green); text-shadow: 0 0 4px rgba(57,255,20,0.5); }
 .calc-t1 { color: var(--neon-amber); text-shadow: 0 0 4px rgba(255,170,0,0.5); }
-.col-ml { display: flex; align-items: center; gap: 4px; }
-.ml-meter { display: flex; gap: 1px; }
-.ml-pip { width: 6px; height: 14px; background: var(--pixel-dark); border: 1px solid rgba(85,85,112,0.3); transition: all 0.3s; }
-.ml-pip.filled.green { background: var(--neon-green); box-shadow: 0 0 3px var(--neon-green); border-color: var(--neon-green); }
-.ml-pip.filled.amber { background: var(--neon-amber); box-shadow: 0 0 3px var(--neon-amber); border-color: var(--neon-amber); }
-.ml-pip.filled.red { background: var(--neon-red); box-shadow: 0 0 3px var(--neon-red); border-color: var(--neon-red); }
-.ml-pct { font-size: 0.8rem; min-width: 30px; text-align: right; }
 .col-rr { display: flex; align-items: center; font-size: 0.8rem; color: var(--neon-blue); text-shadow: 0 0 4px rgba(0,212,255,0.4); }
 .col-check { display: flex; align-items: center; justify-content: center; }
 .portfolio-check { -webkit-appearance: none; appearance: none; width: 16px; height: 16px; border: 2px solid var(--pixel-gray); background: var(--pixel-dark); cursor: pointer; position: relative; transition: all 0.15s; }
@@ -1467,7 +1464,7 @@ body::after {
 /* Calc button in toolbar */
 .toolbar { display: flex; gap: 8px; margin-bottom: 12px; justify-content: flex-end; }
 @media (max-width: 900px) {
-  .leaderboard-header, .leaderboard-row { grid-template-columns: 24px 30px 70px 1fr 50px 70px 70px 60px 70px 140px 80px 60px; font-size: 0.7rem; padding: 8px 6px; }
+  .leaderboard-header, .leaderboard-row { grid-template-columns: 24px 30px 100px 1fr 50px 76px 76px 76px 76px 60px; font-size: 0.7rem; padding: 8px 6px; }
   .marquee-title { font-size: 1rem; }
   .detail-grid { grid-template-columns: 1fr; }
   .status-bar { grid-template-columns: 1fr; }
@@ -1478,7 +1475,7 @@ body::after {
 }
 @media (max-width: 600px) {
   .leaderboard-header, .leaderboard-row { grid-template-columns: 24px 30px 1fr 70px 70px; }
-  .col-stop, .col-t1, .col-target, .col-fillcalc, .col-rr, .col-ml, .col-sent { display: none; }
+  .col-stop, .col-t1, .col-target, .col-rr, .col-sent { display: none; }
   .marquee-title { font-size: 0.7rem; letter-spacing: 2px; }
   .portfolio-table-header, .portfolio-table-row { grid-template-columns: 30px 1fr 60px 60px 60px 60px; }
   .portfolio-col-stop, .portfolio-col-t1, .portfolio-col-target { display: none; }
@@ -1645,12 +1642,9 @@ function renderLeaderboard() {
   state.filtered.forEach((c, i) => {
     const rank = i + 1;
     const score = c.score;
-    const mlPct = Math.round((c.ml_prob || 0) * 100);
     const rr = c.stop_loss > 0 ? ((c.target - c.close) / (c.close - c.stop_loss)).toFixed(1) : '---';
     const scoreClass = score >= 50 ? 'high' : score >= 30 ? 'mid' : 'low';
     const scoreTextClass = score >= 50 ? 'score-high' : score >= 30 ? 'score-mid' : 'score-low';
-    const mlColor = mlPct >= 70 ? 'green' : mlPct >= 50 ? 'amber' : 'red';
-    const mlTextClass = mlPct >= 70 ? 'score-high' : mlPct >= 50 ? 'score-mid' : 'score-low';
     const rankClass = rank <= 3 ? 'rank-' + rank : '';
     const _chip = strategyChip(c.strategy);
     const stratClass = _chip[0];
@@ -1659,28 +1653,11 @@ function renderLeaderboard() {
     const sentClass = sent === 0 ? 'sent-neutral' : sent > 0.15 ? 'sent-bull' : sent < -0.15 ? 'sent-bear' : 'sent-neutral';
     const sentLabel = sent === 0 ? 'N/A' : (sent > 0 ? '\u25B2' : '\u25BC') + sent.toFixed(2);
     const scoreWidth = Math.min(100, (score / 80) * 100);
-    const mlPips = Math.round(mlPct / 10);
     const detailId = 'detail-' + i;
-    const riskShare = c.risk_per_share || Math.max(0, c.close - c.stop_loss);
-    const targetOffset = c.target_offset || (c.target - c.close);
-    const t1Offset = c.t1_offset || (c.t1_target ? c.t1_target - c.close : 0);
-    const fillCalcHtml = '<div class="col-fillcalc">' +
-      '<span class="fill-static">risk/sh $' + riskShare.toFixed(2) + ' &middot; tgt +$' + targetOffset.toFixed(2) + '</span>' +
-      '<input type="number" class="fill-input" step="0.01" min="0" placeholder="your fill $" onclick="event.stopPropagation()">' +
-      '<span>S:<span class="calc-stop">---</span></span>' +
-      (t1Offset > 0 ? '<span>T1:<span class="calc-t1">---</span></span>' : '') +
-      '<span>T2:<span class="calc-target">---</span></span></div>';
     const row = document.createElement('div');
     row.className = 'leaderboard-row ' + rankClass;
-    row.setAttribute('data-r', riskShare.toFixed(2));
-    row.setAttribute('data-tpoff', targetOffset.toFixed(2));
-    if (t1Offset > 0) row.setAttribute('data-t1off', t1Offset.toFixed(2));
     row.style.animationDelay = (i * 0.04) + 's';
     row.onclick = function() { toggleDetail(i); };
-    let pipsHtml = '';
-    for (let j = 0; j < 10; j++) {
-      pipsHtml += '<div class="ml-pip ' + (j < mlPips ? 'filled ' + mlColor : '') + '"></div>';
-    }
     var selKey = c.symbol + '|' + c.strategy;
     var cloudBadge = '';
     if (c.confluence_star && c.cloud_age) {
@@ -1703,8 +1680,6 @@ function renderLeaderboard() {
       '<div class="col-stop">$' + c.stop_loss.toFixed(2) + '</div>' +
       '<div class="col-t1" style="color:var(--neon-amber);text-shadow:0 0 4px var(--neon-amber)">$' + (c.t1_target ? c.t1_target.toFixed(2) : '---') + '</div>' +
       '<div class="col-target" style="color:var(--neon-green)">$' + c.target.toFixed(2) + '</div>' +
-      fillCalcHtml +
-      '<div class="col-ml"><div class="ml-meter">' + pipsHtml + '</div><span class="ml-pct ' + mlTextClass + '">' + mlPct + '%</span></div>' +
       '<div class="col-rr">' + rr + 'x</div>';
     body.appendChild(row);
     const detail = document.createElement('div');
@@ -1716,21 +1691,21 @@ function renderLeaderboard() {
 }
 
 function updateFillAnchoredRow(input) {
-  var row = input.closest('.leaderboard-row');
-  if (!row) return;
+  var box = input.closest('.fill-calc-detail');
+  if (!box) return;
   var fill = parseFloat(input.value);
-  var stopEl = row.querySelector('.calc-stop');
-  var targetEl = row.querySelector('.calc-target');
-  var t1El = row.querySelector('.calc-t1');
+  var stopEl = box.querySelector('.calc-stop');
+  var targetEl = box.querySelector('.calc-target');
+  var t1El = box.querySelector('.calc-t1');
   if (!(fill > 0)) {
     if (stopEl) stopEl.textContent = '---';
     if (targetEl) targetEl.textContent = '---';
     if (t1El) t1El.textContent = '---';
     return;
   }
-  var r = parseFloat(row.dataset.r);
-  var tpoff = parseFloat(row.dataset.tpoff);
-  var t1off = parseFloat(row.dataset.t1off || '0');
+  var r = parseFloat(box.dataset.r);
+  var tpoff = parseFloat(box.dataset.tpoff);
+  var t1off = parseFloat(box.dataset.t1off || '0');
   if (stopEl) stopEl.textContent = '$' + (fill - r).toFixed(2);
   if (targetEl) targetEl.textContent = '$' + (fill + tpoff).toFixed(2);
   if (t1El && t1off > 0) t1El.textContent = '$' + (fill + t1off).toFixed(2);
@@ -1767,6 +1742,20 @@ function buildSentimentHTML(c) {
 function buildDetailHTML(c) {
   const entryDistHtml = (c.actual_close && c.actual_close > 0)
     ? ' <small style="color:var(--pixel-gray)">(' + ((c.actual_close - c.close) / c.actual_close * 100).toFixed(2) + '%)</small>' : '';
+  const riskShare = c.risk_per_share || Math.max(0, c.close - c.stop_loss);
+  const targetOffset = c.target_offset || (c.target - c.close);
+  const t1Offset = c.t1_offset || (c.t1_target ? c.t1_target - c.close : 0);
+  const fillCalcHtml = '<div class="detail-section fill-calc-detail" data-r="' + riskShare.toFixed(2) +
+    '" data-tpoff="' + targetOffset.toFixed(2) + '"' + (t1Offset > 0 ? ' data-t1off="' + t1Offset.toFixed(2) + '"' : '') + '>' +
+    '<div class="detail-section-title">FILL CALCULATOR</div>' +
+    '<div class="col-fillcalc">' +
+    '<div class="fill-static">risk/sh $' + riskShare.toFixed(2) + ' &middot; tgt +$' + targetOffset.toFixed(2) + '</div>' +
+    '<div class="fill-input-row"><span class="fill-input-label">YOUR FILL $</span>' +
+    '<input type="number" class="fill-input" step="0.01" min="0" placeholder="0.00" onclick="event.stopPropagation()"></div>' +
+    '<div class="fill-result-row"><span class="fill-result-label">STOP</span><span class="calc-stop">---</span></div>' +
+    (t1Offset > 0 ? '<div class="fill-result-row"><span class="fill-result-label">T1</span><span class="calc-t1">---</span></div>' : '') +
+    '<div class="fill-result-row"><span class="fill-result-label">T2</span><span class="calc-target">---</span></div>' +
+    '</div></div>';
   const riskPct = c.close > 0 ? (((c.close - c.stop_loss) / c.close) * 100).toFixed(2) : 0;
   const rewardPct = c.close > 0 ? (((c.target - c.close) / c.close) * 100).toFixed(2) : 0;
   const totalRange = c.target - c.stop_loss;
@@ -1811,6 +1800,7 @@ function buildDetailHTML(c) {
     '<div style="margin-top:14px">' +
     '<button class="arcade-btn btn-pink" style="font-size:0.7rem;padding:5px 10px" onclick="event.stopPropagation();openCalcForSymbol(\'' + c.symbol + '\',' + c.close + ',' + c.stop_loss + ',' + c.target + ')">CALC SHARES</button>' +
     '<a href="https://finance.yahoo.com/quote/' + c.symbol + '" target="_blank" rel="noopener" class="arcade-btn btn-blue" style="font-size:0.7rem;padding:5px 10px;text-decoration:none;display:inline-block;margin-left:4px">YAHOO</a></div></div>' +
+    fillCalcHtml +
     buildSentimentHTML(c) +
     '<div class="detail-section"><div class="detail-section-title">POWER LEVELS</div>' +
     (c.strategy === 'Connors' && c.connors_rsi2 !== undefined ?
@@ -1835,11 +1825,9 @@ function renderStats() {
   document.getElementById('statsRow').style.display = 'flex';
   const total = state.filtered.length;
   const avgScore = total > 0 ? (state.filtered.reduce(function(s, c) { return s + c.score; }, 0) / total).toFixed(1) : 0;
-  const avgML = total > 0 ? Math.round(state.filtered.reduce(function(s, c) { return s + (c.ml_prob || 0); }, 0) / total * 100) : 0;
   const best = total > 0 ? state.filtered[0].symbol : '---';
   document.getElementById('statTotal').textContent = total;
   document.getElementById('statAvgScore').textContent = avgScore;
-  document.getElementById('statAvgML').textContent = avgML + '%';
   document.getElementById('statBest').textContent = best;
 }
 
@@ -2188,8 +2176,6 @@ document.addEventListener('DOMContentLoaded', function() {
             '<div class="sortable" data-sort="stop_loss" onclick="sortBy(\'stop_loss\')" title="Sort by stop">STOP<span class="sort-arrow"></span></div>',
             '<div class="sortable" data-sort="t1_target" onclick="sortBy(\'t1_target\')" title="Sort by T1 target">T1<span class="sort-arrow"></span></div>',
             '<div class="sortable" data-sort="target" onclick="sortBy(\'target\')" title="Sort by T2 target">T2<span class="sort-arrow"></span></div>',
-            '<div title="Enter actual fill to recompute stop and targets">FILL</div>',
-            '<div class="sortable" data-sort="ml_prob" onclick="sortBy(\'ml_prob\')" title="Sort by ML win probability">ML PROB<span class="sort-arrow"></span></div>',
             '<div class="sortable" data-sort="rr" onclick="sortBy(\'rr\')" title="Sort by risk/reward ratio">R:R<span class="sort-arrow"></span></div>',
             '</div>',
             '<div class="leaderboard-body" id="leaderboardBody"></div>',
@@ -2199,7 +2185,6 @@ document.addEventListener('DOMContentLoaded', function() {
             '<div class="stat-row" id="statsRow" style="display:none">',
             '<div class="stat-item"><div class="stat-num" id="statTotal">0</div><div class="stat-label">CANDIDATES</div></div>',
             '<div class="stat-item"><div class="stat-num" id="statAvgScore">0</div><div class="stat-label">AVG SCORE</div></div>',
-            '<div class="stat-item"><div class="stat-num" id="statAvgML">0%</div><div class="stat-label">AVG ML PROB</div></div>',
             '<div class="stat-item"><div class="stat-num" id="statBest">---</div><div class="stat-label">TOP PICK</div></div>',
             '</div>',
 
