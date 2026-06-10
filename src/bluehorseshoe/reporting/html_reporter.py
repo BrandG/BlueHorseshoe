@@ -1277,7 +1277,7 @@ body::after {
   box-shadow: 0 0 15px rgba(255,170,0,0.1); margin-bottom: 16px;
 }
 .leaderboard-header {
-  display: grid; grid-template-columns: 28px 40px 130px 1fr 60px 92px 92px 92px 92px 70px;
+  display: grid; grid-template-columns: 28px 40px 130px 1fr 60px 92px 92px 92px 92px 70px 78px;
   padding: 10px 12px; border-bottom: 2px solid var(--neon-amber);
   font-size: 0.8rem; color: var(--neon-amber); text-shadow: 0 0 4px var(--neon-amber);
   letter-spacing: 1px; background: rgba(255,170,0,0.05);
