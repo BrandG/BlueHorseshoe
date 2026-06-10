@@ -2155,6 +2155,7 @@ document.addEventListener('DOMContentLoaded', function() {
       t1_target: c.t1_target || 0,
       target: c.target || 0,
       risk_per_share: c.risk_per_share || 0,
+      edge_weight: c.edge_weight || 0,
       target_offset: c.target_offset || 0,
       t1_offset: c.t1_offset || 0,
       ml_prob: c.ml_prob || 0,
