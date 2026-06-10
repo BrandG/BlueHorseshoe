@@ -833,17 +833,18 @@ def run(*, verbose: bool = False, email: bool = False,
     )
     print(report)
 
+    html_body = render_html_report(
+        fires, now_utc,
+        total_cells=len(ordered_cells),
+        bar_ts_by_pair=bar_ts_by_pair,
+        cells=ordered_cells,
+    )
+    BRIEFING_DIR.mkdir(parents=True, exist_ok=True)
+    archive_path = BRIEFING_DIR / f"briefing_{now_utc.strftime('%Y-%m-%d_%H%M')}.html"
+    archive_path.write_text(html_body, encoding="utf-8")
+    LOG.info("archived briefing → %s", archive_path)
+
     if email:
-        html_body = render_html_report(
-            fires, now_utc,
-            total_cells=len(ordered_cells),
-            bar_ts_by_pair=bar_ts_by_pair,
-            cells=ordered_cells,
-        )
-        BRIEFING_DIR.mkdir(parents=True, exist_ok=True)
-        archive_path = BRIEFING_DIR / f"briefing_{now_utc.strftime('%Y-%m-%d_%H%M')}.html"
-        archive_path.write_text(html_body, encoding="utf-8")
-        LOG.info("archived briefing → %s", archive_path)
         if email_only_if_fires and not fires:
             LOG.info("no fires — skipping email (--email-only-if-fires)")
         else:
@@ -860,11 +861,11 @@ def main(argv: Optional[list[str]] = None) -> int:
     parser.add_argument("--verbose", "-v", action="store_true",
                         help="List every cell with fired/not-fired status")
     parser.add_argument("--email", action="store_true",
-                        help="Render HTML briefing, archive to src/logs/briefings/, "
-                             "and email via SMTP_* env vars")
+                        help="Email the HTML briefing via SMTP_* env vars "
+                             "(the HTML is always archived to src/logs/briefings/)")
     parser.add_argument("--email-only-if-fires", action="store_true",
-                        help="With --email: archive the HTML but skip SMTP send "
-                             "when there are no fires (cron-friendly)")
+                        help="With --email: skip the SMTP send when there are "
+                             "no fires (cron-friendly)")
     args = parser.parse_args(argv)
     logging.basicConfig(level=logging.INFO,
                         format="%(asctime)s %(name)s %(levelname)s %(message)s",
