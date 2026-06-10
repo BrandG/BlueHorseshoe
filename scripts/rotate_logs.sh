@@ -23,6 +23,7 @@ GRAPH_DIR="$REPO_ROOT/src/graphs"
 
 MAX_LINES="${ROTATE_MAX_LINES:-20000}"   # tail kept per *.log
 KEEP_DAYS="${ROTATE_KEEP_DAYS:-21}"      # age cutoff for reports/experiment dumps
+BRIEFING_KEEP_DAYS="${ROTATE_BRIEFING_KEEP_DAYS:-90}"  # archived briefing HTML
 
 ts() { date '+%Y-%m-%d %H:%M:%S'; }
 echo "[$(ts)] rotate_logs start (max_lines=$MAX_LINES keep_days=$KEEP_DAYS)"
@@ -41,13 +42,29 @@ for f in "$LOG_DIR"/*.log; do
 done
 
 # 2. Prune dated report HTML older than KEEP_DAYS (regenerable via main.py -r DATE).
+# Cutoff is the DATE IN THE FILENAME, not mtime: the score-backfill cron
+# regenerates reports for ancient dates daily, so their mtime is always
+# fresh and an -mtime prune never catches them.
+cutoff=$(date -d "-$KEEP_DAYS days" '+%Y-%m-%d')
 pruned=0
 for f in "$LOG_DIR"/report_*.html; do
-  if [ "$(find "$f" -mtime +"$KEEP_DAYS" -print 2>/dev/null)" ]; then
+  d=$(basename "$f" | grep -oE '[0-9]{4}-[0-9]{2}-[0-9]{2}' | head -1)
+  if [ -n "$d" ] && [[ "$d" < "$cutoff" ]]; then
     rm -f "$f"; pruned=$((pruned+1))
   fi
 done
-[ "$pruned" -gt 0 ] && echo "[$(ts)] pruned $pruned old report HTML files"
+[ "$pruned" -gt 0 ] && echo "[$(ts)] pruned $pruned old report HTML files (report date < $cutoff)"
+
+# 2b. Prune archived briefing HTML older than BRIEFING_KEEP_DAYS. These are
+# write-once (mtime == creation), so an mtime cutoff is correct here.
+bpruned=0
+for dir in "$LOG_DIR/briefings" "$LOG_DIR/briefings_ftmo"; do
+  [ -d "$dir" ] || continue
+  while IFS= read -r f; do
+    rm -f "$f"; bpruned=$((bpruned+1))
+  done < <(find "$dir" -name '*.html' -type f -mtime +"$BRIEFING_KEEP_DAYS" -print)
+done
+[ "$bpruned" -gt 0 ] && echo "[$(ts)] pruned $bpruned archived briefing HTML files (>${BRIEFING_KEEP_DAYS}d)"
 
 # 3. Prune one-off experiment dumps in src/graphs older than KEEP_DAYS.
 gpruned=0
