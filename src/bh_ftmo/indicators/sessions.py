@@ -84,7 +84,13 @@ def session_label(
             labels.append(Session.CLOSED)
             continue
         labels.append(_classify_hour(int(h), hours))
-    out = pd.Series(labels, index=timestamps.index if hasattr(timestamps, "index") else None)
+    # dtype=object: pandas 3 would otherwise coerce the str-subclass enum to its
+    # plain-str dtype, breaking the "Series of Session values" contract (.name/.value).
+    out = pd.Series(
+        labels,
+        index=timestamps.index if hasattr(timestamps, "index") else None,
+        dtype=object,
+    )
     out.name = "session"
     return out
 
