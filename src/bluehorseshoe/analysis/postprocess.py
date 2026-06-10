@@ -194,16 +194,6 @@ class SentimentEnricher:
                 "source": "vix",
             })
 
-        aaii = market_health.get("details", {}).get("AAII")
-        if aaii:
-            snapshots.append({
-                "symbol": "$AAII",
-                "date": target_date_str,
-                "score": aaii["spread_normalized"],
-                "article_count": 0,
-                "source": "aaii",
-            })
-
         cnn = market_health.get("details", {}).get("CNN")
         if cnn:
             snapshots.append({

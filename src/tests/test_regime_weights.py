@@ -85,18 +85,31 @@ class TestMarketHealthScore:
             assert isinstance(result['score'], int)
 
     def test_market_health_score_range(self):
-        """Score should be 0-10 depending on index scores + breadth."""
+        """Index + breadth contribution should be 0-10.
+
+        The VIX/CNN overlays are neutralized here so this test isolates the
+        price/breadth core. (Live mode feeds those overlays an as-of date —
+        see market_regime.get_market_health — so without mocking them this test
+        would both exceed 10 and make real network calls.)
+        """
         from bluehorseshoe.analysis.market_regime import MarketRegime
+
+        overlays_off = (
+            patch('bluehorseshoe.data.vix.get_vix_snapshot', return_value=None),
+            patch('bluehorseshoe.data.cnn_fear_greed.get_cnn_snapshot', return_value=None),
+        )
 
         # Max score: 2 indices * 4 points + 2 breadth = 10
         with patch.object(MarketRegime, '_get_index_health', return_value=(4, {})), \
-             patch.object(MarketRegime, '_calculate_breadth', return_value=0.8):
+             patch.object(MarketRegime, '_calculate_breadth', return_value=0.8), \
+             overlays_off[0], overlays_off[1]:
             result = MarketRegime.get_market_health()
             assert result['score'] == 10
 
         # Min score: 0 + 0 breadth
         with patch.object(MarketRegime, '_get_index_health', return_value=(0, {})), \
-             patch.object(MarketRegime, '_calculate_breadth', return_value=0.2):
+             patch.object(MarketRegime, '_calculate_breadth', return_value=0.2), \
+             overlays_off[0], overlays_off[1]:
             result = MarketRegime.get_market_health()
             assert result['score'] == 0
 

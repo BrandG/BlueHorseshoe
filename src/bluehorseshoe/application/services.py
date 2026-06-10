@@ -88,11 +88,6 @@ def flatten_regime_for_report(regime: dict[str, Any]) -> dict[str, Any]:
         flattened["vix_close"] = vix_details.get("close", "N/A")
         flattened["vix_fear"] = vix_details.get("fear_level", "")
 
-    aaii_details = flattened.get("details", {}).get("AAII", {})
-    if aaii_details:
-        flattened["aaii_spread"] = aaii_details.get("bull_bear_spread", "N/A")
-        flattened["aaii_signal"] = aaii_details.get("signal", "")
-
     cnn_details = flattened.get("details", {}).get("CNN", {})
     if cnn_details:
         flattened["cnn_score"] = cnn_details.get("score", "N/A")

@@ -2,6 +2,7 @@
 Module for analyzing market regime and health.
 """
 import logging
+from datetime import date
 from typing import Dict, Any, Optional
 import pandas as pd
 from bluehorseshoe.data.historical_data import load_historical_data
@@ -136,9 +137,18 @@ class MarketRegime:
             total_score += 1
         health_data['breadth'] = breadth
 
+        # As-of date for the VIX/CNN overlays. In live mode target_date is None;
+        # without an as-of date these were silently skipped, so a live `-p` regime
+        # was computed from a strictly weaker input set than every backtest (which
+        # always passes target_date). The snapshot helpers all resolve "most recent
+        # reading on or before this date", so today's date is safe across
+        # weekends/holidays (walks back to the latest bar) and matches the
+        # latest-bar as-of the price/breadth side already uses.
+        asof = target_date or date.today().isoformat()
+
         # VIX contribution: low VIX = bullish, high = bearish
         from bluehorseshoe.data.vix import get_vix_snapshot
-        vix = get_vix_snapshot(target_date) if target_date else None
+        vix = get_vix_snapshot(asof)
         if vix:
             health_data['VIX'] = vix
             if vix['close'] <= 15:
@@ -148,22 +158,9 @@ class MarketRegime:
             elif vix['close'] > 30:
                 total_score -= 1
 
-        # AAII sentiment contribution (contrarian: bearish = bullish signal)
-        from bluehorseshoe.data.aaii import get_aaii_snapshot  # pylint: disable=import-outside-toplevel
-        aaii = get_aaii_snapshot(target_date) if target_date else None
-        if aaii:
-            health_data['AAII'] = aaii
-            spread = aaii['bull_bear_spread']
-            if spread <= -20:
-                total_score += 2  # Extreme bearish → contrarian bullish
-            elif spread <= -10:
-                total_score += 1  # Bearish → contrarian mildly bullish
-            elif spread >= 30:
-                total_score -= 1  # Extreme bullish → contrarian bearish
-
         # CNN Fear & Greed contribution (high fear = contrarian bullish)
         from bluehorseshoe.data.cnn_fear_greed import get_cnn_snapshot  # pylint: disable=import-outside-toplevel
-        cnn = get_cnn_snapshot(target_date) if target_date else None
+        cnn = get_cnn_snapshot(asof)
         if cnn:
             health_data['CNN'] = cnn
             if cnn['score'] <= 25:

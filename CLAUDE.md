@@ -184,7 +184,6 @@ Weights are stored in `src/weights.json` and loaded via `config.py`. Categories:
 - `MONGO_URI`: MongoDB connection string (default: `mongodb://127.0.0.1:27017`)
 - `MONGO_DB`: Database name (default: `bluehorseshoe`)
 - `DUCKDB_PATH`: Path to DuckDB file for OHLCV storage (auto-derived from `REPO_ROOT`)
-- `NASDAQ_DATA_LINK_API_KEY`: API key for AAII sentiment data from Nasdaq Data Link (optional, falls back to Excel download)
 - Email settings for notifications (SMTP_SERVER, SMTP_USER, SMTP_PASSWORD, EMAIL_RECIPIENT)
 - `PAPER_TRADING_ENABLED`: Enable automatic bracket order submission after prediction (default: `false`)
 - `PAPER_TOTAL_INVESTMENT`: Total capital to deploy across positions (default: `10000`)
