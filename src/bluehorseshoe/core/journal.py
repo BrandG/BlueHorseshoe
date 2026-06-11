@@ -157,6 +157,12 @@ class SignalJournal:
                         "stop_multiplier": r.get("stop_multiplier", strat.default_stop_multiplier),
                         "target_multiplier": r.get("target_multiplier", strat.default_target_multiplier),
                         "sentiment": r.get("sentiment", 0.0),
+                        # Tracking-only 48h news annotation (DeepOS-family fires, live
+                        # runs only; arm None = not annotated, "nocov" = annotated but
+                        # no coverage). See analysis/news_annotation.py for lineage.
+                        "news_48h_mean": r.get("news_48h_mean"),
+                        "news_48h_count": r.get("news_48h_count"),
+                        "news_48h_arm": r.get("news_48h_arm"),
                         "components": r.get(strat.components_key, {}),
                     }
                 )

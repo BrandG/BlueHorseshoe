@@ -44,6 +44,7 @@ from bluehorseshoe.analysis.market_regime import MarketRegime
 from bluehorseshoe.analysis.ml_overlay import MLInference
 from bluehorseshoe.analysis.ml_profit_target import ProfitTargetInference
 from bluehorseshoe.analysis.ml_stop_loss import StopLossInference
+from bluehorseshoe.analysis.news_annotation import annotate_deepos_results
 from bluehorseshoe.analysis.postprocess import CandidateAssembler, SentimentEnricher
 from bluehorseshoe.analysis.technical_analyzer import TechnicalAnalyzer
 from bluehorseshoe.core.config import Settings, get_settings, weights_config
@@ -963,6 +964,21 @@ class SwingTrader:
         top_candidates = candidate_assembler.build_top_candidates(valid_results)
         top_candidates = self._enrich_with_intraday(top_candidates)
 
+        is_live = self._is_live_target_date(ctx.target_date)
+
+        # 5a-2. Tracking-only news annotation on DeepOS-family fires (live runs only:
+        # current news stamped onto historical fires would poison the forward record).
+        # Must run BEFORE the journal freeze so the arms land in journal_signals.
+        if is_live and valid_results:
+            try:
+                annotate_deepos_results(
+                    valid_results,
+                    target_date=valid_results[0]["date"][:10],
+                    database=self.database,
+                )
+            except Exception as exc:  # pylint: disable=broad-exception-caught
+                logging.error("News annotation failed (non-fatal): %s", exc)
+
         # 5b. Freeze Signal Journal (immutable record)
         if self.signal_journal is not None and valid_results:
             try:
@@ -985,7 +1001,7 @@ class SwingTrader:
             top_candidates,
             target_date=ctx.target_date,
             market_health=market_health,
-            is_live=self._is_live_target_date(ctx.target_date),
+            is_live=is_live,
         )
 
         self._annotate_planned_sizing(top_candidates)

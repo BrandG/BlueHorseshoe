@@ -219,6 +219,11 @@ class HypothesisEngine:
                     "signal_strength": signal.get("signal_strength", ""),
                     "rank": signal.get("rank", 0),
                     "ml_win_probability": signal.get("ml_win_probability", 0.0),
+                    # 48h news annotation arms (DeepOS-family; None = not annotated)
+                    # carried through so matured trades split by arm without a join
+                    "news_48h_mean": signal.get("news_48h_mean"),
+                    "news_48h_count": signal.get("news_48h_count"),
+                    "news_48h_arm": signal.get("news_48h_arm"),
                     "entry_price": entry_price,
                     "stop_loss": stop_loss,
                     "take_profit": take_profit,
