@@ -1,0 +1,180 @@
+2000 symbols; trailing/let-it-run exit study
+  0/2000
+  400/2000
+  800/2000
+  1200/2000
+  1600/2000
+
+################ MODEL A — uncapped fixed-horizon R (ATR units); OPTIMAL-HOLD sweep ################
+  Trend thesis: breakout mean R RISES with H (tail compounds). MR thesis: don_low peaks early then fades.
+
+  ===== regime=all =====
+   -- don_high_20 --
+     H5    mean+0.05R med+0.07 skew+0.1 win52% p95+2.7 max+43 >5R0.9% n67030
+     H10   mean+0.13R med+0.15 skew+0.3 win53% p95+4.0 max+69 >5R2.7% n52743
+     H20   mean+0.25R med+0.28 skew-0.2 win54% p95+5.7 max+114 >5R7.2% n40102
+     H40   mean+0.44R med+0.49 skew+1.0 win54% p95+8.3 max+176 >5R15.4% n28394
+     H60   mean+0.61R med+0.67 skew+0.5 win55% p95+10.3 max+166 >5R21.6% n22170
+     H120  mean+1.80R med+1.29 skew+0.5 win56% p95+16.4 max+81 >5R32.9% n13310
+     H250  mean+3.58R med+2.21 skew+1.2 win57% p95+25.8 max+171 >5R41.6% n7063
+     -> optimal fixed hold = H250 (mean +3.58R)
+   -- don_high_55 --
+     H5    mean+0.03R med+0.04 skew-0.2 win51% p95+2.7 max+21 >5R0.9% n42708
+     H10   mean+0.11R med+0.14 skew-0.1 win53% p95+4.0 max+33 >5R2.7% n33646
+     H20   mean+0.21R med+0.25 skew-1.2 win53% p95+5.9 max+36 >5R7.6% n25570
+     H40   mean+0.40R med+0.47 skew-0.3 win54% p95+8.5 max+113 >5R15.5% n19064
+     H60   mean+0.64R med+0.67 skew-0.3 win55% p95+10.5 max+99 >5R22.3% n15854
+     H120  mean+1.67R med+1.28 skew+0.3 win56% p95+16.2 max+75 >5R32.5% n10448
+     H250  mean+4.13R med+2.68 skew+1.5 win59% p95+27.3 max+183 >5R43.3% n5982
+     -> optimal fixed hold = H250 (mean +4.13R)
+   -- don_low_20 --
+     H5    mean+0.02R med+0.07 skew-0.4 win52% p95+2.6 max+68 >5R0.5% n49990
+     H10   mean+0.16R med+0.20 skew-0.6 win54% p95+3.9 max+55 >5R2.2% n41035
+     H20   mean+0.26R med+0.32 skew-1.4 win54% p95+5.6 max+30 >5R6.8% n32722
+     H40   mean+0.55R med+0.46 skew-1.3 win55% p95+8.4 max+61 >5R16.6% n24419
+     H60   mean+0.83R med+0.64 skew-0.4 win55% p95+10.1 max+79 >5R21.4% n19420
+     H120  mean+1.76R med+1.21 skew+0.9 win57% p95+15.7 max+220 >5R31.4% n12000
+     H250  mean+3.59R med+2.04 skew+0.5 win58% p95+24.7 max+158 >5R40.4% n6565
+     -> optimal fixed hold = H250 (mean +3.59R)
+   -- RANDOM --
+     H5    mean+0.07R med+0.09 skew-0.2 win52% p95+2.6 max+68 >5R0.6% n312212
+     H10   mean+0.14R med+0.16 skew-0.7 win53% p95+3.8 max+69 >5R2.2% n171641
+     H20   mean+0.23R med+0.24 skew-0.3 win53% p95+5.6 max+114 >5R6.8% n90915
+     H40   mean+0.53R med+0.41 skew-0.2 win54% p95+8.2 max+94 >5R15.3% n47840
+     H60   mean+0.77R med+0.79 skew-0.5 win56% p95+10.3 max+60 >5R22.2% n32700
+     H120  mean+1.56R med+1.21 skew+0.0 win56% p95+15.6 max+123 >5R31.9% n17010
+     H250  mean+4.06R med+2.23 skew+1.2 win58% p95+27.8 max+171 >5R41.5% n8384
+     -> optimal fixed hold = H250 (mean +4.06R)
+
+  ===== regime=nonbull =====
+   -- don_high_20 --
+     H5    mean+0.05R med+0.13 skew-0.1 win54% p95+2.5 max+14 >5R0.6% n14700
+     H10   mean+0.18R med+0.25 skew-0.2 win55% p95+3.5 max+17 >5R1.8% n11631
+     H20   mean+0.41R med+0.51 skew+0.0 win57% p95+4.9 max+17 >5R4.8% n8898
+     H40   mean+0.58R med+0.72 skew+0.1 win57% p95+6.9 max+24 >5R11.6% n6681
+     H60   mean+1.12R med+1.24 skew+0.3 win60% p95+8.7 max+30 >5R19.1% n5447
+     H120  mean+2.53R med+2.23 skew+1.0 win63% p95+14.1 max+70 >5R32.6% n3603
+     H250  mean+4.97R med+4.50 skew+0.5 win67% p95+21.5 max+57 >5R47.9% n1961
+     -> optimal fixed hold = H250 (mean +4.97R)
+   -- don_high_55 --
+     H5    mean-0.06R med+0.00 skew-0.0 win50% p95+2.4 max+11 >5R0.7% n7072
+     H10   mean-0.05R med+0.06 skew-0.3 win51% p95+3.2 max+15 >5R1.6% n5783
+     H20   mean-0.11R med-0.11 skew+0.3 win48% p95+4.6 max+17 >5R4.0% n4635
+     H40   mean-0.09R med+0.03 skew+0.1 win50% p95+6.4 max+28 >5R9.1% n3881
+     H60   mean+0.42R med+0.36 skew+0.5 win53% p95+8.6 max+46 >5R15.5% n3384
+     H120  mean+2.08R med+1.73 skew+1.0 win61% p95+13.6 max+75 >5R29.5% n2484
+     H250  mean+5.33R med+4.48 skew+3.4 win66% p95+23.6 max+183 >5R47.8% n1692
+     -> optimal fixed hold = H250 (mean +5.33R)
+   -- don_low_20 --
+     H5    mean-0.09R med+0.04 skew-3.0 win51% p95+2.6 max+12 >5R0.3% n14249
+     H10   mean+0.15R med+0.26 skew-1.1 win55% p95+3.8 max+16 >5R1.6% n11448
+     H20   mean+0.42R med+0.61 skew-1.5 win58% p95+5.5 max+20 >5R6.5% n8637
+     H40   mean+0.97R med+0.97 skew-1.0 win59% p95+8.5 max+31 >5R17.0% n6356
+     H60   mean+1.36R med+1.31 skew+0.1 win60% p95+9.3 max+39 >5R21.1% n4941
+     H120  mean+2.43R med+2.03 skew+0.3 win64% p95+13.7 max+77 >5R31.8% n3015
+     H250  mean+5.15R med+4.33 skew+0.9 win67% p95+21.8 max+101 >5R46.3% n1790
+     -> optimal fixed hold = H250 (mean +5.15R)
+   -- RANDOM --
+     H5    mean+0.11R med+0.19 skew-1.4 win55% p95+2.5 max+39 >5R0.4% n74185
+     H10   mean+0.24R med+0.36 skew-1.7 win57% p95+3.5 max+25 >5R1.5% n40517
+     H20   mean+0.38R med+0.50 skew-1.7 win57% p95+5.2 max+28 >5R5.6% n21333
+     H40   mean+0.48R med+0.62 skew-1.7 win56% p95+7.4 max+28 >5R13.3% n10737
+     H60   mean+1.51R med+1.62 skew-0.9 win63% p95+9.3 max+31 >5R22.0% n8143
+     H120  mean+2.51R med+2.51 skew-0.7 win64% p95+13.5 max+39 >5R34.2% n4626
+     H250  mean+4.94R med+4.55 skew+0.2 win67% p95+21.5 max+61 >5R48.7% n2476
+     -> optimal fixed hold = H250 (mean +4.94R)
+
+  ===== regime=bull =====
+   -- don_high_20 --
+     H5    mean+0.05R med+0.05 skew+0.2 win51% p95+2.8 max+43 >5R1.0% n52330
+     H10   mean+0.12R med+0.12 skew+0.4 win52% p95+4.1 max+69 >5R2.9% n41112
+     H20   mean+0.20R med+0.21 skew-0.2 win53% p95+6.0 max+114 >5R7.8% n31204
+     H40   mean+0.40R med+0.40 skew+1.1 win53% p95+8.6 max+176 >5R16.5% n21713
+     H60   mean+0.44R med+0.45 skew+0.5 win53% p95+10.7 max+166 >5R22.4% n16723
+     H120  mean+1.53R med+0.89 skew+0.5 win54% p95+16.9 max+81 >5R33.0% n9707
+     H250  mean+3.05R med+1.02 skew+1.3 win53% p95+27.3 max+171 >5R39.1% n5102
+     -> optimal fixed hold = H250 (mean +3.05R)
+   -- don_high_55 --
+     H5    mean+0.04R med+0.05 skew-0.2 win51% p95+2.8 max+21 >5R1.0% n35636
+     H10   mean+0.14R med+0.16 skew-0.1 win53% p95+4.1 max+33 >5R2.9% n27863
+     H20   mean+0.28R med+0.35 skew-1.4 win54% p95+6.1 max+36 >5R8.4% n20935
+     H40   mean+0.52R med+0.64 skew-0.3 win55% p95+8.8 max+113 >5R17.1% n15183
+     H60   mean+0.70R med+0.79 skew-0.4 win55% p95+11.0 max+99 >5R24.1% n12470
+     H120  mean+1.54R med+1.13 skew+0.3 win55% p95+17.1 max+70 >5R33.4% n7964
+     H250  mean+3.66R med+1.81 skew+1.1 win56% p95+28.5 max+171 >5R41.6% n4290
+     -> optimal fixed hold = H250 (mean +3.66R)
+   -- don_low_20 --
+     H5    mean+0.07R med+0.07 skew+1.5 win52% p95+2.6 max+68 >5R0.6% n35741
+     H10   mean+0.16R med+0.17 skew-0.4 win53% p95+4.0 max+55 >5R2.5% n29587
+     H20   mean+0.20R med+0.21 skew-1.4 win53% p95+5.6 max+30 >5R6.9% n24085
+     H40   mean+0.40R med+0.29 skew-1.3 win53% p95+8.4 max+61 >5R16.4% n18063
+     H60   mean+0.64R med+0.41 skew-0.4 win53% p95+10.4 max+79 >5R21.6% n14479
+     H120  mean+1.53R med+0.85 skew+1.1 win54% p95+16.4 max+220 >5R31.3% n8985
+     H250  mean+3.01R med+1.06 skew+0.5 win54% p95+25.5 max+158 >5R38.2% n4775
+     -> optimal fixed hold = H250 (mean +3.01R)
+   -- RANDOM --
+     H5    mean+0.06R med+0.06 skew+0.2 win51% p95+2.7 max+68 >5R0.7% n238027
+     H10   mean+0.11R med+0.10 skew-0.4 win52% p95+3.9 max+69 >5R2.4% n131124
+     H20   mean+0.18R med+0.15 skew+0.0 win52% p95+5.7 max+114 >5R7.2% n69582
+     H40   mean+0.55R med+0.36 skew+0.1 win53% p95+8.4 max+94 >5R15.9% n37103
+     H60   mean+0.52R med+0.46 skew-0.4 win53% p95+10.6 max+60 >5R22.3% n24557
+     H120  mean+1.21R med+0.59 skew+0.2 win53% p95+16.4 max+123 >5R31.0% n12384
+     H250  mean+3.69R med+1.08 skew+1.3 win54% p95+30.9 max+171 >5R38.5% n5908
+     -> optimal fixed hold = H250 (mean +3.69R)
+
+################ MODEL B — chandelier trailing, let-it-run (non-overlapping trades) ################
+  R normalized to initial risk (M*ATR). dur=avg trade days, durW=avg WINNER days (=how long runners run).
+
+  ===== regime=all  (trail-multiple sweep, max-hold 250) =====
+     don_high_20  M2  mean+0.04R med-0.28 skew+2.3 win38% mw+1.1 ml-0.6 max+31 >5R0.4% >10R0.0% dur10/17 n46223
+     don_high_20  M3  mean+0.08R med-0.25 skew+2.0 win40% mw+1.1 ml-0.6 max+20 >5R0.4% >10R0.0% dur22/36 n33510
+     don_high_20  M4  mean+0.11R med-0.22 skew+1.9 win41% mw+1.1 ml-0.6 max+15 >5R0.4% >10R0.0% dur37/60 n25994
+     don_high_55  M2  mean+0.02R med-0.30 skew+1.9 win37% mw+1.1 ml-0.6 max+10 >5R0.4% >10R0.0% dur9/15 n30351
+     don_high_55  M3  mean+0.05R med-0.27 skew+1.9 win39% mw+1.1 ml-0.6 max+7 >5R0.4% >10R0.0% dur20/32 n22449
+     don_high_55  M4  mean+0.08R med-0.25 skew+1.8 win40% mw+1.1 ml-0.6 max+11 >5R0.3% >10R0.0% dur34/53 n17770
+     don_low_20   M2  mean+0.06R med-0.27 skew+2.2 win35% mw+1.1 ml-0.5 max+10 >5R0.5% >10R0.0% dur10/17 n51470
+     don_low_20   M3  mean+0.10R med-0.28 skew+2.3 win37% mw+1.2 ml-0.5 max+23 >5R0.5% >10R0.0% dur23/41 n38724
+     don_low_20   M4  mean+0.13R med-0.26 skew+2.0 win39% mw+1.2 ml-0.6 max+17 >5R0.5% >10R0.0% dur42/69 n28548
+     RANDOM       M2  mean+0.06R med-0.29 skew+2.2 win38% mw+1.1 ml-0.6 max+31 >5R0.5% >10R0.0% dur11/18 n161592
+     RANDOM       M3  mean+0.09R med-0.26 skew+2.0 win39% mw+1.1 ml-0.6 max+20 >5R0.5% >10R0.0% dur25/41 n77239
+     RANDOM       M4  mean+0.11R med-0.24 skew+1.9 win40% mw+1.2 ml-0.6 max+15 >5R0.4% >10R0.0% dur45/72 n45033
+
+  ===== regime=nonbull  (trail-multiple sweep, max-hold 250) =====
+     don_high_20  M2  mean+0.11R med-0.19 skew+1.7 win43% mw+1.1 ml-0.6 max+9 >5R0.4% >10R0.0% dur14/23 n9768
+     don_high_20  M3  mean+0.20R med-0.10 skew+1.7 win46% mw+1.1 ml-0.6 max+8 >5R0.4% >10R0.0% dur32/51 n7600
+     don_high_20  M4  mean+0.27R med-0.06 skew+1.6 win48% mw+1.2 ml-0.6 max+8 >5R0.4% >10R0.0% dur55/86 n6394
+     don_high_55  M2  mean-0.04R med-0.30 skew+1.8 win37% mw+0.9 ml-0.6 max+7 >5R0.2% >10R0.0% dur10/17 n5256
+     don_high_55  M3  mean-0.04R med-0.31 skew+2.2 win35% mw+1.0 ml-0.6 max+7 >5R0.4% >10R0.0% dur22/38 n4358
+     don_high_55  M4  mean+0.03R med-0.31 skew+2.2 win36% mw+1.1 ml-0.6 max+11 >5R0.4% >10R0.0% dur39/70 n3840
+     don_low_20   M2  mean+0.07R med-0.28 skew+2.3 win36% mw+1.1 ml-0.5 max+10 >5R0.6% >10R0.0% dur10/20 n15713
+     don_low_20   M3  mean+0.16R med-0.28 skew+2.1 win39% mw+1.3 ml-0.5 max+11 >5R0.8% >10R0.0% dur27/52 n12036
+     don_low_20   M4  mean+0.21R med-0.22 skew+1.9 win41% mw+1.3 ml-0.6 max+10 >5R0.6% >10R0.0% dur51/90 n9151
+     RANDOM       M2  mean+0.10R med-0.27 skew+2.0 win39% mw+1.2 ml-0.6 max+15 >5R0.6% >10R0.0% dur13/23 n40402
+     RANDOM       M3  mean+0.17R med-0.23 skew+1.8 win41% mw+1.3 ml-0.6 max+10 >5R0.7% >10R0.0% dur31/55 n21388
+     RANDOM       M4  mean+0.26R med-0.17 skew+1.7 win44% mw+1.3 ml-0.6 max+11 >5R0.6% >10R0.0% dur57/97 n13547
+
+  ===== regime=bull  (trail-multiple sweep, max-hold 250) =====
+     don_high_20  M2  mean+0.03R med-0.31 skew+2.4 win37% mw+1.1 ml-0.6 max+31 >5R0.4% >10R0.0% dur9/15 n36455
+     don_high_20  M3  mean+0.05R med-0.29 skew+2.1 win38% mw+1.1 ml-0.6 max+20 >5R0.4% >10R0.0% dur19/30 n25910
+     don_high_20  M4  mean+0.06R med-0.27 skew+2.0 win39% mw+1.1 ml-0.6 max+15 >5R0.4% >10R0.0% dur32/49 n19600
+     don_high_55  M2  mean+0.03R med-0.30 skew+1.9 win38% mw+1.1 ml-0.6 max+10 >5R0.5% >10R0.0% dur9/15 n25095
+     don_high_55  M3  mean+0.07R med-0.26 skew+1.8 win39% mw+1.1 ml-0.6 max+7 >5R0.4% >10R0.0% dur19/30 n18091
+     don_high_55  M4  mean+0.10R med-0.23 skew+1.7 win41% mw+1.1 ml-0.6 max+8 >5R0.3% >10R0.0% dur32/50 n13930
+     don_low_20   M2  mean+0.05R med-0.27 skew+2.1 win35% mw+1.1 ml-0.5 max+10 >5R0.4% >10R0.0% dur9/16 n35757
+     don_low_20   M3  mean+0.08R med-0.29 skew+2.4 win37% mw+1.1 ml-0.5 max+23 >5R0.4% >10R0.0% dur22/36 n26688
+     don_low_20   M4  mean+0.09R med-0.27 skew+2.1 win39% mw+1.1 ml-0.6 max+17 >5R0.4% >10R0.0% dur38/59 n19397
+     RANDOM       M2  mean+0.05R med-0.30 skew+2.2 win37% mw+1.1 ml-0.6 max+31 >5R0.4% >10R0.0% dur10/17 n121190
+     RANDOM       M3  mean+0.06R med-0.28 skew+2.1 win38% mw+1.1 ml-0.6 max+20 >5R0.4% >10R0.0% dur23/35 n55851
+     RANDOM       M4  mean+0.05R med-0.27 skew+2.0 win39% mw+1.1 ml-0.6 max+15 >5R0.3% >10R0.0% dur40/59 n31486
+
+  ----- max-hold cap sweep (M=3) : does capping the hold help or hurt the breakout? -----
+   regime=all
+     don_high_20  cap20:+0.05R(sk+1.3,dur13)  cap60:+0.07R(sk+1.8,dur20)  cap120:+0.08R(sk+1.9,dur21)  cap250:+0.08R(sk+2.0,dur22)
+     don_high_55  cap20:+0.03R(sk+1.2,dur13)  cap60:+0.04R(sk+1.7,dur19)  cap120:+0.05R(sk+1.9,dur20)  cap250:+0.05R(sk+1.9,dur20)
+     RANDOM       cap20:+0.06R(sk+1.2,dur14)  cap60:+0.09R(sk+1.8,dur22)  cap120:+0.09R(sk+2.0,dur24)  cap250:+0.09R(sk+2.0,dur25)
+   regime=nonbull
+     don_high_20  cap20:+0.09R(sk+0.8,dur14)  cap60:+0.16R(sk+1.3,dur24)  cap120:+0.17R(sk+1.6,dur29)  cap250:+0.20R(sk+1.7,dur32)
+     don_high_55  cap20:-0.06R(sk+1.0,dur13)  cap60:-0.04R(sk+1.9,dur20)  cap120:-0.04R(sk+2.1,dur21)  cap250:-0.04R(sk+2.2,dur22)
+     RANDOM       cap20:+0.08R(sk+0.8,dur14)  cap60:+0.13R(sk+1.5,dur23)  cap120:+0.16R(sk+1.8,dur28)  cap250:+0.17R(sk+1.8,dur31)
+
+done.

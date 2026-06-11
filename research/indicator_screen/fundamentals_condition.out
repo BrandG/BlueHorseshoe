@@ -1,0 +1,71 @@
+fundamentals-covered 1103/2000  (quarter-rows 55365)
+  0/1103
+  200/1103
+/root/BlueHorseshoe/research/indicator_screen/fundamentals_condition.py:123: RuntimeWarning: divide by zero encountered in divide
+  rg,_=run(nxo,atr,o,h,l,c,True); ctier=np.array([dv_cost_bp(x) for x in np.nan_to_num(dv20)])/1e4/(SL_ATR*atr_pct)
+  400/1103
+/root/BlueHorseshoe/research/indicator_screen/fundamentals_condition.py:123: RuntimeWarning: divide by zero encountered in divide
+  rg,_=run(nxo,atr,o,h,l,c,True); ctier=np.array([dv_cost_bp(x) for x in np.nan_to_num(dv20)])/1e4/(SL_ATR*atr_pct)
+  600/1103
+/root/BlueHorseshoe/research/indicator_screen/fundamentals_condition.py:123: RuntimeWarning: divide by zero encountered in divide
+  rg,_=run(nxo,atr,o,h,l,c,True); ctier=np.array([dv_cost_bp(x) for x in np.nan_to_num(dv20)])/1e4/(SL_ATR*atr_pct)
+  800/1103
+/root/BlueHorseshoe/research/indicator_screen/fundamentals_condition.py:123: RuntimeWarning: divide by zero encountered in divide
+  rg,_=run(nxo,atr,o,h,l,c,True); ctier=np.array([dv_cost_bp(x) for x in np.nan_to_num(dv20)])/1e4/(SL_ATR*atr_pct)
+  1000/1103
+
+################ A. QUALITY TIERS within DeepOS — regime=nonbull (NW lift vs random) ################
+  [S2] deepos +0.096R t+4.9 n11209 | deepos_fcov +0.089R t+4.5 n10875
+        improvement: lowF +0.045R t+1.1 n2789 | midF +0.032R t+1.1 n5628 | highF +0.117R t+2.3 n1747
+        profitable : prof +0.058R t+2.3 n6704 | unprof +0.103R t+3.1 n3957
+        Altman Z'' : safe +0.135R t+4.4 n4489 | grey +0.033R t+0.7 n1865 | distress +0.008R t+0.3 n3926
+  [S4] deepos +0.105R t+5.3 n11209 | deepos_fcov +0.098R t+4.9 n10875
+        improvement: lowF +0.052R t+1.3 n2789 | midF +0.041R t+1.4 n5628 | highF +0.125R t+2.5 n1747
+        profitable : prof +0.068R t+2.7 n6704 | unprof +0.108R t+3.3 n3957
+        Altman Z'' : safe +0.142R t+4.6 n4489 | grey +0.041R t+0.8 n1865 | distress +0.018R t+0.5 n3926
+
+################ A. QUALITY TIERS within DeepOS — regime=all (NW lift vs random) ################
+  [S2] deepos +0.085R t+7.2 n32843 | deepos_fcov +0.085R t+7.0 n31566
+        improvement: lowF +0.074R t+3.2 n8883 | midF +0.070R t+4.2 n16540 | highF +0.065R t+2.2 n5493
+        profitable : prof +0.057R t+3.6 n18299 | unprof +0.111R t+5.8 n13060
+        Altman Z'' : safe +0.085R t+4.5 n13177 | grey +0.041R t+1.4 n5347 | distress +0.085R t+4.2 n11738
+  [S4] deepos +0.093R t+7.8 n32843 | deepos_fcov +0.093R t+7.6 n31566
+        improvement: lowF +0.081R t+3.5 n8883 | midF +0.079R t+4.7 n16540 | highF +0.074R t+2.5 n5493
+        profitable : prof +0.067R t+4.2 n18299 | unprof +0.117R t+6.1 n13060
+        Altman Z'' : safe +0.093R t+5.0 n13177 | grey +0.050R t+1.7 n5347 | distress +0.093R t+4.6 n11738
+
+################ B. DEPLOYABLE FILTERS (S4, exclude low-quality tail) ################
+  regime=nonbull  [deepos_fcov base +0.098R t+4.9 n10875]
+    filter           FILTERED-BOOK S4     lift %vol kept   [definition]
+    Qf_F          +0.088R t+3.7 n7762   -0.010       71%   [drop lowF (F<=3)]
+    Qf_P          +0.068R t+2.7 n6704   -0.029       62%   [keep profitable]
+    Qf_Z          +0.130R t+5.0 n6505   +0.033       60%   [drop Z''-distress]
+    Qf_FZ         +0.133R t+4.6 n5179   +0.036       48%   [drop lowF OR distress]
+  regime=all  [deepos_fcov base +0.093R t+7.6 n31566]
+    filter           FILTERED-BOOK S4     lift %vol kept   [definition]
+    Qf_F         +0.089R t+6.2 n22372   -0.004       71%   [drop lowF (F<=3)]
+    Qf_P         +0.067R t+4.2 n18299   -0.026       58%   [keep profitable]
+    Qf_Z         +0.087R t+5.5 n18681   -0.006       59%   [drop Z''-distress]
+    Qf_FZ        +0.091R t+5.2 n14962   -0.002       47%   [drop lowF OR distress]
+
+################ C. HA-OVERLAP — does DeepOS+HA already dodge the low-quality knife? ################
+  nonbull  HA-sleeve     +0.160R t+1.6 n325 | HA & clean-quality     +0.229R t+1.2 n131 | HA & BAD-quality   -0.088R t-0.8 n133
+           HA&lowF -0.070R t-0.6 n113 HA&highF (thin) | HA&distress +0.044R t+0.4 n93 HA&zsafe +0.226R t+1.2 n138
+  all      HA-sleeve    +0.094R t+2.7 n2382 | HA & clean-quality     +0.069R t+1.2 n941 | HA & BAD-quality   +0.082R t+1.6 n967
+           HA&lowF +0.012R t+0.2 n652 HA&highF +0.078R t+0.5 n166 | HA&distress +0.120R t+1.9 n706 HA&zsafe +0.053R t+0.9 n878
+
+################ D. YEAR-BY-YEAR (nonbull S4): base vs filters vs tier extremes ################
+    year |        deepos_fcov |              Qf_FZ |              highF |               lowF
+    2016 |        -0.081 n909 |        -0.074 n485 |        -0.225 n188 |        -0.069 n281
+    2017 |             (thin) |             (thin) |             (thin) |             (thin)
+    2018 |        +0.077 n894 |        -0.018 n491 |        +0.034 n176 |        +0.128 n178
+    2019 |         +0.026 n50 |         +0.010 n11 |             (thin) |         +0.219 n27
+    2020 |       -0.377 n1573 |        -0.346 n862 |        -0.253 n228 |        -0.236 n261
+    2021 |             (thin) |             (thin) |             (thin) |             (thin)
+    2022 |       -0.029 n2525 |        +0.014 n923 |        -0.017 n262 |       -0.097 n1067
+    2023 |        -0.205 n570 |        -0.243 n244 |         -0.396 n48 |        +0.013 n159
+    2024 |             (thin) |             (thin) |             (thin) |             (thin)
+    2025 |        -0.061 n273 |        +0.003 n110 |         +0.271 n43 |         -0.090 n71
+    2026 |             (thin) |             (thin) |             (thin) |             (thin)
+
+done.

@@ -1,0 +1,44 @@
+  0/2000
+  200/2000
+  ctier=np.array([dv_cost_bp(x) for x in np.nan_to_num(dv20)])/1e4/(SL_ATR*atr_pct)
+  ctier=np.array([dv_cost_bp(x) for x in np.nan_to_num(dv20)])/1e4/(SL_ATR*atr_pct)
+  400/2000
+  600/2000
+  800/2000
+  1000/2000
+  ctier=np.array([dv_cost_bp(x) for x in np.nan_to_num(dv20)])/1e4/(SL_ATR*atr_pct)
+  1200/2000
+  ctier=np.array([dv_cost_bp(x) for x in np.nan_to_num(dv20)])/1e4/(SL_ATR*atr_pct)
+  1400/2000
+  1600/2000
+  ctier=np.array([dv_cost_bp(x) for x in np.nan_to_num(dv20)])/1e4/(SL_ATR*atr_pct)
+  ctier=np.array([dv_cost_bp(x) for x in np.nan_to_num(dv20)])/1e4/(SL_ATR*atr_pct)
+  1800/2000
+
+################ EXIT-POLICY book R (S4) — regime=nonbull ################
+   base                +0.183R t+10.4 n14296   touch 0%
+   mex5 (SPY dd>5%)    +0.166R t+10.0 n14296   touch 7%
+   mex8 (SPY dd>8%)    +0.188R t+10.9 n14296   touch 3%
+   mex3 (SPY dd>3%)     +0.152R t+9.5 n14296   touch 15%
+
+################ EXIT-POLICY book R (S4) — regime=all ################
+   base                 +0.037R t+3.3 n38987   touch 0%
+   mex5 (SPY dd>5%)     +0.031R t+2.8 n38987   touch 4%
+   mex8 (SPY dd>8%)     +0.039R t+3.5 n38987   touch 1%
+   mex3 (SPY dd>3%)     +0.025R t+2.4 n38987   touch 10%
+
+################ YEAR-BY-YEAR book R (nonbull S4) — RESCUE 2020 w/o wrecking 2018? (touch% in parens) ################
+    year |             base |             mex5 |             mex8 |             mex3
+    2016 |   -0.066(0%)n817 |   -0.069(0%)n817 |   -0.066(0%)n817 |   -0.069(4%)n817
+    2017 |           (thin) |           (thin) |           (thin) |           (thin)
+    2018 |  +0.151(0%)n1239 |  +0.136(7%)n1239 |  +0.144(1%)n1239 | +0.144(18%)n1239
+    2019 |    -0.002(0%)n50 |    -0.002(0%)n50 |    -0.002(0%)n50 |    -0.002(0%)n50
+    2020 |  -0.186(0%)n2009 | -0.220(22%)n2009 | -0.142(10%)n2009 | -0.250(30%)n2009
+    2021 |           (thin) |           (thin) |           (thin) |           (thin)
+    2022 |  -0.013(0%)n3567 |  -0.010(4%)n3567 |  -0.014(1%)n3567 | -0.014(15%)n3567
+    2023 |   -0.189(0%)n618 |   -0.189(0%)n618 |   -0.189(0%)n618 |   -0.189(0%)n618
+    2024 |           (thin) |           (thin) |           (thin) |           (thin)
+    2025 |   -0.208(0%)n435 |   -0.230(9%)n435 |   -0.212(5%)n435 |  -0.238(20%)n435
+    2026 |           (thin) |           (thin) |           (thin) |           (thin)
+
+done.
