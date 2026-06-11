@@ -936,10 +936,15 @@ class SwingTrader:
         valid_results = self._execute_prediction_batch(symbols, ctx, progress_callback=progress_callback)
 
         # 4. Report & Collect Data
-        # We print to console/txt via ReportSingleton inside these helpers
-        # Report top candidates per strategy
-        _strategy_titles = {"baseline": "Baseline (Trend)", "mean_reversion": "Mean Reversion (Dip)", "deep_oversold": "Deep Oversold (Persistent Dip)"}
+        # We print to console/txt via ReportSingleton inside these helpers.
+        # Only live (paper_tradeable) sleeves get a "Top 5" on the human surface:
+        # untraded Baseline/MeanRev rankings anti-select (entry-signal alpha
+        # absent) and ADX-Down is tracking-only. Their scores still compute and
+        # persist below for backtests/research — they just don't get a trade list.
+        _strategy_titles = {"deep_oversold": "Deep Oversold (Persistent Dip)"}
         for strat in self.strategies:
+            if not strat.paper_tradeable:
+                continue
             title = _strategy_titles.get(strat.name, strat.display_name)
             self._report_top_candidates(
                 valid_results, strat.score_key, strat.setup_key, title,

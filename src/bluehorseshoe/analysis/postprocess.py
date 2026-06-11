@@ -44,15 +44,24 @@ class CandidateAssembler:
         self.strategies = strategies
 
     def build_top_candidates(self, valid_results: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """Return merged top candidates across configured strategies plus Connors."""
+        """Return merged top candidates across live strategies plus Connors.
+
+        Only ``paper_tradeable`` sleeves become candidate rows: untraded
+        Baseline/MeanRev rankings anti-select and ADX-Down is tracking-only, so
+        building rows for them only spends sentiment/intraday enrichment on names
+        every downstream surface filters back out. Their scores still persist via
+        ``ScoreManager`` for backtests/research. Connors keeps riding the full
+        strategy list because its setups live in Baseline/MeanRev metadata.
+        """
+        live_strategies = [s for s in self.strategies if s.paper_tradeable]
         candidates: List[Dict[str, Any]] = []
         for result in valid_results:
-            candidates.extend(self._build_strategy_candidates(result))
+            candidates.extend(self._build_strategy_candidates(result, live_strategies))
 
         connors_candidates = self._build_connors_candidates(valid_results)
 
         strategy_candidates: List[Dict[str, Any]] = []
-        for strategy in self.strategies:
+        for strategy in live_strategies:
             strat_top = sorted(
                 [candidate for candidate in candidates if candidate["strategy"] == strategy.display_name],
                 key=lambda candidate: candidate["score"],
@@ -62,9 +71,9 @@ class CandidateAssembler:
 
         return sorted(strategy_candidates + connors_candidates, key=lambda candidate: candidate["score"], reverse=True)
 
-    def _build_strategy_candidates(self, result: Dict[str, Any]) -> List[Dict[str, Any]]:
+    def _build_strategy_candidates(self, result: Dict[str, Any], strategies=None) -> List[Dict[str, Any]]:
         candidates: List[Dict[str, Any]] = []
-        for strategy in self.strategies:
+        for strategy in (self.strategies if strategies is None else strategies):
             score = result.get(strategy.score_key, 0)
             if score <= 0:
                 continue

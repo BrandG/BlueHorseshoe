@@ -94,7 +94,7 @@ BlueHorseshoe is a quantitative swing trading system that:
 - `-p [DATE]`: Predict trading candidates for target date (defaults to latest market date). If `PAPER_TRADING_ENABLED=true`, also submits bracket orders to IBKR paper account.
 - `-r [DATE]`: Regenerate report from saved scores
 - `-t DATE`: Run backtest (use `--end DATE --interval 7` for range, `--strategy baseline|mean_reversion`)
-- `-o`: Optimize indicator weights using historical performance
+- `-o`: RETIRED 2026-06-11 (weight optimizer tuned a scorer with no validated selection edge; prints an explanation and exits)
 - `-i SYMBOL ENTRY STOP TARGET`: Check intraday trade status (requires yfinance)
 - `-d`: Run debug routines
 
@@ -174,7 +174,7 @@ BlueHorseshoe is a quantitative swing trading system that:
 
 ### Indicator Weights
 
-Weights are stored in `src/weights.json` and loaded via `config.py`. Categories: `trend`, `momentum`, `volume`, `candlestick`, `mean_reversion`. Each indicator has a multiplier (default 1.0) that scales its score contribution. Use `-o` to optimize weights based on backtest performance.
+Weights are stored in `src/weights.json` and loaded via `config.py`. Categories: `trend`, `momentum`, `volume`, `candlestick`, `mean_reversion`. Each indicator has a multiplier (default 1.0) that scales its score contribution. The `-o` weight optimizer is RETIRED (2026-06-11): the additive scorer has no validated selection edge, so weight tuning polishes noise. Edit weights only with research backing, and validate prediction output before deploying any change.
 
 ## Configuration
 
@@ -264,3 +264,13 @@ Available skills: /office-hours, /plan-ceo-review, /plan-eng-review, /plan-desig
 /design-consultation, /review, /ship, /browse, /qa, /qa-only, /design-review,
 /setup-browser-cookies, /retro, /investigate, /document-release, /codex, /careful,
 /freeze, /guard, /unfreeze, /gstack-upgrade.
+
+## graphify
+
+This project has a knowledge graph at graphify-out/ with god nodes, community structure, and cross-file relationships.
+
+Rules:
+- For codebase questions, first run `graphify query "<question>"` when graphify-out/graph.json exists. Use `graphify path "<A>" "<B>"` for relationships and `graphify explain "<concept>"` for focused concepts. These return a scoped subgraph, usually much smaller than GRAPH_REPORT.md or raw grep output.
+- If graphify-out/wiki/index.md exists, use it for broad navigation instead of raw source browsing.
+- Read graphify-out/GRAPH_REPORT.md only for broad architecture review or when query/path/explain do not surface enough context.
+- After modifying code, run `graphify update .` to keep the graph current (AST-only, no API cost).

@@ -36,7 +36,6 @@ from bluehorseshoe.cli.context import create_cli_context
 from bluehorseshoe.core.service import get_latest_market_date
 from bluehorseshoe.core.symbol_repository import backfill_missing_overviews, get_symbols
 from bluehorseshoe.data.historical_data import check_market_status
-from bluehorseshoe.analysis.optimizer import WeightOptimizer
 from bluehorseshoe.reporting.html_reporter import HTMLReporter
 
 DEBUG_SYMBOL = 'ABVC'
@@ -421,13 +420,22 @@ if __name__ == "__main__":
                 market_health['cnn_score'] = cnn_details.get('score', 'N/A')
                 market_health['cnn_rating'] = cnn_details.get('rating', '')
 
-            # 2. Fetch Scores
+            # 2. Fetch Scores — candidates rebuild from the live (paper_tradeable)
+            # sleeves only; Baseline/MeanRev are loaded solely as the Connors
+            # metadata source (their own rankings are unvalidated and no longer
+            # become report candidates).
             from bluehorseshoe.core.scores import ScoreManager
+            from bluehorseshoe.analysis.strategy_registry import get_all_strategies
             score_manager = ScoreManager(database=ctx.db)
+            live_strats = [s for s in get_all_strategies() if s.paper_tradeable]
+            sleeve_scores = {
+                s.name: score_manager.get_scores(target_date, strategy=s.name)
+                for s in live_strats
+            }
             baseline_scores = score_manager.get_scores(target_date, strategy="baseline")
             mr_scores = score_manager.get_scores(target_date, strategy="mean_reversion")
 
-            if not baseline_scores and not mr_scores:
+            if not any(sleeve_scores.values()) and not baseline_scores and not mr_scores:
                 print(f"No scores found for {target_date}. Please run prediction first (-p).")
                 sys.exit(0)
 
@@ -451,77 +459,43 @@ if __name__ == "__main__":
             stocktwits_sentiment_cache = {}
             finviz_sentiment_cache = {}
 
-            # Process Baseline
-            for s in baseline_scores:
-                meta = s.get('metadata', {})
-                if not meta.get('entry_price'):
-                    continue
-                sym = s['symbol']
-                if sym not in sentiment_cache:
-                    sentiment_cache[sym] = get_sentiment_score(sym, target_date, database=ctx.db)
-                if sym not in tiingo_sentiment_cache:
-                    tiingo_sentiment_cache[sym] = meta.get('sentiment_tiingo') if meta.get('sentiment_tiingo') else get_tiingo_sentiment_score_with_count(sym, target_date, database=ctx.db)[0]
-                if sym not in stocktwits_sentiment_cache:
-                    stocktwits_sentiment_cache[sym] = meta.get('sentiment_stocktwits') if meta.get('sentiment_stocktwits') else get_stocktwits_sentiment_score_with_count(sym, target_date, database=ctx.db)[0]
-                if sym not in finviz_sentiment_cache:
-                    finviz_sentiment_cache[sym] = meta.get('sentiment_finviz') if meta.get('sentiment_finviz') else get_finviz_sentiment_score_with_count(sym, target_date, database=ctx.db)[0]
-                entry_price = meta.get('entry_price', 0)
-                candidates.append({
-                    "symbol": sym,
-                    "exchange": symbol_map.get(sym, 'Unknown'),
-                    "strategy": "Baseline",
-                    "score": s['score'],
-                    "close": entry_price,
-                    "actual_close": meta.get('actual_close', 0),
-                    "stop_loss": meta.get('stop_loss', 0),
-                    "t1_target": entry_price * 1.02 if entry_price > 0 else 0,
-                    "target": meta.get('take_profit', 0),
-                    "ml_prob": meta.get('ml_win_prob', 0.0),
-                    "sentiment": sentiment_cache[sym],
-                    "sentiment_tiingo": tiingo_sentiment_cache[sym],
-                    "sentiment_stocktwits": stocktwits_sentiment_cache[sym],
-                    "sentiment_finviz": finviz_sentiment_cache[sym],
-                    "reasons": [f"{k}={v:.1f}" for k, v in meta.get('components', {}).items() if v != 0],
-                    "cloud_age": meta.get('cloud_age', 0),
-                    "confluence_star": meta.get('confluence_star', False),
-                    "chronic_dislocation": meta.get('chronic_dislocation', False),
-                })
-
-            # Process Mean Reversion
-            for s in mr_scores:
-                meta = s.get('metadata', {})
-                if not meta.get('entry_price'):
-                    continue
-                sym = s['symbol']
-                if sym not in sentiment_cache:
-                    sentiment_cache[sym] = get_sentiment_score(sym, target_date, database=ctx.db)
-                if sym not in tiingo_sentiment_cache:
-                    tiingo_sentiment_cache[sym] = meta.get('sentiment_tiingo') if meta.get('sentiment_tiingo') else get_tiingo_sentiment_score_with_count(sym, target_date, database=ctx.db)[0]
-                if sym not in stocktwits_sentiment_cache:
-                    stocktwits_sentiment_cache[sym] = meta.get('sentiment_stocktwits') if meta.get('sentiment_stocktwits') else get_stocktwits_sentiment_score_with_count(sym, target_date, database=ctx.db)[0]
-                if sym not in finviz_sentiment_cache:
-                    finviz_sentiment_cache[sym] = meta.get('sentiment_finviz') if meta.get('sentiment_finviz') else get_finviz_sentiment_score_with_count(sym, target_date, database=ctx.db)[0]
-                entry_price = meta.get('entry_price', 0)
-                candidates.append({
-                    "symbol": sym,
-                    "exchange": symbol_map.get(sym, 'Unknown'),
-                    "strategy": "MeanRev",
-                    "score": s['score'],
-                    "close": entry_price,
-                    "actual_close": meta.get('actual_close', 0),
-                    "stop_loss": meta.get('stop_loss', 0),
-                    "t1_target": entry_price * 1.02 if entry_price > 0 else 0,
-                    "target": meta.get('take_profit', 0),
-                    "ml_prob": meta.get('ml_win_prob', 0.0),
-                    "sentiment": sentiment_cache[sym],
-                    "sentiment_tiingo": tiingo_sentiment_cache[sym],
-                    "sentiment_stocktwits": stocktwits_sentiment_cache[sym],
-                    "sentiment_finviz": finviz_sentiment_cache[sym],
-                    "reasons": [f"{k}={v:.1f}" for k, v in meta.get('components', {}).items() if v != 0],
-                    "cloud_age": meta.get('cloud_age', 0),
-                    "confluence_star": meta.get('confluence_star', False),
-                    "chronic_dislocation": meta.get('chronic_dislocation', False),
-                })
+            # Process live sleeves (DeepOS family) — the only rankings with a
+            # validated edge, mirroring what -p assembles.
+            for strat in live_strats:
+                for s in sleeve_scores[strat.name]:
+                    meta = s.get('metadata', {})
+                    if not meta.get('entry_price'):
+                        continue
+                    sym = s['symbol']
+                    if sym not in sentiment_cache:
+                        sentiment_cache[sym] = get_sentiment_score(sym, target_date, database=ctx.db)
+                    if sym not in tiingo_sentiment_cache:
+                        tiingo_sentiment_cache[sym] = meta.get('sentiment_tiingo') if meta.get('sentiment_tiingo') else get_tiingo_sentiment_score_with_count(sym, target_date, database=ctx.db)[0]
+                    if sym not in stocktwits_sentiment_cache:
+                        stocktwits_sentiment_cache[sym] = meta.get('sentiment_stocktwits') if meta.get('sentiment_stocktwits') else get_stocktwits_sentiment_score_with_count(sym, target_date, database=ctx.db)[0]
+                    if sym not in finviz_sentiment_cache:
+                        finviz_sentiment_cache[sym] = meta.get('sentiment_finviz') if meta.get('sentiment_finviz') else get_finviz_sentiment_score_with_count(sym, target_date, database=ctx.db)[0]
+                    entry_price = meta.get('entry_price', 0)
+                    candidates.append({
+                        "symbol": sym,
+                        "exchange": symbol_map.get(sym, 'Unknown'),
+                        "strategy": strat.display_name,
+                        "score": s['score'],
+                        "close": entry_price,
+                        "actual_close": meta.get('actual_close', 0),
+                        "stop_loss": meta.get('stop_loss', 0),
+                        "t1_target": entry_price * 1.02 if entry_price > 0 else 0,
+                        "target": meta.get('take_profit', 0),
+                        "ml_prob": meta.get('ml_win_prob', 0.0),
+                        "sentiment": sentiment_cache[sym],
+                        "sentiment_tiingo": tiingo_sentiment_cache[sym],
+                        "sentiment_stocktwits": stocktwits_sentiment_cache[sym],
+                        "sentiment_finviz": finviz_sentiment_cache[sym],
+                        "reasons": [f"{k}={v:.1f}" for k, v in meta.get('components', {}).items() if v != 0],
+                        "cloud_age": meta.get('cloud_age', 0),
+                        "confluence_star": meta.get('confluence_star', False),
+                        "chronic_dislocation": meta.get('chronic_dislocation', False),
+                    })
 
             # Build Connors candidates from persisted metadata
             connors_seen = set()
@@ -917,8 +891,16 @@ if __name__ == "__main__":
                 logging.error("Invalid arguments for indicator impact: %s", e)
                 print("Usage: python main.py -g START_DATE [--end END_DATE] [--interval 14] [--hold 10]")
     elif "-o" in sys.argv:
-        logging.info("Optimizing indicator weights...")
-        WeightOptimizer().run_optimization()
+        # RETIRED 2026-06-11: the weight optimizer tunes a scorer with no validated
+        # selection edge (additive indicator weights anti-select; see
+        # project_entry_signal_alpha_absent / project_signal_independence), and its
+        # output feeds straight back into production scoring. Module kept at
+        # bluehorseshoe/analysis/optimizer.py for research archaeology.
+        print("-o (weight optimizer) is retired: the baseline/MR scorer has no "
+              "validated selection edge, so optimizing its weights polishes noise "
+              "and risks shipping harmful weights. See memory notes "
+              "entry_signal_alpha_absent / signal_independence.")
+        sys.exit(1)
     elif "-q" in sys.argv or "--ibkr-quote" in sys.argv:
         # IBKR real-time quote mode
         try:

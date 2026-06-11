@@ -4,7 +4,10 @@ from bluehorseshoe.analysis.postprocess import CandidateAssembler, SentimentEnri
 from bluehorseshoe.analysis.strategy_registry import get_all_strategies
 
 
-def test_candidate_assembler_builds_strategy_and_connors_candidates():
+def test_candidate_assembler_skips_untraded_sleeves_keeps_live_and_connors():
+    """Untraded Baseline/MeanRev never become candidate rows (their rankings
+    anti-select); live DeepOS sleeves do, and Connors still rides the
+    Baseline/MeanRev setup metadata."""
     assembler = CandidateAssembler(get_all_strategies())
     valid_results = [
         {
@@ -21,6 +24,10 @@ def test_candidate_assembler_builds_strategy_and_connors_candidates():
             "baseline_setup": {"entry_price": 155.0, "stop_loss": 148.0, "take_profit": 165.0},
             "baseline_components": {"trend": 3.0},
             "baseline_ml_prob": 0.55,
+            "deep_os_score": 12.0,
+            "deep_os_setup": {"entry_price": 155.0, "stop_loss": 148.0, "take_profit": 165.0},
+            "deep_os_components": {"rsi_depth": 4.0},
+            "deep_os_ml_prob": 0.5,
             "sentiment": 0.1,
         }
     ]
@@ -28,8 +35,9 @@ def test_candidate_assembler_builds_strategy_and_connors_candidates():
     candidates = assembler.build_top_candidates(valid_results)
 
     strategies = {candidate["strategy"] for candidate in candidates}
-    assert "Baseline" in strategies
-    assert "MeanRev" in strategies
+    assert "Baseline" not in strategies
+    assert "MeanRev" not in strategies
+    assert "DeepOS" in strategies
     assert "Connors" in strategies
     connors = next(candidate for candidate in candidates if candidate["strategy"] == "Connors")
     assert connors["connors_rsi2"] == 5.3
