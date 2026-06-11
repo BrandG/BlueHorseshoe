@@ -51,6 +51,7 @@ docs/IBKR_journal.csv
 research/indicator_screen/fund_cache_full.json
 research/indicator_screen/earnings_cache_full.json
 research/indicator_screen/news_cache_full.json
+research/indicator_screen/options_cache_full.json
 research/indicator_screen/news_pull_full.log
 # Generated knowledge graph (rebuild with `graphify update .`)
 graphify-out/

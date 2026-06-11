@@ -14,11 +14,12 @@ CKPT="research/indicator_screen/options_cache_full.json"
 CHAINS_OUT="data/options_chains_fires.parquet"
 FEATURES_OUT="data/options_iv_features.parquet"
 KEY=os.environ.get("ALPHAVANTAGE_KEY")
-SLEEP=0.55; MAX_CONSEC_GATE=3; FLUSH_EVERY=25
+SLEEP=0.55; MAX_CONSEC_GATE=3; FLUSH_EVERY=250
 KEEP_FIELDS=("expiration","strike","type","mark","bid","ask","volume","open_interest","implied_volatility","delta")
 CHAIN_COLS=["symbol","fire_date","expiration","dte","strike","type","mark","bid","ask","volume","open_interest","iv","delta"]
 FEATURE_COLS=["symbol","date","nonbull","close","has_chain","dte_used","atm_iv","put25_iv","call25_iv",
-              "skew_25d","skew_norm","pcr_oi","n_contracts","atm_spread_pct","iv_pctile"]
+              "skew_25d","skew_norm","pcr_oi","n_contracts","atm_spread_pct",
+              "put25_delta","call25_delta","atm_moneyness","iv_pctile"]
 
 def num(x):
     try:
@@ -28,6 +29,12 @@ def num(x):
         return np.nan
 
 def key_for(sym,dt): return f"{sym}|{dt}"
+
+def write_cache(cache):
+    tmp=CKPT+".tmp"
+    with open(tmp,"w") as f:
+        json.dump(cache,f)
+    os.replace(tmp,CKPT)
 
 def fetch(sym,dt):
     url=("https://www.alphavantage.co/query?function=HISTORICAL_OPTIONS"
@@ -67,11 +74,15 @@ def target_expiration(df):
     exp=df.loc[df.dte==dte,"expiration"].sort_values().iloc[0]
     return exp,dte
 
-def first_iv(df,typ,target):
-    legs=df[df.type.str.lower().eq(typ)].copy()
+def valid_iv(s):
+    return s.notna() & (s>0.01) & (s<5.0)
+
+def delta_iv(df,typ,target,lo,hi):
+    legs=df[df.type.str.lower().eq(typ) & valid_iv(df.iv) & df.delta.between(lo,hi)].copy()
     if not len(legs): return np.nan
     legs["dist"]=(legs.delta-target).abs()
-    return float(legs.sort_values(["dist","strike"]).iv.iloc[0])
+    leg=legs.sort_values(["dist","strike"]).iloc[0]
+    return float(leg.iv),float(leg.delta)
 
 def flatten(fires,cache):
     fires=fires.copy()
@@ -92,7 +103,8 @@ def flatten(fires,cache):
         feat={"symbol":sym,"date":dt,"nonbull":bool(r.nonbull),"close":float(r.close),
               "has_chain":bool(contracts),"dte_used":np.nan,"atm_iv":np.nan,"put25_iv":np.nan,
               "call25_iv":np.nan,"skew_25d":np.nan,"skew_norm":np.nan,"pcr_oi":np.nan,
-              "n_contracts":len(contracts),"atm_spread_pct":np.nan,"iv_pctile":np.nan}
+              "n_contracts":len(contracts),"atm_spread_pct":np.nan,"put25_delta":np.nan,
+              "call25_delta":np.nan,"atm_moneyness":np.nan,"iv_pctile":np.nan}
         if contracts:
             cdf=pd.DataFrame(contracts)
             exp,dte=target_expiration(cdf)
@@ -102,10 +114,14 @@ def flatten(fires,cache):
                 tdf["type"]=tdf.type.astype(str)
                 tdf["iv"]=tdf.implied_volatility
                 atm_strike=float(tdf.iloc[(tdf.strike-float(r.close)).abs().argsort()[:1]].strike.iloc[0])
+                feat["atm_moneyness"]=atm_strike/float(r.close) if float(r.close) else np.nan
                 atm=tdf[tdf.strike.eq(atm_strike)].copy()
-                feat["atm_iv"]=float(atm.implied_volatility.dropna().mean()) if atm.implied_volatility.notna().any() else np.nan
-                feat["put25_iv"]=first_iv(tdf,"put",-0.25)
-                feat["call25_iv"]=first_iv(tdf,"call",0.25)
+                atm_iv=atm.loc[valid_iv(atm.implied_volatility),"implied_volatility"]
+                feat["atm_iv"]=float(atm_iv.mean()) if len(atm_iv) else np.nan
+                put=delta_iv(tdf,"put",-0.25,-0.45,-0.10)
+                call=delta_iv(tdf,"call",0.25,0.10,0.45)
+                if isinstance(put,tuple): feat["put25_iv"],feat["put25_delta"]=put
+                if isinstance(call,tuple): feat["call25_iv"],feat["call25_delta"]=call
                 if pd.notna(feat["put25_iv"]) and pd.notna(feat["call25_iv"]):
                     feat["skew_25d"]=feat["put25_iv"]-feat["call25_iv"]
                 if pd.notna(feat["skew_25d"]) and pd.notna(feat["atm_iv"]) and feat["atm_iv"]!=0:
@@ -120,6 +136,7 @@ def flatten(fires,cache):
     feats=pd.DataFrame(feature_rows,columns=FEATURE_COLS)
     if len(feats):
         mask=feats.has_chain & feats.atm_iv.notna()
+        # Partial smoke flattens often have one fire per date, so pctile=1.0 there; full pulls are cross-sectional.
         feats.loc[mask,"iv_pctile"]=feats.loc[mask].groupby("date").atm_iv.rank(pct=True)
     chains.to_parquet(CHAINS_OUT,index=False)
     feats.to_parquet(FEATURES_OUT,index=False)
@@ -166,9 +183,9 @@ def main():
         cache[k]={"contracts":slim_chain(chain,dt)}
         fetched+=1
         if fetched%FLUSH_EVERY==0:
-            json.dump(cache,open(CKPT,"w"))
+            write_cache(cache)
             print(f"  {fetched} fetched this run / {len(cache)} total cached",flush=True)
-    json.dump(cache,open(CKPT,"w"))
+    write_cache(cache)
     print(f"cached: {len(cache)}/{len(fires)}",flush=True)
 
     complete=fire_keys.issubset(cache)
