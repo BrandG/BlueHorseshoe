@@ -41,6 +41,9 @@ class SentimentNormalizer:
         """Compute per-source mean/std/count from recent sentiment_snapshots."""
         try:
             pipeline = [
+                # pit_unsafe rows were written by historical-date backtest/eval runs
+                # (current feed values stamped onto old dates) - never use them
+                {"$match": {"pit_unsafe": {"$ne": True}}},
                 {"$sort": {"date": -1}},
                 {"$limit": limit * 500},  # generous upper bound
                 {"$group": {

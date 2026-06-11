@@ -48,6 +48,7 @@ from bluehorseshoe.analysis.postprocess import CandidateAssembler, SentimentEnri
 from bluehorseshoe.analysis.technical_analyzer import TechnicalAnalyzer
 from bluehorseshoe.core.config import Settings, get_settings, weights_config
 from bluehorseshoe.core.scores import ScoreManager
+from bluehorseshoe.core.service import get_latest_market_date
 from bluehorseshoe.core.symbol_repository import get_overview, get_symbols
 from bluehorseshoe.core.symbols import (
     get_symbol_name_list,
@@ -984,6 +985,7 @@ class SwingTrader:
             top_candidates,
             target_date=ctx.target_date,
             market_health=market_health,
+            is_live=self._is_live_target_date(ctx.target_date),
         )
 
         self._annotate_planned_sizing(top_candidates)
@@ -993,6 +995,32 @@ class SwingTrader:
             "candidates": top_candidates,
             "charts": [] # TODO: Add chart generation logic if needed
         }
+
+    def _is_live_target_date(self, target_date: Optional[str]) -> bool:
+        """True when this prediction runs against the latest market date.
+
+        Gates sentiment-snapshot archiving: live feeds describe *now*, so persisting
+        them under a historical target date poisons the point-in-time archive (the
+        pre-2026-04 contamination). Fails closed - if the latest market date cannot
+        be resolved, the run is treated as historical and nothing is archived.
+        """
+        if target_date is None:
+            return True
+        try:
+            latest = get_latest_market_date(database=self.database, store=self.store)
+        except Exception as exc:  # pylint: disable=broad-except
+            logging.warning(
+                "Could not resolve latest market date (%s); treating run as historical "
+                "for sentiment snapshot archiving", exc,
+            )
+            return False
+        if not latest:
+            logging.warning(
+                "Latest market date unavailable; treating run as historical "
+                "for sentiment snapshot archiving",
+            )
+            return False
+        return str(target_date)[:10] == str(latest)[:10]
 
     def _annotate_planned_sizing(self, candidates: list[dict]) -> None:
         """Tag candidates with the bot's intended FRACTIONAL position size for the report.

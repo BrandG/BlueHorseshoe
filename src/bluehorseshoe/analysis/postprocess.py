@@ -167,8 +167,16 @@ class SentimentEnricher:
         *,
         target_date: str | None,
         market_health: Dict[str, Any],
+        is_live: bool = False,
     ) -> List[Dict[str, Any]]:
-        """Refresh source sentiment, persist snapshots, and compute composite values."""
+        """Refresh source sentiment, persist snapshots, and compute composite values.
+
+        ``is_live`` must be True only when ``target_date`` is the current/latest market
+        date. The live feeds (StockTwits ratios, rolling news caches) describe *now*;
+        persisting them under a historical date poisons the point-in-time archive, so
+        snapshot persistence defaults to off (fail-closed) and historical/backtest/eval
+        runs only attach display values without archiving them.
+        """
         unique_symbols = list({candidate["symbol"] for candidate in candidates})
         logging.info("Refreshing sentiment for %d unique symbols in top 50 candidates", len(unique_symbols))
         for symbol in unique_symbols:
@@ -185,7 +193,14 @@ class SentimentEnricher:
         self._attach_tiingo_sentiment(candidates, unique_symbols, target_date, target_date_str, sentiment_snapshots)
         self._attach_stocktwits_sentiment(candidates, unique_symbols, target_date, target_date_str, sentiment_snapshots)
         self._attach_finviz_sentiment(candidates, unique_symbols, target_date, target_date_str, sentiment_snapshots)
-        self._persist_snapshots(sentiment_snapshots, target_date_str)
+        if is_live:
+            self._persist_snapshots(sentiment_snapshots, target_date_str)
+        else:
+            logging.warning(
+                "Target date %s is not the latest market date - skipping sentiment snapshot "
+                "persistence (%d snapshots discarded; the archive is live-collected only)",
+                target_date_str, len(sentiment_snapshots),
+            )
         self._attach_composite_sentiment(candidates)
 
         return candidates
