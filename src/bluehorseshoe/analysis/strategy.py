@@ -44,7 +44,10 @@ from bluehorseshoe.analysis.market_regime import MarketRegime
 from bluehorseshoe.analysis.ml_overlay import MLInference
 from bluehorseshoe.analysis.ml_profit_target import ProfitTargetInference
 from bluehorseshoe.analysis.ml_stop_loss import StopLossInference
-from bluehorseshoe.analysis.news_annotation import annotate_deepos_results
+from bluehorseshoe.analysis.news_annotation import annotate_deepos_results as annotate_news_deepos_results
+from bluehorseshoe.analysis.options_annotation import (
+    annotate_deepos_results as annotate_options_deepos_results,
+)
 from bluehorseshoe.analysis.postprocess import CandidateAssembler, SentimentEnricher
 from bluehorseshoe.analysis.technical_analyzer import TechnicalAnalyzer
 from bluehorseshoe.core.config import Settings, get_settings, weights_config
@@ -971,13 +974,20 @@ class SwingTrader:
         # Must run BEFORE the journal freeze so the arms land in journal_signals.
         if is_live and valid_results:
             try:
-                annotate_deepos_results(
+                annotate_news_deepos_results(
                     valid_results,
                     target_date=valid_results[0]["date"][:10],
                     database=self.database,
                 )
             except Exception as exc:  # pylint: disable=broad-exception-caught
                 logging.error("News annotation failed (non-fatal): %s", exc)
+            try:
+                annotate_options_deepos_results(
+                    valid_results,
+                    target_date=valid_results[0]["date"][:10],
+                )
+            except Exception as exc:  # pylint: disable=broad-exception-caught
+                logging.error("Options annotation failed (non-fatal): %s", exc)
 
         # 5b. Freeze Signal Journal (immutable record)
         if self.signal_journal is not None and valid_results:
@@ -1363,6 +1373,11 @@ def _score_symbol_worker(work_item):
             rs_ratio = trader.calculate_relative_strength(df, benchmark_df)
 
         cloud_flags = compute_cloud_dislocation_flags(df)
+        options_atr = float("nan")
+        try:
+            options_atr = trader._calculate_atr(df)  # pylint: disable=protected-access
+        except Exception:  # pylint: disable=broad-exception-caught
+            pass
 
         result = {
             'symbol': symbol,
@@ -1374,6 +1389,10 @@ def _score_symbol_worker(work_item):
             'connors_flag': connors_flag,
             'connors_rsi2': connors_rsi2,
             'connors_sma200': connors_sma200,
+            'options_history': {
+                'closes': df['close'].tail(10).astype(float).tolist(),
+                'atr': options_atr,
+            },
             **cloud_flags,
         }
 

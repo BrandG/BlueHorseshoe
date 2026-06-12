@@ -163,6 +163,13 @@ class SignalJournal:
                         "news_48h_mean": r.get("news_48h_mean"),
                         "news_48h_count": r.get("news_48h_count"),
                         "news_48h_arm": r.get("news_48h_arm"),
+                        # Tracking-only options-fear annotation (DeepOS-family fires,
+                        # live runs only). See analysis/options_annotation.py.
+                        "options_skew": r.get("options_skew"),
+                        "options_atm_iv": r.get("options_atm_iv"),
+                        "options_dte": r.get("options_dte"),
+                        "options_dd10": r.get("options_dd10"),
+                        "options_arm": r.get("options_arm"),
                         "components": r.get(strat.components_key, {}),
                     }
                 )
