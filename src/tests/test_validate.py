@@ -221,6 +221,71 @@ def test_validate_stored_does_not_emit_weekend_gaps(tmp_path):
     store.close()
 
 
+def test_validate_stored_commodity_h1_ignores_daily_break(tmp_path):
+    store = FxStore(db_path=tmp_path / "commodity_h1.duckdb")
+    candles = [
+        _candle("2025-01-05T23:00:00Z"),
+        _candle("2025-01-06T00:00:00Z"),
+        _candle("2025-01-06T01:00:00Z"),
+        _candle("2025-01-06T02:00:00Z"),
+    ]
+    store.save_candles("XAU_USD", candles, granularity="H1")
+    issues = validate_stored(
+        store,
+        symbol="XAU_USD",
+        granularity="H1",
+        start=datetime(2025, 1, 5, 22, 0),
+        end=datetime(2025, 1, 6, 3, 0),
+        instrument_type="commodity",
+    )
+    assert issues == []
+    store.close()
+
+
+def test_validate_stored_commodity_h4_uses_ny_anchored_grid_winter(tmp_path):
+    # EST: 17:00 NY == 22:00 UTC, so the H4 grid lands on UTC 22/02/06.
+    store = FxStore(db_path=tmp_path / "commodity_h4.duckdb")
+    candles = [
+        _candle("2025-01-05T22:00:00Z"),
+        _candle("2025-01-06T02:00:00Z"),
+        _candle("2025-01-06T06:00:00Z"),
+    ]
+    store.save_candles("XAU_USD", candles, granularity="H4")
+    issues = validate_stored(
+        store,
+        symbol="XAU_USD",
+        granularity="H4",
+        start=datetime(2025, 1, 5, 22, 0),
+        end=datetime(2025, 1, 6, 10, 0),
+        instrument_type="commodity",
+    )
+    assert issues == []
+    store.close()
+
+
+def test_validate_stored_commodity_h4_uses_ny_anchored_grid_summer(tmp_path):
+    # EDT: 17:00 NY == 21:00 UTC. A fixed-UTC 22:00-anchored grid would flag
+    # every one of these DST-season bars as a gap (the bug that produced
+    # ~10.7k phantom H4 gaps per instrument on the first regate run).
+    store = FxStore(db_path=tmp_path / "commodity_h4_summer.duckdb")
+    candles = [
+        _candle("2025-07-06T21:00:00Z"),
+        _candle("2025-07-07T01:00:00Z"),
+        _candle("2025-07-07T05:00:00Z"),
+    ]
+    store.save_candles("XAU_USD", candles, granularity="H4")
+    issues = validate_stored(
+        store,
+        symbol="XAU_USD",
+        granularity="H4",
+        start=datetime(2025, 7, 6, 21, 0),
+        end=datetime(2025, 7, 7, 9, 0),
+        instrument_type="commodity",
+    )
+    assert issues == []
+    store.close()
+
+
 # ---- summarize_issues --------------------------------------------------
 
 

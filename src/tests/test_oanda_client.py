@@ -176,6 +176,14 @@ def test_list_instruments_parses_payload():
     assert session.calls[0]["url"].endswith("/accounts/000-000-0-000/instruments")
 
 
+def test_list_instruments_passes_explicit_symbols():
+    payload = {"instruments": [{"name": "XAU_USD", "type": "CFD"}]}
+    client, session, _ = _make_client([_FakeResponse(200, payload)])
+    result = client.list_instruments(["XAU_USD", "XAG_USD"])
+    assert set(result.keys()) == {"XAU_USD"}
+    assert session.calls[0]["params"] == {"instruments": "XAU_USD,XAG_USD"}
+
+
 def test_get_candles_passes_expected_params():
     payload = {"candles": [{"time": "2020-01-01T00:00:00Z"}]}
     client, session, _ = _make_client([_FakeResponse(200, payload)])

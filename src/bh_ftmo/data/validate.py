@@ -15,14 +15,15 @@ Returns a list of :class:`ValidationIssue`. An empty list means clean.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from enum import Enum
-from typing import Any, Optional
+from typing import Any, Literal, Optional
+from zoneinfo import ZoneInfo
 
 import pandas as pd
 
 from bh_ftmo.data.fx_store import FxStore, Granularity, _parse_rfc3339
-from bh_ftmo.data.fx_time_utils import BarGapKind, classify_gaps
+from bh_ftmo.data.fx_time_utils import BarGap, BarGapKind, _as_naive_utc, classify_gaps
 
 
 class IssueKind(str, Enum):
@@ -42,6 +43,9 @@ class ValidationIssue:
     symbol: str
     timestamp: Optional[datetime]
     detail: str
+
+
+InstrumentType = Literal["forex", "commodity"]
 
 
 def _check_ohlc_sanity(
@@ -197,6 +201,64 @@ _GAP_KIND_TO_ISSUE: dict[BarGapKind, IssueKind] = {
 }
 
 
+_NY = ZoneInfo("America/New_York")
+_COMMODITY_H4_NY_HOURS = frozenset({17, 21, 1, 5, 9, 13})
+_COMMODITY_DAILY_BREAK_NY_HOUR = 17
+
+
+def expected_commodity_bar_opens(start_utc: datetime, end_utc: datetime, granularity: Granularity) -> list[datetime]:
+    """Return expected OANDA commodity CFD bar opens (naive UTC).
+
+    OANDA anchors commodity CFD candles to 17:00 America/New_York (the CFD
+    trading day), so the UTC hour grid shifts by one hour across DST — a
+    fixed-UTC grid misclassifies half the year as gaps. Expected opens are
+    therefore generated in NY local time: H4 opens at NY hours
+    17/21/01/05/09/13; H1 opens every hour except the 17:00 NY daily
+    maintenance break. The weekly session runs Sunday 17:00 NY (H4; the first
+    H1 candle is 18:00 NY, after the break hour) through Friday 16:59 NY.
+    US market holidays are not modelled and surface as residual gaps.
+    """
+    start_utc = _as_naive_utc(start_utc)
+    end_utc = _as_naive_utc(end_utc)
+    if end_utc <= start_utc:
+        return []
+
+    if granularity == "H4":
+        allowed_ny_hours = _COMMODITY_H4_NY_HOURS
+    elif granularity == "H1":
+        allowed_ny_hours = frozenset(range(24)) - {_COMMODITY_DAILY_BREAK_NY_HOUR}
+    else:
+        raise ValueError(f"unsupported granularity: {granularity}")
+
+    opens: list[datetime] = []
+    cursor = start_utc.replace(minute=0, second=0, microsecond=0)
+    if cursor < start_utc:
+        cursor += timedelta(hours=1)
+    while cursor < end_utc:
+        ny = cursor.replace(tzinfo=timezone.utc).astimezone(_NY)
+        in_weekly_session = (
+            (ny.weekday() == 6 and ny.hour >= 17)
+            or ny.weekday() in (0, 1, 2, 3)
+            or (ny.weekday() == 4 and ny.hour < 17)
+        )
+        if in_weekly_session and ny.hour in allowed_ny_hours:
+            opens.append(cursor)
+        cursor += timedelta(hours=1)
+    return opens
+
+
+def classify_commodity_gaps(
+    observed: list[datetime],
+    *,
+    start_utc: datetime,
+    end_utc: datetime,
+    granularity: Granularity,
+) -> list[BarGap]:
+    expected = expected_commodity_bar_opens(start_utc, end_utc, granularity)
+    observed_set = {_as_naive_utc(o) for o in observed}
+    return [BarGap(ts, BarGapKind.DATA_GAP) for ts in expected if ts not in observed_set]
+
+
 def validate_stored(
     store: FxStore,
     *,
@@ -204,6 +266,7 @@ def validate_stored(
     granularity: Granularity,
     start: datetime,
     end: datetime,
+    instrument_type: InstrumentType = "forex",
     include_holiday_gaps: bool = False,
 ) -> list[ValidationIssue]:
     """Audit stored bars in ``[start, end)`` for gaps and invariant violations.
@@ -216,7 +279,10 @@ def validate_stored(
     df = store.load(symbol, granularity=granularity, start=start, end=end, include_incomplete=True)
 
     observed = [ts.to_pydatetime() if isinstance(ts, pd.Timestamp) else ts for ts in df["timestamp"]] if len(df) else []
-    gaps = classify_gaps(observed, start_utc=start, end_utc=end, granularity=granularity)
+    if instrument_type == "commodity":
+        gaps = classify_commodity_gaps(observed, start_utc=start, end_utc=end, granularity=granularity)
+    else:
+        gaps = classify_gaps(observed, start_utc=start, end_utc=end, granularity=granularity)
     for g in gaps:
         issue_kind = _GAP_KIND_TO_ISSUE.get(g.kind)
         if issue_kind is None:
