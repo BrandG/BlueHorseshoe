@@ -61,8 +61,20 @@ bracket; silver marginal.
 **OANDA practice cannot trade these commodities at all** — the explicit
 instrument query returns `INSTRUMENT_NOT_TRADEABLE` (candles are served;
 trading and financing metadata are not). Consequences: no OANDA paper venue
-for a commodity cell (FTMO's platform would be the venue), and financing is
-estimated by sensitivity band, not data.
+for a commodity cell, and financing is estimated by sensitivity band, not
+data.
+
+**FTMO, however, trades all six** (verified 2026-06-12 against FTMO's own
+symbols API, `ftmo.com/wp-json/ftmo/symbols`, 166 instruments): XAU/USD,
+XAG/USD, XCU/USD (Metals CFD); USOIL.cash, UKOIL.cash, NATGAS.cash (Cash
+CFD). Note the energy symbols are `.cash`-suffixed, not `.sim` as guessed in
+`bh_ftmo_config.json` — fix the `ftmo` fields at wiring time. FTMO also
+offers platinum/palladium, heating oil, an agricultural set (corn, wheat,
+soybean, sugar, coffee, cocoa, cotton), and a directly tradeable dollar
+index (DXY.cash). OANDA serves candles for several of the ags (CORN_USD,
+WHEAT_USD, SOYBN_USD, SUGAR_USD) and both platinum-group metals, so the
+regate harness can cover most of the FTMO commodity universe without a new
+data source.
 
 ## Data quality
 
