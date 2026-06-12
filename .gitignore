@@ -53,5 +53,6 @@ research/indicator_screen/earnings_cache_full.json
 research/indicator_screen/news_cache_full.json
 research/indicator_screen/options_cache_full.json
 research/indicator_screen/news_pull_full.log
+research/indicator_screen/options_pull_full.log
 # Generated knowledge graph (rebuild with `graphify update .`)
 graphify-out/
