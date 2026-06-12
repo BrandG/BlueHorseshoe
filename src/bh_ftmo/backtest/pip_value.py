@@ -21,7 +21,7 @@ CONFIG_PATH = REPO_ROOT / "src" / "bh_ftmo_config.json"
 
 
 def _canonical_symbol(symbol: str) -> str:
-    """Normalize known pair symbol variants to ``BASE_QUOTE`` form."""
+    """Normalize known instrument symbol variants to ``BASE_QUOTE`` form."""
 
     raw = symbol.strip().upper()
     if raw.endswith(".SIM"):
@@ -46,10 +46,15 @@ def _split_pair(symbol: str) -> tuple[str, str]:
 
 
 def _load_supported_symbols() -> frozenset[str]:
-    """Return the configured instrument universe as canonical pair symbols."""
+    """Return the configured instrument universe as canonical OANDA symbols."""
 
     payload = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
-    return frozenset(_canonical_symbol(item["ftmo"]) for item in payload.get("instruments", []))
+    symbols: set[str] = set()
+    for item in payload.get("instruments", []):
+        source = item.get("oanda") or item.get("ftmo")
+        if source:
+            symbols.add(_canonical_symbol(str(source)))
+    return frozenset(symbols)
 
 
 SUPPORTED_SYMBOLS = _load_supported_symbols()
@@ -72,6 +77,8 @@ def pip_value_in_account_ccy(
     del account_ccy
     if quote_to_account_rate <= 0:
         raise ValueError("quote_to_account_rate must be positive")
+    if pair.dollar_per_pip_per_lot is not None:
+        return pair.dollar_per_pip_per_lot * quote_to_account_rate
     return pair.pip_size * pair.contract_size * quote_to_account_rate
 
 

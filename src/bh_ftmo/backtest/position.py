@@ -6,17 +6,59 @@ and equity tracker can reuse the same pricing logic consistently.
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
+
 from bh_ftmo.backtest.types import Position
 
 
 JPY_STYLE_QUOTES = {"JPY", "HUF"}
+REPO_ROOT = Path(__file__).resolve().parents[3]
+CONFIG_PATH = REPO_ROOT / "src" / "bh_ftmo_config.json"
+
+
+def _canonical_symbol(symbol: str) -> str:
+    raw = symbol.strip().upper()
+    if raw.endswith(".SIM"):
+        raw = raw[:-4]
+    if raw.endswith("=X"):
+        raw = raw[:-2]
+    raw = raw.replace("/", "_")
+    if "_" in raw:
+        return raw
+    if len(raw) == 6:
+        return f"{raw[:3]}_{raw[3:]}"
+    return raw
+
+
+def _load_configured_pip_sizes() -> dict[str, float]:
+    if not CONFIG_PATH.exists():
+        return {}
+    payload = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
+    out: dict[str, float] = {}
+    for item in payload.get("instruments", []):
+        pip_size = item.get("pip_size")
+        if pip_size is None:
+            continue
+        for key in ("oanda", "ftmo", "symbol"):
+            value = item.get(key)
+            if value:
+                out[_canonical_symbol(str(value))] = float(pip_size)
+    return out
+
+
+CONFIGURED_PIP_SIZES = _load_configured_pip_sizes()
 
 
 
 def _pip_size_for_symbol(symbol: str) -> float:
-    """Infer the conventional pip size from the pair quote currency."""
+    """Return configured pip size, falling back to conventional FX inference."""
 
-    quote = symbol.split("_", 1)[1]
+    canonical = _canonical_symbol(symbol)
+    configured = CONFIGURED_PIP_SIZES.get(canonical)
+    if configured is not None:
+        return configured
+    quote = canonical.split("_", 1)[1]
     return 0.01 if quote in JPY_STYLE_QUOTES else 0.0001
 
 

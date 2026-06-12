@@ -12,6 +12,7 @@ import pytest
 from bh_ftmo.data.backfill import (
     BackfillResult,
     CheckpointStore,
+    _load_ftmo_instruments,
     backfill_all,
     backfill_symbol,
     _fmt_rfc3339,
@@ -324,3 +325,21 @@ def test_backfill_captures_oanda_error_in_result(store, checkpoint):
     assert result.error is not None
     assert "simulated network fault" in result.error
     assert 2023 not in checkpoint.get_completed_years("EUR_USD", "H4")
+
+
+def test_load_ftmo_instruments_prefers_explicit_oanda_symbol(tmp_path):
+    config_path = tmp_path / "config.json"
+    config_path.write_text(
+        json.dumps(
+            {
+                "instruments": [
+                    {"ftmo": "EURUSD.sim"},
+                    {"ftmo": "USOIL.sim", "oanda": "WTICO_USD"},
+                    {"ftmo": "NATGAS.sim", "oanda": "NATGAS_USD"},
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    assert _load_ftmo_instruments(config_path) == ["EUR_USD", "WTICO_USD", "NATGAS_USD"]

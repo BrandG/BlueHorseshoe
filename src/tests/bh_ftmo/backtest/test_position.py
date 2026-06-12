@@ -54,3 +54,21 @@ def test_pip_distance_major_pair():
 
 def test_pip_distance_jpy_pair():
     assert pip_distance(150.00, 149.75, 0.01) == pytest.approx(-25.0)
+
+
+def test_realized_pnl_uses_configured_commodity_pip_size():
+    pos = Position(
+        id=1,
+        symbol="XAU_USD",
+        strategy="commodity",
+        direction=1,
+        open_ts=datetime(2026, 4, 25, 8, 0),
+        open_price=2350.00,
+        stop=2340.00,
+        target=2370.00,
+        lots=2.0,
+        risk_at_open_account_ccy=2000.0,
+    )
+
+    pnl = realized_pnl_account_ccy(pos, close_price=2350.50, pip_value=1.0)
+    assert pnl == pytest.approx(100.0)
