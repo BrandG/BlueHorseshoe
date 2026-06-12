@@ -52,12 +52,13 @@ REPO_ROOT = Path(__file__).resolve().parents[2]  # src/bud/<this> -> repo root
 CONFIG_PATH = REPO_ROOT / "src" / "bh_ftmo_config.json"
 BRIEFING_DIR = REPO_ROOT / "src" / "logs" / "briefings"
 
-# All v2 cells share these RR settings. TP tightened 2026-05-13 after MFE-sweep
-# analysis (research/mfe_tp_sweep/) showed throughput per slot is flat 0.4R–1.0R
-# on the full sample and peaks at 0.3R in the last 18 months — tight TPs match
-# or beat 1.0R on $/day because they release slots faster. Brand was already
-# discretionarily undercutting to ~0.5R with better results.
-TP_PCT = 0.005
+# All v2 cells share these RR settings. TP reverted to 1.0% on 2026-06-12:
+# the expectancy gates validated cells at 1%/1%, and the Newey-West re-gate
+# on the archived spread ledgers showed the 2026-05-13 tightening to 0.5%
+# halved per-trade R without improving R/slot-day (the mid-price MFE sweep
+# had understated spread cost, which weighs 2x against a 0.5% target).
+# See memory note project_v2_nw_regate.md.
+TP_PCT = 0.01
 STOP_PCT = 0.01
 LOOKBACK_BARS = 300  # enough warmup for the slowest indicator (BB period=50)
 H4_BAR_HOURS = 4  # FxStore stores the bar's OPEN time; close = open + this
@@ -205,6 +206,7 @@ CELLS: list[Cell] = [
 # or safety gates would otherwise drop fires arriving later in CELLS order.
 # Refresh by re-running research/mfe_tp_sweep/run_mfe_sweep.py and grouping
 # per_trade.csv by (strategy, pair, direction).mean("r_tp0.5") over last 540d.
+# NOTE: ranks computed at TP=0.5R — refresh pending.
 CELL_QUALITY_RANK: dict[tuple[str, str, str], float] = {
     ("ema",      "CHF_JPY", "long"):  0.3235,
     ("rsi",      "CHF_JPY", "long"):  0.3209,
