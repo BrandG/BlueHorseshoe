@@ -81,7 +81,13 @@
     {"symbol": "NZDCHF=X", "name": "NZD/CHF", "ftmo": "NZDCHF.sim", "type": "forex", "pip_size": 0.0001, "min_lot": 0.01, "tier": 2},
     {"symbol": "EURNOK=X", "name": "EUR/NOK", "ftmo": "EURNOK.sim", "type": "forex", "pip_size": 0.0001, "min_lot": 0.01, "tier": 3},
     {"symbol": "USDZAR=X", "name": "USD/ZAR", "ftmo": "USDZAR.sim", "type": "forex", "pip_size": 0.0001, "min_lot": 0.01, "tier": 3},
-    {"symbol": "USDNOK=X", "name": "USD/NOK", "ftmo": "USDNOK.sim", "type": "forex", "pip_size": 0.0001, "min_lot": 0.01, "tier": 3}
+    {"symbol": "USDNOK=X", "name": "USD/NOK", "ftmo": "USDNOK.sim", "type": "forex", "pip_size": 0.0001, "min_lot": 0.01, "tier": 3},
+    {"symbol": "XAU_USD", "oanda": "XAU_USD", "name": "Gold/USD", "ftmo": "XAUUSD.sim", "type": "commodity", "pip_size": 0.01, "dollar_per_pip_per_lot": 1.0, "contract_size": 100, "min_lot": 0.01, "tier": 4},
+    {"symbol": "XAG_USD", "oanda": "XAG_USD", "name": "Silver/USD", "ftmo": "XAGUSD.sim", "type": "commodity", "pip_size": 0.001, "dollar_per_pip_per_lot": 5.0, "contract_size": 5000, "min_lot": 0.01, "tier": 4},
+    {"symbol": "WTICO_USD", "oanda": "WTICO_USD", "name": "WTI Crude Oil/USD", "ftmo": "USOIL.sim", "type": "commodity", "pip_size": 0.01, "dollar_per_pip_per_lot": 10.0, "contract_size": 1000, "min_lot": 0.01, "tier": 4},
+    {"symbol": "BCO_USD", "oanda": "BCO_USD", "name": "Brent Crude Oil/USD", "ftmo": "UKOIL.sim", "type": "commodity", "pip_size": 0.01, "dollar_per_pip_per_lot": 10.0, "contract_size": 1000, "min_lot": 0.01, "tier": 4},
+    {"symbol": "NATGAS_USD", "oanda": "NATGAS_USD", "name": "Natural Gas/USD", "ftmo": "NATGAS.sim", "type": "commodity", "pip_size": 0.001, "dollar_per_pip_per_lot": 10.0, "contract_size": 10000, "min_lot": 0.01, "tier": 4},
+    {"symbol": "XCU_USD", "oanda": "XCU_USD", "name": "Copper/USD", "ftmo": "XCUUSD.sim", "type": "commodity", "pip_size": 0.0001, "dollar_per_pip_per_lot": 2.5, "contract_size": 25000, "min_lot": 0.01, "tier": 4}
   ],
   "clusters": {
     "aud_nzd_usd":     ["AUDUSD.sim", "NZDUSD.sim"],

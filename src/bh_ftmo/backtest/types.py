@@ -20,11 +20,13 @@ from bh_ftmo.analysis.strategy import Signal
 
 @dataclass(frozen=True)
 class PairSpec:
-    """Static FX pair metadata required for pricing and sizing calculations."""
+    """Static instrument metadata required for pricing and sizing calculations."""
 
     symbol: str
     pip_size: float
     contract_size: int
+    instrument_type: str = "forex"
+    dollar_per_pip_per_lot: Optional[float] = None
 
 
 @dataclass(frozen=True)

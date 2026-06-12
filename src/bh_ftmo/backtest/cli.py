@@ -132,6 +132,9 @@ def _default_window(today: Optional[date] = None) -> tuple[date, date]:
 
 
 def _canonical_symbol(item: dict) -> Optional[str]:
+    oanda = str(item.get("oanda", "")).strip().upper()
+    if oanda:
+        return oanda
     ftmo = str(item.get("ftmo", "")).replace(".sim", "").upper()
     if len(ftmo) == 6 and ftmo.isalpha():
         return f"{ftmo[:3]}_{ftmo[3:]}"
@@ -151,7 +154,13 @@ def _build_pair_specs(config: dict) -> dict[str, PairSpec]:
         specs[symbol] = PairSpec(
             symbol=symbol,
             pip_size=float(item["pip_size"]),
-            contract_size=100_000,
+            contract_size=int(item.get("contract_size", 100_000)),
+            instrument_type=str(item.get("type", "forex")),
+            dollar_per_pip_per_lot=(
+                float(item["dollar_per_pip_per_lot"])
+                if item.get("dollar_per_pip_per_lot") is not None
+                else None
+            ),
         )
     if not specs:
         raise ValueError("config contains no usable instruments")

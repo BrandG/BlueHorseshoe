@@ -290,6 +290,10 @@ def _load_ftmo_instruments(config_path: Path) -> list[str]:
     config = json.loads(config_path.read_text(encoding="utf-8"))
     out: list[str] = []
     for item in config.get("instruments", []):
+        oanda = str(item.get("oanda", "")).strip()
+        if oanda:
+            out.append(oanda.upper())
+            continue
         ftmo = item.get("ftmo", "")
         base = ftmo.replace(".sim", "").upper()
         if len(base) == 6 and base.isalpha():

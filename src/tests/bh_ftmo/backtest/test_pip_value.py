@@ -36,6 +36,21 @@ def test_quote_to_account_rate_direct_quote_currency_match():
     assert quote_to_account_rate("EUR_USD", "USD", {"EUR_USD": 1.10}) == pytest.approx(1.0)
 
 
+def test_quote_to_account_rate_supports_configured_usd_commodity():
+    assert quote_to_account_rate("XAU_USD", "USD", {"XAU_USD": 2350.0}) == pytest.approx(1.0)
+
+
+def test_pip_value_uses_explicit_commodity_dollars_per_pip():
+    pair = PairSpec(
+        symbol="XAU_USD",
+        pip_size=0.01,
+        contract_size=100,
+        instrument_type="commodity",
+        dollar_per_pip_per_lot=1.0,
+    )
+    assert pip_value_in_account_ccy(pair, "USD", quote_to_account_rate=1.0) == pytest.approx(1.0)
+
+
 
 def test_quote_to_account_rate_inverts_usd_base_pair():
     rate = quote_to_account_rate("USD_JPY", "USD", {"USD_JPY": 150.0})
