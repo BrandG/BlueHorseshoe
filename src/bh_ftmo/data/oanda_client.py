@@ -25,7 +25,7 @@ import os
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Iterator, Optional
+from typing import Any, Callable, Iterable, Iterator, Optional
 
 import requests
 
@@ -283,8 +283,12 @@ class OandaClient:
     def get_account_summary(self) -> dict[str, Any]:
         return self._request("GET", f"/accounts/{self.config.account_id}/summary")
 
-    def list_instruments(self) -> dict[str, dict[str, Any]]:
-        payload = self._request("GET", f"/accounts/{self.config.account_id}/instruments")
+    def list_instruments(self, instruments: Optional[Iterable[str]] = None) -> dict[str, dict[str, Any]]:
+        params = None
+        if instruments is not None:
+            requested = ",".join(str(item).strip() for item in instruments if str(item).strip())
+            params = {"instruments": requested} if requested else None
+        payload = self._request("GET", f"/accounts/{self.config.account_id}/instruments", params=params)
         return {item["name"]: item for item in payload.get("instruments", [])}
 
     def get_candles(
