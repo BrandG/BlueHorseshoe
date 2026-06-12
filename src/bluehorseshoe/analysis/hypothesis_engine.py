@@ -224,6 +224,12 @@ class HypothesisEngine:
                     "news_48h_mean": signal.get("news_48h_mean"),
                     "news_48h_count": signal.get("news_48h_count"),
                     "news_48h_arm": signal.get("news_48h_arm"),
+                    # Options-fear annotation arms (DeepOS-family; None = not annotated)
+                    "options_skew": signal.get("options_skew"),
+                    "options_atm_iv": signal.get("options_atm_iv"),
+                    "options_dte": signal.get("options_dte"),
+                    "options_dd10": signal.get("options_dd10"),
+                    "options_arm": signal.get("options_arm"),
                     "entry_price": entry_price,
                     "stop_loss": stop_loss,
                     "take_profit": take_profit,
