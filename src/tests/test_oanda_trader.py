@@ -242,3 +242,90 @@ def test_limit_order_rejected_at_create_raises():
             stop_loss_price=1.1000,
             take_profit_price=1.1200,
         )
+
+
+# ---- close_position --------------------------------------------------------
+
+
+def _make_scripted_trader(responses: list[Any]) -> tuple[OandaTrader, _ScriptedSession]:
+    session = _ScriptedSession(responses)
+    trader = OandaTrader(
+        OandaTraderConfig(token="fake-token", account_id="000-000-0-000"),
+        rate_limit_rps=1000.0,
+    )
+    trader._session = session  # type: ignore[assignment]
+    return trader, session
+
+
+def _open_positions_response(positions: list[dict[str, Any]]) -> _FakeResponse:
+    return _FakeResponse(200, {"positions": positions})
+
+
+def _short_only_position(instrument: str) -> dict[str, Any]:
+    return {
+        "instrument": instrument,
+        "long": {"units": "0"},
+        "short": {"units": "-49839"},
+    }
+
+
+def _long_only_position(instrument: str) -> dict[str, Any]:
+    return {
+        "instrument": instrument,
+        "long": {"units": "47941"},
+        "short": {"units": "0"},
+    }
+
+
+def test_close_position_all_closes_only_held_short_side():
+    # Regression: a blind {longUnits, shortUnits: ALL} 400s on a one-sided
+    # position (CLOSEOUT_POSITION_DOESNT_EXIST). side="all" must resolve held
+    # sides via openPositions and name only the short side here.
+    trader, session = _make_scripted_trader([
+        _open_positions_response([_short_only_position("USD_SGD")]),
+        _FakeResponse(200, {"relatedTransactionIDs": ["1"]}),
+    ])
+
+    trader.close_position("USD_SGD", side="all")
+
+    assert session.calls[0]["method"] == "GET"
+    assert session.calls[0]["url"].endswith("/openPositions")
+    close_call = session.calls[1]
+    assert close_call["method"] == "PUT"
+    assert close_call["url"].endswith("/positions/USD_SGD/close")
+    assert close_call["json"] == {"shortUnits": "ALL"}
+
+
+def test_close_position_all_closes_only_held_long_side():
+    trader, session = _make_scripted_trader([
+        _open_positions_response([_long_only_position("USD_JPY")]),
+        _FakeResponse(200, {"relatedTransactionIDs": ["1"]}),
+    ])
+
+    trader.close_position("USD_JPY", side="all")
+
+    assert session.calls[1]["json"] == {"longUnits": "ALL"}
+
+
+def test_close_position_all_raises_when_nothing_held():
+    # No PUT should fire when the instrument holds no units.
+    trader, session = _make_scripted_trader([_open_positions_response([])])
+
+    with pytest.raises(OandaTraderError, match="nothing to close"):
+        trader.close_position("USD_SGD", side="all")
+
+    assert len(session.calls) == 1
+    assert session.calls[0]["method"] == "GET"
+
+
+def test_close_position_explicit_side_skips_lookup():
+    # An explicit side is a direct passthrough — no openPositions lookup.
+    trader, session = _make_scripted_trader([
+        _FakeResponse(200, {"relatedTransactionIDs": ["1"]}),
+    ])
+
+    trader.close_position("USD_SGD", side="short")
+
+    assert len(session.calls) == 1
+    assert session.calls[0]["method"] == "PUT"
+    assert session.calls[0]["json"] == {"shortUnits": "ALL"}

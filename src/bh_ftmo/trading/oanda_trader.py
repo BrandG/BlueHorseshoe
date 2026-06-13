@@ -313,15 +313,52 @@ class OandaTrader:
         self._raise_if_rejected(response)
         return response
 
+    @staticmethod
+    def _position_side_units(position: dict[str, Any], side: str) -> float:
+        """Net units held on one side ('long'/'short') of an OANDA position object.
+
+        Returns 0.0 when the side is absent or unparseable. OANDA reports units
+        as strings ("0", "-49839").
+        """
+        raw = (position.get(side) or {}).get("units", "0")
+        try:
+            return float(raw)
+        except (TypeError, ValueError):
+            return 0.0
+
+    def _held_side_closeout_body(self, instrument: str) -> dict[str, str]:
+        """Closeout body naming only the sides of ``instrument`` that hold units."""
+        body: dict[str, str] = {}
+        for position in self.get_open_positions():
+            if position.get("instrument") != instrument:
+                continue
+            if self._position_side_units(position, "long") != 0:
+                body["longUnits"] = "ALL"
+            if self._position_side_units(position, "short") != 0:
+                body["shortUnits"] = "ALL"
+            break
+        return body
+
     def close_position(self, instrument: str, *, side: str = "all") -> dict[str, Any]:
-        """Flatten an open position. side ∈ {"all", "long", "short"}."""
+        """Flatten an open position. side ∈ {"all", "long", "short"}.
+
+        For side="all", only the sides that actually hold units are closed.
+        OANDA rejects a closeout naming a side with no open units (HTTP 400
+        CLOSEOUT_POSITION_DOESNT_EXIST), so a blind
+        {"longUnits": "ALL", "shortUnits": "ALL"} fails on any one-sided
+        position — i.e. every position under netting. Resolve held sides first.
+        """
         path = f"/accounts/{self.config.account_id}/positions/{instrument}/close"
-        if side == "all":
-            body = {"longUnits": "ALL", "shortUnits": "ALL"}
-        elif side == "long":
-            body = {"longUnits": "ALL"}
+        if side == "long":
+            body: dict[str, str] = {"longUnits": "ALL"}
         elif side == "short":
             body = {"shortUnits": "ALL"}
+        elif side == "all":
+            body = self._held_side_closeout_body(instrument)
+            if not body:
+                raise OandaTraderError(
+                    f"close_position: no open units for {instrument} (nothing to close)"
+                )
         else:
             raise OandaTraderError(f"side must be 'all'|'long'|'short', got {side!r}")
         return self._request("PUT", path, json_body=body)
