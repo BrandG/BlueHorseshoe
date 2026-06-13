@@ -1,0 +1,7 @@
+==== CONFLUENCE P1A STRICT-AND SWEEP ====
+results -> /root/worktrees/confluence-p1-sweep/research/confluence_v1/p1a_results.csv
+report  -> /root/worktrees/confluence-p1-sweep/research/confluence_v1/CONFLUENCE_P1A.md
+rows=2160 pooled_both_rows=24 pooled_survivors=2
+pooled survivors:
+  bb+ema short mid: n=2265 mean_R=0.0560 CI_low=0.0164
+  stoch+rsi long mid: n=7157 mean_R=0.0328 CI_low=0.0107

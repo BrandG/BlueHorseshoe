@@ -204,3 +204,35 @@ measures what actually gates strict-AND: same-direction simultaneous fires per
   confluence is **closed** on H4 forex. Next doors, in priority: (i) **soft/voting confluence**
   (keeps volume — the volume wall is the real enemy here), (ii) relative-value / cointegration
   (door #2), (iii) exit-side per-cell geometry (door #3).
+
+---
+
+## 14. P1a result — STRICT-AND CONFLUENCE CLOSED (2026-06-13)
+
+P1a ran the narrowed sweep (`research/confluence_v1/p1a_sweep.py`, `CONFLUENCE_P1A.md`,
+`p1a_results.csv`): candidates `macd × {stoch, rsi, cci}` + redundancy controls `bb+ema`,
+`stoch+rsi`, `stoch+atr`, both entry modes, raw 1%/1% R via `_lib.py`, gated on expectancy-CI +
+beat-components. **Verdict: dead.**
+
+- **0 of 12 pooled candidate cells pass.** mean_R −0.02…+0.08 with CI_low negative; lift over the
+  better component flips sign across direction/mode — noise, not edge.
+- **The decisive tell: controls outscore candidates ~7:1.** The same-factor redundancy controls
+  (expected null) produced **20 per-pair + 2 pooled survivors** vs the cross-factor candidates'
+  **3 per-pair + 0 pooled**. If strict-AND carried independent edge the candidates would lead;
+  they badly trail. "Passing" tracks large-n CI sensitivity and same-factor depth, not confluence
+  alpha (`stoch+rsi long mid` pooled "passes" on a +0.0018R lift; `bb+ema short mid` passes but its
+  long twin fails). The 3 candidate per-pair survivors are multiple-testing artifacts (`EUR_CAD
+  long` appears for both macd+rsi and macd+stoch — a pair/regime effect).
+- **P1b SKIPPED.** Nothing to harden; NW/executable/throughput on cherry-picked thin cells would be
+  noise-mining. Because the *candidates* (not just strict-AND's harshness) are flat, soft/voting
+  confluence is also unlikely to help — there is no independent edge to combine.
+
+**Caveat:** `MAX_HOLD=84` bars was applied identically to BOTH and controls (comparison valid) but
+may not match deployed hold caps — do not read absolute R as live.
+
+### Pivot
+The one thing that ticked up was `bb+ema` (two "stretched-below" signals) → **deeper dislocation**,
+echoing the equity deep-oversold edge. The lever is **depth of dislocation within a single
+mean-reversion cell**, not signal combination. Scoped next in
+[`DISLOCATION_DEPTH_v1.md`](DISLOCATION_DEPTH_v1.md). Relative-value/cointegration (door #2) remains
+the orthogonal alternative.
