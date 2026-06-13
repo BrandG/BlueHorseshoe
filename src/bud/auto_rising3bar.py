@@ -81,11 +81,19 @@ def load_pair_specs() -> list[PairSpec]:
     cfg = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
     specs: list[PairSpec] = []
     for inst in cfg.get("instruments", []):
-        ftmo = str(inst.get("ftmo", "")).replace(".sim", "").upper()
-        if len(ftmo) == 6 and ftmo.isalpha():
-            symbol = f"{ftmo[:3]}_{ftmo[3:]}"
+        # The bar store is keyed by the OANDA instrument name. When the config
+        # carries an explicit `oanda` field (metals/energy/softs), use it
+        # verbatim: the FX-style split below mangles names like NATGAS -> NAT_GAS
+        # and silently drops non-6-char tickers (USOIL, CORN.c, XPT/USD).
+        oanda = inst.get("oanda")
+        if oanda:
+            symbol = str(oanda)
         else:
-            continue
+            ftmo = str(inst.get("ftmo", "")).replace(".sim", "").upper()
+            if len(ftmo) == 6 and ftmo.isalpha():
+                symbol = f"{ftmo[:3]}_{ftmo[3:]}"
+            else:
+                continue
         pip_size = float(inst["pip_size"])
         # 0.0001 → 5 decimals (4-decimal pip + 1); 0.01 → 3 decimals
         if pip_size <= 0.0001:
