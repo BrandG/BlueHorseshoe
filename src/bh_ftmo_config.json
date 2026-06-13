@@ -87,7 +87,13 @@
     {"symbol": "WTICO_USD", "oanda": "WTICO_USD", "name": "WTI Crude Oil/USD", "ftmo": "USOIL.sim", "type": "commodity", "pip_size": 0.01, "dollar_per_pip_per_lot": 10.0, "contract_size": 1000, "min_lot": 0.01, "tier": 4},
     {"symbol": "BCO_USD", "oanda": "BCO_USD", "name": "Brent Crude Oil/USD", "ftmo": "UKOIL.sim", "type": "commodity", "pip_size": 0.01, "dollar_per_pip_per_lot": 10.0, "contract_size": 1000, "min_lot": 0.01, "tier": 4},
     {"symbol": "NATGAS_USD", "oanda": "NATGAS_USD", "name": "Natural Gas/USD", "ftmo": "NATGAS.sim", "type": "commodity", "pip_size": 0.001, "dollar_per_pip_per_lot": 10.0, "contract_size": 10000, "min_lot": 0.01, "tier": 4},
-    {"symbol": "XCU_USD", "oanda": "XCU_USD", "name": "Copper/USD", "ftmo": "XCUUSD.sim", "type": "commodity", "pip_size": 0.0001, "dollar_per_pip_per_lot": 2.5, "contract_size": 25000, "min_lot": 0.01, "tier": 4}
+    {"symbol": "XCU_USD", "oanda": "XCU_USD", "name": "Copper/USD", "ftmo": "XCUUSD.sim", "type": "commodity", "pip_size": 0.0001, "dollar_per_pip_per_lot": 2.5, "contract_size": 25000, "min_lot": 0.01, "tier": 4},
+    {"symbol": "XPT_USD", "oanda": "XPT_USD", "name": "Platinum/USD", "ftmo": "XPT/USD", "type": "commodity", "pip_size": 0.01, "dollar_per_pip_per_lot": 1.0, "contract_size": 100, "min_lot": 0.01, "tier": 4},
+    {"symbol": "XPD_USD", "oanda": "XPD_USD", "name": "Palladium/USD", "ftmo": "XPD/USD", "type": "commodity", "pip_size": 0.01, "dollar_per_pip_per_lot": 1.0, "contract_size": 100, "min_lot": 0.01, "tier": 4},
+    {"symbol": "CORN_USD", "oanda": "CORN_USD", "name": "Corn/USD", "ftmo": "CORN.c", "type": "commodity", "pip_size": 0.01, "dollar_per_pip_per_lot": 1.0, "contract_size": 100, "min_lot": 0.01, "tier": 4},
+    {"symbol": "WHEAT_USD", "oanda": "WHEAT_USD", "name": "Wheat/USD", "ftmo": "WHEAT.c", "type": "commodity", "pip_size": 0.01, "dollar_per_pip_per_lot": 1.0, "contract_size": 100, "min_lot": 0.01, "tier": 4},
+    {"symbol": "SOYBN_USD", "oanda": "SOYBN_USD", "name": "Soybean/USD", "ftmo": "SOYBEAN.c", "type": "commodity", "pip_size": 0.01, "dollar_per_pip_per_lot": 1.0, "contract_size": 100, "min_lot": 0.01, "tier": 4},
+    {"symbol": "SUGAR_USD", "oanda": "SUGAR_USD", "name": "Sugar/USD", "ftmo": "SUGAR.c", "type": "commodity", "pip_size": 0.001, "dollar_per_pip_per_lot": 0.1, "contract_size": 100, "min_lot": 0.01, "tier": 4}
   ],
   "clusters": {
     "aud_nzd_usd":     ["AUDUSD.sim", "NZDUSD.sim"],
