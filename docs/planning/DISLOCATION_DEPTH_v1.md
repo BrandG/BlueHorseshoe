@@ -124,3 +124,39 @@ params); `_lib.py` (R-sim); `seed/nw_regate.py` (Newey-West). **New:** a depth-e
   control **and** is robust across pairs → conviction-sizing conditioner on the deployed MR cells.
 - **Null (still a win):** depth-R vanishes under vol-control or isn't monotone → depth is not a
   forex H4 lever; record it and move to relative-value / cointegration.
+
+---
+
+## 13. P0/P1 result — DEPTH NULL, but ATR-REGIME is the live lead (2026-06-13)
+
+P0 (`depth_extract.py`, `P0_DEPTH_DISTRIBUTION.md`) gave a clean vol-decorrelated depth metric
+(price-domain depth/ATR corr ~0.64 → ~0.03 after ATR-normalization; oscillators already
+vol-independent). P1 (`p1_depth_r.py`, `P1_DEPTH_R.md`, `depth_r_curves.csv`) tested the edge.
+
+**Depth → R is NULL.** 0/12 cell-directions pass both gates (monotone + deepest quintile clears
+CI over baseline). ~half show a weak positive Spearman but the deepest quintile never clears
+CI_low > 0; the one cell whose deepest *is* significant (rsi long, +0.050 / CI_low +0.011) is
+non-monotone (Spearman −0.20); `ema long` is actively inverted (Spearman −0.90). The equity
+deep-oversold "deeper is better" does **not** transfer to H4 forex.
+
+**The ATR-stratification sanity check surfaced the real signal.** Across five independent long
+cells, R is significantly concentrated in **low/mid volatility and dies in high ATR** — the
+*opposite* of depth (high-ATR, where price-gaps are deepest, is worst):
+
+| long cell | ATR low | ATR mid | ATR high |
+|---|---|---|---|
+| bb  | +0.098 (CI +0.051) | +0.060 (CI +0.014) | −0.001 |
+| rsi | +0.072 (CI +0.042) | +0.066 (CI +0.034) | −0.017 |
+| stoch | +0.056 (CI +0.037) | +0.032 (CI +0.011) | −0.004 |
+| ema | +0.049 | +0.081 (CI +0.034) | −0.020 |
+| cci | +0.033 (CI +0.011) | +0.041 (CI +0.016) | +0.014 |
+
+**Reframe:** the equity edge's *regime*-gating transfers to forex as a **volatility** regime, not
+a dislocation-depth gradient. These MR cells work in calm/normal vol and fail in high vol.
+
+**Caveats:** this is a byproduct sanity table, not a gated test (needs its own NW / both-halves /
+de-overlap pass); the short side is messier than the long side (e.g. sma short inverts).
+
+**Next door:** [`ATR_REGIME_v1.md`](ATR_REGIME_v1.md) — gate/size the deployed MR cells on the
+volatility regime. Depth is parked; relative-value / cointegration remains the orthogonal
+alternative.
