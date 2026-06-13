@@ -87,6 +87,11 @@ the v2 book sim for P3. **New:** a regime-bucketed R analyzer + the §5 baseline
 ## 10. Phasing
 
 - **P1** — regime-R curves + NW both-halves + per-pair + cross-cell consistency + selection control.
+  *(Done 2026-06-13 — see §13. Verdict: borderline-positive, not the strict 0/12 null Codex reported;
+  re-gate at correct altitude before deciding.)*
+- **P1b (re-gate)** — fix the NW lag (L = realized-hold−1, not MAX_HOLD−1) and judge the **pooled
+  long-MR sleeve** under NW both-halves, not per-cell-per-half. The per-cell strict gate was
+  underpowered (half-n NW) — the v2 NW lesson: per-cell collapses, the book survives.
 - **P2** — alpha-vs-beta-regime baseline; long/short; metric formulations; all deployed cells.
 - **P3** — book-level gate/size sim (throughput + DD); sizing-tilt design + deploy call.
 
