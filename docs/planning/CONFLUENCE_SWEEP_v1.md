@@ -161,3 +161,46 @@ Look-ahead is already controlled: evaluators read the last *closed* bar only.
 - Voting (k-of-n) and asymmetric confirm logic (P3 trigger only).
 - Triple+ confluence beyond the P3 best-pairs probe.
 - Cross-pair confluence (that is door #2, relative-value — a separate scope, not this sweep).
+
+---
+
+## 13. P0 findings → revised P1 plan (2026-06-13) — supersedes §6 and the §9 P1 step
+
+P0 ran in two passes (`research/confluence_v1/`): factor-grouping by fire-mask correlation
+(`factor_grouping.py`) and a co-fire feasibility addendum (`co_fire.py`). The correlation pass
+alone was the wrong lens — fire-mask correlation conflates "independent edge" with "trigger
+bars rarely coincide" (two triggers from the same factor, offset 1–3 bars, show near-zero mask
+correlation). So its "45 orthogonal pairs" reading overstated the opportunity. The co-fire pass
+measures what actually gates strict-AND: same-direction simultaneous fires per
+(forex_pair, direction, A, B) — each ≈ one BOTH-cell trade.
+
+### What P0 found
+- Solo fresh-fire rates span 1.6% (sma) to **24.7% (atr)**.
+- **24 of 45 evaluator pairs are untestable under strict-AND** anywhere — too few same-direction
+  co-fires in any (pair, direction). Sparsity, not redundancy, is the binding constraint.
+- Of the 21 testable, most are compromised:
+  - **atr is a near pass-through filter** (fires 24.7% of bars) → `atr ∧ X ≈ X`, not a confluence.
+  - the stoch/rsi/cci cluster is testable but same-factor (dislocation);
+  - **bb+ema co-fires ~20× above independence** (both are "stretched-below" distance signals;
+    also the matrix's top correlation, 0.379) — redundant, not confluence.
+- The testable-AND-independent residual is roughly **macd × {stoch, rsi, cci}**, and even those
+  are thin (best single-pair cells ~120–140 co-fires).
+
+### Revised P1 scope (replaces the deployed-seed × cross-cluster sweep of §6/§9)
+1. **Primary candidates:** `macd × {stoch, rsi, cci}`, both directions, per forex pair, only
+   where that (pair, direction) cell has ≥ 40 same-direction co-fires (from
+   `co_fire_counts.csv`). Run the §4 control cells (`A_all`/`B_all`/`A_pure`/`B_pure`/`BOTH`)
+   and the full §7 gate stack.
+2. **Redundancy controls (expected null):** include `bb+ema`, one dislocation pair
+   (`stoch+rsi`), and one atr pair (`stoch+atr`). If `BOTH ≈ max(component)` on these, that
+   validates the method and confirms atr is a pass-through — a useful negative, not waste.
+3. **Drop the other ~40 pairs** (untestable or redundant). Do NOT sweep them;
+   `co_fire_counts.csv` records why (no silent cap — the drop is documented).
+
+### Decision after P1
+- If a macd-crossed `BOTH` cell beats `max(A_all, B_all)` under Newey-West both-halves with
+  n ≥ 40 → candidate v2 cell.
+- If not — the likely outcome, given how thin and compromised the feasible set is — strict-AND
+  confluence is **closed** on H4 forex. Next doors, in priority: (i) **soft/voting confluence**
+  (keeps volume — the volume wall is the real enemy here), (ii) relative-value / cointegration
+  (door #2), (iii) exit-side per-cell geometry (door #3).
