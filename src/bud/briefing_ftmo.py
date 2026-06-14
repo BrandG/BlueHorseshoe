@@ -127,13 +127,15 @@ def _assess_position(
 
     if room_frac <= 0:
         status = "AT/PAST STOP"
-    elif signal == "FLIPPED" or (signal == "none" and pnl_usd < 0):
+    elif signal == "FLIPPED":
         # CRITICAL = get out now. Replaces the retired score-degradation check:
-        # the cell quality rank is static and can't decay, so the live "thesis
-        # broke" signal is either an opposite-direction fire (FLIPPED) or the
-        # entry setup no longer firing in our direction while we're losing.
+        # the cell quality rank is static and can't decay, so the only live
+        # "thesis broke" signal is an opposite-direction fire (FLIPPED).
         # Outranks NEAR STOP — a thesis inversion is more actionable than price
-        # drifting toward a stop the broker will honor automatically.
+        # drifting toward a stop the broker will honor automatically. Note: a
+        # held swing position almost never still fires its H4 entry, so
+        # signal=="none" is the steady state and must NOT imply CRITICAL — an
+        # underwater-but-no-flip position drops through to NEAR STOP/UNDERWATER.
         status = "CRITICAL"
     elif room_frac <= 0.25:
         status = "NEAR STOP"

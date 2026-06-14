@@ -55,12 +55,17 @@ def test_critical_on_opposite_fire_even_in_profit():
     assert h["status"] == "CRITICAL"
 
 
-def test_critical_when_signal_gone_and_underwater():
-    # Entry setup no longer fires in our direction AND we're losing → CRITICAL.
+def test_signal_gone_and_underwater_with_room_is_underwater():
+    # Entry setup no longer fires AND we're losing, but with room to the stop →
+    # UNDERWATER, not CRITICAL. A held swing position almost never still fires
+    # its H4 entry, so signal=="none" is the steady state and must not by itself
+    # imply CRITICAL; only an opposite-direction fire (FLIPPED) or price risk
+    # (NEAR STOP / AT-PAST STOP) escalates.
     h = _assess_position(_long(), current=1.0980, inst=INST, fire_dirs=set())
     assert h["signal"] == "none"
     assert h["pnl_usd"] < 0
-    assert h["status"] == "CRITICAL"
+    assert h["room_frac"] > 0.25
+    assert h["status"] == "UNDERWATER"
 
 
 def test_critical_outranks_near_stop():
