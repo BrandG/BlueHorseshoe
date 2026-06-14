@@ -1,0 +1,5 @@
+ATR-regime P4 per-trade re-cut complete
+csv=/root/worktrees/atr-regime-p4/research/atr_regime_v1/atr_regime_p4_pertrade.csv
+report=/root/worktrees/atr-regime-p4/research/atr_regime_v1/ATR_REGIME_P4_PERTRADE.md
+long_mr_strong4: calm win=52.6% avgR=0.051 | choppy win=49.2% avgR=-0.011
+long_mr_full6: calm win=52.5% avgR=0.052 | choppy win=49.6% avgR=-0.001

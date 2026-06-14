@@ -1,0 +1,17 @@
+ATR-regime P4 FTMO run complete
+csv=/root/worktrees/atr-regime-p4/research/atr_regime_v1/atr_regime_p4_ftmo.csv
+report=/root/worktrees/atr-regime-p4/research/atr_regime_v1/ATR_REGIME_P4.md
+out=/root/worktrees/atr-regime-p4/research/atr_regime_v1/atr_regime_p4_ftmo.out
+ftmo_config=/root/worktrees/atr-regime-p4/src/bh_ftmo_swing_config.json
+initial_balance=10000
+target_pct=0.1
+daily_loss_pct=0.05
+max_loss_pct=0.1
+max_trading_days=None
+base_risk_per_trade_pct=0.005
+max_concurrent_positions=3
+max_daily_risk_pct=0.04
+headline_horizon_days=180
+unconditioned_pass_rate=0.088496
+size_down_high_0_5_pass_rate=0.053097
+size_down_high_0_5_fail_rate=0.000000
