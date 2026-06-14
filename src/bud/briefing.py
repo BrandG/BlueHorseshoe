@@ -516,21 +516,33 @@ def _price_precision(pair: str) -> int:
     return 3 if quote in {"JPY", "HUF"} else 5
 
 
-def compute_entry_stop_target(cell: Cell, mid_df: pd.DataFrame) -> tuple[float, float, float]:
+def compute_entry_stop_target(
+    cell: Cell,
+    mid_df: pd.DataFrame,
+    *,
+    tp_pct: Optional[float] = None,
+    sl_pct: Optional[float] = None,
+) -> tuple[float, float, float]:
     """Return (entry_price, stop_price, target_price) for the cell's trigger bar.
 
     mid entries fill at the trigger bar's close (market on next tick = the
     'now' price). limit entries fill at the trigger bar's low (long) or high
     (short), valid only for the next H4 bar.
+
+    ``tp_pct`` / ``sl_pct`` override the global TP_PCT / STOP_PCT when provided,
+    letting a caller apply a per-cell exit geometry (e.g. the research-backed
+    long-MR override in auto_v2). When omitted, the global 1%/1% v2 convention holds.
     """
+    tp = TP_PCT if tp_pct is None else tp_pct
+    sl = STOP_PCT if sl_pct is None else sl_pct
     if cell.entry_mode == "mid":
         entry = float(mid_df["close"].iloc[-1])
     else:  # limit
         entry = float(mid_df["low"].iloc[-1] if cell.direction == "long"
                       else mid_df["high"].iloc[-1])
     if cell.direction == "long":
-        return entry, entry * (1 - STOP_PCT), entry * (1 + TP_PCT)
-    return entry, entry * (1 + STOP_PCT), entry * (1 - TP_PCT)
+        return entry, entry * (1 - sl), entry * (1 + tp)
+    return entry, entry * (1 + sl), entry * (1 - tp)
 
 
 def render_console_report(

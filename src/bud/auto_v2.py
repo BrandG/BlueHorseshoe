@@ -104,6 +104,28 @@ def DEPLOY_PREDICATE(cell: Cell) -> bool:  # noqa: N802 (intentionally caps as a
     return cell.strategy in DEPLOYED_STRATEGIES
 
 
+# Research-backed exit override for the validated long mean-reversion cells.
+# research/exit_geometry_v1 (EXIT_SWEEP_v1.md): on the long-MR book, TP 1.5% / SL 1.0% /
+# 10-day hold beats the global 1%/1%/14d v2 default on total money — the steadier total-money
+# winner, profitable across all three eras (A/B + recent holdout). Scoped to ONLY the cells the
+# sweep validated — long, mean-reversion (bb/rsi/ema/stoch), mid entry. Every other cell (shorts,
+# trend strategies macd/atr/ichimoku/sma, limit entries) stays on the global 1%/1% convention;
+# the sweep says nothing about those. Stop is unchanged (1.0%) — only the target widens to 1.5%.
+LONG_MR_EXIT_STRATEGIES = frozenset({"bb", "rsi", "ema", "stoch"})
+LONG_MR_TP_PCT = 0.015
+LONG_MR_SL_PCT = 0.010
+LONG_MR_MAX_HOLD_DAYS = 10
+
+
+def _uses_long_mr_exit(strategy: str, direction: str, entry_mode: str) -> bool:
+    """True for the long mean-reversion mid cells whose exits the sweep validated."""
+    return (
+        strategy in LONG_MR_EXIT_STRATEGIES
+        and direction == "long"
+        and entry_mode == "mid"
+    )
+
+
 LOG = logging.getLogger("bh_ftmo.v2_paper")
 
 
@@ -192,8 +214,8 @@ def _close_aged_positions(
 
     Returns the number of positions closed (0 in dry-run).
     """
-    if not any(v is not None for v in max_age_by_em.values()):
-        return 0
+    # The validated long-MR cells carry an always-on LONG_MR_MAX_HOLD_DAYS cap (independent of
+    # the per-entry-mode config), so we cannot short-circuit on config caps alone — always check.
     try:
         trades = trader.get_open_trades()
     except OandaTraderError as exc:
@@ -210,10 +232,13 @@ def _close_aged_positions(
         if len(parts) < 3:
             continue
         strategy = parts[1]
+        direction = parts[2]
         entry_mode = _ENTRY_MODE_BY_STRATEGY.get(strategy)
         if entry_mode is None:
             continue
         cap_days = max_age_by_em.get(entry_mode)
+        if _uses_long_mr_exit(strategy, direction, entry_mode):
+            cap_days = LONG_MR_MAX_HOLD_DAYS
         if cap_days is None:
             continue
         try:
@@ -373,10 +398,11 @@ def run(*, dry_run: bool) -> int:
 
         max_age_by_em = (cfg.get("v2_paper", {})
                          .get("max_position_age_days_by_entry_mode", {}))
-        if any(v is not None for v in max_age_by_em.values()):
-            n_aged = _close_aged_positions(trader, max_age_by_em, dry_run=dry_run)
-            if n_aged:
-                LOG.info("age-close: closed %d aged position(s)", n_aged)
+        # Always run: the validated long-MR cells carry an always-on 10-day cap regardless of
+        # the per-entry-mode config, so the age-close pass cannot be gated on config caps alone.
+        n_aged = _close_aged_positions(trader, max_age_by_em, dry_run=dry_run)
+        if n_aged:
+            LOG.info("age-close: closed %d aged position(s)", n_aged)
 
         try:
             open_positions = trader.get_open_positions()
@@ -398,7 +424,12 @@ def run(*, dry_run: bool) -> int:
             mid = ohlc_mid(df)
             if not evaluate_cell(cell, mid):
                 continue
-            entry, stop, target = compute_entry_stop_target(cell, mid)
+            if _uses_long_mr_exit(cell.strategy, cell.direction, cell.entry_mode):
+                entry, stop, target = compute_entry_stop_target(
+                    cell, mid, tp_pct=LONG_MR_TP_PCT, sl_pct=LONG_MR_SL_PCT,
+                )
+            else:
+                entry, stop, target = compute_entry_stop_target(cell, mid)
             signal_open_ts = pd.Timestamp(df["timestamp"].iloc[-1])
             signal_close_ts = signal_open_ts + pd.Timedelta(hours=H4_BAR_HOURS)
             gtd = _next_bar_close(signal_open_ts)
