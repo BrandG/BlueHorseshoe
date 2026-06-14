@@ -1,0 +1,49 @@
+row_type,sample,metric,sleeve,direction,bucket_or_diff,stat,n,mean_R,NW_SE,NW_CI_low,cluster_SE,cluster_CI_low,cluster_CI_high,baseline_n,sleeve_n,excess_mean_R,excess_NW_SE,excess_NW_CI_low,excess_cluster_SE,excess_cluster_CI_low,pair_positive,pair_comparable,pair_total,note
+curve,all_bars_long,atr_pct_w252,all_bars_long,long,ATR_low_0_33,bucket_mean,106721,0.01706792206892488,0.010593091003429483,-0.003694536297796907,,,,,,,,,,,,,,
+curve,all_bars_long,atr_pct_w252,all_bars_long,long,ATR_mid_33_67,bucket_mean,78304,0.017674722658664935,0.01092571317032956,-0.0037396751551810013,,,,,,,,,,,,,,
+curve,all_bars_long,atr_pct_w252,all_bars_long,long,ATR_high_67_100,bucket_mean,85356,0.008244004162340746,0.010661733183457752,-0.012652992877236447,,,,,,,,,,,,,,
+curve,all_bars_long,atr_pct_w252,all_bars_long,long,low_mid,low_mid_mean,185025,0.017324724735478077,0.008261682444340718,0.0011318271445702709,,,,,,,,,,,,,,
+curve,all_bars_long,atr_pct_w252,all_bars_long,long,low_mid_minus_high,low_mid_minus_high,270381,0.009080720573137331,0.013488066995917977,-0.0173558907388619,0.004844343122711072,-0.0004141919473763696,0.018575633093651032,,,,,,,,,,,
+curve,deduped_sleeve,atr_pct_w252,long_mr_strong4,long,ATR_low_0_33,bucket_mean,13850,0.056972523407805224,0.016303031055365715,0.025018582539288424,,,,,,,,,,,,,,
+curve,deduped_sleeve,atr_pct_w252,long_mr_strong4,long,ATR_mid_33_67,bucket_mean,11823,0.04467139083085121,0.017398151747884456,0.010571013404997678,,,,,,,,,,,,,,
+curve,deduped_sleeve,atr_pct_w252,long_mr_strong4,long,ATR_high_67_100,bucket_mean,14480,-0.011076104400314174,0.016908371293229373,-0.044216512135043747,,,,,,,,,,,,,,
+curve,deduped_sleeve,atr_pct_w252,long_mr_strong4,long,low_mid,low_mid_mean,25673,0.05130757227403327,0.012197810743768875,0.027399863216246278,,,,,,,,,,,,,,
+curve,deduped_sleeve,atr_pct_w252,long_mr_strong4,long,low_mid_minus_high,low_mid_minus_high,40153,0.062383676674347445,0.020848971359050464,0.02151969281060854,0.011929338375677537,0.03900217345801947,0.08576517989067542,,,,,,,,,,,
+excess,sleeve_minus_all_bars_long,atr_pct_w252,long_mr_strong4,long,low_mid_minus_high,low_mid_minus_high,40153,0.062383676674347445,0.020848971359050464,0.02151969281060854,,,,270381.0,40153.0,0.053302956101210115,0.024831583880551764,0.004633051695328655,0.010833739555853332,0.03206882657173758,,,,positive excess means sleeve uplift is above all-bars long baseline uplift
+pair_majority,deduped_sleeve,atr_pct_w252,long_mr_strong4,long,pair_low_mid_gt_high,pair_low_mid_gt_high,40153,,,,,,,,40153.0,,,,,,12.0,17.0,17.0,12/17 comparable pairs low/mid > high
+curve,all_bars_long,atr_ma_ratio,all_bars_long,long,ATR_low_0_33,bucket_mean,88467,0.022925229626659382,0.010948519137935311,0.0014661321163061715,,,,,,,,,,,,,,
+curve,all_bars_long,atr_ma_ratio,all_bars_long,long,ATR_mid_33_67,bucket_mean,88879,0.020605230138934002,0.01025445049436417,0.0005065071699802311,,,,,,,,,,,,,,
+curve,all_bars_long,atr_ma_ratio,all_bars_long,long,ATR_high_67_100,bucket_mean,92202,0.0022722573658182843,0.010039849853389318,-0.017405848346824775,,,,,,,,,,,,,,
+curve,all_bars_long,atr_ma_ratio,all_bars_long,long,low_mid,low_mid_mean,177346,0.021762535038286693,0.008304226421484958,0.005486251252176177,,,,,,,,,,,,,,
+curve,all_bars_long,atr_ma_ratio,all_bars_long,long,low_mid_minus_high,low_mid_minus_high,269548,0.019490277672468408,0.013029150453421373,-0.006046857216237482,0.004616923770381411,0.010441107082520842,0.028539448262415973,,,,,,,,,,,
+curve,deduped_sleeve,atr_ma_ratio,long_mr_strong4,long,ATR_low_0_33,bucket_mean,10604,0.044036632903736626,0.018193124406873224,0.008378109066265106,,,,,,,,,,,,,,
+curve,deduped_sleeve,atr_ma_ratio,long_mr_strong4,long,ATR_mid_33_67,bucket_mean,12700,0.038489492523982566,0.015739184654501016,0.007640690601160575,,,,,,,,,,,,,,
+curve,deduped_sleeve,atr_ma_ratio,long_mr_strong4,long,ATR_high_67_100,bucket_mean,16747,0.010386562164281509,0.015816127616051907,-0.020613047963180225,,,,,,,,,,,,,,
+curve,deduped_sleeve,atr_ma_ratio,long_mr_strong4,long,low_mid,low_mid_mean,23304,0.041013603259775225,0.012422305090278314,0.01666588528282973,,,,,,,,,,,,,,
+curve,deduped_sleeve,atr_ma_ratio,long_mr_strong4,long,low_mid_minus_high,low_mid_minus_high,40051,0.030627041095493718,0.020111279335815368,-0.008791066402704405,0.011459355289458387,0.00816670472815528,0.05308737746283215,,,,,,,,,,,
+excess,sleeve_minus_all_bars_long,atr_ma_ratio,long_mr_strong4,long,low_mid_minus_high,low_mid_minus_high,40051,0.030627041095493718,0.020111279335815368,-0.008791066402704405,,,,269548.0,40051.0,0.01113676342302531,0.02396293634054651,-0.035830591804445845,0.010437606814706405,-0.009320945933799243,,,,positive excess means sleeve uplift is above all-bars long baseline uplift
+pair_majority,deduped_sleeve,atr_ma_ratio,long_mr_strong4,long,pair_low_mid_gt_high,pair_low_mid_gt_high,40051,,,,,,,,40051.0,,,,,,14.0,17.0,17.0,14/17 comparable pairs low/mid > high
+curve,all_bars_long,atr_pct_w60,all_bars_long,long,ATR_low_0_33,bucket_mean,110450,0.01771748333433665,0.010055579383668677,-0.001991452257653955,,,,,,,,,,,,,,
+curve,all_bars_long,atr_pct_w60,all_bars_long,long,ATR_mid_33_67,bucket_mean,69979,0.02651211810296452,0.010597111929250055,0.005741778721634415,,,,,,,,,,,,,,
+curve,all_bars_long,atr_pct_w60,all_bars_long,long,ATR_high_67_100,bucket_mean,93216,-0.0035420895777194678,0.009885570706669573,-0.02291780816279183,,,,,,,,,,,,,,
+curve,all_bars_long,atr_pct_w60,all_bars_long,long,low_mid,low_mid_mean,180429,0.021128463534159345,0.008225632089830511,0.005006224638091545,,,,,,,,,,,,,,
+curve,all_bars_long,atr_pct_w60,all_bars_long,long,low_mid_minus_high,low_mid_minus_high,273645,0.024670553111878813,0.012860230615110019,-0.000535498893736823,0.0046186279846730975,0.015618042261919542,0.033723063961838086,,,,,,,,,,,
+curve,deduped_sleeve,atr_pct_w60,long_mr_strong4,long,ATR_low_0_33,bucket_mean,13504,0.0464564015184335,0.016028238335216945,0.015041054381408285,,,,,,,,,,,,,,
+curve,deduped_sleeve,atr_pct_w60,long_mr_strong4,long,ATR_mid_33_67,bucket_mean,10125,0.04228141077443243,0.01758793979103621,0.007809048784001467,,,,,,,,,,,,,,
+curve,deduped_sleeve,atr_pct_w60,long_mr_strong4,long,ATR_high_67_100,bucket_mean,17078,0.003803748358508696,0.015560152921215743,-0.026694151367074162,,,,,,,,,,,,,,
+curve,deduped_sleeve,atr_pct_w60,long_mr_strong4,long,low_mid,low_mid_mean,23629,0.04466742266689468,0.012477788227170909,0.020210957741639696,,,,,,,,,,,,,,
+curve,deduped_sleeve,atr_pct_w60,long_mr_strong4,long,low_mid_minus_high,low_mid_minus_high,40707,0.04086367430838598,0.01994526404873457,0.0017709567728662265,0.011523461573526992,0.018277689624273074,0.06344965899249888,,,,,,,,,,,
+excess,sleeve_minus_all_bars_long,atr_pct_w60,long_mr_strong4,long,low_mid_minus_high,low_mid_minus_high,40707,0.04086367430838598,0.01994526404873457,0.0017709567728662265,,,,273645.0,40707.0,0.016193121196507166,0.02373181597450049,-0.030321238113513792,0.010450353832497627,-0.004289572315188183,,,,positive excess means sleeve uplift is above all-bars long baseline uplift
+pair_majority,deduped_sleeve,atr_pct_w60,long_mr_strong4,long,pair_low_mid_gt_high,pair_low_mid_gt_high,40707,,,,,,,,40707.0,,,,,,10.0,17.0,17.0,10/17 comparable pairs low/mid > high
+curve,all_bars_long,atr_pct_w500,all_bars_long,long,ATR_low_0_33,bucket_mean,105583,0.015415184070612832,0.010820471349266243,-0.005792939773949004,,,,,,,,,,,,,,
+curve,all_bars_long,atr_pct_w500,all_bars_long,long,ATR_mid_33_67,bucket_mean,77888,0.016763587301136192,0.011073218350052124,-0.004939920664965968,,,,,,,,,,,,,,
+curve,all_bars_long,atr_pct_w500,all_bars_long,long,ATR_high_67_100,bucket_mean,82694,0.013707194729640076,0.010993972271277358,-0.007840990922063543,,,,,,,,,,,,,,
+curve,all_bars_long,atr_pct_w500,all_bars_long,long,low_mid,low_mid_mean,183471,0.015987614758945067,0.00834351280360602,-0.00036567033612272884,,,,,,,,,,,,,,
+curve,all_bars_long,atr_pct_w500,all_bars_long,long,low_mid_minus_high,low_mid_minus_high,266165,0.0022804200293049907,0.013801508330814897,-0.024770536299092205,0.0048935571348451175,-0.00731095195499144,0.011871792013601421,,,,,,,,,,,
+curve,deduped_sleeve,atr_pct_w500,long_mr_strong4,long,ATR_low_0_33,bucket_mean,14069,0.04848174529227109,0.016280225582242007,0.016572503151076758,,,,,,,,,,,,,,
+curve,deduped_sleeve,atr_pct_w500,long_mr_strong4,long,ATR_mid_33_67,bucket_mean,11783,0.04012124198995407,0.017989207522367625,0.004862395246113531,,,,,,,,,,,,,,
+curve,deduped_sleeve,atr_pct_w500,long_mr_strong4,long,ATR_high_67_100,bucket_mean,13659,-0.0016920798267376976,0.017179069041576407,-0.035363055148227455,,,,,,,,,,,,,,
+curve,deduped_sleeve,atr_pct_w500,long_mr_strong4,long,low_mid,low_mid_mean,25852,0.04467113836007236,0.012432011312195684,0.02030439618816882,,,,,,,,,,,,,,
+curve,deduped_sleeve,atr_pct_w500,long_mr_strong4,long,low_mid_minus_high,low_mid_minus_high,39511,0.04636321818681006,0.02120554923603278,0.004800341684185812,0.01217004260565971,0.022509934679717025,0.07021650169390309,,,,,,,,,,,
+excess,sleeve_minus_all_bars_long,atr_pct_w500,long_mr_strong4,long,low_mid_minus_high,low_mid_minus_high,39511,0.04636321818681006,0.02120554923603278,0.004800341684185812,,,,266165.0,39511.0,0.04408279815750507,0.025301323099936168,-0.005507795118369817,0.011110592380578826,0.02230603709157057,,,,positive excess means sleeve uplift is above all-bars long baseline uplift
+pair_majority,deduped_sleeve,atr_pct_w500,long_mr_strong4,long,pair_low_mid_gt_high,pair_low_mid_gt_high,39511,,,,,,,,39511.0,,,,,,11.0,17.0,17.0,11/17 comparable pairs low/mid > high

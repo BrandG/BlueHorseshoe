@@ -100,7 +100,14 @@ the v2 book sim for P3. **New:** a regime-bucketed R analyzer + the §5 baseline
   artifact of the 252-bar percentile construction? Test alternative TIME-LOCAL vol metrics
   (`ATR/SMA(ATR,50)`, percentile at 60/500-bar windows). Corroborate → P3; only-the-252-rank →
   artifact → relative-value. **Gates P3.**
-- **P3** — book-level gate/size sim (throughput + DD); sizing-tilt design + deploy call.
+  *(Done 2026-06-14 — see §15. GRADIENT is window-robust (not a 252-artifact) → advance; but the
+  alpha-vs-beta EXCESS is metric-sensitive (significant only on w252), so deploy on w252 and let
+  P3's book-level baseline be the final arbiter.)*
+- **P3** — book-level gate/size sim (throughput + DD); sizing-tilt design + deploy call. Deploy on
+  the causal/PIT **w252** rolling percentile. Frame as a vol-regime risk/sizing lever (the alpha is
+  real-but-metric-sensitive); the **book-level baseline** (conditioned vs unconditioned vs
+  random-entry, in $/throughput/DD) is the deployable-value arbiter. **Max-DD reduction is itself
+  deployable for FTMO** (hard drawdown constraint) even if expectancy uplift is modest.
 
 ## 11. Deliverables
 
@@ -164,3 +171,29 @@ robustness concern.
 **Decision:** do NOT jump to P3, but it's premature to route to relative-value. **P2b** (§10)
 resolves it cheaply — corroborate the time-local edge with alternative adaptive metrics. Codex's
 `advance_to_p3=False` is right to pause; its implicit "route away" is premature.
+
+---
+
+## 15. P2b result — GRADIENT robust, ALPHA metric-sensitive → advance to P3 (reframed, 2026-06-14)
+
+`atr_regime_p2b.py` / `ATR_REGIME_P2B.md` / `atr_regime_p2b_metrics.csv`. Two distinct questions:
+
+**Q1 — is the gradient a 252-rank artifact? NO, window-robust.** NW-positive low>high uplift at
+w252 (+0.062/NW +0.022), w60 (+0.041/+0.002), w500 (+0.046/+0.005); only `ATR/SMA(ATR,50)` is weak
+(+0.031/NW −0.009). 3/4 → the edge survives the metric construction. P2's artifact worry is resolved.
+
+**Q2 — alpha or beta? Metric-sensitive.** The excess-over-baseline is significant **only on w252**
+(NW +0.005, cluster +0.032); w500 cluster-only (+0.022); w60 and the ratio are not significant
+(NW −0.030/−0.036). Codex's "2/3 corroborate" used a lenient *point-estimate* excess; by the
+significance bar the alpha is fragile. Tell: under the short w60 window the **baseline itself** gains
+a gradient (~+0.025 vs +0.009 at w252) — at short horizons "recent calm" helps any long → more beta.
+
+**Reframed verdict (corrects Codex's clean "corroborated"):** the vol-regime gradient is real and
+window-robust, so **advance to P3** — but deploy on the causal/PIT **w252** percentile (the metric
+where the alpha is significant), frame it as a **vol-regime risk/sizing lever** (real-but-metric-
+sensitive alpha, not pure selection), and make **P3's book-level baseline the final arbiter** of
+deployable value. Max-DD reduction is itself FTMO-deployable even if expectancy uplift is modest.
+
+*(Process note: Codex parked itself ~2.5h on the "nothing heavy 00:30–03:30 UTC" note; today is
+Sunday and the heavy pipeline is cron'd Tue–Sat 01:00, so nothing was running — Bubo ran the
+analyzer directly. Future contracts should pgrep-gate, not blind-wait on the window.)*

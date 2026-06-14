@@ -1,0 +1,14 @@
+ATR-regime P2b run complete
+pairs=17 period=2016-01-05 10:00:00..2026-06-12 17:00:00
+TP=0.0100 STOP=0.0100 MAX_HOLD=84
+NW_L=22
+all_bars_baseline_rows_any_metric=273,645
+long_mr_strong4_long_deduped_rows=40,887
+alt_metric_hits=2/3
+verdict=corroborated: the edge is recent-relative calm, not a 252-rank artifact
+advance_to_p3=True
+pit_check=all metrics use closed H4 bars at entry and backward-looking rolling windows
+atr_pct_w252: uplift=+0.062384 nw_ci_low=+0.021520 cluster_ci_low=+0.039002 excess=+0.053303 corroborates=True
+atr_ma_ratio: uplift=+0.030627 nw_ci_low=-0.008791 cluster_ci_low=+0.008167 excess=+0.011137 corroborates=False
+atr_pct_w60: uplift=+0.040864 nw_ci_low=+0.001771 cluster_ci_low=+0.018278 excess=+0.016193 corroborates=True
+atr_pct_w500: uplift=+0.046363 nw_ci_low=+0.004800 cluster_ci_low=+0.022510 excess=+0.044083 corroborates=True
