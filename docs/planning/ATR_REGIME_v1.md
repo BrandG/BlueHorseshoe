@@ -108,3 +108,26 @@ the v2 book sim for P3. **New:** a regime-bucketed R analyzer + the §5 baseline
   the v2 book, validated at book level.
 - **Null (still a win):** gradient vanishes under NW/both-halves or is pure beta-regime → not a
   cell-level lever; route to relative-value / cointegration (door #2).
+
+---
+
+## 13. P1b result — sleeve SURVIVES book-level re-gate; alpha-vs-beta (P2) is the decider (2026-06-13)
+
+P1's strict per-cell-per-half null was a gating artifact (§ ATR_REGIME_P1.md audit). P1b
+(`atr_regime_p1b.py`, `ATR_REGIME_P1B.md`, `atr_regime_sleeve_curves.csv`) re-gated at the right
+altitude — corrected NW lag (median realized hold 23 → **L=22**, not MAX_HOLD−1=83) and a **pooled,
+deduped long-MR sleeve** (one trade per pair-bar-direction).
+
+**It holds.** Strong-4 long sleeve (bb/rsi/ema/stoch, n=40,153): low/mid **+0.051R (NW_CI_low
++0.027)** — an absolute tradeable +R; low/mid−high uplift **+0.062 (NW_CI_low +0.022)**; **NW-positive
+in BOTH halves** (h1 CI_low +0.003, h2 +0.007); per-pair 12/17. Full-6 sleeve also holds (+0.053,
+CI +0.016). Crucially it survives **even at L=83** (CI_low +0.010) — so the rescue was the
+book-level pooling (the v2 NW lesson: per-cell collapses, the book survives), not the L choice.
+**Short side null** → long-only conditioner.
+
+**Not yet a validated edge.** "Survives rigor" ≠ "is alpha." The decisive test is **P2's
+alpha-vs-beta-regime baseline:** is low-ATR-good specific to these MR cells, or would any forex long
+(random-entry baseline) show the same gradient? If the latter, it's generic vol-beta (risk-control,
+not selection edge). Secondary caveat: the pooled NW is time-series only; contemporaneous cross-pair
+correlation makes the pooled CI somewhat optimistic (12/17 per-pair mitigates; a date-clustered SE
+would be more honest) — fold into P2.
