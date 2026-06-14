@@ -93,6 +93,13 @@ the v2 book sim for P3. **New:** a regime-bucketed R analyzer + the §5 baseline
   long-MR sleeve** under NW both-halves, not per-cell-per-half. The per-cell strict gate was
   underpowered (half-n NW) — the v2 NW lesson: per-cell collapses, the book survives.
 - **P2** — alpha-vs-beta-regime baseline; long/short; metric formulations; all deployed cells.
+  *(Done 2026-06-14 — see §14. Alpha CONFIRMED (sleeve ≫ all-bars baseline, survives date-cluster
+  SE), but the gradient is metric-specific: holds under rolling ATR percentile, inverts under
+  per-pair level metrics → robustness OPEN.)*
+- **P2b (metric-robustness probe)** — is the edge "calm relative to recent" (real, time-local) or an
+  artifact of the 252-bar percentile construction? Test alternative TIME-LOCAL vol metrics
+  (`ATR/SMA(ATR,50)`, percentile at 60/500-bar windows). Corroborate → P3; only-the-252-rank →
+  artifact → relative-value. **Gates P3.**
 - **P3** — book-level gate/size sim (throughput + DD); sizing-tilt design + deploy call.
 
 ## 11. Deliverables
@@ -131,3 +138,29 @@ alpha-vs-beta-regime baseline:** is low-ATR-good specific to these MR cells, or 
 not selection edge). Secondary caveat: the pooled NW is time-series only; contemporaneous cross-pair
 correlation makes the pooled CI somewhat optimistic (12/17 per-pair mitigates; a date-clustered SE
 would be more honest) — fold into P2.
+
+---
+
+## 14. P2 result — ALPHA confirmed, but the regime metric's robustness is OPEN (2026-06-14)
+
+`atr_regime_p2.py` / `ATR_REGIME_P2.md` / `atr_regime_p2_baseline.csv`.
+
+**Alpha vs beta: PASS.** Strong-4 long sleeve regime uplift +0.062 vs the all-bars long baseline
++0.009 (baseline n.s., NW_CI_low −0.017). Excess (sleeve−baseline) uplift **+0.053 (NW_CI_low
++0.005, date-cluster_CI_low +0.032)**; excess low/mid R **+0.034 (NW +0.005, cluster +0.021)**. The
+MR cells' regime benefit is ~6× the random-long baseline and survives the date-clustered SE → this
+is **cell selection alpha, not generic vol-beta** (conditioned on the percentile metric).
+
+**Open flag — metric specificity.** The gradient holds only under the **rolling (time-local) ATR
+percentile** and *inverts* under two per-pair *level* metrics (absolute_atr −0.024, atr_over_price
+−0.036). All three are bucketed per-pair (checked the code), so this is NOT a cross-pair
+comparability artifact — the real axis is **time-local ("calm vs this pair's recent 6-week normal")
+vs time-global (full-sample level)**. Two points argue real-not-artifact: (1) the gradient is
+specific to MR-selected entries — under the *same* percentile metric the all-bars baseline is flat;
+(2) "calm-relative-to-recent" is a coherent adaptive regime and the rolling percentile is the
+causal/PIT metric we'd deploy. But two reasonable per-pair metrics disagreeing is a legitimate
+robustness concern.
+
+**Decision:** do NOT jump to P3, but it's premature to route to relative-value. **P2b** (§10)
+resolves it cheaply — corroborate the time-local edge with alternative adaptive metrics. Codex's
+`advance_to_p3=False` is right to pause; its implicit "route away" is premature.
