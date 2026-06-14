@@ -516,25 +516,49 @@ def _price_precision(pair: str) -> int:
     return 3 if quote in {"JPY", "HUF"} else 5
 
 
-def compute_entry_stop_target(
-    cell: Cell,
-    mid_df: pd.DataFrame,
-    *,
-    tp_pct: Optional[float] = None,
-    sl_pct: Optional[float] = None,
-) -> tuple[float, float, float]:
+# Research-backed exit override for the validated long mean-reversion cells.
+# research/exit_geometry_v1 (EXIT_SWEEP_v1.md): on the long-MR book, TP 1.5% / SL 1.0% /
+# 10-day hold beats the global 1%/1%/14d v2 default on total money — the steadier total-money
+# winner, profitable across all three eras (A/B + recent holdout). Scoped to ONLY the cells the
+# sweep validated — long, mean-reversion (bb/rsi/ema/stoch), mid entry. Every other cell (shorts,
+# trend strategies macd/atr/ichimoku/sma, limit entries) keeps the global 1%/1% convention; the
+# sweep says nothing about those. Stop is unchanged (1.0%) — only the target widens to 1.5%.
+# Applied inside compute_entry_stop_target so the live trader AND this briefing agree; the 10-day
+# hold is enforced trader-side via the position age cap (LONG_MR_MAX_HOLD_DAYS).
+LONG_MR_EXIT_STRATEGIES = frozenset({"bb", "rsi", "ema", "stoch"})
+LONG_MR_TP_PCT = 0.015
+LONG_MR_SL_PCT = 0.010
+LONG_MR_MAX_HOLD_DAYS = 10
+
+
+def uses_long_mr_exit(strategy: str, direction: str, entry_mode: str) -> bool:
+    """True for the long mean-reversion mid cells whose exits the exit-geometry sweep validated."""
+    return (
+        strategy in LONG_MR_EXIT_STRATEGIES
+        and direction == "long"
+        and entry_mode == "mid"
+    )
+
+
+def cell_uses_long_mr_exit(cell: Cell) -> bool:
+    """Cell-level wrapper for :func:`uses_long_mr_exit`."""
+    return uses_long_mr_exit(cell.strategy, cell.direction, cell.entry_mode)
+
+
+def compute_entry_stop_target(cell: Cell, mid_df: pd.DataFrame) -> tuple[float, float, float]:
     """Return (entry_price, stop_price, target_price) for the cell's trigger bar.
 
     mid entries fill at the trigger bar's close (market on next tick = the
     'now' price). limit entries fill at the trigger bar's low (long) or high
     (short), valid only for the next H4 bar.
 
-    ``tp_pct`` / ``sl_pct`` override the global TP_PCT / STOP_PCT when provided,
-    letting a caller apply a per-cell exit geometry (e.g. the research-backed
-    long-MR override in auto_v2). When omitted, the global 1%/1% v2 convention holds.
+    Validated long-MR cells (:func:`cell_uses_long_mr_exit`) use the research-backed
+    TP 1.5% / SL 1.0% geometry; every other cell uses the global 1%/1% v2 convention.
     """
-    tp = TP_PCT if tp_pct is None else tp_pct
-    sl = STOP_PCT if sl_pct is None else sl_pct
+    if cell_uses_long_mr_exit(cell):
+        tp, sl = LONG_MR_TP_PCT, LONG_MR_SL_PCT
+    else:
+        tp, sl = TP_PCT, STOP_PCT
     if cell.entry_mode == "mid":
         entry = float(mid_df["close"].iloc[-1])
     else:  # limit

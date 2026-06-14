@@ -20,12 +20,14 @@ import pandas as pd
 from bud.briefing import (
     CELLS,
     H4_BAR_HOURS,
+    LONG_MR_MAX_HOLD_DAYS,
     LOOKBACK_BARS as V2_LOOKBACK_BARS,
     Cell,
     _price_precision,
     compute_entry_stop_target,
     evaluate_cell,
     ranked_cells,
+    uses_long_mr_exit,
 )
 from bud.auto_rising3bar import (
     LOOKBACK_BARS as R3B_LOOKBACK_BARS,
@@ -529,6 +531,11 @@ def close_aged_positions(
             continue
         source, strategy, entry_mode = parsed
         cap_days = _cap_for_trade(source, entry_mode, config)
+        # Validated long-MR cells carry an always-on 10-day cap (research/exit_geometry_v1),
+        # independent of the per-source config caps. Direction is field 2 of the v2 tag.
+        direction = tag.split(":")[2] if tag.count(":") >= 2 else ""
+        if uses_long_mr_exit(strategy, direction, entry_mode):
+            cap_days = float(LONG_MR_MAX_HOLD_DAYS)
         if cap_days is None:
             continue
         try:
