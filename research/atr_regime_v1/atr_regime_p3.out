@@ -1,0 +1,15 @@
+ATR-regime P3 run complete
+pairs=17 period=2016-01-05 10:00:00..2026-06-12 17:00:00
+TP=0.0100 STOP=0.0100 MAX_HOLD=84
+metric=atr_pct_w252 seed=20260614 sampling_used=False
+primary_sample=long_mr_strong4
+best_conditioner=size_down_high_0_5
+deploy_call=deploy
+arbiter=MR-specific return/return-DD alpha plus generic vol-beta DD control
+best_total_R=+1237.028307
+best_delta_total_R=+80.190996
+best_delta_maxDD_reduction_R=+142.663714
+best_delta_return_DD=+0.630408
+best_throughput_cost_pct=0.000000
+csv=/root/worktrees/atr-regime-p3/research/atr_regime_v1/atr_regime_p3_book.csv
+report=/root/worktrees/atr-regime-p3/research/atr_regime_v1/ATR_REGIME_P3.md

@@ -108,6 +108,14 @@ the v2 book sim for P3. **New:** a regime-bucketed R analyzer + the §5 baseline
   real-but-metric-sensitive); the **book-level baseline** (conditioned vs unconditioned vs
   random-entry, in $/throughput/DD) is the deployable-value arbiter. **Max-DD reduction is itself
   deployable for FTMO** (hard drawdown constraint) even if expectancy uplift is modest.
+  *(Done 2026-06-14 — see §16. DEPLOY CANDIDATE: `size_down_high_0.5` (low/mid 1.0, high 0.5×) —
+  return/DD 1.74→2.37, maxDD −21%, throughput-neutral; return component is MR cell-alpha, DD
+  component is vol-beta. Robust both halves.)*
+- **P4 (FTMO-constrained sim — pre-deploy gate)** — re-run the winning schedule under FTMO account
+  rules (max-positions/slot capacity, daily-loss + max-DD limits, swap/weekend) before any
+  production wiring. P3 is R-space only and ignores slot redeployment + the hard FTMO constraints.
+- **Deploy (separate task, explicit go required)** — wire a w252 vol-regime sizing multiplier into
+  the v2 sizing path. Production change to `bud/`; gated on P4 + Brand approval.
 
 ## 11. Deliverables
 
@@ -197,3 +205,32 @@ deployable value. Max-DD reduction is itself FTMO-deployable even if expectancy 
 *(Process note: Codex parked itself ~2.5h on the "nothing heavy 00:30–03:30 UTC" note; today is
 Sunday and the heavy pipeline is cron'd Tue–Sat 01:00, so nothing was running — Bubo ran the
 analyzer directly. Future contracts should pgrep-gate, not blind-wait on the window.)*
+
+---
+
+## 16. P3 result — DEPLOY CANDIDATE found; FTMO-constrained sim is the pre-deploy gate (2026-06-14)
+
+`atr_regime_p3.py` / `ATR_REGIME_P3.md` / `atr_regime_p3_book.csv`.
+
+**Winning form: `size_down_high_0_5`** — schedule low=1.0, mid=1.0, **high=0.5×** on the w252 ATR
+percentile. Strong-4 long book: total R 1157→1237, **maxDD 664→521 (−21%)**, **return/DD
+1.74→2.37 (+36%)**, throughput cost **0%** (down-sizes, doesn't skip). Holds in **both halves**.
+
+**Alpha arbiter (honest split):** vs the same conditioner on a random-entry book — the **return /
+return-DD gain is MR cell-alpha** (MR Δreturn/DD +0.63 vs random −0.01; `cell_alpha ≈ +0.64`; the
+MR cells' high-ATR trades are *specifically* bad, so down-sizing hurts a random book but helps MR),
+while the **DD reduction is generic vol-beta** (random book gets *more* DD relief, +302 vs +143).
+Both are deployable.
+
+**Caveats:** (1) the return-alpha is **strong-4-specific** — on full-6 `size_down_high_0_5` adds
+only +4.6 R, leaving mostly DD control. (2) P3 is **R-space, not FTMO-constrained** (no
+max-positions/daily-loss/slot redeployment) — so it both omits hard constraints and may *understate*
+the benefit (down-sizing frees slots). (3) `hard_gate_skip_high` gives the best risk numbers
+(return/DD 2.87, maxDD 459) but costs −36% throughput; for FTMO's hard max-DD it may merit
+consideration vs the throughput-neutral `size_down`. (4) `size_up_low` is a trap (highest R, *worse*
+DD, mostly beta) — not chosen.
+
+**Verdict:** a modest-but-real, throughput-neutral, both-halves-stable deploy candidate — the first
+to emerge from the whole campaign (confluence-dead → depth-dead → vol-regime survives). **Next is P4
+(FTMO-constrained sim)** as the pre-deploy gate; production wiring is a separate, approval-gated
+task.
