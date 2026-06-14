@@ -1,0 +1,10 @@
+Exit sweep (per-trade total money) complete
+period=2016-01-05 10:00:00..2026-06-12 17:00:00
+holdout_start=2024-06-12 17:00:00
+pairs=17
+faithfulness_checked=154083
+combos=120
+csv=/root/worktrees/exit-geometry-v1/research/exit_geometry_v1/exit_sweep_pertrade.csv
+report=/root/worktrees/exit-geometry-v1/research/exit_geometry_v1/EXIT_SWEEP_v1.md
+long_mr_strong4: baseline=+1157R  best=TP1.5/SL0.6/10d +1308R
+long_mr_full6: baseline=+1745R  best=TP1.5/SL0.6/10d +2085R
