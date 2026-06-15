@@ -769,11 +769,13 @@ class DeepOversoldStrategy(TradingStrategy):
             DEEP_OVERSOLD_TARGET_MULT, DEEP_OVERSOLD_PRIOR_WINRATE,
             DEEP_OVERSOLD_ENTRY_PREMIUM, MAX_RISK_PERCENT,
         )
+        from bluehorseshoe.analysis.liquidity import trailing_dollar_volume
         close = df['close'].to_numpy(dtype=float)
-        volume = df['volume'].to_numpy(dtype=float)
 
-        # 20-day average dollar volume (incl. signal bar) — liquidity floor is part of the edge
-        dollar_vol_20 = float(np.nanmean((close * volume)[-20:]))
+        # 20-day average dollar volume (incl. signal bar) — liquidity floor is part of the edge.
+        # Shared helper so the deep-oversold edge floor and the general report floor
+        # (MIN_DOLLAR_VOLUME) measure liquidity identically.
+        dollar_vol_20 = trailing_dollar_volume(close, df['volume'].to_numpy(dtype=float))
         if dollar_vol_20 < DEEP_OVERSOLD_MIN_DOLLAR_VOLUME:
             return None
 
