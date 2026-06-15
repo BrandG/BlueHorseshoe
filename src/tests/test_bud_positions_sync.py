@@ -72,3 +72,19 @@ def test_output_sorted_by_symbol():
     trades = [_trade("USD_JPY", 100, price=1), _trade("AUD_USD", 100, price=1)]
     out = _trades_to_positions(trades, only_untagged=False)
     assert [p["ftmo_symbol"] for p in out] == ["AUDUSD.sim", "USDJPY.sim"]
+
+
+def test_risk_usd_populated_for_configured_instrument():
+    # EUR/USD is in the envelope config (pip_size 0.0001, $10/pip/lot).
+    # 0.41 lots, ~117.7 pip stop -> non-trivial positive risk, filled at sync
+    # time (not left for the back-heal).
+    trades = [_trade("EUR_USD", -41000, price=1.15727, sl=1.16904)]
+    out = _trades_to_positions(trades, only_untagged=False)
+    assert out[0]["risk_usd"] > 0
+
+
+def test_risk_usd_absent_without_stop():
+    # No stop -> can't compute risk; field stays absent rather than wrong.
+    trades = [_trade("EUR_USD", -41000, price=1.15727)]
+    out = _trades_to_positions(trades, only_untagged=False)
+    assert "risk_usd" not in out[0]

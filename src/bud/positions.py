@@ -322,6 +322,18 @@ def _trades_to_positions(trades: list[dict], *, only_untagged: bool) -> list[dic
             existing["multi_trade"] = True
         else:
             by_symbol[sym] = pos
+
+    # Fill risk_usd up front so the synced file is complete — the briefing's
+    # daily-risk accounting reads this field, and its loader does not back-heal.
+    # Computed on the final (post-aggregation) lots. Left absent if the
+    # instrument isn't in the envelope config or the geometry is degenerate.
+    inst_map = _load_instrument_map()
+    for pos in by_symbol.values():
+        if "entry" in pos and "stop" in pos:
+            risk = compute_risk_usd(pos["ftmo_symbol"], pos["entry"], pos["stop"],
+                                    pos["lots"], instrument_map=inst_map)
+            if risk is not None:
+                pos["risk_usd"] = risk
     return sorted(by_symbol.values(), key=lambda p: p["ftmo_symbol"])
 
 
