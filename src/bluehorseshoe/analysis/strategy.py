@@ -40,6 +40,7 @@ from bluehorseshoe.analysis.constants import (
     ENTRY_DISCOUNT_BY_SIGNAL,
     ENABLE_DYNAMIC_ENTRY
 )
+from bluehorseshoe.analysis.liquidity import is_dead_series, latest_bar_untraded, dollar_volume_from_df
 from bluehorseshoe.analysis.market_regime import MarketRegime
 from bluehorseshoe.analysis.ml_overlay import MLInference
 from bluehorseshoe.analysis.ml_profit_target import ProfitTargetInference
@@ -460,6 +461,7 @@ class SwingTrader:
             'exchange': ctx.symbol_map.get(symbol, 'Unknown') if ctx.symbol_map else 'Unknown',
             'date': str(yesterday['date']),
             'rs_ratio': rs_ratio,
+            'dollar_vol_20': dollar_volume_from_df(df),
             'connors_flag': connors_flag,
             'connors_rsi2': connors_rsi2,
             'connors_sma200': connors_sma200,
@@ -615,6 +617,17 @@ class SwingTrader:
         # 3. Validate minimum data
         if df.empty or len(df) < 30:
             logging.info("Symbol %s has insufficient data (%d days). Skipping.", symbol, len(df))
+            return None
+
+        # 3b. Dead / delisted skip. Two signatures, both flat placeholder bars with
+        # zero volume carried forward — drop before scoring so they never reach a
+        # report panel or persist a (meaningless) score:
+        #   - is_dead_series: no volume anywhere in the trailing window (long-dead).
+        #   - latest_bar_untraded: the most-recent bar is untraded, i.e. the name
+        #     stopped trading recently (e.g. acquired/halted) while older bars in
+        #     the window are still real — the date looks fresh, only volume reveals it.
+        if is_dead_series(df) or latest_bar_untraded(df):
+            logging.info("Symbol %s is untradeable (no recent traded volume — dead/delisted/halted). Skipping.", symbol)
             return None
 
         # 4. Freshness check (non-historical mode)
@@ -1386,6 +1399,7 @@ def _score_symbol_worker(work_item):
             'date': str(yesterday['date']),
             'rs_ratio': rs_ratio,
             'sentiment': sentiment,
+            'dollar_vol_20': dollar_volume_from_df(df),
             'connors_flag': connors_flag,
             'connors_rsi2': connors_rsi2,
             'connors_sma200': connors_sma200,

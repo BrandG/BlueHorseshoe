@@ -9,6 +9,7 @@ from __future__ import annotations
 import logging
 from typing import Any, Dict, List
 
+from bluehorseshoe.analysis.constants import MIN_DOLLAR_VOLUME
 from bluehorseshoe.analysis.sentiment_normalizer import SentimentNormalizer
 from bluehorseshoe.core.config import get_settings
 from bluehorseshoe.core.symbols import (
@@ -53,12 +54,22 @@ class CandidateAssembler:
         ``ScoreManager`` for backtests/research. Connors keeps riding the full
         strategy list because its setups live in Baseline/MeanRev metadata.
         """
+        # Liquidity floor on the human-facing candidate surfaces. Scores for all
+        # names still persist via ScoreManager (filtered upstream of this call) for
+        # backtests/research — this only keeps the *report panels* tradeable, so the
+        # Connors panel can no longer surface delisted shells or ~$9k/day dual-class
+        # names. Deep-oversold names already clear $25M >> MIN_DOLLAR_VOLUME.
+        liquid_results = [
+            result for result in valid_results
+            if result.get("dollar_vol_20", 0.0) >= MIN_DOLLAR_VOLUME
+        ]
+
         live_strategies = [s for s in self.strategies if s.paper_tradeable]
         candidates: List[Dict[str, Any]] = []
-        for result in valid_results:
+        for result in liquid_results:
             candidates.extend(self._build_strategy_candidates(result, live_strategies))
 
-        connors_candidates = self._build_connors_candidates(valid_results)
+        connors_candidates = self._build_connors_candidates(liquid_results)
 
         strategy_candidates: List[Dict[str, Any]] = []
         for strategy in live_strategies:

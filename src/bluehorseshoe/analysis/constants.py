@@ -5,7 +5,13 @@ Strategy constants for BlueHorseshoe.
 TREND_PERIOD = 20
 STRONG_R2_THRESHOLD = 0.7
 WEAK_R2_THRESHOLD = 0.3
-MIN_VOLUME_THRESHOLD = 100000
+MIN_VOLUME_THRESHOLD = 100000  # legacy share-count floor — NOT enforced; see MIN_DOLLAR_VOLUME
+# General report liquidity floor: 20-day avg dollar volume (price x shares).
+# Drops untradeable names (delisted shells, ~$9k/day dual-class) from the
+# human-facing candidate panels. Looser than the deep-oversold edge's $25M
+# (DEEP_OVERSOLD_MIN_DOLLAR_VOLUME) — this only keeps the report tradeable, it
+# does not assert an edge. Tunable.
+MIN_DOLLAR_VOLUME = 5_000_000.0
 MIN_STOCK_PRICE = 5.0
 MAX_STOCK_PRICE = 500.0
 STOP_LOSS_FACTOR = 0.97
