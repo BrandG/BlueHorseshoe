@@ -99,3 +99,5 @@
 15 3 * * *  /root/BlueHorseshoe/run_index_etf_refresh.sh
 # Reap orphaned mongodb-mcp-server processes leaked by ended Claude sessions (~110MB each)
 */30 * * * *  /root/BlueHorseshoe/run_mongodb_mcp_reaper.sh
+# Warn when live crontab drifts from version-controlled ops/crontab.txt
+0 4 * * *  /root/BlueHorseshoe/run_crontab_drift_check.sh
