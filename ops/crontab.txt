@@ -97,3 +97,5 @@
 30 3 * * *  /root/BlueHorseshoe/scripts/rotate_logs.sh >> /root/BlueHorseshoe/src/logs/rotate_logs.log 2>&1
 # rising_3bar retirement flatten — self-removing one-shot, fires hourly at :17 until market open closes the 7 positions (installed 2026-05-31)
 15 3 * * *  /root/BlueHorseshoe/run_index_etf_refresh.sh
+# Reap orphaned mongodb-mcp-server processes leaked by ended Claude sessions (~110MB each)
+*/30 * * * *  /root/BlueHorseshoe/run_mongodb_mcp_reaper.sh
