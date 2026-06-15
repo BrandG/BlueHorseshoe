@@ -363,13 +363,25 @@ def render_console(annotated: list[dict], suppressed: list[dict],
                      "off your fill. Don't chase a 'mid' that's already near target.")
     if suppressed:
         lines.append("")
-        lines.append("== SUPPRESSED ==")
+        lines.append("== SUPPRESSED (sized for reference — NOT auto-placed) ==")
+        lines.append(f"  {'FTMO Symbol':<14}  {'SIDE':<5}  {'Cell':<18}  "
+                     f"{'Entry':>10}  {'Stop':>10}  {'Target':>10}  "
+                     f"{'SL pips':>8}  {'TP pips':>8}  {'Lots':>6}  {'Risk $':>8}  Why")
         for f in suppressed:
-            cell_desc = f"{f['strategy']:>9}/{f['direction']:<5}"
-            trend = f.get("d1_align", "flat") + (" ⚠" if f.get("ct_warn") else "")
-            trend_sess = f"{trend} · {f.get('session', '?')}"
-            lines.append(f"  {f.get('ftmo_symbol', f['pair']):<14}  "
-                         f"{cell_desc:<22}  {trend_sess:<22}  {f['skip_reason']}")
+            side = "BUY" if f["direction"] == "long" else "SELL"
+            cell_desc = f"{f['strategy']}/{f.get('entry_mode', '?')} · {f.get('session', '?')}"
+            precision = f["precision"]
+            pip_size = float(f["instrument"]["pip_size"])
+            ent = f"{f['entry']:.{precision}f}"
+            stp = f"{f['stop']:.{precision}f}"
+            tgt = f"{f['target']:.{precision}f}"
+            sl_pips = abs(f["entry"] - f["stop"]) / pip_size
+            tp_pips = abs(f["target"] - f["entry"]) / pip_size
+            lines.append(f"  {f.get('ftmo_symbol', f['pair']):<14}  {side:<5}  "
+                         f"{cell_desc:<18}  {ent:>10}  {stp:>10}  {tgt:>10}  "
+                         f"{sl_pips:>8.1f}  {tp_pips:>8.1f}  "
+                         f"{f.get('lots', 0):>6.2f}  ${f.get('actual_risk', 0):>6.2f}  "
+                         f"{f['skip_reason']}")
     return "\n".join(lines)
 
 
@@ -585,20 +597,40 @@ def render_html(annotated: list[dict], suppressed: list[dict],
                  f"'limit' cells are good for the next 4h bar.</p>")
 
     if suppressed:
-        p.append('<h2 style="font-size:15px; margin:16px 0 6px;">Suppressed</h2>')
-        p.append('<ul style="font-size:12px; color:#8c959f; margin:0; padding-left:18px;">')
-        for f in suppressed:
+        p.append('<h2 style="font-size:15px; margin:16px 0 6px;">Suppressed '
+                 '<span style="font-size:12px; font-weight:400; color:#8c959f;">'
+                 '(sized for reference — NOT auto-placed)</span></h2>')
+        sup_left_h = ["Symbol", "SIDE", "Cell"]
+        sup_right_h = ["Entry", "Stop", "Target", "SL pips", "TP pips", "Lots", "Risk $", "Why"]
+        sup_header = ("".join(f'<th style="{th}">{c}</th>' for c in sup_left_h)
+                      + "".join(f'<th style="{thr}">{c}</th>' for c in sup_right_h))
+        p.append(f'<table style="border-collapse:collapse; width:100%; font-size:12px; '
+                 f'color:#57606a;"><tr>{sup_header}</tr>')
+        for i, f in enumerate(suppressed):
+            bg = f' background:{zebra};' if i % 2 else ''
             sym = esc(f.get("ftmo_symbol", oanda_to_ftmo(f["pair"])))
-            align = f.get("d1_align", "flat")
-            align_color = {"with-trend": "#1a7f37",
-                           "counter-trend": "#9a6700"}.get(align, "#8c959f")
-            trend_txt = align + (" ⚠" if f.get("ct_warn") else "")
+            side = "BUY" if f["direction"] == "long" else "SELL"
+            side_color = "#1a7f37" if side == "BUY" else "#cf222e"
+            prec = f["precision"]
+            pip = float(f["instrument"]["pip_size"])
+            sl_pips = abs(f["entry"] - f["stop"]) / pip
+            tp_pips = abs(f["target"] - f["entry"]) / pip
             sess = f.get("session", "?")
-            p.append(f'<li>{sym} {esc(f["strategy"])}/{esc(f["direction"])} '
-                     f'<span style="color:{align_color}; font-weight:600;">{esc(trend_txt)}</span> '
-                     f'<span style="color:#8c959f;">· {esc(sess)}</span> — '
-                     f'{esc(f["skip_reason"])}</li>')
-        p.append('</ul>')
+            left = [
+                sym,
+                f'<b style="color:{side_color};">{side}</b>',
+                esc(f'{f["strategy"]}/{f.get("entry_mode", "?")} · {sess}'),
+            ]
+            right = [
+                f'{f["entry"]:.{prec}f}', f'{f["stop"]:.{prec}f}', f'{f["target"]:.{prec}f}',
+                f'{sl_pips:.1f}', f'{tp_pips:.1f}',
+                f'{f.get("lots", 0):.2f}', f'${f.get("actual_risk", 0):.2f}',
+                esc(f["skip_reason"]),
+            ]
+            row = ("".join(f'<td style="{td}">{c}</td>' for c in left)
+                   + "".join(f'<td style="{tdr}">{c}</td>' for c in right))
+            p.append(f'<tr style="{bg}">{row}</tr>')
+        p.append('</table>')
 
     if annotated:
         blob = esc(json.dumps(_positions_records(annotated, now_utc), indent=2))
@@ -674,6 +706,20 @@ def run(*, dry_run: bool = False, email: bool = False,
         remaining_daily -= actual_risk
 
     suppressed = pos_skipped + cluster_suppressed + capped
+    # Size suppressed fires too, so the briefing surfaces full order details
+    # (entry/stop/target/lots/risk) for everything it filtered out. A suppressed
+    # fire is then actionable on its own — you don't have to correct a stale
+    # positions.json and re-run just to learn what the trade would have been.
+    # Sizing is slot-independent (compute_lots needs only the geometry + the
+    # standard per-trade risk), so these numbers match what the fire would get
+    # if it were accepted. Reference only — these are NOT auto-placed.
+    for f in suppressed:
+        if "lots" in f:
+            continue
+        lots, actual_risk = compute_lots(
+            f["entry"], f["stop"], risk_per_trade_usd, f["instrument"])
+        f["lots"] = lots
+        f["actual_risk"] = actual_risk
     now_utc = datetime.now(UTC)
 
     # --- observability: fire-rate liveness + optional funnel trace ----------
@@ -734,8 +780,21 @@ def run(*, dry_run: bool = False, email: bool = False,
                 for f in accepted
             ],
             "suppressed": [
-                {"ftmo_symbol": f.get("ftmo_symbol", oanda_to_ftmo(f["pair"])),
-                 "reason": f["skip_reason"]}
+                {
+                    "ftmo_symbol": f.get("ftmo_symbol", oanda_to_ftmo(f["pair"])),
+                    "side": "buy" if f["direction"] == "long" else "sell",
+                    "entry_mode": f.get("entry_mode"),
+                    "entry": round(f["entry"], f["precision"]),
+                    "stop": round(f["stop"], f["precision"]),
+                    "target": round(f["target"], f["precision"]),
+                    "stop_pips": round(abs(f["entry"] - f["stop"]) / float(f["instrument"]["pip_size"]), 1),
+                    "target_pips": round(abs(f["target"] - f["entry"]) / float(f["instrument"]["pip_size"]), 1),
+                    "lots": f.get("lots", 0),
+                    "risk_usd": round(f.get("actual_risk", 0), 2),
+                    "strategy": f["strategy"],
+                    "quality_rank": f.get("quality_rank"),
+                    "reason": f["skip_reason"],
+                }
                 for f in suppressed
             ],
         }
