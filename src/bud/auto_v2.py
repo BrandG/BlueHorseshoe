@@ -64,6 +64,7 @@ from bud.briefing import (
     evaluate_cell,
     ranked_cells,
 )
+from bud.entry_location import atr_pct_w252, is_high_ny_skip
 from bh_ftmo.data.fx_store import FxStore
 from bh_ftmo.indicators import ohlc_mid
 from bh_ftmo.trading.oanda_trader import (
@@ -92,6 +93,13 @@ RISK_PER_TRADE_PCT = 0.005   # 0.5% — chosen 2026-05-06 after the gated-ledger
                               # but median time-to-pass drops 322d -> 145d.
                               # See research/v2_deploy_backtest/sweep_gated_results.json
 MAX_NEW_ORDERS_PER_RUN = 5
+
+# Entry-location: skip high-ATR ∩ NY entries on the strong-4 long-MR sleeve
+# (research/entry_location_v1/: −0.07R/trade, holdout-passed, +17% of the strong-4
+# long book). PHASE 1 = dark: journal `would_skip_high_atr_ny` but STILL PLACE the
+# trade — confirms the flag fires at the expected rate with zero behavior change.
+# Flip to True for Phase 3 (hard skip). The predicate lives in bud.entry_location.
+HIGH_NY_SKIP_ENABLED = False
 
 # Which cells are in the V2 autonomous deployment universe.
 # Keep this conservative — only cells with FTMO-sim conservative-model
@@ -443,6 +451,22 @@ def run(*, dry_run: bool) -> int:
                 "gtd_time_utc": gtd.isoformat() if cell.entry_mode == "limit" else "",
                 "equity": f"{equity:.2f}",
             }
+
+            # Entry-location gate: high-ATR ∩ NY on the strong-4 long sleeve.
+            # Phase 1 is dark — journal `would_skip_*` and fall through (still place).
+            mid_for_loc = ohlc_mid(f["df"])
+            bar_open_ts = signal_close_ts - pd.Timedelta(hours=H4_BAR_HOURS)
+            if is_high_ny_skip(cell.strategy, cell.direction, bar_open_ts, mid_for_loc):
+                loc_note = f"atr_pct={atr_pct_w252(mid_for_loc):.2f} session=ny"
+                if HIGH_NY_SKIP_ENABLED:
+                    LOG.info("%s/%s: high∩NY skip — %s", cell.strategy, pair, loc_note)
+                    _append_journal_row({**base_fields,
+                                         "event": "skip_high_atr_ny", "note": loc_note})
+                    continue
+                LOG.info("%s/%s: high∩NY would-skip (Phase 1 dark) — %s",
+                         cell.strategy, pair, loc_note)
+                _append_journal_row({**base_fields,
+                                     "event": "would_skip_high_atr_ny", "note": loc_note})
 
             if pair in open_pair_set:
                 LOG.info("%s/%s: position already open — skip", cell.strategy, pair)
