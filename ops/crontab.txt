@@ -32,15 +32,20 @@
 # ====================
 # BH FTMO session loop — every 4h, staggered by minute within session
 # ====================
-# Sessions: 01,05,09,13,17,21 UTC. Each session runs 5 scripts in order
-# 05→10→15→16→20 minutes past the hour. All 7-day patterns clean.
+# Sessions: 01,05,09,13,17,21 UTC. Each session runs in order
+# 05→10→16→20→22→25 minutes past the hour. All 7-day patterns clean.
+# :22 reconciles src/bud/positions.json from live OANDA (open trades the :16
+# trader placed) so the :25 FTMO briefing's skip-set + slot-math are accurate.
 5  1,5,9,13,17,21 * * *  cd /root/BlueHorseshoe && ./run.sh python -m bh_ftmo.data.incremental_update >> /root/BlueHorseshoe/src/logs/bh_ftmo_incremental.log 2>&1
 10 1,5,9,13,17,21 * * *  cd /root/BlueHorseshoe && ./run.sh python -m bh_ftmo.predict --equity 10000 >> /root/BlueHorseshoe/src/logs/bh_ftmo_signals.log 2>&1
 16 1,5,9,13,17,21 * * *  /root/BlueHorseshoe/run_bh_ftmo_trader.sh
 20 1,5,9,13,17,21 * * *  /root/BlueHorseshoe/run_bh_briefing.sh
+22 1,5,9,13,17,21 * * *  cd /root/BlueHorseshoe && ./run.sh python -m bud.positions sync --yes >> /root/BlueHorseshoe/src/logs/bud_positions_sync.log 2>&1
 25 1,5,9,13,17,21 * * *  /root/BlueHorseshoe/run_bh_briefing_ftmo.sh
 
 # Extra weekday briefing at 22:30 — saw 5 fires Mon-Fri this week, no Sat/Sun.
+# :28 sync keeps positions.json fresh for the 22:30 briefing too.
+28 22 * * 1-5  cd /root/BlueHorseshoe && ./run.sh python -m bud.positions sync --yes >> /root/BlueHorseshoe/src/logs/bud_positions_sync.log 2>&1
 30 22 * * 1-5  /root/BlueHorseshoe/run_bh_briefing_ftmo.sh
 
 # ====================
