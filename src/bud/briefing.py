@@ -47,6 +47,7 @@ from bh_ftmo.indicators import (
 )
 from bh_ftmo.indicators.pivots import daily_ohlc
 from bh_ftmo.indicators.sessions import Session, session_label
+from bud.entry_location import atr_pct_w252, is_high_ny_skip
 
 REPO_ROOT = Path(__file__).resolve().parents[2]  # src/bud/<this> -> repo root
 CONFIG_PATH = REPO_ROOT / "src" / "bh_ftmo_config.json"
@@ -590,6 +591,9 @@ def render_console_report(
                          f"to {latest.strftime('%Y-%m-%d %H:%M UTC')} "
                          f"(staggered across {len(bar_ts_by_pair)} pairs)")
     lines.append(f"Cells evaluated: {total_cells}  Fires: {len(fires)}")
+    n_high_ny = sum(1 for f in fires if f.get("high_ny_skip"))
+    lines.append(
+        f"High∩NY skip-flagged (strong-4 long, research: SKIP): {n_high_ny}")
     lines.append("")
     if not fires:
         lines.append("(no signals fired on most recent H4 bar)")
@@ -615,6 +619,13 @@ def render_console_report(
                 align = it.get("d1_align", "flat")
                 warn = "  ⚠ negative counter-trend (historical money-loser)" if it.get("ct_warn") else ""
                 lines.append(f"             D1 {align:<13} session {it.get('session', '?')}{warn}")
+                if it.get("high_ny_skip"):
+                    pct = it.get("atr_pct")
+                    pct_txt = (f"ATR pctile {pct*100:.0f}"
+                               if isinstance(pct, (int, float)) and pct == pct else "ATR high")
+                    lines.append(
+                        f"             ⊘ HIGH∩NY ({pct_txt}) — research recommends SKIP "
+                        f"(−0.07R/trade, +17% book)")
             lines.append("")
 
     if verbose and cells is not None:
@@ -729,6 +740,17 @@ def render_html_report(
                                 f'⚠ negative counter-trend (historical money-loser)</span>'
                                 if it.get("ct_warn") else "")
                              + '</div>')
+                if it.get("high_ny_skip"):
+                    pct = it.get("atr_pct")
+                    pct_txt = (f"ATR pctile {pct*100:.0f}"
+                               if isinstance(pct, (int, float)) and pct == pct else "ATR high")
+                    parts.append(
+                        f'<div style="{row_style}">'
+                        f'<span style="{tag_base} background: #b1390e;">⊘ HIGH∩NY</span>'
+                        f'<span style="color:#b1390e; font-weight:600;">'
+                        f'research recommends SKIP ({html.escape(pct_txt)}; '
+                        f'−0.07R/trade, +17% book)</span>'
+                        f'</div>')
             parts.append('</div>')
     parts.append('</div>')
 
@@ -854,6 +876,9 @@ def evaluate_fires() -> tuple[list[dict], list[Cell], dict[str, pd.Timestamp]]:
             "session": session_of(bar_ts),
             "ct_warn": align == "counter-trend"
                        and cell.strategy in NEG_COUNTER_TREND_STRATEGIES,
+            "atr_pct": atr_pct_w252(mid),
+            "high_ny_skip": is_high_ny_skip(
+                cell.strategy, cell.direction, bar_ts, mid),
         })
     return fires, ordered_cells, bar_ts_by_pair
 
