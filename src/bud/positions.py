@@ -5,7 +5,7 @@
   - cluster-suppression (an open NZDCAD blocks new CADCHF)
   - daily-risk budget tracking
 
-This helper keeps that file honest. Three commands:
+This helper keeps that file honest. Four commands:
 
   list                   — print current open positions
   add FTMO_SYMBOL        — read src/bh_briefing_ftmo_orders.json (or
@@ -16,12 +16,23 @@ This helper keeps that file honest. Three commands:
   close FTMO_SYMBOL      — remove from positions, append a record
                            to src/bud/positions_closed.json with close
                            timestamp + optional --close-price / --pnl
+  sync                   — overwrite positions.json from the LIVE OANDA
+                           account (get_open_trades). The file is
+                           hand-maintained and drifts; this is the
+                           authoritative reconcile. Defaults to ALL open
+                           trades so the briefing's slot-math + skip set
+                           reflect the real (bot+human) shared account.
+                           --only-untagged keeps only manually-placed
+                           trades (separate-sleeve model). --dry-run
+                           previews; --yes skips the confirm prompt.
 
 Usage:
   ./run.sh python src/bud/positions.py list
   ./run.sh python src/bud/positions.py add NZDCHF.sim
   ./run.sh python src/bud/positions.py add EURJPY.sim --entry 162.45 --stop 164.07 --target 161.64 --lots 0.06 --side sell
   ./run.sh python src/bud/positions.py close NZDCAD.sim --close-price 0.8200 --pnl +49.20
+  ./run.sh python src/bud/positions.py sync --dry-run
+  ./run.sh python src/bud/positions.py sync --yes
 """
 from __future__ import annotations
 
@@ -251,6 +262,134 @@ def cmd_close(args: argparse.Namespace) -> int:
     return 0
 
 
+# OANDA forex: one standard lot = 100,000 base-currency units. positions.json
+# stores size in lots; live trades report signed base units in `currentUnits`.
+UNITS_PER_LOT = 100_000
+
+
+def _trade_to_position(trade: dict) -> dict | None:
+    """Map one OANDA open trade to a positions.json entry.
+
+    Returns None for a trade with no instrument or zero units. Mirrors
+    ``bud.briefing_ftmo.oanda_to_ftmo`` (EUR_USD -> EURUSD.sim) inline to avoid
+    importing the heavy briefing module just for a string transform.
+    """
+    instrument = trade.get("instrument")
+    try:
+        units = int(float(trade.get("currentUnits", 0) or 0))
+    except (TypeError, ValueError):
+        units = 0
+    if not instrument or units == 0:
+        return None
+    pos: dict = {
+        "ftmo_symbol": instrument.replace("_", "") + ".sim",
+        "side": "buy" if units > 0 else "sell",
+        "lots": round(abs(units) / UNITS_PER_LOT, 2),
+        "opened": (trade.get("openTime") or "")[:10] or None,
+        # Tag distinguishes bot-placed (e.g. "v2:macd:long:...") from manual.
+        "source": (trade.get("clientExtensions") or {}).get("tag") or "manual",
+    }
+    entry = trade.get("price")
+    stop = (trade.get("stopLossOrder") or {}).get("price")
+    target = (trade.get("takeProfitOrder") or {}).get("price")
+    if entry is not None:
+        pos["entry"] = float(entry)
+    if stop is not None:
+        pos["stop"] = float(stop)
+    if target is not None:
+        pos["target"] = float(target)
+    return {k: v for k, v in pos.items() if v is not None}
+
+
+def _trades_to_positions(trades: list[dict], *, only_untagged: bool) -> list[dict]:
+    """Collapse OANDA open trades into one positions.json entry per symbol.
+
+    OANDA nets by instrument, so normally one trade per symbol; if a symbol has
+    several same-side trades we sum lots and keep the first trade's levels,
+    flagging ``multi_trade`` so the aggregation is auditable.
+    """
+    by_symbol: dict[str, dict] = {}
+    for trade in trades:
+        pos = _trade_to_position(trade)
+        if pos is None:
+            continue
+        if only_untagged and pos["source"] != "manual":
+            continue
+        sym = pos["ftmo_symbol"]
+        if sym in by_symbol:
+            existing = by_symbol[sym]
+            existing["lots"] = round(existing["lots"] + pos["lots"], 2)
+            existing["multi_trade"] = True
+        else:
+            by_symbol[sym] = pos
+    return sorted(by_symbol.values(), key=lambda p: p["ftmo_symbol"])
+
+
+def cmd_sync(args: argparse.Namespace) -> int:
+    try:
+        from bh_ftmo.trading.oanda_trader import (
+            OandaTrader,
+            OandaTraderConfig,
+            OandaTraderError,
+        )
+    except ImportError as exc:  # pragma: no cover - env-dependent
+        print(f"ERROR: OANDA trader unavailable: {exc}", file=sys.stderr)
+        return 2
+
+    try:
+        cfg = OandaTraderConfig.from_env()
+        with OandaTrader(cfg) as trader:
+            trades = trader.get_open_trades()
+    except OandaTraderError as exc:
+        print(f"ERROR: could not reach OANDA: {exc}", file=sys.stderr)
+        return 2
+
+    live = _trades_to_positions(trades, only_untagged=args.only_untagged)
+    current = load_positions()
+    cur_syms = {p["ftmo_symbol"] for p in current}
+    new_syms = {p["ftmo_symbol"] for p in live}
+
+    scope = " [--only-untagged: manual trades only]" if args.only_untagged else ""
+    print(f"OANDA account {cfg.account_id}: {len(trades)} open trade(s) "
+          f"→ {len(live)} position(s){scope}")
+    if live:
+        print(f"  {'FTMO Symbol':<14} {'Side':<5} {'Lots':>6}  {'Entry':>10}  "
+              f"{'Stop':>10}  {'Target':>10}  {'Opened':<10}  Source")
+        for p in live:
+            flag = "  ⚠multi" if p.get("multi_trade") else ""
+            print(f"  {p['ftmo_symbol']:<14} {p['side']:<5} {p['lots']:>6}  "
+                  f"{p.get('entry', '—'):>10}  {p.get('stop', '—'):>10}  "
+                  f"{p.get('target', '—'):>10}  {p.get('opened', '?'):<10}  "
+                  f"{p.get('source', '?')}{flag}")
+
+    added = sorted(new_syms - cur_syms)
+    removed = sorted(cur_syms - new_syms)
+    print(f"\nDiff vs current file ({len(current)} → {len(live)}):")
+    for s in added:
+        print(f"  + {s}  (live, missing from file)")
+    for s in removed:
+        print(f"  - {s}  (in file, NOT live — stale)")
+    if not added and not removed:
+        print("  (same symbol set; levels/lots may still differ)")
+
+    if args.dry_run:
+        print("\ndry-run: positions.json NOT modified.")
+        return 0
+    if not args.yes:
+        if not sys.stdin.isatty():
+            print("ERROR: not a TTY; pass --yes to overwrite non-interactively.",
+                  file=sys.stderr)
+            return 2
+        resp = input(f"\nOverwrite positions.json ({len(current)} → {len(live)})? [y/N] ")
+        if resp.strip().lower() not in ("y", "yes"):
+            print("aborted.")
+            return 1
+
+    save_positions(live)
+    print(f"Wrote {len(live)} position(s) to {POSITIONS_PATH.name}.")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Manage src/bud/positions.json (shared FTMO trading envelope)")
@@ -274,6 +413,15 @@ def main(argv: list[str] | None = None) -> int:
     p_close.add_argument("--pnl", type=float, help="realized P&L in USD")
     p_close.add_argument("--note")
 
+    p_sync = sub.add_parser(
+        "sync", help="overwrite positions.json from live OANDA open trades")
+    p_sync.add_argument("--only-untagged", action="store_true",
+                        help="keep only manually-placed trades (exclude bot-tagged)")
+    p_sync.add_argument("--dry-run", action="store_true",
+                        help="show the diff but do not write")
+    p_sync.add_argument("--yes", action="store_true",
+                        help="skip the confirmation prompt")
+
     args = parser.parse_args(argv)
     if getattr(args, "ftmo_symbol", None) and "." not in args.ftmo_symbol:
         args.ftmo_symbol = f"{args.ftmo_symbol}.sim"
@@ -283,6 +431,8 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_add(args)
     if args.cmd == "close":
         return cmd_close(args)
+    if args.cmd == "sync":
+        return cmd_sync(args)
     parser.error(f"unknown cmd {args.cmd}")
     return 1
 
