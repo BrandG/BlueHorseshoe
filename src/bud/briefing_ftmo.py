@@ -37,8 +37,12 @@ from typing import Any, Optional
 from bh_ftmo.data.fx_store import FxStore
 
 from bud.briefing import (
-    CELL_QUALITY_RANK, TP_PCT, STOP_PCT,
+    CELLS, CELL_QUALITY_RANK, TP_PCT, STOP_PCT,
     evaluate_fires, _send_html_email,
+)
+from bud.diagnostics import (
+    FunnelTrace, render_funnel_trace,
+    record_fire_event, read_liveness, render_liveness,
 )
 from bud.envelope import (
     DEFAULT_CONFIG_PATH, DEFAULT_POSITIONS_PATH,
@@ -438,7 +442,8 @@ def render_html(annotated: list[dict], suppressed: list[dict],
                 daily_risk_used: float, daily_risk_cap: float,
                 now_utc: datetime,
                 health: Optional[list[dict]] = None,
-                positions_warning: Optional[str] = None) -> str:
+                positions_warning: Optional[str] = None,
+                liveness_line: Optional[str] = None) -> str:
     """HTML email body: portfolio summary + position health + sized orders + suppressed."""
     esc = html.escape
     th = "text-align:left; border-bottom:2px solid #d0d7de; padding:5px 8px; font-size:12px; color:#57606a;"
@@ -455,6 +460,14 @@ def render_html(annotated: list[dict], suppressed: list[dict],
              f'{esc(now_utc.strftime("%Y-%m-%d %H:%M UTC"))} &nbsp;·&nbsp; '
              f'risk/trade {RISK_PER_TRADE_PCT*100:.2f}% &nbsp;·&nbsp; '
              f'stop {STOP_PCT*100:.1f}% / target {TP_PCT*100:.1f}%</p>')
+
+    # --- Fire-rate liveness ---
+    # Makes "0 orders" self-auditing in the email itself: a healthy fire rate +
+    # recent last-fire means a quiet bar, not a dead evaluator. See diagnostics.
+    if liveness_line:
+        p.append(f'<p style="color:#57606a; font-size:12px; margin:6px 0 0; '
+                 f'font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;">'
+                 f'{esc(liveness_line)}</p>')
 
     # --- Position-data warning banner ---
     # When positions.json couldn't be read, the summary/health below reflect an
@@ -605,7 +618,7 @@ def render_html(annotated: list[dict], suppressed: list[dict],
 
 
 def run(*, dry_run: bool = False, email: bool = False,
-        email_only_if_activity: bool = False) -> int:
+        email_only_if_activity: bool = False, trace: bool = False) -> int:
     config = load_config(DEFAULT_CONFIG_PATH)
     # Strict read so a corrupt/mid-write positions.json surfaces as a warning
     # instead of a silent position-free briefing (see PositionsUnreadable).
@@ -628,7 +641,7 @@ def run(*, dry_run: bool = False, email: bool = False,
     risk_per_trade_usd = account_size * RISK_PER_TRADE_PCT
 
     # Pull fires from bh_briefing (already in CELL_QUALITY_RANK descending order)
-    fires_raw, _, _ = evaluate_fires()
+    fires_raw, ordered_cells, bar_ts_by_pair = evaluate_fires()
     # Health uses the *unfiltered* fires so signals on held pairs stay visible.
     health = compute_position_health(positions, fires_raw, instrument_map)
     fires = annotate_fires(fires_raw, instrument_map)
@@ -636,30 +649,53 @@ def run(*, dry_run: bool = False, email: bool = False,
     fires, pos_skipped = apply_position_skip(fires, positions)
     fires, cluster_suppressed = apply_cluster_filter(fires, clusters, positions)
 
-    # Cap by remaining concurrent slots
-    accepted = []
+    # Cap by remaining concurrent slots. `capped` is kept separate from the
+    # cluster suppressions so the funnel trace can attribute each drop to the
+    # right stage; `suppressed` recombines them for the unchanged render/JSON.
+    accepted, capped = [], []
     for f in fires:
         if len(accepted) >= remaining_slots:
-            cluster_suppressed.append({
+            capped.append({
                 **f,
                 "skip_reason": f"over max concurrent ({MAX_CONCURRENT_POSITIONS})",
             })
             continue
         if remaining_daily <= 0:
-            cluster_suppressed.append({
+            capped.append({
                 **f, "skip_reason": "daily risk budget exhausted"})
             continue
         lots, actual_risk = compute_lots(
             f["entry"], f["stop"], risk_per_trade_usd, f["instrument"])
         if lots <= 0:
-            cluster_suppressed.append({
+            capped.append({
                 **f, "skip_reason": "computed 0 lots"})
             continue
         accepted.append({**f, "lots": lots, "actual_risk": actual_risk})
         remaining_daily -= actual_risk
 
-    suppressed = pos_skipped + cluster_suppressed
+    suppressed = pos_skipped + cluster_suppressed + capped
     now_utc = datetime.now(UTC)
+
+    # --- observability: fire-rate liveness + optional funnel trace ----------
+    # Record this bar's raw-fire count so "0 orders" can be judged against the
+    # normal rate. Keyed by bar_ts → re-runs on the same bar upsert, not double
+    # count. Skipped under --dry-run so probing can't pollute the base rate.
+    latest_bar = max(bar_ts_by_pair.values()) if bar_ts_by_pair else None
+    if not dry_run and latest_bar is not None:
+        record_fire_event(latest_bar, len(ordered_cells), len(fires_raw),
+                          len(accepted), now_utc=now_utc)
+    liveness = read_liveness(now_utc=now_utc)
+    print(render_liveness(liveness))
+    if trace:
+        all_pairs = {c.pair for c in CELLS}
+        loaded = set(bar_ts_by_pair)
+        print(render_funnel_trace(FunnelTrace(
+            bar_ts=latest_bar, cells_defined=len(ordered_cells),
+            pairs_total=len(all_pairs), pairs_loaded=len(loaded),
+            starved_pairs=sorted(all_pairs - loaded), fires_raw=fires_raw,
+            pos_skipped=pos_skipped, cluster_suppressed=cluster_suppressed,
+            capped=capped, accepted=accepted, slots_left=remaining_slots,
+            daily_room=remaining_daily)))
     print(render_console(accepted, suppressed, positions, account_size,
                          daily_risk_used, daily_risk_cap, now_utc, health=health,
                          positions_warning=positions_warning))
@@ -710,7 +746,8 @@ def run(*, dry_run: bool = False, email: bool = False,
     if email:
         html_body = render_html(accepted, suppressed, positions, account_size,
                                 daily_risk_used, daily_risk_cap, now_utc, health=health,
-                                positions_warning=positions_warning)
+                                positions_warning=positions_warning,
+                                liveness_line=render_liveness(liveness))
         BRIEFING_DIR.mkdir(parents=True, exist_ok=True)
         archive_path = BRIEFING_DIR / f"briefing_ftmo_{now_utc.strftime('%Y-%m-%d_%H%M')}.html"
         archive_path.write_text(html_body, encoding="utf-8")
@@ -742,11 +779,15 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--email-only-if-activity", action="store_true",
                         help="With --email, only send when there is a sized order "
                              "or an open position to report on")
+    parser.add_argument("--trace", action="store_true",
+                        help="Print the per-stage funnel trace (cells → fires → "
+                             "filters → orders) so a zero-order bar is auditable")
     args = parser.parse_args(argv)
     logging.basicConfig(level=logging.INFO,
                         format="%(asctime)s %(name)s %(levelname)s %(message)s")
     return run(dry_run=args.dry_run, email=args.email,
-               email_only_if_activity=args.email_only_if_activity)
+               email_only_if_activity=args.email_only_if_activity,
+               trace=args.trace)
 
 
 if __name__ == "__main__":
