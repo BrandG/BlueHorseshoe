@@ -126,3 +126,64 @@ def test_no_price_is_no_data():
 def test_no_instrument_is_no_data():
     h = _assess_position(_long(), current=1.1030, inst=None, fire_dirs=set())
     assert h["status"] == "NO DATA"
+
+
+# ---- price_source threading + live/H4 marking -------------------------------
+
+import bud.briefing_ftmo as bf  # noqa: E402
+
+
+def test_assess_position_records_price_source():
+    live = _assess_position(_long(), current=1.1010, inst=INST, fire_dirs=set(),
+                            price_source="live")
+    assert live["price_source"] == "live"
+    h4 = _assess_position(_long(), current=1.1010, inst=INST, fire_dirs=set(),
+                          price_source="h4")
+    assert h4["price_source"] == "h4"
+    # No price at all -> source collapses to "none" regardless of the arg.
+    none = _assess_position(_long(), current=None, inst=INST, fire_dirs=set(),
+                            price_source="live")
+    assert none["price_source"] == "none"
+
+
+class _DummyStore:
+    def __init__(self, *a, **k):
+        pass
+
+    def close(self):
+        pass
+
+
+def test_compute_health_marks_long_to_live_bid(monkeypatch):
+    monkeypatch.setattr(bf, "FxStore", _DummyStore)
+    monkeypatch.setattr(bf, "_live_prices",
+                        lambda instrs: {"EUR_USD": {"bid": 1.1010, "ask": 1.1012}})
+    out = bf.compute_position_health(
+        [_long(entry=1.1000, stop=1.0950, lots=1.0)], [], {"EUR_USD.sim": INST, "EURUSD.sim": INST})
+    h = out[0]
+    assert h["price_source"] == "live"
+    # long marks to bid 1.1010 -> +10 pips
+    assert round(h["pnl_pips"], 1) == 10.0
+
+
+def test_compute_health_marks_short_to_live_ask(monkeypatch):
+    monkeypatch.setattr(bf, "FxStore", _DummyStore)
+    monkeypatch.setattr(bf, "_live_prices",
+                        lambda instrs: {"EUR_USD": {"bid": 1.0988, "ask": 1.0990}})
+    out = bf.compute_position_health(
+        [_short(entry=1.1000, stop=1.1050, lots=1.0)], [], {"EURUSD.sim": INST})
+    h = out[0]
+    assert h["price_source"] == "live"
+    # short marks to ask 1.0990 -> +10 pips in its favour
+    assert round(h["pnl_pips"], 1) == 10.0
+
+
+def test_compute_health_falls_back_to_h4_when_no_live(monkeypatch):
+    monkeypatch.setattr(bf, "FxStore", _DummyStore)
+    monkeypatch.setattr(bf, "_live_prices", lambda instrs: {})
+    monkeypatch.setattr(bf, "_latest_mid_close", lambda store, pair: 1.0990)
+    out = bf.compute_position_health(
+        [_long(entry=1.1000, stop=1.0950, lots=1.0)], [], {"EURUSD.sim": INST})
+    h = out[0]
+    assert h["price_source"] == "h4"
+    assert round(h["pnl_pips"], 1) == -10.0

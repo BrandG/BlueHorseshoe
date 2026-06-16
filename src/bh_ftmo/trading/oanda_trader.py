@@ -16,7 +16,6 @@ Methods:
 """
 from __future__ import annotations
 
-import json
 import logging
 import os
 import time
@@ -199,6 +198,35 @@ class OandaTrader:
         path = f"/accounts/{self.config.account_id}/trades"
         payload = self._request("GET", path, params={"state": "CLOSED", "count": count})
         return list(payload.get("trades", []))
+
+    def get_pricing(self, instruments: list[str]) -> dict[str, dict[str, float]]:
+        """Return live top-of-book {instrument: {"bid": .., "ask": ..}} for each
+        requested OANDA instrument (e.g. "EUR_USD"). Instruments with no tradeable
+        quote are omitted. The demo feed is fine for marking any FX position to
+        market — a EUR_USD quote is a EUR_USD quote regardless of which account
+        holds the position.
+        """
+        if not instruments:
+            return {}
+        path = f"/accounts/{self.config.account_id}/pricing"
+        payload = self._request("GET", path,
+                                params={"instruments": ",".join(instruments)})
+        out: dict[str, dict[str, float]] = {}
+        for px in payload.get("prices", []):
+            instr = px.get("instrument")
+            # OANDA suppresses bids/asks when the instrument is halted/untradeable.
+            if not instr or px.get("tradeable") is False:
+                continue
+            bids = px.get("bids") or []
+            asks = px.get("asks") or []
+            if not bids or not asks:
+                continue
+            try:
+                out[instr] = {"bid": float(bids[0]["price"]),
+                              "ask": float(asks[0]["price"])}
+            except (KeyError, TypeError, ValueError):
+                continue
+        return out
 
     def _raise_if_rejected(self, response: dict[str, Any]) -> None:
         """Surface OANDA create-time rejects that arrive in otherwise-successful responses."""

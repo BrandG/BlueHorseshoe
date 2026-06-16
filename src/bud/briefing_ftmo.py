@@ -49,6 +49,7 @@ from bud.envelope import (
     PositionsUnreadable, load_config, load_positions_strict,
     symbol_to_clusters_map,
 )
+from bud.positions import validate_positions
 
 REPO_ROOT = Path(__file__).resolve().parents[2]  # src/bud/<this> -> repo root
 ORDERS_JSON_PATH = REPO_ROOT / "src" / "bh_briefing_ftmo_orders.json"
@@ -90,11 +91,15 @@ def _assess_position(
     current: Optional[float],
     inst: Optional[dict],
     fire_dirs: set[str],
+    price_source: str = "h4",
 ) -> dict:
     """Pure health assessment for one position (no I/O).
 
-    ``current`` = latest H4 mid close (or None if unavailable). ``fire_dirs`` =
-    the set of directions currently firing on this pair. Returns a health dict
+    ``current`` = the mark price (live OANDA bid/ask for the position's side, or
+    the last H4 mid close as a fallback; ``None`` if neither is available).
+    ``price_source`` is "live" or "h4" and is surfaced so the briefing can flag
+    when P&L is marked to a stale candle rather than the live market. ``fire_dirs``
+    = the set of directions currently firing on this pair. Returns a health dict
     with unrealized P&L (pips + $), remaining room to stop as a fraction of the
     original entry->stop distance (>1 = in profit, 0 = at stop, <=0 = breached),
     a signal verdict, and a single status flag.
@@ -106,6 +111,7 @@ def _assess_position(
     health: dict[str, Any] = {
         "ftmo_symbol": p.get("ftmo_symbol", ""), "side": p.get("side", ""),
         "pos_dir": pos_dir, "current": current,
+        "price_source": price_source if current is not None else "none",
     }
     if current is None or inst is None or entry <= 0 or stop <= 0:
         health.update(status="NO DATA", signal="?",
@@ -157,16 +163,37 @@ def _assess_position(
     return health
 
 
+def _live_prices(instruments: set[str]) -> dict[str, dict[str, float]]:
+    """Best-effort live {oanda_instr: {bid, ask}} from OANDA. Returns {} (never
+    raises) when the API is unreachable, so health falls back to the H4 mark.
+    """
+    if not instruments:
+        return {}
+    try:
+        from bh_ftmo.trading.oanda_trader import OandaTrader, OandaTraderConfig
+        cfg = OandaTraderConfig.from_env()
+        with OandaTrader(cfg) as trader:
+            return trader.get_pricing(sorted(instruments))
+    except Exception as exc:  # noqa: BLE001 — pricing is best-effort, fail safe
+        LOG.warning("live pricing unavailable; marking position health to the "
+                    "last H4 close instead: %s", exc)
+        return {}
+
+
 def compute_position_health(
     positions: list[dict],
     fires_raw: list[dict],
     instrument_map: dict[str, dict],
 ) -> list[dict]:
-    """Assess each open position against the latest H4 bar (loads live prices).
+    """Assess each open position, marking P&L to the live OANDA price.
 
-    ``fires_raw`` must be the *unfiltered* fire list (before position-skip), so
-    signals on already-held pairs are still visible. Delegates the per-position
-    decision to the pure :func:`_assess_position`.
+    Each position is marked to the current OANDA quote — bid for longs, ask for
+    shorts, matching how the broker computes unrealized P&L. If live pricing is
+    unavailable the mark falls back to the last completed H4 mid close (stale by
+    up to a full session); the per-position ``price_source`` records which was
+    used so a stale mark is visible on the briefing. ``fires_raw`` must be the
+    *unfiltered* fire list (before position-skip) so signals on already-held
+    pairs stay visible. Delegates the per-position decision to :func:`_assess_position`.
     """
     if not positions:
         return []
@@ -175,15 +202,27 @@ def compute_position_health(
     for f in fires_raw:
         fires_by_pair.setdefault(f["pair"], set()).add(f["direction"])
 
+    live = _live_prices({ftmo_to_oanda(p["ftmo_symbol"]) for p in positions})
+
     out: list[dict] = []
     store = FxStore(read_only=True)
     try:
         for p in positions:
             sym = p["ftmo_symbol"]
             pair = ftmo_to_oanda(sym)
-            current = _latest_mid_close(store, pair)
+            pos_dir = "long" if str(p.get("side", "buy")).lower() == "buy" else "short"
+            quote = live.get(pair)
+            if quote:
+                # Mark to the price you'd actually close at: longs exit at bid,
+                # shorts at ask. This matches OANDA's own unrealizedPL.
+                current = quote["bid"] if pos_dir == "long" else quote["ask"]
+                source = "live"
+            else:
+                current = _latest_mid_close(store, pair)
+                source = "h4"
             out.append(_assess_position(
-                p, current, instrument_map.get(sym), fires_by_pair.get(pair, set())))
+                p, current, instrument_map.get(sym),
+                fires_by_pair.get(pair, set()), price_source=source))
     finally:
         store.close()
     return out
@@ -286,7 +325,9 @@ def render_console(annotated: list[dict], suppressed: list[dict],
                    daily_risk_used: float, daily_risk_cap: float,
                    now_utc: datetime,
                    health: Optional[list[dict]] = None,
-                   positions_warning: Optional[str] = None) -> str:
+                   positions_warning: Optional[str] = None,
+                   data_warnings: Optional[list[str]] = None,
+                   stale_marks: int = 0) -> str:
     lines = []
     lines.append(f"BH Briefing → FTMO  ({now_utc.strftime('%Y-%m-%d %H:%M UTC')})")
     if positions_warning:
@@ -294,6 +335,12 @@ def render_console(annotated: list[dict], suppressed: list[dict],
         lines.append(f"⚠ POSITION DATA UNAVAILABLE — {positions_warning}")
         lines.append("  Open positions / health below may be incomplete; do not "
                      "trust this run's position view.")
+    if data_warnings:
+        lines.append("")
+        lines.append(f"⚠ DATA SANITY — {len(data_warnings)} issue(s) in positions.json "
+                     "(likely a hand-edit mistake; fix before trusting P&L/risk):")
+        for w in data_warnings:
+            lines.append(f"    • {w}")
     lines.append(f"Account: ${account_size:,.0f}  risk/trade: {RISK_PER_TRADE_PCT*100:.2f}%"
                  f"  max concurrent: {MAX_CONCURRENT_POSITIONS}"
                  f"  daily risk: ${daily_risk_used:,.2f} / ${daily_risk_cap:,.2f}")
@@ -313,6 +360,11 @@ def render_console(annotated: list[dict], suppressed: list[dict],
             side = "BUY" if h["pos_dir"] == "long" else "SELL"
             lines.append(f"  {h['ftmo_symbol']:<14}  {side:<5}  "
                          f"{h['status']:<12}  {h.get('reason', '')}")
+        if stale_marks:
+            lines.append(f"  (⚠ {stale_marks} position(s) marked to last H4 close — "
+                         "live pricing was unavailable; P&L may be stale)")
+        else:
+            lines.append("  (P&L marked to live OANDA bid/ask)")
     lines.append("")
     if not annotated:
         lines.append("No tradeable fires on this bar (after position + cluster filters).")
@@ -455,7 +507,9 @@ def render_html(annotated: list[dict], suppressed: list[dict],
                 now_utc: datetime,
                 health: Optional[list[dict]] = None,
                 positions_warning: Optional[str] = None,
-                liveness_line: Optional[str] = None) -> str:
+                liveness_line: Optional[str] = None,
+                data_warnings: Optional[list[str]] = None,
+                stale_marks: int = 0) -> str:
     """HTML email body: portfolio summary + position health + sized orders + suppressed."""
     esc = html.escape
     th = "text-align:left; border-bottom:2px solid #d0d7de; padding:5px 8px; font-size:12px; color:#57606a;"
@@ -493,6 +547,21 @@ def render_html(annotated: list[dict], suppressed: list[dict],
             f'{esc(positions_warning)}<br>'
             'Open positions and health below may be incomplete — do not trust '
             "this run's position view; re-run the briefing once the file is fixed."
+            '</div>')
+
+    # --- Data-sanity warning banner ---
+    # positions.json is hand-edited; flag fat-finger mistakes (impossible entry,
+    # wrong-scale lots, stop/target on the wrong side) loudly above the P&L so a
+    # bad number is never read as real. See validate_positions.
+    if data_warnings:
+        items = ''.join(f'<li>{esc(w)}</li>' for w in data_warnings)
+        p.append(
+            '<div style="margin:12px 0 0; padding:10px 12px; border-radius:6px; '
+            'background:#fff1e5; border:1px solid #e0863a; color:#8a4b14; '
+            'font-size:13px;">'
+            f'<strong>⚠ Data sanity — {len(data_warnings)} issue(s) in positions.json.</strong> '
+            'Likely a hand-edit mistake; fix before trusting the P&amp;L/risk below.'
+            f'<ul style="margin:6px 0 0; padding-left:18px;">{items}</ul>'
             '</div>')
 
     # --- Portfolio summary ---
@@ -549,6 +618,14 @@ def render_html(annotated: list[dict], suppressed: list[dict],
                 f'<td style="{tdr}">{room_c}</td>'
                 f'<td style="{td} color:{sig_color};">{esc(signal)}</td></tr>')
         p.append('</table>')
+        if stale_marks:
+            mark_note = (f'⚠ {stale_marks} position(s) marked to the last H4 close — '
+                         'live pricing was unavailable; P&amp;L may be stale.')
+            mark_color = '#8a4b14'
+        else:
+            mark_note = 'P&amp;L marked to live OANDA bid/ask.'
+            mark_color = '#8c959f'
+        p.append(f'<p style="font-size:12px; color:{mark_color}; margin:4px 0 0;">{mark_note}</p>')
 
     p.append('<h2 style="font-size:15px; margin:16px 0 6px;">Orders to place</h2>')
     if not annotated:
@@ -676,6 +753,17 @@ def run(*, dry_run: bool = False, email: bool = False,
     fires_raw, ordered_cells, bar_ts_by_pair = evaluate_fires()
     # Health uses the *unfiltered* fires so signals on held pairs stay visible.
     health = compute_position_health(positions, fires_raw, instrument_map)
+    # Data-sanity guard: positions.json is hand-edited, so check for fat-finger
+    # mistakes (impossible entry price, wrong-scale lots, stop/target on the
+    # wrong side) and surface them on the briefing. Reuse the live marks already
+    # fetched for health as the entry-vs-market reference — no extra API call.
+    price_lookup = {h["ftmo_symbol"]: h["current"]
+                    for h in health if h.get("current") is not None}
+    data_warnings = validate_positions(positions, price_lookup=price_lookup)
+    # Count positions marked to a stale H4 candle (live pricing was unavailable).
+    stale_marks = sum(1 for h in health if h.get("price_source") == "h4")
+    for w in data_warnings:
+        LOG.warning("positions.json data-sanity: %s", w)
     fires = annotate_fires(fires_raw, instrument_map)
 
     fires, pos_skipped = apply_position_skip(fires, positions)
@@ -744,7 +832,8 @@ def run(*, dry_run: bool = False, email: bool = False,
             daily_room=remaining_daily)))
     print(render_console(accepted, suppressed, positions, account_size,
                          daily_risk_used, daily_risk_cap, now_utc, health=health,
-                         positions_warning=positions_warning))
+                         positions_warning=positions_warning,
+                         data_warnings=data_warnings, stale_marks=stale_marks))
 
     # Write structured JSON for copy/paste into FTMO platform
     if not dry_run:
@@ -806,7 +895,8 @@ def run(*, dry_run: bool = False, email: bool = False,
         html_body = render_html(accepted, suppressed, positions, account_size,
                                 daily_risk_used, daily_risk_cap, now_utc, health=health,
                                 positions_warning=positions_warning,
-                                liveness_line=render_liveness(liveness))
+                                liveness_line=render_liveness(liveness),
+                                data_warnings=data_warnings, stale_marks=stale_marks)
         BRIEFING_DIR.mkdir(parents=True, exist_ok=True)
         archive_path = BRIEFING_DIR / f"briefing_ftmo_{now_utc.strftime('%Y-%m-%d_%H%M')}.html"
         archive_path.write_text(html_body, encoding="utf-8")

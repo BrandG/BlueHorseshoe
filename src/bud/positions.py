@@ -77,6 +77,112 @@ def compute_risk_usd(ftmo_symbol: str, entry: float, stop: float,
     return round(risk_in_pips * dpp * float(lots), 2)
 
 
+# --- data-sanity guard ----------------------------------------------------
+# positions.json is hand-edited (the FTMO challenge platform has no API), so it
+# accumulates fat-finger mistakes. These thresholds are deliberately generous:
+# the goal is to catch order-of-magnitude blunders (a +1.00 price typo, a lot
+# size carried over from a different account), NOT to second-guess a legitimate
+# deep drawdown. All three classes below were observed in real hand-edits.
+_ENTRY_MARKET_TOL = 0.10      # entry >10% off live market -> probable typo
+_LOT_OUTLIER_FACTOR = 5.0     # lots >5x the book median  -> probable wrong scale
+
+
+def validate_positions(
+    positions: list[dict],
+    price_lookup: dict[str, float] | None = None,
+) -> list[str]:
+    """Return human-readable data-sanity warnings for a positions list.
+
+    Pure and side-effect free so it is testable without network. ``price_lookup``
+    maps FTMO .sim symbol -> current market mid; when supplied it enables the
+    entry-vs-market check (an entry wildly off the live price is almost always a
+    typo). Returns [] when the book looks clean.
+    """
+    warnings: list[str] = []
+    price_lookup = price_lookup or {}
+
+    # Median lot as the outlier baseline (need >=3 for it to be meaningful).
+    book_lots = sorted(float(p.get("lots") or 0) for p in positions
+                       if (p.get("lots") or 0) > 0)
+    median_lot = book_lots[len(book_lots) // 2] if len(book_lots) >= 3 else None
+
+    for p in positions:
+        sym = p.get("ftmo_symbol", "?")
+        side = str(p.get("side", "")).lower()
+        entry = p.get("entry")
+        stop = p.get("stop")
+        target = p.get("target")
+        lot = float(p.get("lots") or 0)
+
+        # 1) basic field sanity
+        if side not in ("buy", "sell"):
+            warnings.append(f"{sym}: side {p.get('side')!r} is not 'buy' or 'sell'")
+        if entry is None or float(entry) <= 0:
+            warnings.append(f"{sym}: entry {entry!r} is missing or non-positive")
+        if stop is None or float(stop) <= 0:
+            warnings.append(f"{sym}: stop {stop!r} is missing or non-positive")
+        if lot <= 0:
+            warnings.append(f"{sym}: lots {p.get('lots')!r} is missing or non-positive")
+
+        # 2) direction/geometry — buy: stop<entry<target ; sell: target<entry<stop
+        if side in ("buy", "sell") and entry and stop and float(entry) > 0 and float(stop) > 0:
+            e, s = float(entry), float(stop)
+            if side == "buy" and s >= e:
+                warnings.append(f"{sym}: side=buy but stop {s} is not below entry {e} — check side/levels")
+            if side == "sell" and s <= e:
+                warnings.append(f"{sym}: side=sell but stop {s} is not above entry {e} — check side/levels")
+            if target is not None and float(target) > 0:
+                t = float(target)
+                if side == "buy" and t <= e:
+                    warnings.append(f"{sym}: side=buy but target {t} is not above entry {e} — check side/levels")
+                if side == "sell" and t >= e:
+                    warnings.append(f"{sym}: side=sell but target {t} is not below entry {e} — check side/levels")
+
+        # 3) entry vs live market (catches the +1.0 / order-of-magnitude typo)
+        mkt = price_lookup.get(sym)
+        if mkt and entry and float(entry) > 0 and float(mkt) > 0:
+            rel = abs(float(entry) / float(mkt) - 1.0)
+            if rel > _ENTRY_MARKET_TOL:
+                warnings.append(
+                    f"{sym}: entry {entry} is {rel*100:.0f}% off the current "
+                    f"market (~{float(mkt):.5g}) — likely a typo")
+
+        # 4) lot outlier vs the rest of the book (catches wrong-account scale)
+        if median_lot and lot > _LOT_OUTLIER_FACTOR * median_lot:
+            warnings.append(
+                f"{sym}: lots {lot} is {lot/median_lot:.0f}x the book median "
+                f"({median_lot}) — leftover from another account/scale?")
+
+    return warnings
+
+
+def _ftmo_to_oanda(sym: str) -> str:
+    """USDJPY.sim -> USD_JPY (inline mirror to avoid importing briefing_ftmo)."""
+    base = sym.replace(".sim", "")
+    return f"{base[:3]}_{base[3:]}" if len(base) == 6 else base
+
+
+def fetch_market_prices(positions: list[dict]) -> dict[str, float]:
+    """Best-effort live mid per FTMO symbol via OANDA. Returns {} (never raises)
+    if the API is unreachable — the entry-vs-market check is then simply skipped.
+    """
+    syms = {_ftmo_to_oanda(p["ftmo_symbol"]): p["ftmo_symbol"]
+            for p in positions if p.get("ftmo_symbol")}
+    if not syms:
+        return {}
+    try:
+        from bh_ftmo.trading.oanda_trader import OandaTrader, OandaTraderConfig
+        cfg = OandaTraderConfig.from_env()
+        with OandaTrader(cfg) as trader:
+            quotes = trader.get_pricing(list(syms))
+    except Exception as exc:  # noqa: BLE001 — pricing is best-effort
+        print(f"  (live pricing unavailable; skipping entry-vs-market check: {exc})",
+              file=sys.stderr)
+        return {}
+    return {syms[i]: (q["bid"] + q["ask"]) / 2.0
+            for i, q in quotes.items() if i in syms}
+
+
 def _backheal_positions(positions: list[dict]) -> tuple[list[dict], bool]:
     """Fill in risk_usd for any position missing it (or with risk_usd=0).
     Returns (positions, changed) so callers can write back when changed.
@@ -402,12 +508,31 @@ def cmd_sync(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_validate(_args: argparse.Namespace) -> int:
+    """Check positions.json for fat-finger data errors. Exit 1 if any found."""
+    positions = load_positions()
+    if not positions:
+        print("positions.json is empty — nothing to validate.")
+        return 0
+    prices = fetch_market_prices(positions)
+    warnings = validate_positions(positions, price_lookup=prices)
+    if not warnings:
+        scope = "entry-vs-market included" if prices else "entry-vs-market SKIPPED (no live prices)"
+        print(f"OK — {len(positions)} position(s), no data-sanity warnings ({scope}).")
+        return 0
+    print(f"⚠ {len(warnings)} warning(s) across {len(positions)} position(s):")
+    for w in warnings:
+        print(f"  - {w}")
+    return 1
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Manage src/bud/positions.json (shared FTMO trading envelope)")
     sub = parser.add_subparsers(dest="cmd", required=True)
 
     sub.add_parser("list", help="show open positions")
+    sub.add_parser("validate", help="check positions.json for fat-finger data errors")
 
     p_add = sub.add_parser("add", help="add a position (from latest orders.json or manual)")
     p_add.add_argument("ftmo_symbol")
@@ -439,6 +564,8 @@ def main(argv: list[str] | None = None) -> int:
         args.ftmo_symbol = f"{args.ftmo_symbol}.sim"
     if args.cmd == "list":
         return cmd_list(args)
+    if args.cmd == "validate":
+        return cmd_validate(args)
     if args.cmd == "add":
         return cmd_add(args)
     if args.cmd == "close":

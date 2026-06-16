@@ -329,3 +329,45 @@ def test_close_position_explicit_side_skips_lookup():
     assert len(session.calls) == 1
     assert session.calls[0]["method"] == "PUT"
     assert session.calls[0]["json"] == {"shortUnits": "ALL"}
+
+
+def _pricing_response(prices: list[dict[str, Any]]) -> _FakeResponse:
+    return _FakeResponse(200, {"prices": prices})
+
+
+def test_get_pricing_parses_bid_ask():
+    trader, session = _make_scripted_trader([_pricing_response([
+        {"instrument": "EUR_USD", "tradeable": True,
+         "bids": [{"price": "1.10010"}], "asks": [{"price": "1.10030"}]},
+        {"instrument": "USD_CHF", "tradeable": True,
+         "bids": [{"price": "0.79440"}], "asks": [{"price": "0.79460"}]},
+    ])])
+
+    out = trader.get_pricing(["EUR_USD", "USD_CHF"])
+
+    assert out == {
+        "EUR_USD": {"bid": 1.1001, "ask": 1.1003},
+        "USD_CHF": {"bid": 0.7944, "ask": 0.7946},
+    }
+    assert session.calls[0]["method"] == "GET"
+    assert session.calls[0]["params"] == {"instruments": "EUR_USD,USD_CHF"}
+
+
+def test_get_pricing_skips_untradeable_and_empty_books():
+    trader, _ = _make_scripted_trader([_pricing_response([
+        {"instrument": "EUR_USD", "tradeable": True,
+         "bids": [{"price": "1.1"}], "asks": [{"price": "1.2"}]},
+        {"instrument": "XAU_USD", "tradeable": False, "bids": [], "asks": []},
+        {"instrument": "USD_SEK", "tradeable": True, "bids": [], "asks": []},
+    ])])
+
+    out = trader.get_pricing(["EUR_USD", "XAU_USD", "USD_SEK"])
+
+    assert set(out) == {"EUR_USD"}
+
+
+def test_get_pricing_empty_instruments_makes_no_call():
+    trader, session = _make_scripted_trader([])
+
+    assert trader.get_pricing([]) == {}
+    assert session.calls == []
