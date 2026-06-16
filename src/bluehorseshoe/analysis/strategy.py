@@ -41,6 +41,7 @@ from bluehorseshoe.analysis.constants import (
     ENABLE_DYNAMIC_ENTRY
 )
 from bluehorseshoe.analysis.liquidity import is_dead_series, latest_bar_untraded, dollar_volume_from_df
+from bluehorseshoe.analysis.corporate_actions import assess_corporate_action
 from bluehorseshoe.analysis.market_regime import MarketRegime
 from bluehorseshoe.analysis.ml_overlay import MLInference
 from bluehorseshoe.analysis.ml_profit_target import ProfitTargetInference
@@ -641,6 +642,20 @@ class SwingTrader:
                     f.write(f"{symbol}\n")
                 return None
 
+        # 4b. Corporate-action annotation (non-suppressing). Flags names that have
+        # stopped behaving like tradeable equities because they are the target of a
+        # pending acquisition — price pinned near a cash offer (Layer B) and/or
+        # merger-target headlines in the news feed (Layer C). Surfaced as an
+        # annotation, NOT a hard skip: KW/Kennedy-Wilson (cash take-private at
+        # $10.90) was the motivating case. Promote to a gate once it proves clean
+        # on live runs. Fail-open inside assess_corporate_action.
+        corp_action = assess_corporate_action(symbol, df, database=self.database)
+        if corp_action.flagged:
+            logging.warning(
+                "Symbol %s shows corporate-action signal (%s) — annotating, not skipping.",
+                symbol, corp_action.reason,
+            )
+
         # 5. Load fundamental overview (for ML features)
         overview = get_overview(symbol, database=self.database)
 
@@ -654,6 +669,7 @@ class SwingTrader:
             'full_name': price_data.get('full_name', symbol),
             'overview': overview or {},
             'sentiment': sentiment,
+            'corporate_action': corp_action.to_dict(),
         }
 
     def _execute_prediction_batch(self, symbols: List[str], ctx: StrategyContext, progress_callback=None) -> List[Dict]:
