@@ -56,6 +56,39 @@ stabilizes past N=5. **N≥10 is the confident set** — of those 399, **245 are
   feed gaps; AV alone is ground truth but you don't want to blind-diff its full
   ~11k-symbol history.
 
+## P1 findings (2026-06-15) — AV is high-precision, LOW-recall
+
+Live run (`--confirm-av`, N≥10, 245 active candidates): AV delisted universe =
+9,315 symbols. Classification: **46 confirmed_delisted, 4 test_ticker, 195
+quarantine.** AV confirmation is reliable as a *positive* signal (if AV says
+delisted, it is) but has **poor recall** — it misses:
+- **foreign ADRs that are halted-not-delisted** (SVA/Sinovac suspended since 2019,
+  OZON/Ozon sanctions-frozen, VECT/VectivBio acquired) — still technically listed,
+  so correctly absent from "delisted", but untradeable;
+- **warrants / units / rights** (44 of the 195) — AV tracks the equity, not the
+  derivative ticker, even when the SPAC is gone;
+- many liquidated SPACs under merged-entity tickers.
+
+So **AV-confirmation alone is insufficient** — it would leave ~195 dead names
+active. But staleness is itself proof: in the quarantine bucket, **52 are untraded
+≥90 sessions** (~4.5 months — unambiguously dead regardless of AV); 143 are <90
+(genuinely ambiguous, incl. a tight 60–89-session cohort of 92 worth eyeballing —
+could be a real delisting wave or a partial data-coverage gap).
+
+### Revised P2 policy — tiered confidence (was: AV-only)
+- **Deactivate (high confidence):** `confirmed_delisted` (AV) ∪ `test_ticker` ∪
+  **untraded ≥ 90 sessions** (the "dead for months" rule — independent of AV).
+  ≈102 names in this run.
+- **Quarantine / hold for review:** untraded <90 and not AV-confirmed (143) — may
+  be a halt that resolves (→ volume returns → reactivation) or a real delisting
+  that ages past 90 (→ auto-deactivates next sweep). Don't auto-act.
+- Warrants/units untraded ≥ N could be auto-excluded too (derivative, expired),
+  but fold that into the ≥90 rule for now to keep one knob.
+
+The two-signal design earned its keep: AV-only is overconfident-low (46),
+frozen-tail-only is overconfident-high (245, incl. possibly-halted SVA/OZON). The
+union (AV ∪ long-untraded ∪ test) is the defensible P2 set.
+
 ## Action — soft, reversible, auditable
 
 - Set `symbols.active=False` + stamp `delisted_at`, `delisted_source`,
@@ -82,18 +115,21 @@ phase (mirrors `bh_swing --manage-dry-run`); flip to live after eyeballing.
 | Phase | Deliverable | Size | Status |
 |-------|-------------|------|--------|
 | **P0** | Frozen-tail finder over DuckDB → candidate CSV + counts, read-only | S | **DONE** |
-| **P1** | AV `LISTING_STATUS` client + intersect → confirmed vs quarantined | S–M | proposed |
-| **P2** | Soft-deactivate (`active=False` + provenance), `--dry-run`→live | S | proposed |
+| **P1** | AV `LISTING_STATUS` client + classify (confirmed/test/quarantine) | S–M | **DONE** |
+| **P2** | Soft-deactivate **tiered set** (AV ∪ ≥90-untraded ∪ test) + provenance, `--dry-run`→live | S | proposed |
 | **P3** | Reactivation pass + weekly cron + sweep CSV/canary | S–M | proposed |
 
-**Home:** `src/maintenance/delisting_sweep.py`. **Cron (P3):** weekly, Tue–Sat,
-after `-u` / before `-p`, registered in `ops/crontab.txt` (with the existing
-crontab-drift check). **Est. ~1 day total.**
+**Home:** `src/bluehorseshoe/maintenance/delisting_sweep.py`. **Cron (P3):** weekly,
+Tue–Sat, after `-u` / before `-p`, registered in `ops/crontab.txt` (with the
+existing crontab-drift check). **Est. ~1 day total.**
 
-## P0 usage
+## Usage
 
 ```bash
+# P0 — local finder only (offline, read-only):
 ./run.sh python src/bluehorseshoe/maintenance/delisting_sweep.py --min-untraded 10
+# P1 — + AlphaVantage LISTING_STATUS confirmation (one network call, still read-only):
+./run.sh python src/bluehorseshoe/maintenance/delisting_sweep.py --min-untraded 10 --confirm-av
 ```
 
 Read-only. Writes `src/logs/delisting_sweep_candidates.csv` and prints a summary

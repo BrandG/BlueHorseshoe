@@ -17,12 +17,15 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import csv
+import io
 import logging
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 import duckdb
 import pandas as pd
+import requests
 
 from bluehorseshoe.cli.context import create_cli_context
 from bluehorseshoe.core.config import get_settings
@@ -33,6 +36,22 @@ DEFAULT_MIN_UNTRADED = 10
 
 # Benchmarks / regime ETFs — never sweep these even if a feed glitch freezes them.
 PROTECTED_SYMBOLS = {"SPY", "QQQ", "DIA", "IWM"}
+
+# AlphaVantage authoritative delisted universe (one CSV call; symbol + delistingDate).
+LISTING_STATUS_DELISTED_URL = (
+    "https://www.alphavantage.co/query?function=LISTING_STATUS&state=delisted&apikey={key}"
+)
+
+# Exchange test issues — never real listings, so AV never confirms them as delisted.
+# Caught by symbol (the NASDAQ Z*ZZT family) or by a "TEST STOCK/SECURITY/ISSUE" name.
+KNOWN_TEST_SYMBOLS = {
+    "ZAZZT", "ZBZZT", "ZCZZT", "ZJZZT", "ZVZZT", "ZWZZT", "ZXZZT", "ZEXIT", "ZIEXT",
+}
+
+# Candidate classifications under AV confirmation (P1).
+CLASSIFY_CONFIRMED = "confirmed_delisted"   # in AV delisted universe -> safe to deactivate
+CLASSIFY_TEST = "test_ticker"               # exchange test issue -> permanent exclude
+CLASSIFY_QUARANTINE = "quarantine"          # frozen tail but AV still lists / unknown -> review
 
 logger = logging.getLogger(__name__)
 
@@ -131,6 +150,75 @@ def annotate_with_mongo(df: pd.DataFrame, database) -> pd.DataFrame:
     return df
 
 
+# ---------------------------------------------------------------------------
+# P1 — AlphaVantage LISTING_STATUS confirmation
+# ---------------------------------------------------------------------------
+
+def parse_listing_status_csv(text: str) -> Dict[str, Dict[str, str]]:
+    """Parse an AV LISTING_STATUS CSV into {symbol: {name, exchange, delisting_date}}.
+
+    AlphaVantage returns a JSON object (not CSV) on error / rate-limit / bad key —
+    detected here and raised as a clear error rather than silently yielding {}.
+    """
+    if not text or text.lstrip().startswith("{"):
+        raise RuntimeError(f"AlphaVantage LISTING_STATUS did not return CSV: {text[:200]!r}")
+    out: Dict[str, Dict[str, str]] = {}
+    for row in csv.DictReader(io.StringIO(text)):
+        sym = (row.get("symbol") or "").strip()
+        if not sym:
+            continue
+        out[sym] = {
+            "name": row.get("name", ""),
+            "exchange": row.get("exchange", ""),
+            "delisting_date": row.get("delistingDate") or "",
+        }
+    return out
+
+
+def fetch_av_delisted(api_key: str, timeout: int = 30) -> Dict[str, Dict[str, str]]:
+    """Fetch the authoritative AV delisted universe (one CSV call)."""
+    if not api_key:
+        raise RuntimeError("ALPHAVANTAGE_KEY not set — required for --confirm-av")
+    resp = requests.get(LISTING_STATUS_DELISTED_URL.format(key=api_key), timeout=timeout)
+    resp.raise_for_status()
+    return parse_listing_status_csv(resp.text)
+
+
+def is_test_ticker(symbol: str, name: str | None) -> bool:
+    """True for exchange test issues (Z*ZZT family, or a TEST STOCK/SECURITY name)."""
+    if symbol.upper() in KNOWN_TEST_SYMBOLS:
+        return True
+    upper = (name or "").upper()
+    return any(marker in upper for marker in ("TEST STOCK", "TEST SECURITY", "TEST ISSUE"))
+
+
+def classify_candidates(df: pd.DataFrame, av_delisted: Dict[str, Dict[str, str]]) -> pd.DataFrame:
+    """Tag each candidate confirmed_delisted / test_ticker / quarantine + AV date.
+
+    confirmed_delisted = AV's authoritative delisted universe (act on these).
+    test_ticker        = exchange test issue (permanent exclude; AV never confirms).
+    quarantine         = frozen tail but AV doesn't list it delisted (halt / data-gap
+                         / foreign) — needs review, do NOT deactivate.
+    """
+    df = df.copy()
+    names = df["name"].tolist() if "name" in df.columns else [""] * len(df)
+    classes: List[str] = []
+    dates: List[Optional[str]] = []
+    for symbol, name in zip(df["symbol"].tolist(), names):
+        if symbol in av_delisted:
+            classes.append(CLASSIFY_CONFIRMED)
+            dates.append(av_delisted[symbol].get("delisting_date") or None)
+        elif is_test_ticker(symbol, name):
+            classes.append(CLASSIFY_TEST)
+            dates.append(None)
+        else:
+            classes.append(CLASSIFY_QUARANTINE)
+            dates.append(None)
+    df["classification"] = classes
+    df["av_delisting_date"] = dates
+    return df
+
+
 def _print_summary(census: Dict[int, int], df: pd.DataFrame, min_untraded: int, out_path: Path) -> None:
     total = census[0]
     print("\n=== Delisting sweep — P0 (read-only) ===")
@@ -139,28 +227,46 @@ def _print_summary(census: Dict[int, int], df: pd.DataFrame, min_untraded: int, 
     for n in CENSUS_THRESHOLDS:
         print(f"  >= {n:>2} sessions: {census[n]:>5}")
 
-    active_mask = df["active"].eq(True)  # True only; False/None (unknown) excluded
-    active = df[active_mask]
-    inactive = df[~active_mask]
+    active = df[df["active"].eq(True)]  # True only; False/None (unknown) excluded
     protected = df[df["protected"]]
     zombie = active[active["has_zombie_mcap"]]
     print(f"\nCandidates at N>={min_untraded}: {len(df)}")
-    print(f"  already active=False (no-op for sweep): {len(inactive)}")
+    print(f"  already active=False (no-op for sweep): {len(df) - len(active)}")
     print(f"  ACTIVE (sweep would target):            {len(active)}")
     print(f"    of which carry a zombie market-cap:   {len(zombie)}  (currently pass the mcap filter)")
     print(f"  protected (never swept):                {len(protected)}  {sorted(protected['symbol'].tolist())}")
+
+    confirmed = "classification" in df.columns
+    if confirmed:
+        print("\nAV LISTING_STATUS confirmation (active candidates):")
+        for label in (CLASSIFY_CONFIRMED, CLASSIFY_TEST, CLASSIFY_QUARANTINE):
+            n = int((active["classification"] == label).sum())
+            print(f"  {label:18}: {n:>4}")
+        print("  -> P2 would deactivate confirmed_delisted + test_ticker; quarantine = review.")
 
     sample = active.head(15)
     if not sample.empty:
         print("\nSample (most-untraded first):")
         cols = ["symbol", "days_untraded", "last_traded_date", "last_close", "has_zombie_mcap", "exchange", "name"]
+        if confirmed:
+            cols = ["symbol", "days_untraded", "classification", "av_delisting_date", "has_zombie_mcap", "name"]
         print(sample[cols].to_string(index=False))
     print(f"\nFull candidate list ({len(df)} rows) written to: {out_path}")
-    print("P0 mutated nothing. Next: P1 (AlphaVantage LISTING_STATUS confirmation).")
+    nxt = "P2 (soft-deactivate confirmed names)" if confirmed else "P1 (AlphaVantage LISTING_STATUS confirmation, --confirm-av)"
+    print(f"Mutated nothing. Next: {nxt}.")
 
 
-def run(min_untraded: int = DEFAULT_MIN_UNTRADED, out: str | None = None) -> pd.DataFrame:
-    """Find untraded-tail candidates, annotate, write CSV, print summary. Read-only."""
+def run(
+    min_untraded: int = DEFAULT_MIN_UNTRADED,
+    out: str | None = None,
+    confirm_av: bool = False,
+) -> pd.DataFrame:
+    """Find untraded-tail candidates, annotate, write CSV, print summary. Read-only.
+
+    When ``confirm_av`` is True, cross-reference candidates against AlphaVantage's
+    authoritative delisted universe (one network call) and classify each
+    confirmed_delisted / test_ticker / quarantine. Still mutates nothing.
+    """
     settings = get_settings()
     db_path = settings.duckdb_path
     if not Path(db_path).exists():
@@ -178,6 +284,12 @@ def run(min_untraded: int = DEFAULT_MIN_UNTRADED, out: str | None = None) -> pd.
     with create_cli_context() as ctx:
         candidates = annotate_with_mongo(candidates, ctx.db)
 
+    if confirm_av:
+        logger.info("Fetching AlphaVantage LISTING_STATUS (delisted universe)...")
+        av_delisted = fetch_av_delisted(settings.alphavantage_key)
+        logger.info("AV delisted universe: %d symbols", len(av_delisted))
+        candidates = classify_candidates(candidates, av_delisted)
+
     out_path.parent.mkdir(parents=True, exist_ok=True)
     candidates.to_csv(out_path, index=False)
     _print_summary(census, candidates, min_untraded, out_path)
@@ -192,10 +304,14 @@ def main() -> None:
         help=f"Min consecutive untraded (zero-volume) most-recent sessions to flag (default {DEFAULT_MIN_UNTRADED}).",
     )
     parser.add_argument("--out", type=str, default=None, help="Output CSV path (default src/logs/delisting_sweep_candidates.csv).")
+    parser.add_argument(
+        "--confirm-av", action="store_true",
+        help="Cross-reference candidates against AlphaVantage LISTING_STATUS (delisted) and classify them (one network call).",
+    )
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
-    run(min_untraded=args.min_untraded, out=args.out)
+    run(min_untraded=args.min_untraded, out=args.out, confirm_av=args.confirm_av)
 
 
 if __name__ == "__main__":

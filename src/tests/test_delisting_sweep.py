@@ -6,6 +6,12 @@ import pytest
 from bluehorseshoe.maintenance.delisting_sweep import (
     untraded_tail_census,
     find_untraded_tail_candidates,
+    parse_listing_status_csv,
+    is_test_ticker,
+    classify_candidates,
+    CLASSIFY_CONFIRMED,
+    CLASSIFY_TEST,
+    CLASSIFY_QUARANTINE,
 )
 
 
@@ -58,3 +64,45 @@ def test_candidates_at_n10_excludes_shorter_frozen_tail(con):
 def test_live_symbol_never_flagged(con):
     df = find_untraded_tail_candidates(con, min_untraded=1)
     assert "LIVE" not in set(df["symbol"])
+
+
+# --- P1: AlphaVantage confirmation ----------------------------------------
+
+AV_CSV = (
+    "symbol,name,exchange,assetType,ipoDate,delistingDate,status\n"
+    "THR,Thermon Group Holdings Inc,NYSE,Stock,2011-05-05,2026-05-29,Delisted\n"
+    "VECT,VectivBio Holding AG,NASDAQ,Stock,2021-04-20,2023-07-07,Delisted\n"
+)
+
+
+def test_parse_listing_status_csv():
+    parsed = parse_listing_status_csv(AV_CSV)
+    assert set(parsed) == {"THR", "VECT"}
+    assert parsed["THR"]["delisting_date"] == "2026-05-29"
+    assert parsed["VECT"]["exchange"] == "NASDAQ"
+
+
+def test_parse_listing_status_csv_rejects_json_error():
+    # AV returns JSON (not CSV) on rate-limit / bad key — must raise, not yield {}
+    with pytest.raises(RuntimeError):
+        parse_listing_status_csv('{"Information": "rate limit reached"}')
+
+
+def test_is_test_ticker():
+    assert is_test_ticker("ZBZZT", "") is True                       # known family
+    assert is_test_ticker("IGZ", "NYSE ARCA LISTED TEST STOCK") is True   # by name
+    assert is_test_ticker("AAPL", "Apple Inc") is False
+
+
+def test_classify_candidates_buckets():
+    df = pd.DataFrame({
+        "symbol": ["THR", "ZBZZT", "SVA"],
+        "name": ["Thermon Group", "NASDAQ TEST STOCK", "Sinovac Biotech Ltd"],
+    })
+    av = {"THR": {"delisting_date": "2026-05-29", "name": "", "exchange": "NYSE"}}
+    out = classify_candidates(df, av).set_index("symbol")
+    assert out.loc["THR", "classification"] == CLASSIFY_CONFIRMED
+    assert out.loc["THR", "av_delisting_date"] == "2026-05-29"
+    assert out.loc["ZBZZT", "classification"] == CLASSIFY_TEST
+    assert out.loc["SVA", "classification"] == CLASSIFY_QUARANTINE   # frozen but AV-unlisted
+    assert pd.isna(out.loc["SVA", "av_delisting_date"])
