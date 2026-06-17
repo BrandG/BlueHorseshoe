@@ -71,6 +71,15 @@ DEPLOYED_STRATEGIES = frozenset({
     "macd", "atr", "ichimoku", "stoch", "bb", "cci", "ema", "sma", "rsi",
 })
 
+# Quarantined 2026-06-17 on live OANDA evidence (src/logs/bh_ftmo_outcomes.csv):
+# all v2 drawdown was concentrated in the mid-entry sleeve — mid n=5 −0.32R/trade
+# vs limit n=5 ≈flat, with stoch the worst single contributor (−2.38R over 3).
+# Every quarantined strategy is mid-entry; this pauses all mid-entry cells and
+# leaves the limit sleeve (macd/atr/ichimoku, 9 cells) trading while more closed
+# trades accumulate. CELLS is untouched, so these still show in the human
+# briefing — only the autonomous trader skips them. Reversible: empty this set.
+QUARANTINED_STRATEGIES = frozenset({"stoch", "bb", "sma", "ema", "rsi", "cci"})
+
 LOG = logging.getLogger("bh_ftmo.trader")
 
 
@@ -105,6 +114,8 @@ class SignalSource(Protocol):
 
 
 def deploy_predicate(cell: Cell) -> bool:
+    if cell.strategy in QUARANTINED_STRATEGIES:
+        return False
     return cell.strategy in DEPLOYED_STRATEGIES
 
 
@@ -194,6 +205,12 @@ class V2CellSource:
 
     def __init__(self, cells: list[Cell] | None = None) -> None:
         self._cells = [c for c in ranked_cells(cells) if deploy_predicate(c)]
+        LOG.info(
+            "V2CellSource: %d live cells (live strategies: %s | quarantined: %s)",
+            len(self._cells),
+            sorted(DEPLOYED_STRATEGIES - QUARANTINED_STRATEGIES),
+            sorted(QUARANTINED_STRATEGIES),
+        )
 
     @property
     def deploy_pairs(self) -> set[str]:
