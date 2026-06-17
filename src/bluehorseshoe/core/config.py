@@ -200,6 +200,10 @@ class Settings(BaseSettings):
     # DuckDB
     duckdb_path: str = f"{REPO_ROOT}/data/ohlcv.duckdb"
 
+    # Shared secret guarding the phone-triggerable live-token refresh endpoint
+    # (bluehorseshoe/api/live_token.py). Empty disables the endpoint (503).
+    live_refresh_token: str = ""
+
     # Feature Flags
     holiday_mode: bool = False
     deep_oversold_nonbull_gate: bool = False

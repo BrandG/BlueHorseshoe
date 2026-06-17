@@ -4,6 +4,7 @@ from fastapi import FastAPI
 from contextlib import asynccontextmanager
 
 from bluehorseshoe.api.routes import router
+from bluehorseshoe.api.live_token import router as live_token_router
 from bluehorseshoe.core.container import create_app_container
 
 # Configure logging
@@ -45,6 +46,7 @@ app = FastAPI(
 )
 
 app.include_router(router, prefix="/api/v1")
+app.include_router(live_token_router, prefix="/api/v1")
 
 if __name__ == "__main__":
     import uvicorn
