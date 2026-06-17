@@ -34,12 +34,6 @@
 # ====================
 # Sessions: 01,05,09,13,17,21 UTC. Each session runs in order
 # 05→10→16→20→25 minutes past the hour. All 7-day patterns clean.
-# NOTE: positions.json is hand-maintained to mirror the FTMO challenge account
-# (vt5.ftmo.oanda.com, ~$10k) — the book the FTMO briefing reports on. It is
-# deliberately NOT auto-synced from the OANDA practice demo (101-...): that is a
-# different account with different fills/sizes, and syncing it clobbered the
-# briefing's P&L (regression c928dab, reverted 2026-06-16). Update via
-# 'bud.positions add/close' when you place or close an FTMO trade.
 5  1,5,9,13,17,21 * * *  cd /root/BlueHorseshoe && ./run.sh python -m bh_ftmo.data.incremental_update >> /root/BlueHorseshoe/src/logs/bh_ftmo_incremental.log 2>&1
 10 1,5,9,13,17,21 * * *  cd /root/BlueHorseshoe && ./run.sh python -m bh_ftmo.predict --equity 10000 >> /root/BlueHorseshoe/src/logs/bh_ftmo_signals.log 2>&1
 16 1,5,9,13,17,21 * * *  /root/BlueHorseshoe/run_bh_ftmo_trader.sh
@@ -65,6 +59,12 @@
 
 # Weekly model retrain — Sunday 02:00 UTC.
 0 2 * * 0  /root/BlueHorseshoe/src/cron_weekly_retrain.sh >> /root/BlueHorseshoe/src/logs/cron_retrain.log 2>&1
+
+# Weekly fundamentals refresh — Sunday 23:00 UTC. Keeps the PIT solvency feed
+# (Altman-Z'') fresh for the LIVE solvency-gated deep_oversold sleeve. 23:00 is
+# an empty slot (no pipeline / score-backfill / FTMO jobs); script also flocks
+# + skips if main.py is active (OOM guard). Added 2026-06-17.
+0 23 * * 0  /root/BlueHorseshoe/src/cron_quarterly_fundamentals.sh >> /root/BlueHorseshoe/src/logs/cron_quarterly_fundamentals.log 2>&1
 
 # ====================
 # dailyLitBits (separate project, parallel to BH)
