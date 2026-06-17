@@ -206,8 +206,13 @@ class Settings(BaseSettings):
 
     # Feature Flags
     holiday_mode: bool = False
-    deep_oversold_nonbull_gate: bool = False
-    deep_oversold_solvency_filter: bool = False
+    # Solvency-gated deep_oversold sleeve — the only validated orthogonal edge of the
+    # equity research arc (Altman-Z'' < 1.1 drop on the nonbull-gated bare sleeve).
+    # Deployed via .env since 2026-06; default flipped True 2026-06-17 so the edge
+    # survives .env loss / a fresh host. Both must stay True together — solvency washes
+    # out without the nonbull gate. See project_fundamentals_quality_condition memory.
+    deep_oversold_nonbull_gate: bool = True
+    deep_oversold_solvency_filter: bool = True
 
     model_config = SettingsConfigDict(
         env_file=".env",
