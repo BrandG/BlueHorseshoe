@@ -133,6 +133,27 @@ DEEP_OVERSOLD_HA_EDGE_R = 0.404          # nonbull S4 realistic — the high-con
 DEEP_OVERSOLD_Z_DISTRESS = 1.1           # Altman-Z'' hard distress filter threshold (known-Z only)
 
 # ---------------------------------------------------------------------------
+# Range-bound support sleeve (range_support) — LIVE paper, 2026-06-19
+# Validated in research/support_resistance_v1/ (HANDOFF.md): enter long when price approaches a
+# pure-support level (reversal cluster >=3 touches, only-ever support) within 0.5 ATR from above,
+# on a range-bound (Kaufman ER<=0.11) liquid name; stop 1*ATR below entry; NO take-profit; exit via
+# the up-day ratchet (stop -> close-2*ATR on up-close days, ratchet-only) capped at ~25 bars —
+# the ratchet/time-exit are managed live by bh_swing (RANGE_SUPPORT_RATCHET_ATR / _HOLD_DAYS below).
+# Makes-money gate passes decisively (cluster-t~4.5, both interleaved halves + 24mo holdout, stop
+# holds through realistic gaps). edge_weight is the CONSERVATIVE over-random/regime-adjusted
+# component (~0.15), NOT the gross +0.35R (mostly beta) — keeps it from hogging capital vs DeepOS;
+# raise once the #8 context/regime filter sharpens selection.
+RANGE_SUPPORT_ER_MAX = 0.11              # range-bound gate (Kaufman efficiency ratio, window 100)
+RANGE_SUPPORT_MIN_DOLLAR_VOLUME = 3_000_000.0   # 20d avg $-volume floor (research universe filter)
+RANGE_SUPPORT_STOP_MULT = 1.0           # SL = 1*ATR below entry (the validated stop)
+RANGE_SUPPORT_HOLD_DAYS = 25            # ~25-bar time cap (bh_swing flattens at the horizon)
+RANGE_SUPPORT_RATCHET_ATR = 2.0         # up-day ratchet: stop -> close - 2*ATR on up-close days
+RANGE_SUPPORT_BASE_SCORE = 14.0         # flat, slot-competitive; within-sleeve raw score is not a
+                                        # validated ranking axis (strength/proximity ANTI-select)
+RANGE_SUPPORT_EDGE_R = 0.15             # CONSERVATIVE selection edge (over-random/regime-adjusted)
+RANGE_SUPPORT_PRIOR_WINRATE = 0.32      # research win-rate at H=25 (shown as ml_prob; no model)
+
+# ---------------------------------------------------------------------------
 # Deep-downtrend contrarian sleeve (adx_diDown) — TRACKING-ONLY, 2026-06-07
 # A strong, established downtrend (ADX>threshold & -DI>+DI) reverts in nonbull regimes. The gauntlet
 # (research/indicator_screen/adx_didown_gauntlet.out) best form enters DEEP (state run-length>=MIN_RUN,

@@ -301,6 +301,57 @@ class IBKRClient:
             logger.error("Error placing bracket order for %s: %s", symbol, e)
             return {"order_ids": [], "status": "error", "error": str(e)}
 
+    def place_entry_stop_bracket(
+        self,
+        symbol: str,
+        quantity: float,
+        limit_price: float,
+        stop_loss_price: float,
+    ) -> dict:
+        """Place a 2-leg bracket: limit entry + stop-loss, with NO take-profit.
+
+        For the range_support sleeve, whose exit is the bh_swing up-day ratchet + time cap
+        rather than a fixed target. ``ib_async.bracketOrder`` always builds three legs, so this
+        constructs the parent/child manually: parent BUY-LMT (DAY, transmit=False) and a child
+        SELL-STP (GTC, parentId=parent, transmit=True) so the pair transmits atomically and IBKR
+        auto-cancels the stop if the entry expires unfilled.
+
+        Returns dict with keys: order_ids ([entry_id, stop_id]), status, error.
+        """
+        try:
+            self._ensure_connected()
+        except Exception as e:
+            return {"order_ids": [], "status": "error", "error": str(e)}
+
+        try:
+            import ib_async  # pylint: disable=import-outside-toplevel
+
+            contract = ib_async.Stock(symbol, "SMART", "USD")
+            self._ib.qualifyContracts(contract)
+
+            parent = ib_async.LimitOrder("BUY", quantity, round(limit_price, 2))
+            parent.tif = "DAY"
+            parent.transmit = False               # hold until the child is attached
+            parent_trade = self._ib.placeOrder(contract, parent)
+            parent_id = parent_trade.order.orderId
+
+            stop = ib_async.StopOrder("SELL", quantity, round(stop_loss_price, 2))
+            stop.tif = "GTC"
+            stop.parentId = parent_id
+            stop.transmit = True                  # transmits the whole 2-leg group
+            stop_trade = self._ib.placeOrder(contract, stop)
+
+            order_ids = [parent_id, stop_trade.order.orderId]
+            logger.info(
+                "Entry+stop (no-TP) order placed for %s: qty=%s entry=%.2f sl=%.2f ids=%s",
+                symbol, quantity, limit_price, stop_loss_price, order_ids,
+            )
+            return {"order_ids": order_ids, "status": "submitted", "error": None}
+
+        except Exception as e:
+            logger.error("Error placing entry+stop order for %s: %s", symbol, e)
+            return {"order_ids": [], "status": "error", "error": str(e)}
+
     def place_entry_only(
         self, symbol: str, quantity: int, limit_price: float, tif: str = "DAY"
     ) -> dict:

@@ -1094,3 +1094,156 @@ class DeepDownAdxStrategy(DeepOversoldStrategy):
             return None
         regime_status = (worker_state.get('market_health') or {}).get('status')
         return self._evaluate(trader, df, regime_status)
+
+
+# ---------------------------------------------------------------------------
+# Range-bound support sleeve (range_support) — LIVE paper, 2026-06-19
+# ---------------------------------------------------------------------------
+
+class RangeSupportStrategy(TradingStrategy):
+    """Buy a pullback to a pure-support level in a range-bound liquid name.
+
+    The validated result of ``research/support_resistance_v1/`` (HANDOFF.md). Detection logic
+    lives in :mod:`bluehorseshoe.analysis.indicators.support_levels` (a numeric port of the
+    research detector). Fires when, on the signal bar:
+
+      * the name is range-bound: Kaufman efficiency ratio (window 100) <= RANGE_SUPPORT_ER_MAX, AND
+      * 20-day average dollar-volume >= RANGE_SUPPORT_MIN_DOLLAR_VOLUME, price in [5, 500], AND
+      * price is within 0.5*ATR ABOVE the nearest *pure-support* level (a reversal cluster of >=3
+        touches that has only ever acted as support), after a pullback from above in the prior 10 bars.
+
+    Bracket: entry at the signal close, stop 1*ATR below entry, and **NO take-profit** — the exit is
+    the up-day ratchet + ~25-bar time cap, managed live by ``bh_swing`` (it reads the ``range_support``
+    sleeve tag off ``trade_orders`` and applies the ratchet only to these positions). Raw score is flat
+    (RANGE_SUPPORT_BASE_SCORE): proximity/strength ANTI-select in the research, so they are NOT a ranking
+    axis; cross-sleeve slotting uses ``edge_weight`` (the conservative selection component, not gross R).
+    """
+
+    @property
+    def name(self) -> str:
+        return "range_support"
+
+    @property
+    def display_name(self) -> str:
+        return "RangeSupport"
+
+    @property
+    def score_key(self) -> str:
+        return "range_support_score"
+
+    @property
+    def setup_key(self) -> str:
+        return "range_support_setup"
+
+    @property
+    def ml_prob_key(self) -> str:
+        return "range_support_ml_prob"
+
+    @property
+    def components_key(self) -> str:
+        return "range_support_components"
+
+    @property
+    def weight_prefix(self) -> str:
+        return "range_support_"
+
+    @property
+    def default_stop_multiplier(self) -> float:
+        from bluehorseshoe.analysis.constants import RANGE_SUPPORT_STOP_MULT
+        return RANGE_SUPPORT_STOP_MULT
+
+    @property
+    def default_target_multiplier(self) -> float:
+        return 0.0                      # no take-profit; exit via ratchet + time cap (bh_swing)
+
+    @property
+    def min_rr_ratio(self) -> float:
+        return 0.0                      # no target -> R:R gate is not applicable
+
+    @property
+    def edge_weight(self) -> float:
+        from bluehorseshoe.analysis.constants import RANGE_SUPPORT_EDGE_R
+        return RANGE_SUPPORT_EDGE_R
+
+    def get_hold_days(self, regime_status=None) -> int:
+        from bluehorseshoe.analysis.constants import RANGE_SUPPORT_HOLD_DAYS
+        return RANGE_SUPPORT_HOLD_DAYS
+
+    @property
+    def entry_style(self) -> str:
+        return "limit_below"            # resting limit at/under the support-proximity entry
+
+    @property
+    def paper_tradeable(self) -> bool:
+        return True
+
+    def _evaluate(self, df, regime_status):
+        import numpy as np
+        from bluehorseshoe.analysis.constants import (
+            RANGE_SUPPORT_ER_MAX, RANGE_SUPPORT_MIN_DOLLAR_VOLUME, RANGE_SUPPORT_STOP_MULT,
+            RANGE_SUPPORT_BASE_SCORE, RANGE_SUPPORT_PRIOR_WINRATE, MAX_RISK_PERCENT,
+        )
+        from bluehorseshoe.analysis.liquidity import trailing_dollar_volume
+        from bluehorseshoe.analysis.indicators import support_levels as sl
+
+        if df is None or len(df) < sl.ER_WINDOW + 10:
+            return None
+        close = df['close'].to_numpy(dtype=float)
+        high = df['high'].to_numpy(dtype=float)
+        low = df['low'].to_numpy(dtype=float)
+
+        # 1) range-bound gate (the universe the edge was measured on)
+        if not sl.is_range_bound(close, er_max=RANGE_SUPPORT_ER_MAX):
+            return None
+        # 2) liquidity floor
+        dollar_vol_20 = trailing_dollar_volume(close, df['volume'].to_numpy(dtype=float))
+        if dollar_vol_20 < RANGE_SUPPORT_MIN_DOLLAR_VOLUME:
+            return None
+        # 3) pure-support proximity entry on the latest bar
+        sig = sl.evaluate_support_entry(high, low, close)
+        if sig is None:
+            return None
+
+        entry_price = sig["entry_price"]
+        if not MIN_STOCK_PRICE < entry_price < MAX_STOCK_PRICE:
+            return None
+        atr = sig["atr"]
+        stop_loss = entry_price - RANGE_SUPPORT_STOP_MULT * atr
+        risk = entry_price - stop_loss
+        if risk <= 0:
+            return None
+        if (risk / entry_price) > MAX_RISK_PERCENT:      # 1*ATR stop too wide for this name
+            return None
+
+        setup = {
+            "entry_price": float(entry_price),
+            "stop_loss": float(stop_loss),
+            "take_profit": 0.0,                          # NO target -> PaperTrader submits stop-only
+            "rr_ratio": 0.0,
+            "actual_close": float(close[-1]),
+            "is_realistic": True,
+        }
+        components = {
+            "range_score": round(float(sl.range_score(close)), 3),
+            "dist_atr": round(sig["dist_atr"], 3),
+            "support_price": round(sig["support_price"], 2),
+            "touches": float(sig["touches"]),
+            "dollar_vol_M": round(dollar_vol_20 / 1e6, 1),
+        }
+        return StrategyResult(
+            score=float(RANGE_SUPPORT_BASE_SCORE),
+            components=components,
+            setup=setup,
+            ml_prob=RANGE_SUPPORT_PRIOR_WINRATE,
+            stop_multiplier=RANGE_SUPPORT_STOP_MULT,
+            target_multiplier=0.0,
+            regime_status=regime_status or "Neutral",
+        )
+
+    def process(self, trader, df, symbol, yesterday, ctx):
+        regime_status = (ctx.market_health or {}).get('status') if getattr(ctx, 'market_health', None) else None
+        return self._evaluate(df, regime_status)
+
+    def process_worker(self, trader, df, symbol, yesterday, worker_state, overview, sentiment):
+        regime_status = (worker_state.get('market_health') or {}).get('status')
+        return self._evaluate(df, regime_status)

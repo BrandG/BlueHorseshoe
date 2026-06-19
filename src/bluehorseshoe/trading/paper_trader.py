@@ -190,8 +190,10 @@ class PaperTrader:
 
             submitted_this_run.add(symbol)
             r_offset = entry_model - stop_model
-            tp_offset = target_model - entry_model
-            t1_offset = t1_target - entry_model if t1_target else 0.0
+            # No-take-profit sleeve (range_support): target<=0 → stop-only exit, no T1/T2 targets.
+            no_take_profit = target_model <= 0
+            tp_offset = 0.0 if no_take_profit else (target_model - entry_model)
+            t1_offset = 0.0 if no_take_profit else (t1_target - entry_model if t1_target else 0.0)
             doc = {
                 "date": target_date,
                 "symbol": symbol,
@@ -203,6 +205,7 @@ class PaperTrader:
                 "R": float(r_offset),
                 "tp_offset": float(tp_offset),
                 "t1_offset": float(t1_offset),
+                "no_take_profit": bool(no_take_profit),
                 "idea_id": cand_idea_id,
                 "rank": rank,
                 "status": "staged",
@@ -338,6 +341,7 @@ class PaperTrader:
         t1_qty_model = int(math.floor(float(doc.get("t1_qty", 0.0) or 0.0)))
         t2_qty_model = int(math.floor(float(doc.get("t2_qty", 0.0) or 0.0)))
         idea_id = doc.get("idea_id")
+        no_take_profit = bool(doc.get("no_take_profit", False))   # range_support: stop-only exit
 
         def _mark(status: str, error: Optional[str] = None, extra: Optional[dict] = None):
             update = {"status": status, "updated_at": datetime.now()}
@@ -403,28 +407,37 @@ class PaperTrader:
             self._client.cancel_order(entry_order_id)
 
         stop_fill = round(avg_fill - r_offset, 2)
-        t1_fill = round(avg_fill + t1_offset, 2) if t1_offset else 0.0
-        tp_fill = round(avg_fill + tp_offset, 2)
+        t1_fill = round(avg_fill + t1_offset, 2) if (t1_offset and not no_take_profit) else 0.0
+        tp_fill = 0.0 if no_take_profit else round(avg_fill + tp_offset, 2)
         t1_qty, t2_qty = self._split_filled_quantities(
             filled_qty, total_qty, t1_qty_model, t2_qty_model
         )
+        if no_take_profit:
+            t1_qty, t2_qty = 0, filled_qty      # single full-position leg, recorded as T2
         exit_pairs = []
-        if t1_qty > 0:
-            exit_pairs.append((
-                "A",
-                [
-                    {"leg": "T1", "order_type": "LMT", "quantity": t1_qty, "price": t1_fill},
-                    {"leg": "STOP_A", "order_type": "STP", "quantity": t1_qty, "price": stop_fill},
-                ],
-            ))
-        if t2_qty > 0:
+        if no_take_profit:
+            # range_support: one stop on the full filled qty, no take-profit legs.
             exit_pairs.append((
                 "B",
-                [
-                    {"leg": "T2", "order_type": "LMT", "quantity": t2_qty, "price": tp_fill},
-                    {"leg": "STOP_B", "order_type": "STP", "quantity": t2_qty, "price": stop_fill},
-                ],
+                [{"leg": "STOP_B", "order_type": "STP", "quantity": filled_qty, "price": stop_fill}],
             ))
+        else:
+            if t1_qty > 0:
+                exit_pairs.append((
+                    "A",
+                    [
+                        {"leg": "T1", "order_type": "LMT", "quantity": t1_qty, "price": t1_fill},
+                        {"leg": "STOP_A", "order_type": "STP", "quantity": t1_qty, "price": stop_fill},
+                    ],
+                ))
+            if t2_qty > 0:
+                exit_pairs.append((
+                    "B",
+                    [
+                        {"leg": "T2", "order_type": "LMT", "quantity": t2_qty, "price": tp_fill},
+                        {"leg": "STOP_B", "order_type": "STP", "quantity": t2_qty, "price": stop_fill},
+                    ],
+                ))
 
         base_oca_group = f"BH_{target_date}_{symbol}_{strategy}".replace(" ", "_")[:30]
         order_ids = {}
@@ -652,6 +665,32 @@ class PaperTrader:
                     idea_id=cand_idea_id,
                 ))
                 continue
+
+            # No-take-profit sleeve (range_support): one entry + 1-ATR stop, NO target.
+            # The exit is bh_swing's up-day ratchet + ~25-bar time cap. Place the full
+            # position as a single 2-leg bracket (no T1/T2 scale-out — there is no T1 target).
+            if take_profit <= 0:
+                es = self._client.place_entry_stop_bracket(
+                    symbol=symbol, quantity=total_quantity,
+                    limit_price=entry_price, stop_loss_price=stop_loss,
+                )
+                es_ids = es.get("order_ids", [])
+                # Persist as the T2 leg with broker_order_ids laid out [entry, tp=None, stop]
+                # so the bh_swing stop-manager reads the stop at its usual index.
+                entry_id = es_ids[0] if len(es_ids) > 0 else None
+                stop_id = es_ids[1] if len(es_ids) > 1 else None
+                results.append(OrderResult(
+                    symbol=symbol, strategy=strategy, quantity=total_quantity,
+                    entry_price=entry_price, stop_loss_price=stop_loss,
+                    take_profit_price=0.0,
+                    order_ids=es_ids,
+                    status=es.get("status", "error"), error=es.get("error"),
+                    idea_id=cand_idea_id,
+                    t2_order_ids=[entry_id, None, stop_id],
+                    t2_qty=total_quantity, t1_target=0.0,
+                ))
+                continue
+
             if t1_qty <= 0:
                 # Too small to split into two viable legs: place a single T2 order.
                 order_result = self._client.place_bracket_order(
@@ -937,12 +976,16 @@ class PaperTrader:
     def _validate_prices(
         entry: float, stop_loss: float, take_profit: float
     ) -> bool:
-        """Check that prices are positive and logically consistent."""
-        if entry <= 0 or stop_loss <= 0 or take_profit <= 0:
-            return False
-        if take_profit <= entry:
+        """Check that prices are positive and logically consistent.
+
+        ``take_profit <= 0`` is the explicit "no take-profit" signal (the range_support
+        sleeve), validated as entry + stop only; a positive take_profit must sit above entry.
+        """
+        if entry <= 0 or stop_loss <= 0:
             return False
         if stop_loss >= entry:
+            return False
+        if take_profit > 0 and take_profit <= entry:   # only enforce ordering when a TP exists
             return False
         return True
 

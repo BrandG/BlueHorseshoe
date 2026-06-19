@@ -20,6 +20,7 @@ from bluehorseshoe.analysis.strategy_interface import (
     DeepOversoldStrategy,
     DeepOversoldHAStrategy,
     MeanReversionStrategy,
+    RangeSupportStrategy,
     TradingStrategy,
 )
 
@@ -32,6 +33,7 @@ _MEAN_REVERSION = MeanReversionStrategy()
 _DEEP_OVERSOLD = DeepOversoldStrategy()
 _DEEP_OVERSOLD_HA = DeepOversoldHAStrategy()
 _ADX_DIDOWN = DeepDownAdxStrategy()
+_RANGE_SUPPORT = RangeSupportStrategy()
 
 _REGISTRY: Dict[str, TradingStrategy] = {
     _BASELINE.name: _BASELINE,
@@ -39,6 +41,7 @@ _REGISTRY: Dict[str, TradingStrategy] = {
     _DEEP_OVERSOLD.name: _DEEP_OVERSOLD,
     _DEEP_OVERSOLD_HA.name: _DEEP_OVERSOLD_HA,
     _ADX_DIDOWN.name: _ADX_DIDOWN,
+    _RANGE_SUPPORT.name: _RANGE_SUPPORT,
 }
 
 

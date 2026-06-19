@@ -715,3 +715,49 @@ class TestTradeOrderLogging:
         assert len(results) == 1
         assert results[0].status == "submitted"
         assert results[0].idea_id is None
+
+
+# ── No-take-profit sleeve (range_support) ────────────────────────────
+
+class TestNoTakeProfitBracket:
+    """range_support candidates (target<=0) submit entry+stop only, via place_entry_stop_bracket."""
+
+    def _no_tp_client(self):
+        client = MagicMock(spec=[
+            "place_entry_stop_bracket", "place_bracket_order",
+            "get_account_summary", "get_positions", "get_open_trades",
+        ])
+        client.place_entry_stop_bracket.return_value = {
+            "order_ids": [101, 202], "status": "submitted", "error": None,
+        }
+        client.place_bracket_order.return_value = {
+            "order_ids": [1, 2, 3], "status": "submitted", "error": None,
+        }
+        return client
+
+    def test_routes_to_entry_stop_bracket(self, tmp_path):
+        client = self._no_tp_client()
+        trader = _make_trader(tmp_path, client=client)
+        cand = _make_candidate(strategy="RangeSupport", close=50.0, stop_loss=48.0, target=0.0)
+        results = trader.execute([cand], "2026-01-15")
+
+        assert len(results) == 1
+        assert results[0].status == "submitted"
+        # the no-TP path is used, not the 3-leg bracket
+        assert client.place_entry_stop_bracket.call_count == 1
+        assert client.place_bracket_order.call_count == 0
+        call = client.place_entry_stop_bracket.call_args
+        assert call.kwargs["limit_price"] == 50.0
+        assert call.kwargs["stop_loss_price"] == 48.0
+        assert call.kwargs["quantity"] == results[0].quantity   # full position, no split
+
+    def test_records_no_tp_and_stop_layout(self, tmp_path):
+        client = self._no_tp_client()
+        trader = _make_trader(tmp_path, client=client)
+        cand = _make_candidate(strategy="RangeSupport", close=50.0, stop_loss=48.0, target=0.0)
+        r = trader.execute([cand], "2026-01-15")[0]
+
+        assert r.take_profit_price == 0.0
+        # broker layout preserved as [entry, tp=None, stop] so bh_swing reads the stop at index 2
+        assert r.t2_order_ids == [101, None, 202]
+        assert r.stop_loss_price == 48.0
