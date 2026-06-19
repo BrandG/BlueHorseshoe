@@ -80,6 +80,18 @@ class BracketLeg:
         return self.stop_order.status in ("Submitted", "PreSubmitted")
 
 
+def strategy_from_idea_id(idea_id: str) -> str:
+    """Parse the sleeve/strategy out of ``idea_<date>_<symbol>_<strategy>``.
+
+    Used to scope sleeve-specific management (e.g. the range_support up-day ratchet) without
+    a separate DB field. Returns "" if the id doesn't match the convention.
+    """
+    parts = str(idea_id or "").split("_")
+    if len(parts) >= 4 and parts[0] == "idea":
+        return "_".join(parts[3:])     # date/symbol have no underscores; the rest is the strategy
+    return ""
+
+
 @dataclass(frozen=True)
 class ManagedPosition:
     """A position the system has full bracket metadata for, and can act on."""
@@ -92,6 +104,10 @@ class ManagedPosition:
     legs: list[BracketLeg]
     broker_position_qty: int     # signed: positive = long, 0 = flat
     broker_avg_cost: float
+    # Phase C (range_support exit): sleeve tag + entry submission time, for sleeve-scoped
+    # management (up-day ratchet, time flatten). Default empty/None for legacy positions.
+    strategy: str = ""           # parsed from idea_id (e.g. "range_support", "deep_oversold")
+    entry_datetime: Optional[object] = None  # submitted_at of the entry leg (for the bar clock)
 
     @property
     def t1(self) -> Optional[BracketLeg]:
@@ -341,6 +357,11 @@ def build_managed_positions(
         legs, leg_drift = _assign_legs_to_views(mongo_legs, views_by_id, side, qty)
         drift.extend(leg_drift)
 
+        # Entry submission time (newest leg) drives the range_support bar clock; sleeve tag
+        # (parsed from idea_id) scopes sleeve-specific management.
+        entry_dt = max((d.get("submitted_at") for d in mongo_legs if d.get("submitted_at")),
+                       default=None)
+
         managed.append(ManagedPosition(
             symbol=symbol,
             idea_id=idea_id,
@@ -351,6 +372,8 @@ def build_managed_positions(
             legs=legs,
             broker_position_qty=int(qty),
             broker_avg_cost=float(pos.get("avg_cost", 0.0) or 0.0),
+            strategy=strategy_from_idea_id(idea_id),
+            entry_datetime=entry_dt,
         ))
 
     return BuildResult(managed=managed, unmanaged_symbols=unmanaged, drift_notes=drift)

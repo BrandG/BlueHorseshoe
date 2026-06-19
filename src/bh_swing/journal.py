@@ -44,6 +44,11 @@ EVENT_WOULD_ADVANCE_STOP = "would_advance_stop"  # dry-run shadow of stop_advanc
 EVENT_WOULD_CANCEL_ORDER = "would_cancel_order"  # dry-run shadow of order_cancelled
 EVENT_WOULD_CLOSE_POSITION = "would_close_position"  # dry-run shadow of early_exit
 EVENT_KILL_SWITCH_ACTIVE = "kill_switch_active"  # sentinel file present; skipped mutations
+# range_support sleeve exit (Phase C): up-day ratchet (a stop move) + ~25-bar time flatten (a sell)
+EVENT_STOP_RATCHETED = "stop_ratcheted"          # moved a stop up via the up-day ratchet
+EVENT_WOULD_RATCHET = "would_ratchet"            # dry-run shadow of stop_ratcheted
+EVENT_POSITION_FLATTENED = "position_flattened"  # closed a position at the time-cap (cancel stop + market sell)
+EVENT_WOULD_FLATTEN = "would_flatten"            # dry-run shadow of position_flattened
 
 # Reserved for Phase 2 (entry-side):
 EVENT_ORDER_PLACED = "order_placed"

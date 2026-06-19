@@ -139,3 +139,82 @@ def propose_early_exit(
         action=ExitAction.HOLD,
         reason="early-exit rule not yet calibrated; holding",
     )
+
+
+# ---------------------------------------------------------------------------
+# range_support sleeve exit (Phase C) — up-day ratchet + ~25-bar time flatten
+# ---------------------------------------------------------------------------
+# Pure functions: the manager loads the daily bars from DuckDB and passes scalars
+# (last_close, prior_close, atr, bars_since_entry) so these stay unit-testable with
+# no I/O. Scoping to the range_support sleeve is the manager's job; these assume the
+# position is a single-stop, no-take-profit long bracket (recorded as the "T2" leg).
+
+def _single_stop_leg(position: ManagedPosition):
+    """The lone exit leg of a no-take-profit bracket (recorded as T2; fall back to T1)."""
+    return position.t2 or position.t1
+
+
+def propose_stop_ratchet(
+    position: ManagedPosition,
+    *,
+    last_close: float,
+    prior_close: float,
+    atr: float,
+    ratchet_atr: float = 2.0,
+) -> Optional[StopAdvancement]:
+    """Up-day ratchet (the validated range_support exit): on a completed UP-close daily bar,
+    move the single stop up to ``last_close - ratchet_atr*ATR``, ratchet-only.
+
+    Long-only. Idempotent per daily bar — proposes only when the new stop is strictly higher
+    than the current one, so re-ticks within the same day (same close) are no-ops, and it only
+    moves again when a fresh higher up-close bar arrives. Returns None when not warranted.
+    """
+    if position.side != "long":
+        return None
+    leg = _single_stop_leg(position)
+    if leg is None or leg.stop_order is None or not leg.stop_is_alive:
+        return None
+    if not (atr > 0) or last_close <= 0 or prior_close <= 0:
+        return None
+    if last_close <= prior_close:                 # only ratchet on an up-close day
+        return None
+    current_stop = leg.stop_order.stop_price
+    new_stop = round(last_close - ratchet_atr * atr, 2)
+    if new_stop <= current_stop:                  # ratchet-only — never lower / never re-fire flat
+        return None
+    return StopAdvancement(
+        symbol=position.symbol,
+        leg=leg.leg,
+        order_id=leg.stop_order.order_id,
+        current_stop=current_stop,
+        new_stop=new_stop,
+        side=position.side,
+        reason=(
+            f"up-day ratchet: close {last_close:.2f} > prior {prior_close:.2f} "
+            f"-> stop {new_stop:.2f} (close - {ratchet_atr:g}*ATR)"
+        ),
+    )
+
+
+def propose_time_flatten(
+    position: ManagedPosition,
+    *,
+    bars_since_entry: Optional[int],
+    hold_days: int = 25,
+    enabled: bool = False,
+) -> Optional[EarlyExitDecision]:
+    """Flatten the position once ~``hold_days`` completed daily bars have elapsed since entry
+    (the validated time cap). Returns a CLOSE_NOW decision, or None.
+
+    Disabled by default: the manager must pass ``enabled=True`` (gated behind the monitor's
+    --enable-time-flatten) because this is an autonomous market-sell, not just a stop move.
+    """
+    if not enabled:
+        return None
+    if bars_since_entry is None or bars_since_entry < hold_days:
+        return None
+    return EarlyExitDecision(
+        symbol=position.symbol,
+        action=ExitAction.CLOSE_NOW,
+        reason=f"time exit: {bars_since_entry} bars held >= {hold_days}-bar cap",
+    )

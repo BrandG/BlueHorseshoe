@@ -56,6 +56,9 @@ def main(argv: list[str] | None = None) -> int:
                         help="Live management: advance stops, etc. via IBKR mutations.")
     parser.add_argument("--manage-dry-run", action="store_true",
                         help="Shadow management: journal would_* events without mutating.")
+    parser.add_argument("--enable-time-flatten", action="store_true",
+                        help="Enable the range_support ~25-bar time-flatten (autonomous market-sell). "
+                             "OFF by default; the up-day ratchet (stop-tightening) runs regardless.")
     parser.add_argument("--lookback-hours", type=int, default=24,
                         help="How far back to fetch executions for reconcile.")
     parser.add_argument("--verbose", "-v", action="store_true")
@@ -190,12 +193,26 @@ def main(argv: list[str] | None = None) -> int:
                 )
                 trade_orders = None
 
+            # Read-only OHLCV store for the range_support up-day ratchet / time-flatten
+            # (daily close + ATR + bar clock). Fail-safe: if unavailable, those rules skip.
+            ohlcv_store = None
+            try:
+                from bluehorseshoe.core.config import get_settings
+                from bluehorseshoe.data.duckdb_store import DuckDBStore
+                ohlcv_store = DuckDBStore(get_settings().duckdb_path, read_only=True)
+            except Exception as e:  # noqa: BLE001
+                logger.warning("DuckDB store unavailable; range_support ratchet/flatten will skip: %s", e)
+
             ms = manager.manage_tick(
                 client=client,
                 broker_positions=positions,
                 broker_open_trades=open_trades,
                 trade_orders_collection=trade_orders,
-                config=manager.ManageConfig(dry_run=(manage_mode == "dry-run")),
+                config=manager.ManageConfig(
+                    dry_run=(manage_mode == "dry-run"),
+                    store=ohlcv_store,
+                    time_flatten_enabled=args.enable_time_flatten,
+                ),
             )
             logger.info(
                 "Manage: positions=%d unmanaged=%d proposed=%d taken=%d "

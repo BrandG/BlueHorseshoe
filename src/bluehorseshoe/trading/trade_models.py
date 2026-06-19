@@ -19,6 +19,7 @@ STRATEGY_DISPLAY_TO_INTERNAL = {
     "Baseline": "baseline",
     "MeanRev": "mean_reversion",
     "Connors": "connors",
+    "RangeSupport": "range_support",   # so idea_id reads idea_<date>_<sym>_range_support
 }
 
 
