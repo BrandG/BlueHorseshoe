@@ -51,7 +51,9 @@ def test_send_file_inlines_utf8_text_and_attaches_file(tmp_path, monkeypatch):
     assert service.send_file(str(text_file), subject="Send this")
 
     msg = CapturingSMTP.messages[0]
-    assert msg["Subject"] == "Send this"
+    # Subject now carries a per-message GUID for delivery tracking: "Send this [id:<uuid>]"
+    assert msg["Subject"].startswith("Send this [id:")
+    assert msg["X-BH-Message-Id"] and msg["X-BH-Message-Id"] in msg["Subject"]
     plain_parts = [p for p in message_parts(msg) if p.get_content_type() == "text/plain"]
     attachments = [p for p in message_parts(msg) if p.get_filename() == "note.txt"]
     assert plain_parts[0].get_payload(decode=True).decode() == "arbitrary text\nline two\n"

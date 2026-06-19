@@ -1,6 +1,7 @@
 import smtplib
 import os
 import re
+import uuid
 import logging
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
@@ -44,19 +45,29 @@ class EmailService:
         msg.attach(part)
 
     def send(self, subject: str, html_body: str | None = None, text_body: str | None = None,
-             attachments: list | None = None) -> bool:
-        """Send an email with arbitrary bodies and attachments.
+             attachments: list | None = None) -> str | None:
+        """Queue an email at the SMTP relay. Returns a per-message GUID on relay
+        ACCEPTANCE, else None.
+
+        IMPORTANT: a non-None return means the relay (e.g. Brevo) ACCEPTED/queued the
+        message -- it does NOT prove delivery. A suspended or throttled account can keep
+        returning 250-queued at the relay while silently dropping the mail downstream
+        (this exact failure cost us a debugging session). The GUID is embedded in the
+        Subject as `[id:<guid>]` and in an `X-BH-Message-Id` header so delivery can be
+        independently verified later (e.g. by searching the recipient mailbox for the id).
 
         attachments: list of file paths, or (file_path, attachment_filename) tuples.
         """
         if not self.is_configured():
-            return False
+            return None
 
+        guid = str(uuid.uuid4())
         try:
             msg = MIMEMultipart('mixed')
             msg['From'] = self.sender
             msg['To'] = self.recipient
-            msg['Subject'] = subject
+            msg['Subject'] = f"{subject} [id:{guid}]"
+            msg['X-BH-Message-Id'] = guid
 
             msg_alternative = MIMEMultipart('alternative')
             msg_alternative.attach(MIMEText(text_body or '', 'plain'))
@@ -68,18 +79,23 @@ class EmailService:
                 file_path, filename = item if isinstance(item, tuple) else (item, None)
                 self._attach_file(msg, file_path, filename)
 
-            logger.info(f"Sending email via SMTP: {subject}")
+            logger.info(f"Submitting email to relay: {subject!r} id={guid}")
             with smtplib.SMTP(self.smtp_server, self.smtp_port, timeout=120) as server:
                 server.starttls()
                 server.login(self.smtp_user, self.smtp_password)
-                server.send_message(msg)
+                refused = server.send_message(msg)
+            if refused:
+                logger.error(f"Relay refused recipients {refused} (id={guid})")
+                return None
 
-            logger.info(f"Email sent successfully to {self.recipient}")
-            return True
+            # 250 from the relay == QUEUED, not delivered. Report it as such.
+            logger.info(f"Email QUEUED at relay (delivery NOT confirmed) to "
+                        f"{self.recipient} id={guid}")
+            return guid
 
         except Exception as e:
-            logger.error(f"Failed to send email: {e}", exc_info=True)
-            return False
+            logger.error(f"Failed to submit email (id={guid}): {e}", exc_info=True)
+            return None
 
     @staticmethod
     def _read_text_file(file_path: str) -> str | None:
