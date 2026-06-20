@@ -1,0 +1,8 @@
+# Regenerable research artifacts — produced by the scripts here, never committed.
+# Charts:        chart_*.py        Level dumps:  dump_levels*.py
+# Run captures:  *.out / *.log     Grid combos:  gen_grid.py -> combos_slice_*.jsonl
+*.png
+*.csv
+*.out
+*.log
+combos_slice_*.jsonl
