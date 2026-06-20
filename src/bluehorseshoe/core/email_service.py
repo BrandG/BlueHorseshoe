@@ -136,16 +136,27 @@ class EmailService:
         """
         Sends the HTML report in the email body AND as an attachment.
 
-        If an email-friendly version exists (report_YYYY-MM-DD_email.html),
+        If an email-friendly version exists (email_report_YYYY-MM-DD.html),
         it will be used for the email body. Otherwise, falls back to the full report.
-        The arcade sibling (report_YYYY-MM-DD_arcade.html) is attached when present.
+        The arcade sibling (arcade_report_YYYY-MM-DD.html) is attached when present.
         """
         if not os.path.exists(report_path):
             logger.error(f"Report file not found: {report_path}")
             return False
 
-        email_friendly_path = report_path.replace('.html', '_email.html')
-        body_path = email_friendly_path if os.path.exists(email_friendly_path) else report_path
+        report_dir = os.path.dirname(report_path)
+        date_match = re.search(r'(\d{4}-\d{2}-\d{2})', os.path.basename(report_path))
+        report_date = date_match.group(1) if date_match else None
+
+        email_friendly_path = (
+            os.path.join(report_dir, f'email_report_{report_date}.html')
+            if report_date else None
+        )
+        body_path = (
+            email_friendly_path
+            if email_friendly_path and os.path.exists(email_friendly_path)
+            else report_path
+        )
 
         if body_path == email_friendly_path:
             logger.info(f"Using email-friendly version for body: {email_friendly_path}")
@@ -156,10 +167,8 @@ class EmailService:
             html_body = f.read()
 
         attachments: list = [report_path]
-        date_match = re.search(r'report_(\d{4}-\d{2}-\d{2})', os.path.basename(report_path))
-        if date_match:
-            report_date = date_match.group(1)
-            arcade_path = os.path.join(os.path.dirname(report_path), f'report_{report_date}_arcade.html')
+        if report_date:
+            arcade_path = os.path.join(report_dir, f'arcade_report_{report_date}.html')
             if os.path.exists(arcade_path):
                 attachments.append((arcade_path, f'arcade_report_{report_date}.html'))
                 logger.info(f"Arcade report attached: {arcade_path}")

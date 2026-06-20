@@ -994,8 +994,8 @@ class HTMLReporter:
         if base_filename.endswith('.html'):
             base_filename = base_filename[:-5]
 
-        full_path = self.save(full_html, f"{base_filename}.html")
-        email_path = self.save(email_html, f"{base_filename}_email.html")
+        full_path = self.save(full_html, f"full_{base_filename}.html")
+        email_path = self.save(email_html, f"email_{base_filename}.html")
 
         return full_path, email_path
 

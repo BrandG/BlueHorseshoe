@@ -124,7 +124,7 @@ if [ "$DOW" -eq 6 ]; then
 else
     REPORT_DATE=$(date -d "yesterday" +%Y-%m-%d 2>/dev/null || date -v-1d +%Y-%m-%d)
 fi
-if [ -f "$REPO/src/logs/report_${REPORT_DATE}_arcade.html" ]; then
+if [ -f "$REPO/src/logs/arcade_report_${REPORT_DATE}.html" ]; then
     $STATUS complete report
 else
     echo "WARNING: Report file not found for ${REPORT_DATE}" >> "$LOG"

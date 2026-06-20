@@ -468,20 +468,11 @@ async def list_reports(config: Settings = Depends(get_config)):
     """
     dates_info: dict[str, dict[str, str]] = {}
 
-    # Scan logs_path for full and email reports
-    for f in glob.glob(os.path.join(config.logs_path, "report_*.html")):
-        basename = os.path.basename(f)
-        if "_email.html" in basename:
-            date = basename.replace("report_", "").replace("_email.html", "")
-            dates_info.setdefault(date, {})["email"] = f
-        else:
-            date = basename.replace("report_", "").replace(".html", "")
-            dates_info.setdefault(date, {})["full"] = f
-
-    # Scan logs_path for arcade reports
-    for f in glob.glob(os.path.join(config.logs_path, "report_*_arcade.html")):
-        date = os.path.basename(f).replace("report_", "").replace("_arcade.html", "")
-        dates_info.setdefault(date, {})["arcade"] = f
+    # Scan logs_path for each report variant ("<type>_report_<date>.html").
+    for variant in ("full", "email", "arcade"):
+        for f in glob.glob(os.path.join(config.logs_path, f"{variant}_report_*.html")):
+            date = os.path.basename(f).replace(f"{variant}_report_", "").replace(".html", "")
+            dates_info.setdefault(date, {})[variant] = f
 
     sorted_dates = sorted(dates_info.keys(), reverse=True)
     num_dates = len(sorted_dates)
@@ -501,7 +492,7 @@ async def get_email_report(date: str, config: Settings = Depends(get_config)):
     """
     Retrieve the email variant of an HTML report by date (YYYY-MM-DD).
     """
-    file_path = os.path.join(config.logs_path, f"report_{date}_email.html")
+    file_path = os.path.join(config.logs_path, f"email_report_{date}.html")
     if not os.path.exists(file_path):
         raise HTTPException(status_code=404, detail=f"Email report for {date} not found")
     return FileResponse(file_path, media_type="text/html")
@@ -512,7 +503,7 @@ async def get_report(date: str, config: Settings = Depends(get_config)):
     """
     Retrieve a specific HTML report by date (YYYY-MM-DD).
     """
-    file_path = os.path.join(config.logs_path, f"report_{date}.html")
+    file_path = os.path.join(config.logs_path, f"full_report_{date}.html")
     if not os.path.exists(file_path):
         raise HTTPException(status_code=404, detail=f"Report for {date} not found")
     return FileResponse(file_path, media_type="text/html")
@@ -523,7 +514,7 @@ async def get_arcade_report(date: str, config: Settings = Depends(get_config)):
     """
     Retrieve the arcade-themed HTML report by date (YYYY-MM-DD).
     """
-    file_path = os.path.join(config.logs_path, f"report_{date}_arcade.html")
+    file_path = os.path.join(config.logs_path, f"arcade_report_{date}.html")
     if not os.path.exists(file_path):
         raise HTTPException(status_code=404, detail=f"Arcade report for {date} not found")
     return FileResponse(file_path, media_type="text/html")

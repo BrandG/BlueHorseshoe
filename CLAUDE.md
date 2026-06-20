@@ -241,7 +241,7 @@ Test fixtures in `test_*.py` files include:
 3. Lint (fast, local change): `./run.sh ./lint.sh --changed` (full tree: bare `./run.sh ./lint.sh`)
 4. Run prediction: `./run.sh python src/main.py -p`
 5. Check logs: `src/logs/blueHorseshoe.log`, `src/logs/report.txt`, `src/logs/backtest_log.csv`
-6. View reports: `src/logs/report_YYYY-MM-DD.html` (also `_email.html` and `_arcade.html`)
+6. View reports: `src/logs/full_report_YYYY-MM-DD.html` (also `email_report_` and `arcade_report_`)
 
 ## Key Files
 
@@ -254,7 +254,7 @@ Test fixtures in `test_*.py` files include:
 - **Docker Environment:** `docker/.env` (container overrides for MongoDB/IBKR DNS)
 - **Python Wrapper:** `run.sh` (activates venv, sets PYTHONPATH)
 - **Logs:** `src/logs/` directory
-- **Reports:** `src/logs/report_YYYY-MM-DD{,_email,_arcade}.html` (HTMLReporter's default `output_dir` is `src/logs/`, not `src/graphs/`)
+- **Reports:** `src/logs/{full,email,arcade}_report_YYYY-MM-DD.html` (type-prefixed; HTMLReporter's default `output_dir` is `src/logs/`, not `src/graphs/`)
 - **Docker Config:** `docker/docker-compose.yml` (MongoDB, paper IBKR Gateway on 4004, live read-only IBKR Gateway on 4011)
 - **BH Swing journal:** `src/logs/bh_swing_journal.csv` (per-tick events from `bh_swing_monitor`)
 - **BH Swing tracker:** `src/graphs/swing_tracker.html` (rendered each tick)

@@ -42,7 +42,7 @@ The original CLI in `src/main.py` is the research and signal-generation backbone
 
 1. **Data ingestion** (`-u`, `-b`) — fetches OHLCV from Alpha Vantage, rate-limited by `ALPHAVANTAGE_CPS`, stored in DuckDB.
 2. **Prediction** (`-p`) — for each symbol: filters by price ($5–$500) and volume (>100k avg), scores against both strategies, applies ML models, filters by risk/reward, saves scores to MongoDB.
-3. **Reporting** — generates `src/logs/report_YYYY-MM-DD.html` with top 50 candidates.
+3. **Reporting** — generates `src/logs/full_report_YYYY-MM-DD.html` with top 50 candidates.
 4. **Optional paper trading** — if `PAPER_TRADING_ENABLED=true`, submits bracket orders to IBKR for the top N candidates (this hook is what BH Swing automation extends).
 
 ### How to use it
@@ -135,7 +135,7 @@ All commands go through the venv wrapper:
 
 ### Outputs
 
-- `src/logs/report_YYYY-MM-DD.html` — top candidates report (also `_email.html`, `_arcade.html`)
+- `src/logs/full_report_YYYY-MM-DD.html` — top candidates report (also `email_report_`, `arcade_report_`)
 - `src/logs/blueHorseshoe.log` — main pipeline log
 - `src/logs/report.txt` — console summary
 - `src/logs/backtest_log.csv` — backtest history

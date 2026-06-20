@@ -47,7 +47,7 @@ done
 # fresh and an -mtime prune never catches them.
 cutoff=$(date -d "-$KEEP_DAYS days" '+%Y-%m-%d')
 pruned=0
-for f in "$LOG_DIR"/report_*.html; do
+for f in "$LOG_DIR"/*report_*.html; do
   d=$(basename "$f" | grep -oE '[0-9]{4}-[0-9]{2}-[0-9]{2}' | head -1)
   if [ -n "$d" ] && [[ "$d" < "$cutoff" ]]; then
     rm -f "$f"; pruned=$((pruned+1))

@@ -62,9 +62,9 @@ def test_send_file_inlines_utf8_text_and_attaches_file(tmp_path, monkeypatch):
 
 def test_send_report_uses_email_body_and_keeps_report_attachments(tmp_path, monkeypatch):
     service = configured_service(monkeypatch)
-    report = tmp_path / "report_2026-06-10.html"
-    email_body = tmp_path / "report_2026-06-10_email.html"
-    arcade = tmp_path / "report_2026-06-10_arcade.html"
+    report = tmp_path / "full_report_2026-06-10.html"
+    email_body = tmp_path / "email_report_2026-06-10.html"
+    arcade = tmp_path / "arcade_report_2026-06-10.html"
     report.write_text("<html>full</html>", encoding="utf-8")
     email_body.write_text("<html>email</html>", encoding="utf-8")
     arcade.write_text("<html>arcade</html>", encoding="utf-8")
@@ -75,7 +75,7 @@ def test_send_report_uses_email_body_and_keeps_report_attachments(tmp_path, monk
     html_parts = [p for p in message_parts(msg) if p.get_content_type() == "text/html"]
     filenames = sorted(p.get_filename() for p in message_parts(msg) if p.get_filename())
     assert html_parts[0].get_payload(decode=True).decode() == "<html>email</html>"
-    assert filenames == ["arcade_report_2026-06-10.html", "report_2026-06-10.html"]
+    assert filenames == ["arcade_report_2026-06-10.html", "full_report_2026-06-10.html"]
 
 
 def test_send_delegates_arbitrary_attachments(tmp_path, monkeypatch):

@@ -20,12 +20,12 @@ LOGS_DIR = os.path.join(os.path.dirname(__file__), "logs")
 def find_report(date: str = None) -> str | None:
     """Find report path by date, or the most recent report if no date given."""
     if date:
-        path = os.path.join(LOGS_DIR, f"report_{date}.html")
+        path = os.path.join(LOGS_DIR, f"full_report_{date}.html")
         return path if os.path.exists(path) else None
 
-    # Find most recent report (exclude _email variants)
-    pattern = os.path.join(LOGS_DIR, "report_*.html")
-    files = [f for f in glob.glob(pattern) if "_email" not in f and "_arcade" not in f]
+    # Find most recent full report (email/arcade variants have their own prefixes)
+    pattern = os.path.join(LOGS_DIR, "full_report_*.html")
+    files = glob.glob(pattern)
     if not files:
         return None
     return max(files, key=os.path.getmtime)

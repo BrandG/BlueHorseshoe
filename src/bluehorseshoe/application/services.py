@@ -133,7 +133,7 @@ def generate_reports(
             regime=regime,
             candidates=candidates,
         )
-        result["arcade_path"] = reporter.save_arcade(arcade_html, f"report_{report_date}_arcade.html")
+        result["arcade_path"] = reporter.save_arcade(arcade_html, f"arcade_report_{report_date}.html")
 
     return result
 

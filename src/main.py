@@ -617,7 +617,7 @@ if __name__ == "__main__":
                 regime=market_health,
                 candidates=top_candidates,
             )
-            arcade_path = reporter.save_arcade(arcade_html, f"report_{target_date}_arcade.html")
+            arcade_path = reporter.save_arcade(arcade_html, f"arcade_report_{target_date}.html")
             logging.info("Arcade report regenerated at %s", arcade_path)
             print(f"Arcade report: {arcade_path}")
     elif "-t" in sys.argv:
