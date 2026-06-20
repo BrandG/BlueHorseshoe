@@ -491,6 +491,8 @@ if __name__ == "__main__":
                         "sentiment_tiingo": tiingo_sentiment_cache[sym],
                         "sentiment_stocktwits": stocktwits_sentiment_cache[sym],
                         "sentiment_finviz": finviz_sentiment_cache[sym],
+                        # Within-sleeve sort key (RangeSupport) — see postprocess.py.
+                        "strength": float(meta.get('components', {}).get('strength', 0.0) or 0.0),
                         "reasons": [f"{k}={v:.1f}" for k, v in meta.get('components', {}).items() if v != 0],
                         "cloud_age": meta.get('cloud_age', 0),
                         "confluence_star": meta.get('confluence_star', False),

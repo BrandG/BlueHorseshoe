@@ -321,8 +321,12 @@ class HTMLReporter:
         """Live-tradeable candidates ranked by ``score * edge_weight`` (the live
         allocator's key), highest first. Optionally truncated to ``limit``."""
         ranked = [c for c in candidates if c.get('strategy') in live_sleeves]
+        # Primary: edge-weighted score (the live allocator's key). Secondary: support
+        # `strength` — the validated within-sleeve tiebreak (see postprocess.py), so
+        # candidates that tie on edge-weighted score order by level quality, not alphabet.
         ranked.sort(
-            key=lambda c: c.get('score', 0.0) * edge_weights.get(c.get('strategy', ''), 0.0),
+            key=lambda c: (c.get('score', 0.0) * edge_weights.get(c.get('strategy', ''), 0.0),
+                           c.get('strength', 0.0)),
             reverse=True,
         )
         return ranked[:limit] if limit else ranked
@@ -1050,6 +1054,7 @@ class HTMLReporter:
                 'sentiment_finviz': float(c.get('sentiment_finviz', 0)),
                 'sentiment_composite': float(c.get('sentiment_composite', 0)),
                 'reasons': c.get('reasons', []),
+                'strength': float(c.get('strength', 0.0) or 0.0),
                 'components': {},
                 'actual_close': float(c.get('actual_close', 0) or 0),
                 'cloud_age': int(c.get('cloud_age', 0) or 0),
@@ -1067,7 +1072,9 @@ class HTMLReporter:
             report_candidates.append(rc)
         # Rank by the live allocator's key: Score x edge-weight (Connors edge_weight
         # is 0, so it sorts last — consistent with its leftover-only live status).
-        report_candidates.sort(key=lambda x: x['score'] * x.get('edge_weight', 0.0), reverse=True)
+        report_candidates.sort(
+            key=lambda x: (x['score'] * x.get('edge_weight', 0.0), x.get('strength', 0.0)),
+            reverse=True)
 
         # Prepare regime data
         report_regime = {

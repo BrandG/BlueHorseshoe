@@ -928,9 +928,13 @@ class PaperTrader:
             # validated edge (weight 0 — incl. the unregistered "Connors" sleeve)
             # sort last and only fill leftover capacity.
             wmap = self._edge_weight_map()
+            # Secondary key: support `strength` — the validated within-sleeve tiebreak
+            # (bake-off: only key that monotonically sorts per-trade R). Ties on edge-
+            # weighted score now go to the higher-quality level, not alphabetically.
             return sorted(
                 eligible,
-                key=lambda c: c.get("score", 0.0) * wmap.get(c.get("strategy", ""), 0.0),
+                key=lambda c: (c.get("score", 0.0) * wmap.get(c.get("strategy", ""), 0.0),
+                               c.get("strength", 0.0)),
                 reverse=True,
             )[:slots_available]
 
@@ -944,13 +948,19 @@ class PaperTrader:
         deep_slots = max(0, deep_reserved - deep_occupied)
         legacy_slots = max(0, legacy_reserved - legacy_occupied)
 
-        deep_cands = [c for c in eligible if c.get("strategy") == deepos_display]
-        legacy_cands = [c for c in eligible if c.get("strategy") != deepos_display]
+        # Sort each pool by (score, support strength) so the reserved-slot slices below
+        # take the highest-quality levels within a sleeve, not whatever order they arrived.
+        def _key(c):
+            return (c.get("score", 0.0), c.get("strength", 0.0))
+        deep_cands = sorted([c for c in eligible if c.get("strategy") == deepos_display],
+                            key=_key, reverse=True)
+        legacy_cands = sorted([c for c in eligible if c.get("strategy") != deepos_display],
+                              key=_key, reverse=True)
 
         # Reserved (guaranteed) picks first; if the global cap binds, highest score wins.
         guaranteed = sorted(
             deep_cands[:deep_slots] + legacy_cands[:legacy_slots],
-            key=lambda c: c.get("score", 0), reverse=True,
+            key=_key, reverse=True,
         )
         selected = guaranteed[:slots_available]
 
@@ -958,7 +968,7 @@ class PaperTrader:
         if len(selected) < slots_available:
             leftover = sorted(
                 deep_cands[deep_slots:] + legacy_cands[legacy_slots:],
-                key=lambda c: c.get("score", 0), reverse=True,
+                key=_key, reverse=True,
             )
             selected += leftover[: slots_available - len(selected)]
 

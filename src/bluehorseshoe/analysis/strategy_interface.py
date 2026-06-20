@@ -1228,6 +1228,10 @@ class RangeSupportStrategy(TradingStrategy):
             "dist_atr": round(sig["dist_atr"], 3),
             "support_price": round(sig["support_price"], 2),
             "touches": float(sig["touches"]),
+            # Recency x swing-depth of the support level. The validated within-sleeve
+            # SORT key (bake-off: only key that monotonically sorts per-trade R). Must be
+            # in components so it persists to trade_scores and reaches the ranking sites.
+            "strength": round(float(sig["strength"]), 2),
             "dollar_vol_M": round(dollar_vol_20 / 1e6, 1),
         }
         return StrategyResult(

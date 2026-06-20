@@ -108,6 +108,11 @@ class CandidateAssembler:
                 "sentiment_stocktwits": result.get("sentiment_stocktwits", 0.0),
                 "sentiment_finviz": result.get("sentiment_finviz", 0.0),
                 "intraday_resistance": components.get("intraday_resistance"),
+                # Within-sleeve sort key (RangeSupport): recency x swing-depth of the
+                # support level. Bake-off showed it's the only key that monotonically
+                # sorts per-trade R (top tercile +0.66R vs bottom +0.21R, robust across
+                # both calendar halves + 24mo holdout). 0.0 for sleeves that don't set it.
+                "strength": float(components.get("strength", 0.0) or 0.0),
                 "reasons": [
                     f"{key}={value:.1f}"
                     for key, value in components.items()
