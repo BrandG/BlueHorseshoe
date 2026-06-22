@@ -10,8 +10,10 @@ the contrarian thread.
 Example crontab line:
   0 13 29 5 *  cd /root/BlueHorseshoe && ./run.sh python scripts/send_handoff_reminder.py \\
     --subject "Reminder: resume contrarian thread" \\
-    --doc docs/handoff/CONTRARIAN_NEXT.md \\
+    --doc SESSION_HANDOFF.md \\
     >> src/logs/reminder.log 2>&1
+  (The per-thread docs/handoff/*.md files were consolidated into the root SESSION_HANDOFF.md
+   on 2026-06-22; point --doc there.)
 """
 from __future__ import annotations
 
