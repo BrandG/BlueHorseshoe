@@ -71,14 +71,29 @@ DEPLOYED_STRATEGIES = frozenset({
     "macd", "atr", "ichimoku", "stoch", "bb", "cci", "ema", "sma", "rsi",
 })
 
-# Quarantined 2026-06-17 on live OANDA evidence (src/logs/bh_ftmo_outcomes.csv):
-# all v2 drawdown was concentrated in the mid-entry sleeve — mid n=5 −0.32R/trade
-# vs limit n=5 ≈flat, with stoch the worst single contributor (−2.38R over 3).
-# Every quarantined strategy is mid-entry; this pauses all mid-entry cells and
-# leaves the limit sleeve (macd/atr/ichimoku, 9 cells) trading while more closed
-# trades accumulate. CELLS is untouched, so these still show in the human
-# briefing — only the autonomous trader skips them. Reversible: empty this set.
-QUARANTINED_STRATEGIES = frozenset({"stoch", "bb", "sma", "ema", "rsi", "cci"})
+# Per-cell quarantine — re-adjudicated 2026-06-25 by research/cell_revalidation_v1
+# (10yr H4 replay, spread-costed, profitable A ∧ B ∧ holdout, expectancy-CI gated, above
+# matched-random drift). Supersedes the 2026-06-17 class-level pause: 11 validated mid
+# cells are restored; these 13 stay benched. Keyed (strategy, pair, direction). Empty to
+# fully un-quarantine. Evidence: research/cell_revalidation_v1/scorecard.csv.
+QUARANTINED_CELLS: frozenset[tuple[str, str, str]] = frozenset({
+    # HOLD — failed the expectancy-CI or A∧B∧holdout bar
+    ("bb", "CHF_JPY", "long"),
+    ("cci", "CHF_JPY", "long"),
+    ("cci", "EUR_USD", "short"),
+    ("cci", "USD_CAD", "long"),
+    ("rsi", "CHF_JPY", "long"),
+    ("rsi", "EUR_GBP", "long"),
+    ("sma", "EUR_GBP", "long"),
+    ("stoch", "EUR_GBP", "long"),
+    # DRIFT — worse than its own matched-random baseline (edge-vs-random < 0)
+    ("stoch", "CHF_JPY", "long"),
+    # THIN — passed the bar but edge-vs-random ≤ ~0.03R; held by choice 2026-06-25
+    ("bb", "CAD_CHF", "short"),
+    ("cci", "CAD_CHF", "short"),
+    ("stoch", "CAD_CHF", "short"),
+    ("stoch", "USD_JPY", "long"),
+})
 
 LOG = logging.getLogger("bh_ftmo.trader")
 
@@ -114,7 +129,7 @@ class SignalSource(Protocol):
 
 
 def deploy_predicate(cell: Cell) -> bool:
-    if cell.strategy in QUARANTINED_STRATEGIES:
+    if (cell.strategy, cell.pair, cell.direction) in QUARANTINED_CELLS:
         return False
     return cell.strategy in DEPLOYED_STRATEGIES
 
@@ -206,10 +221,10 @@ class V2CellSource:
     def __init__(self, cells: list[Cell] | None = None) -> None:
         self._cells = [c for c in ranked_cells(cells) if deploy_predicate(c)]
         LOG.info(
-            "V2CellSource: %d live cells (live strategies: %s | quarantined: %s)",
+            "V2CellSource: %d live cells (%d cells quarantined; strategies touched: %s)",
             len(self._cells),
-            sorted(DEPLOYED_STRATEGIES - QUARANTINED_STRATEGIES),
-            sorted(QUARANTINED_STRATEGIES),
+            len(QUARANTINED_CELLS),
+            sorted({s for s, _, _ in QUARANTINED_CELLS}),
         )
 
     @property

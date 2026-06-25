@@ -104,22 +104,37 @@ HIGH_NY_SKIP_ENABLED = False
 # Which cells are in the V2 autonomous deployment universe.
 # Keep this conservative — only cells with FTMO-sim conservative-model
 # survival evidence go here. This set records what has *backtest* survival
-# evidence; live pauses are layered separately via QUARANTINED_STRATEGIES.
+# evidence; live pauses are layered separately via QUARANTINED_CELLS.
 DEPLOYED_STRATEGIES = frozenset({"macd", "atr", "ichimoku", "stoch", "bb", "cci",
                                   "ema", "sma", "rsi"})
 
-# Quarantined 2026-06-17 on live OANDA evidence (src/logs/bh_ftmo_outcomes.csv):
-# all v2 drawdown was concentrated in the mid-entry sleeve — mid n=5 −0.32R/trade
-# vs limit n=5 ≈flat, with stoch the worst single contributor (−2.38R over 3).
-# Every quarantined strategy is mid-entry; this pauses all mid-entry cells and
-# leaves the limit sleeve (macd/atr/ichimoku, 9 cells) trading while more closed
-# trades accumulate. These cells still evaluate in the human briefing (CELLS is
-# untouched) — only the autonomous trader skips them. Reversible: empty this set.
-QUARANTINED_STRATEGIES = frozenset({"stoch", "bb", "sma", "ema", "rsi", "cci"})
+# Per-cell quarantine — re-adjudicated 2026-06-25 by research/cell_revalidation_v1
+# (10yr H4 replay, spread-costed, profitable A ∧ B ∧ holdout, expectancy-CI gated, above
+# matched-random drift). Supersedes the 2026-06-17 class-level pause: 11 validated mid
+# cells are restored; these 13 stay benched. Keyed (strategy, pair, direction). Empty to
+# fully un-quarantine. Evidence: research/cell_revalidation_v1/scorecard.csv.
+QUARANTINED_CELLS: frozenset[tuple[str, str, str]] = frozenset({
+    # HOLD — failed the expectancy-CI or A∧B∧holdout bar
+    ("bb", "CHF_JPY", "long"),
+    ("cci", "CHF_JPY", "long"),
+    ("cci", "EUR_USD", "short"),
+    ("cci", "USD_CAD", "long"),
+    ("rsi", "CHF_JPY", "long"),
+    ("rsi", "EUR_GBP", "long"),
+    ("sma", "EUR_GBP", "long"),
+    ("stoch", "EUR_GBP", "long"),
+    # DRIFT — worse than its own matched-random baseline (edge-vs-random < 0)
+    ("stoch", "CHF_JPY", "long"),
+    # THIN — passed the bar but edge-vs-random ≤ ~0.03R; held by choice 2026-06-25
+    ("bb", "CAD_CHF", "short"),
+    ("cci", "CAD_CHF", "short"),
+    ("stoch", "CAD_CHF", "short"),
+    ("stoch", "USD_JPY", "long"),
+})
 
 
 def DEPLOY_PREDICATE(cell: Cell) -> bool:  # noqa: N802 (intentionally caps as a constant-fn)
-    if cell.strategy in QUARANTINED_STRATEGIES:
+    if (cell.strategy, cell.pair, cell.direction) in QUARANTINED_CELLS:
         return False
     return cell.strategy in DEPLOYED_STRATEGIES
 
@@ -313,10 +328,10 @@ def run(*, dry_run: bool) -> int:
 
     deploy_cells = [c for c in ranked_cells() if DEPLOY_PREDICATE(c)]
     deploy_pairs = {c.pair for c in deploy_cells}
-    effective = sorted(DEPLOYED_STRATEGIES - QUARANTINED_STRATEGIES)
-    LOG.info("V2 autonomous: %d deployable cells across %d pairs (live: %s | quarantined: %s)",
-             len(deploy_cells), len(deploy_pairs), effective,
-             sorted(QUARANTINED_STRATEGIES))
+    LOG.info("V2 autonomous: %d deployable cells across %d pairs "
+             "(%d cells quarantined; strategies touched: %s)",
+             len(deploy_cells), len(deploy_pairs), len(QUARANTINED_CELLS),
+             sorted({s for s, _, _ in QUARANTINED_CELLS}))
     if not deploy_cells:
         LOG.warning("no cells match DEPLOY_PREDICATE — nothing to do")
         _append_journal_row({"ts_utc": datetime.now(UTC).isoformat(),
