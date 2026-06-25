@@ -1,0 +1,8 @@
+# Regenerable research artifacts — commit scripts + STUDY_README, not bulk outputs.
+__pycache__/
+*.pyc
+# Large run outputs (keep small summary CSVs by force-adding: git add -f)
+*.out
+*.log
+*_cache*.json
+*_full.parquet
