@@ -1,9 +1,0 @@
-ATR-regime P1b run complete
-pairs=17 regime_trades=151,708
-MAX_HOLD=84 corrected_L=22 mean_L=31 lags=[22, 31, 83]
-TP=0.0100 STOP=0.0100
-count_sanity_pass=True
-strong4_long_full_uplift=+0.062384
-strong4_long_full_uplift_nw_ci_low=+0.021520
-strong4_long_both_halves_direction=True
-strong4_long_pair_majority=True

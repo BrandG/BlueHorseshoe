@@ -1,6 +1,0 @@
-ATR-regime P1 run complete
-pairs=17 regime_trades=151,708 curves=1,944
-MAX_HOLD=84 NW_L=83 TP=0.0100 STOP=0.0100
-count_sanity_pass=True
-cross_cell_both_halves_gate=0/12
-survivors=NONE
