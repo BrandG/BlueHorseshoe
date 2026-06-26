@@ -195,6 +195,14 @@ CELLS: list[Cell] = [
     Cell("ichimoku", "USD_SGD", "short", "limit",
          {"tenkan": 9, "kijun": 26, "senkou_b": 52, "displacement": 26,
           "trigger": "tk_cross"}),
+    # Short-side discovery 2026-06-26 (research/short_discovery_README.md): ichimoku bearish
+    # tk-cross, cross-confirmed. GBP_CAD hedges the existing ema:GBP_CAD long. Default params.
+    Cell("ichimoku", "GBP_CAD", "short", "limit",
+         {"tenkan": 9, "kijun": 26, "senkou_b": 52, "displacement": 26,
+          "trigger": "tk_cross"}),
+    Cell("ichimoku", "CAD_CHF", "short", "limit",
+         {"tenkan": 9, "kijun": 26, "senkou_b": 52, "displacement": 26,
+          "trigger": "tk_cross"}),
     # Candlestick v2 — 1 pair, mid entry, 1.0%/1.0% RR
     Cell("candle", "USD_JPY", "long", "mid",
          {"pattern": "bull_engulf", "strict": False}),
@@ -229,6 +237,8 @@ CELL_QUALITY_RANK: dict[tuple[str, str, str], float] = {
     ("sma",      "EUR_CAD", "long"):  0.1596,
     ("bb",       "AUD_CAD", "short"): 0.1250,
     ("atr",      "NZD_CHF", "short"): 0.1226,
+    ("ichimoku", "CAD_CHF", "short"): 0.116,
+    ("ichimoku", "GBP_CAD", "short"): 0.115,
     ("stoch",    "EUR_GBP", "long"):  0.1049,
     ("stoch",    "CHF_JPY", "long"):  0.1000,
     ("cci",      "USD_CAD", "long"):  0.0976,
