@@ -531,6 +531,14 @@ LONG_MR_TP_PCT = 0.015
 LONG_MR_SL_PCT = 0.010
 LONG_MR_MAX_HOLD_DAYS = 10
 
+# Exit-geometry v2 (research/exit_geometry_v2): tightening the stop 1.0% -> 0.75% improves
+# holdout expectancy for bb and macd in BOTH directions (beats random-same-geometry, throughput
+# intact). Scoped to bb/macd ONLY -- atr/sma/ichimoku breakout entries need room and do WORSE
+# with a tighter stop. TP and hold are unchanged; sizing is stop-distance based (auto_trader.
+# compute_units), so dollar-risk per trade is unchanged. Evidence: research/exit_geometry_v2/sweep.csv.
+TIGHT_STOP_STRATEGIES = frozenset({"bb", "macd"})
+TIGHT_STOP_PCT = 0.0075
+
 
 def uses_long_mr_exit(strategy: str, direction: str, entry_mode: str) -> bool:
     """True for the long mean-reversion mid cells whose exits the exit-geometry sweep validated."""
@@ -555,11 +563,14 @@ def compute_entry_stop_target(cell: Cell, mid_df: pd.DataFrame) -> tuple[float, 
 
     Validated long-MR cells (:func:`cell_uses_long_mr_exit`) use the research-backed
     TP 1.5% / SL 1.0% geometry; every other cell uses the global 1%/1% v2 convention.
+    bb/macd cells use a 0.75% stop per exit_geometry_v2, with TP unchanged.
     """
     if cell_uses_long_mr_exit(cell):
         tp, sl = LONG_MR_TP_PCT, LONG_MR_SL_PCT
     else:
         tp, sl = TP_PCT, STOP_PCT
+    if cell.strategy in TIGHT_STOP_STRATEGIES:
+        sl = TIGHT_STOP_PCT
     if cell.entry_mode == "mid":
         entry = float(mid_df["close"].iloc[-1])
     else:  # limit
