@@ -22,6 +22,7 @@ import logging
 import os
 import smtplib
 import sys
+import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from email.mime.text import MIMEText
@@ -836,8 +837,10 @@ def _send_html_email(subject: str, html_body: str) -> bool:
         LOG.warning("SMTP not fully configured; skipping email")
         return False
 
+    # Append a unique token so Gmail (which threads on identical normalized
+    # subjects) treats each report as its own conversation, not a reply.
     msg = MIMEText(html_body, "html", "utf-8")
-    msg["Subject"] = subject
+    msg["Subject"] = f"{subject} [#{uuid.uuid4().hex[:8]}]"
     msg["From"] = sender
     msg["To"] = recipient
 
