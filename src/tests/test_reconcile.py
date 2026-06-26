@@ -1,10 +1,11 @@
 """Tests for the BH FTMO closed-trade outcome reconciler."""
 # pylint: disable=missing-function-docstring,redefined-outer-name
-# pylint: disable=missing-class-docstring,too-few-public-methods
+# pylint: disable=missing-class-docstring,too-few-public-methods,protected-access
 
 from __future__ import annotations
 
 import csv
+from decimal import Decimal
 from pathlib import Path
 
 import pytest
@@ -208,3 +209,31 @@ def test_shared_tag_joins_each_trade_to_its_own_pair(outcome_paths):
     assert by_pair["EUR_USD"]["close_reason"] == "target"
     assert by_pair["USD_JPY"]["risk_dollars"] == "80.00"
     assert by_pair["USD_JPY"]["close_reason"] == "target"
+
+
+@pytest.mark.parametrize(
+    ("pair", "entry", "stop", "target", "close", "expected"),
+    [
+        # cheap pair (~0.46): old fixed 0.0005 band = 0.11% of price (too loose)
+        ("NZD_CHF", "0.46768", "0.47236", "0.46534", "0.46534", "target"),
+        ("NZD_CHF", "0.46768", "0.47236", "0.46534", "0.47236", "stop"),
+        # high-priced non-JPY (~11) with a WIDE 2% target: old 0.0005 band is
+        # 0.004% of price, so a clean target hit would be MISSED -> aged. The
+        # relative tolerance catches it. (This is the latent bug the fix closes.)
+        ("EUR_NOK", "11.0000", "10.8900", "11.2200", "11.2190", "target"),
+        # high-priced JPY (~200): handled without the old per-suffix special case
+        ("CHF_JPY", "200.000", "198.000", "201.000", "200.990", "target"),
+        # stranded mid-bracket -> neither leg reached
+        ("NZD_CHF", "0.46768", "0.47236", "0.46534", "0.46900", "aged_or_manual"),
+        # entry missing -> bracket-span fallback still classifies a clean hit
+        ("EUR_NOK", "", "10.8900", "11.2200", "11.2200", "target"),
+    ],
+)
+def test_infer_close_reason_is_scale_relative(pair, entry, stop, target, close, expected):
+    placement = {
+        "pair": pair,
+        "entry_price": entry,
+        "stop_price": stop,
+        "target_price": target,
+    }
+    assert reconcile._infer_close_reason(Decimal(close), placement) == expected

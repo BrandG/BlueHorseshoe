@@ -108,6 +108,15 @@ def _load_placements() -> dict[tuple[str, str], dict[str, str]]:
     return placements
 
 
+# A close within this fraction of a bracket leg's distance from entry counts as
+# having reached that leg. Relative (not a fixed price band) so it scales with both
+# the instrument's price level and the cell's geometry: a 0.5%, 1%, or 2% target on
+# a ~0.46-priced pair (NZD_CHF), an ~11-priced one (EUR_NOK), or a ~200-priced JPY
+# pair all classify identically. Replaces a fixed 0.0005 band (0.0001%–0.11% of
+# price across our pairs) with a per-suffix _JPY special case.
+CLOSE_REASON_REACH_FRACTION = Decimal("0.10")
+
+
 def _infer_close_reason(close_price: Decimal | None, placement: dict[str, str] | None) -> str:
     if close_price is None or placement is None:
         return "unknown"
@@ -116,15 +125,19 @@ def _infer_close_reason(close_price: Decimal | None, placement: dict[str, str] |
     if target is None or stop is None:
         return "unknown"
 
-    tolerance = Decimal("0.0005")
-    if "_" in placement.get("pair", "") and placement["pair"].endswith("_JPY"):
-        tolerance = Decimal("0.05")
+    entry = _decimal(placement.get("entry_price"))
+    if entry is not None:
+        target_tol = CLOSE_REASON_REACH_FRACTION * abs(target - entry)
+        stop_tol = CLOSE_REASON_REACH_FRACTION * abs(stop - entry)
+    else:  # no entry recorded — fall back to a fraction of the full bracket span
+        span = abs(target - stop)
+        target_tol = stop_tol = CLOSE_REASON_REACH_FRACTION * span
 
     target_distance = abs(close_price - target)
     stop_distance = abs(close_price - stop)
-    if target_distance <= tolerance and target_distance <= stop_distance:
+    if target_distance <= target_tol and target_distance <= stop_distance:
         return "target"
-    if stop_distance <= tolerance and stop_distance < target_distance:
+    if stop_distance <= stop_tol and stop_distance < target_distance:
         return "stop"
     return "aged_or_manual"
 
