@@ -549,6 +549,13 @@ LONG_MR_MAX_HOLD_DAYS = 10
 TIGHT_STOP_STRATEGIES = frozenset({"bb", "macd"})
 TIGHT_STOP_PCT = 0.0075
 
+# exit_geometry_v2: atr:long:limit wants a wider target + tighter stop (2%/0.5%/14d).
+# Validated OOS — holdout meanR 0.053->0.083, positive A∧B∧holdout, beats
+# random-same-geometry (edgeΔ +0.066), throughput up (r/day 0.013->0.026).
+# Scoped to atr LONG only; atr:short was a drift-rider (KEEP at baseline 1%/1%).
+ATR_LONG_TP_PCT = 0.020
+ATR_LONG_SL_PCT = 0.005
+
 
 def uses_long_mr_exit(strategy: str, direction: str, entry_mode: str) -> bool:
     """True for the long mean-reversion mid cells whose exits the exit-geometry sweep validated."""
@@ -574,6 +581,7 @@ def compute_entry_stop_target(cell: Cell, mid_df: pd.DataFrame) -> tuple[float, 
     Validated long-MR cells (:func:`cell_uses_long_mr_exit`) use the research-backed
     TP 1.5% / SL 1.0% geometry; every other cell uses the global 1%/1% v2 convention.
     bb/macd cells use a 0.75% stop per exit_geometry_v2, with TP unchanged.
+    atr LONG cells use a 2% TP / 0.5% SL per exit_geometry_v2 (atr short stays baseline).
     """
     if cell_uses_long_mr_exit(cell):
         tp, sl = LONG_MR_TP_PCT, LONG_MR_SL_PCT
@@ -581,6 +589,8 @@ def compute_entry_stop_target(cell: Cell, mid_df: pd.DataFrame) -> tuple[float, 
         tp, sl = TP_PCT, STOP_PCT
     if cell.strategy in TIGHT_STOP_STRATEGIES:
         sl = TIGHT_STOP_PCT
+    if cell.strategy == "atr" and cell.direction == "long":
+        tp, sl = ATR_LONG_TP_PCT, ATR_LONG_SL_PCT
     if cell.entry_mode == "mid":
         entry = float(mid_df["close"].iloc[-1])
     else:  # limit
