@@ -117,11 +117,11 @@ def historicals(symbol: str):
 @app.get("/run_historical_batch")
 def run_hist_batch(limit: int = 50, recent_only: bool = False):
     """Runs a historical batch load."""
-    return run_historical_batch(limit=limit, recent_only=recent_only)
+    return run_historical_batch(_container.get_database(), limit=limit, recent_only=recent_only)
 
 @app.post("/reset_historical_batch")
 @app.get("/reset_historical_batch")
 def reset_hist_batch():
     """Resets the historical batch checkpoint."""
-    clear_checkpoint()
+    clear_checkpoint(_container.get_database())
     return {"status": "ok", "message": "checkpoint cleared"}

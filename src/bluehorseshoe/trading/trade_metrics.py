@@ -2,7 +2,7 @@
 Trade metrics calculator — P/L, R-multiple, win rate, expectancy, discipline.
 """
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields
 from datetime import datetime
 from typing import Dict, List, Optional
 
@@ -74,7 +74,7 @@ class TradeMetricsCalculator:
         base = self._compute_metrics(positions)
         return StrategyMetrics(
             strategy=strategy,
-            **{k: getattr(base, k) for k in PortfolioMetrics.__dataclass_fields__},
+            **{f.name: getattr(base, f.name) for f in fields(PortfolioMetrics)},
         )
 
     def calculate_discipline_metrics(

@@ -1,5 +1,8 @@
 graphs/
 *.pyc
+*.swp
+*.swo
+research/**/.cache/
 secrets.sh
 blueHorseshoe.log
 .devcontainer/devcontainer.json

@@ -476,7 +476,7 @@ class LOOAnalyzer:
                 try:
                     loo_results = self._backtest_variant(candidates, target_date, key, split_config)
                 except Exception:
-                    logger.warning("Error in LOO variant %s: %s", key, exc_info=True)
+                    logger.warning("Error in LOO variant %s", key, exc_info=True)
                     continue
                 self._accumulate_stats(indicator_stats, key, loo_results)
                 if completed_variants % 10 == 0 or completed_variants == len(sorted_keys):

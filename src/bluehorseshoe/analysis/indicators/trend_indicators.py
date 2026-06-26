@@ -643,7 +643,7 @@ class TrendIndicator(Indicator):
                 multiplier = self.weights[weight_key]
                 if multiplier == 0.0:
                     continue  # Skip calculation if multiplier is zero
-                score = func() * multiplier
+                score = func() * multiplier  # pylint: disable=not-callable  # func is a bound method from sub_map
                 if aggregation == "product":
                     buy_score *= score
                 else:

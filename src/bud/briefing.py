@@ -435,14 +435,14 @@ def _atr_fired(mid_df: pd.DataFrame, params: dict, direction: str) -> bool:
     if trigger == "close_breakout":
         atr_arr = atr(mid_df, period=params["atr_period"]).to_numpy(dtype=float)
 
-        def cond_at(idx: int) -> bool:
+        def cond_breakout(idx: int) -> bool:
             if idx < 1 or np.isnan(close[idx - 1]) or np.isnan(atr_arr[idx - 1]):
                 return False
             if direction == "long":
                 return bool(close[idx] > close[idx - 1] + k * atr_arr[idx - 1])
             return bool(close[idx] < close[idx - 1] - k * atr_arr[idx - 1])
 
-        return cond_at(last) and not cond_at(last - 1)
+        return cond_breakout(last) and not cond_breakout(last - 1)
 
     # range_expansion: bar's range > k * prior mean(range, lookback) AND close
     # is in trigger direction relative to open
@@ -450,14 +450,14 @@ def _atr_fired(mid_df: pd.DataFrame, params: dict, direction: str) -> bool:
     rng = high - low
     mean_rng = pd.Series(rng).rolling(lookback, min_periods=lookback).mean().to_numpy()
 
-    def cond_at(idx: int) -> bool:
+    def cond_range(idx: int) -> bool:
         if idx < 1 or np.isnan(mean_rng[idx - 1]):
             return False
         big_bar = rng[idx] > k * mean_rng[idx - 1]
         directional = (close[idx] > open_arr[idx]) if direction == "long" else (close[idx] < open_arr[idx])
         return bool(big_bar and directional)
 
-    return cond_at(last) and not cond_at(last - 1)
+    return cond_range(last) and not cond_range(last - 1)
 
 
 def _ichimoku_fired(mid_df: pd.DataFrame, params: dict, direction: str) -> bool:

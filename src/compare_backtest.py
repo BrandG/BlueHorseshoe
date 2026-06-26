@@ -188,7 +188,7 @@ def main():
     # Use the symbols from the NASDAQ list
     # Get symbols directly from MongoDB
     all_symbols = sorted(
-        r[0] for r in _store.con.execute("SELECT DISTINCT symbol FROM ohlcv").fetchall()
+        r[0] for r in _store._con.execute("SELECT DISTINCT symbol FROM ohlcv").fetchall()
     )
     print(f"Total symbols: {len(all_symbols)}")
 

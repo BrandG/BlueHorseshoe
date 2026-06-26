@@ -167,7 +167,7 @@ class TestABCEnforcement:
 
     def test_cannot_instantiate_abc(self):
         with pytest.raises(TypeError):
-            TradingStrategy()  # type: ignore[abstract]
+            TradingStrategy()  # type: ignore[abstract]  # pylint: disable=abstract-class-instantiated
 
     def test_isinstance_check(self, baseline, mean_reversion):
         assert isinstance(baseline, TradingStrategy)
