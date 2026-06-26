@@ -16,8 +16,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 # Run specific test
 ./run.sh pytest src/tests/test_name.py::test_function
 
-# Lint code
-./run.sh ./lint.sh
+# Lint code (local change — fast; lints only files changed vs master)
+./run.sh ./lint.sh --changed
+# Lint a section or file (fast):  ./run.sh ./lint.sh bud   |   ./run.sh ./lint.sh src/bud/briefing.py
+# Full tree -> linting.txt (slow, for full sweeps):  ./run.sh ./lint.sh   (./lint.sh --list shows sections)
 
 # Or activate the venv manually:
 source .venv/bin/activate && PYTHONPATH=src python src/main.py [args]
@@ -236,7 +238,7 @@ Test fixtures in `test_*.py` files include:
 
 1. Make code changes (code is at `/root/BlueHorseshoe`)
 2. Test: `./run.sh pytest src/tests/test_file.py`
-3. Lint: `./run.sh ./lint.sh`
+3. Lint (fast, local change): `./run.sh ./lint.sh --changed` (full tree: bare `./run.sh ./lint.sh`)
 4. Run prediction: `./run.sh python src/main.py -p`
 5. Check logs: `src/logs/blueHorseshoe.log`, `src/logs/report.txt`, `src/logs/backtest_log.csv`
 6. View reports: `src/logs/report_YYYY-MM-DD.html` (also `_email.html` and `_arcade.html`)
