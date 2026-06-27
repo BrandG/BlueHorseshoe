@@ -366,20 +366,29 @@ def render_console(annotated: list[dict], suppressed: list[dict],
         else:
             lines.append("  (P&L marked to live OANDA bid/ask)")
     lines.append("")
-    if not annotated:
-        lines.append("No tradeable fires on this bar (after position + cluster filters).")
+    # One ranked list: every fire that triggered this bar, sorted by cell weight.
+    # The top-weight signals that survive the position + cluster + slot filters
+    # are marked ENTERING; the rest carry the reason they're out. This replaces
+    # the old split (Orders / Suppressed) so the slot cap no longer hides
+    # lower-ranked suggestions — it just stops them taking a slot.
+    ranked = ([{**f, "_status": "✓ ENTERING"} for f in annotated]
+              + [{**f, "_status": f["skip_reason"]} for f in suppressed])
+    ranked.sort(key=lambda f: f.get("quality_rank", 0.0), reverse=True)
+    if not ranked:
+        lines.append("No signals fired on this bar.")
     else:
-        lines.append("== ORDERS TO PLACE ==")
-        lines.append(f"  {'#':>2}  {'FTMO Symbol':<14}  {'SIDE':<6}  "
-                     f"{'Cluster':<16}  {'Cell':<18}  {'Trend':<16}  "
+        n_enter = len(annotated)
+        lines.append(f"== SIGNALS — RANKED BY WEIGHT  "
+                     f"({n_enter} entering / {len(ranked)} fired) ==")
+        lines.append(f"  {'#':>2}  {'FTMO Symbol':<14}  {'SIDE':<5}  {'STATUS':<22}  "
+                     f"{'Cell':<18}  {'Trend':<14}  "
                      f"{'Entry':>10}  {'Stop':>10}  {'Target':>10}  "
-                     f"{'SL pips':>8}  {'TP pips':>8}  "
+                     f"{'SL pips':>7}  {'TP pips':>7}  "
                      f"{'Lots':>6}  {'Risk $':>8}  {'Rank':>7}")
-        for i, f in enumerate(annotated, 1):
+        for i, f in enumerate(ranked, 1):
             side = "BUY" if f["direction"] == "long" else "SELL"
-            cell_desc = f"{f['strategy']}/{f['entry_mode']} · {f.get('session', '?')}"
+            cell_desc = f"{f['strategy']}/{f.get('entry_mode', '?')} · {f.get('session', '?')}"
             trend = f.get("d1_align", "flat") + (" ⚠" if f.get("ct_warn") else "")
-            cluster = (f.get("clusters") or [""])[0] or "—"
             precision = f["precision"]
             ent = f"{f['entry']:.{precision}f}"
             stp = f"{f['stop']:.{precision}f}"
@@ -387,53 +396,30 @@ def render_console(annotated: list[dict], suppressed: list[dict],
             pip_size = float(f["instrument"]["pip_size"])
             sl_pips = abs(f["entry"] - f["stop"]) / pip_size
             tp_pips = abs(f["target"] - f["entry"]) / pip_size
-
-            # Sanity check: geometry must match declared side.
-            warn = ""
-            if side == "BUY":
-                if not (f["target"] > f["entry"] > f["stop"]):
-                    warn = "  !! GEOMETRY MISMATCH — review before placing"
-            else:  # SELL
-                if not (f["target"] < f["entry"] < f["stop"]):
-                    warn = "  !! GEOMETRY MISMATCH — review before placing"
-
-            lines.append(f"  {i:>2}  {f['ftmo_symbol']:<14}  {side:<6}  "
-                         f"{cluster:<16}  {cell_desc:<18}  {trend:<16}  "
+            status = f["_status"]
+            # Geometry sanity (entering rows only — these are the ones you place).
+            if status == "✓ ENTERING":
+                ok = (f["target"] > f["entry"] > f["stop"]) if side == "BUY" \
+                    else (f["target"] < f["entry"] < f["stop"])
+                if not ok:
+                    status = "!! GEOMETRY MISMATCH"
+            lines.append(f"  {i:>2}  {f.get('ftmo_symbol', f['pair']):<14}  {side:<5}  "
+                         f"{status:<22}  {cell_desc:<18}  {trend:<14}  "
                          f"{ent:>10}  {stp:>10}  {tgt:>10}  "
-                         f"{sl_pips:>8.1f}  {tp_pips:>8.1f}  "
-                         f"{f['lots']:>6.2f}  ${f['actual_risk']:>6.2f}  "
-                         f"{f['quality_rank']:>+6.3f}{warn}")
+                         f"{sl_pips:>7.1f}  {tp_pips:>7.1f}  "
+                         f"{f.get('lots', 0):>6.2f}  ${f.get('actual_risk', 0):>6.2f}  "
+                         f"{f.get('quality_rank', 0.0):>+6.3f}")
         lines.append("")
-        lines.append("  SIDE column: BUY = long (target > entry > stop),  "
+        lines.append("  STATUS: ✓ ENTERING = takes a slot this run; others show why "
+                     "they don't (slot cap / cluster held / already open). All are "
+                     "sized for reference; only ENTERING rows are auto-placed.")
+        lines.append("  SIDE: BUY = long (target > entry > stop),  "
                      "SELL = short (target < entry < stop)")
         lines.append(f"  Stop/target are FIXED % offsets from entry "
                      f"(stop {STOP_PCT*100:.1f}% / target {TP_PCT*100:.1f}%). "
-                     f"If you fill late at a different price, re-anchor: apply the "
-                     f"same %s to your actual fill (SL/TP pips barely change).")
-        lines.append("  'limit' cells: place the limit; it's good for the next "
-                     "4h bar. 'mid' cells: enter at market, then set stop/target "
-                     "off your fill. Don't chase a 'mid' that's already near target.")
-    if suppressed:
-        lines.append("")
-        lines.append("== SUPPRESSED (sized for reference — NOT auto-placed) ==")
-        lines.append(f"  {'FTMO Symbol':<14}  {'SIDE':<5}  {'Cell':<18}  "
-                     f"{'Entry':>10}  {'Stop':>10}  {'Target':>10}  "
-                     f"{'SL pips':>8}  {'TP pips':>8}  {'Lots':>6}  {'Risk $':>8}  Why")
-        for f in suppressed:
-            side = "BUY" if f["direction"] == "long" else "SELL"
-            cell_desc = f"{f['strategy']}/{f.get('entry_mode', '?')} · {f.get('session', '?')}"
-            precision = f["precision"]
-            pip_size = float(f["instrument"]["pip_size"])
-            ent = f"{f['entry']:.{precision}f}"
-            stp = f"{f['stop']:.{precision}f}"
-            tgt = f"{f['target']:.{precision}f}"
-            sl_pips = abs(f["entry"] - f["stop"]) / pip_size
-            tp_pips = abs(f["target"] - f["entry"]) / pip_size
-            lines.append(f"  {f.get('ftmo_symbol', f['pair']):<14}  {side:<5}  "
-                         f"{cell_desc:<18}  {ent:>10}  {stp:>10}  {tgt:>10}  "
-                         f"{sl_pips:>8.1f}  {tp_pips:>8.1f}  "
-                         f"{f.get('lots', 0):>6.2f}  ${f.get('actual_risk', 0):>6.2f}  "
-                         f"{f['skip_reason']}")
+                     f"If you fill late, re-anchor the same %s to your actual fill.")
+        lines.append("  'limit' cells: good for the next 4h bar. 'mid' cells: "
+                     "enter at market, set stop/target off your fill.")
     return "\n".join(lines)
 
 
@@ -627,18 +613,28 @@ def render_html(annotated: list[dict], suppressed: list[dict],
             mark_color = '#8c959f'
         p.append(f'<p style="font-size:12px; color:{mark_color}; margin:4px 0 0;">{mark_note}</p>')
 
-    p.append('<h2 style="font-size:15px; margin:16px 0 6px;">Orders to place</h2>')
-    if not annotated:
-        p.append('<p style="color:#57606a; font-size:13px;">No tradeable fires on this bar '
-                 '(after position + cluster filters).</p>')
+    # One ranked list (mirrors render_console): every fire that triggered this
+    # bar, sorted by cell weight, with a Status column. The signals that survive
+    # the position + cluster + slot filters are ENTERING; the rest carry the
+    # reason they're out. The slot cap no longer hides lower-ranked suggestions —
+    # it just stops them taking a slot.
+    ranked = ([{**f, "_entering": True} for f in annotated]
+              + [{**f, "_entering": False} for f in suppressed])
+    ranked.sort(key=lambda f: f.get("quality_rank", 0.0), reverse=True)
+    n_enter = len(annotated)
+    p.append(f'<h2 style="font-size:15px; margin:16px 0 6px;">Signals — ranked by weight '
+             f'<span style="font-size:12px; font-weight:400; color:#8c959f;">'
+             f'({n_enter} entering / {len(ranked)} fired)</span></h2>')
+    if not ranked:
+        p.append('<p style="color:#57606a; font-size:13px;">No signals fired on this bar.</p>')
     else:
-        left_h = ["#", "Symbol", "SIDE", "Cell", "Trend"]
-        right_h = ["Entry", "Stop", "Target", "SL pips", "TP pips", "Lots", "Risk $"]
+        left_h = ["#", "Symbol", "SIDE", "Status", "Cell", "Trend"]
+        right_h = ["Entry", "Stop", "Target", "SL pips", "TP pips", "Lots", "Risk $", "Rank"]
         header = ("".join(f'<th style="{th}">{c}</th>' for c in left_h)
                   + "".join(f'<th style="{thr}">{c}</th>' for c in right_h))
         p.append(f'<table style="border-collapse:collapse; width:100%; font-size:13px;"><tr>'
                  f'{header}</tr>')
-        for i, f in enumerate(annotated, 1):
+        for i, f in enumerate(ranked, 1):
             bg = f' background:{zebra};' if (i - 1) % 2 else ''
             side = "BUY" if f["direction"] == "long" else "SELL"
             side_color = "#1a7f37" if side == "BUY" else "#cf222e"
@@ -654,60 +650,36 @@ def render_html(annotated: list[dict], suppressed: list[dict],
                            "counter-trend": "#9a6700"}.get(align, "#8c959f")
             trend_txt = align + (" ⚠" if f.get("ct_warn") else "")
             sess = f.get("session", "?")
+            if f["_entering"]:
+                ok = (f["target"] > f["entry"] > f["stop"]) if side == "BUY" \
+                    else (f["target"] < f["entry"] < f["stop"])
+                status_html = _badge("ENTERING", "#1a7f37") if ok \
+                    else _badge("GEOMETRY?", "#cf222e")
+            else:
+                status_html = (f'<span style="color:#8c959f;">'
+                               f'{esc(f["skip_reason"])}</span>')
             left = [
-                str(i), esc(f["ftmo_symbol"]),
+                str(i), esc(f.get("ftmo_symbol", oanda_to_ftmo(f["pair"]))),
                 f'<b style="color:{side_color};">{side}</b>',
-                esc(f'{f["strategy"]}/{f["entry_mode"]} · {sess}'),
+                status_html,
+                esc(f'{f["strategy"]}/{f.get("entry_mode", "?")} · {sess}'),
                 f'<span style="color:{align_color}; font-weight:600;">{esc(trend_txt)}</span>',
             ]
             right = [
                 f'{f["entry"]:.{prec}f}', f'{f["stop"]:.{prec}f}', f'{f["target"]:.{prec}f}',
-                f'{sl_pips:.1f}', f'{tp_pips:.1f}', f'{f["lots"]:.2f}', f'${f["actual_risk"]:.2f}',
+                f'{sl_pips:.1f}', f'{tp_pips:.1f}', f'{f.get("lots", 0):.2f}',
+                f'${f.get("actual_risk", 0):.2f}', f'{f.get("quality_rank", 0.0):+.3f}',
             ]
             row = ("".join(f'<td style="{td}">{c}</td>' for c in left)
                    + "".join(f'<td style="{tdr}">{c}</td>' for c in right))
             p.append(f'<tr style="{bg}">{row}</tr>')
         p.append('</table>')
         p.append(f'<p style="color:#8c959f; font-size:12px; margin-top:6px;">'
-                 f'Stop/target are fixed % offsets (stop {STOP_PCT*100:.1f}% / target {TP_PCT*100:.1f}%); '
-                 f'if you fill late, re-anchor to your actual fill (pip distances barely change). '
-                 f"'limit' cells are good for the next 4h bar.</p>")
-
-    if suppressed:
-        p.append('<h2 style="font-size:15px; margin:16px 0 6px;">Suppressed '
-                 '<span style="font-size:12px; font-weight:400; color:#8c959f;">'
-                 '(sized for reference — NOT auto-placed)</span></h2>')
-        sup_left_h = ["Symbol", "SIDE", "Cell"]
-        sup_right_h = ["Entry", "Stop", "Target", "SL pips", "TP pips", "Lots", "Risk $", "Why"]
-        sup_header = ("".join(f'<th style="{th}">{c}</th>' for c in sup_left_h)
-                      + "".join(f'<th style="{thr}">{c}</th>' for c in sup_right_h))
-        p.append(f'<table style="border-collapse:collapse; width:100%; font-size:12px; '
-                 f'color:#57606a;"><tr>{sup_header}</tr>')
-        for i, f in enumerate(suppressed):
-            bg = f' background:{zebra};' if i % 2 else ''
-            sym = esc(f.get("ftmo_symbol", oanda_to_ftmo(f["pair"])))
-            side = "BUY" if f["direction"] == "long" else "SELL"
-            side_color = "#1a7f37" if side == "BUY" else "#cf222e"
-            prec = f["precision"]
-            pip = float(f["instrument"]["pip_size"])
-            sl_pips = abs(f["entry"] - f["stop"]) / pip
-            tp_pips = abs(f["target"] - f["entry"]) / pip
-            sess = f.get("session", "?")
-            left = [
-                sym,
-                f'<b style="color:{side_color};">{side}</b>',
-                esc(f'{f["strategy"]}/{f.get("entry_mode", "?")} · {sess}'),
-            ]
-            right = [
-                f'{f["entry"]:.{prec}f}', f'{f["stop"]:.{prec}f}', f'{f["target"]:.{prec}f}',
-                f'{sl_pips:.1f}', f'{tp_pips:.1f}',
-                f'{f.get("lots", 0):.2f}', f'${f.get("actual_risk", 0):.2f}',
-                esc(f["skip_reason"]),
-            ]
-            row = ("".join(f'<td style="{td}">{c}</td>' for c in left)
-                   + "".join(f'<td style="{tdr}">{c}</td>' for c in right))
-            p.append(f'<tr style="{bg}">{row}</tr>')
-        p.append('</table>')
+                 f'<b style="color:#1a7f37;">ENTERING</b> = takes a slot this run; the rest '
+                 f"show why they don't (slot cap / cluster held / already open) — all sized "
+                 f"for reference, only ENTERING is auto-placed. "
+                 f'Stop/target are fixed % offsets (stop {STOP_PCT*100:.1f}% / '
+                 f"target {TP_PCT*100:.1f}%); 'limit' cells are good for the next 4h bar.</p>")
 
     if annotated:
         blob = esc(json.dumps(_positions_records(annotated, now_utc), indent=2))
