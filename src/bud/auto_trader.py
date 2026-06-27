@@ -93,6 +93,11 @@ QUARANTINED_CELLS: frozenset[tuple[str, str, str]] = frozenset({
     ("cci", "CAD_CHF", "short"),
     ("stoch", "CAD_CHF", "short"),
     ("stoch", "USD_JPY", "long"),
+    # COST-DOMINATED — real, regime-consistent signal (replay 2020+, n=175,
+    # gross +0.16R), but CAD_CHF's low nominal price makes spread too large a
+    # share of R; no exit geometry clears the cost-adjusted expectancy-CI gate.
+    # Validated 2026-06-27 (scratchpad replay/sweep); sibling GBP_CAD/USD_SGD held.
+    ("ichimoku", "CAD_CHF", "short"),
 })
 
 LOG = logging.getLogger("bh_ftmo.trader")
