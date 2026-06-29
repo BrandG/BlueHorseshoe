@@ -117,7 +117,12 @@ Re-costing the validated SPY/QQQ/IWM Variant B edge into MES/MNQ/M2K (`run.py fu
       Not an infra bug, not a wedge — clears when the other session disconnects. Driver logs fetch_error
       (non-terminal, retries) meanwhile, so no harm.
 - [ ] **Extend to MES + M2K** roll-stitched (same harness, change root) for ~3× throughput on a $4k acct.
-- [ ] **Probe the 2024Q4 / 2026Q1 losers** — what regime made the fade fail those quarters? (trend tape?)
+- [x] **Probed the 2024Q4 / 2026Q1 losers** (`analyze_losers.py`): NO diagnosable regime. Trend-tape
+      rejected (efficiency ratio identical, ~0.11, winners vs losers); direction rejected (winning side
+      rotates quarter-to-quarter). It's variance on a modest edge — 2024Q4 z=-1.48 (p=0.07), 2026Q1
+      z=-0.98 (p=0.16), neither clears 5%; 2026Q1's whole loss is 3 days (rest +$112). Losses are capped
+      at 1U by design (no fat tail; big-$ losses are just large-range days). Takeaway: DON'T add a regime
+      filter (would fit noise); expect ~25% red quarters; smooth variance via more instruments, not gates.
 - [ ] A third year, if AV history allows, on QQQ/IWM.
 
 ## Eject note
