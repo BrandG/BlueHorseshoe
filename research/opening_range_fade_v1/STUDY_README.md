@@ -39,6 +39,7 @@ holdout | futures | charts`. (`pull` first to populate `.cache/`; ~520 AV calls 
 `chart_futures.py` renders+emails the cushion chart. `paper_forward.py` is the forward MNQ
 paper harness (`run_day` logs to `forward_paper_log.csv`). `gateway_pull.py` pulls REAL micro-futures
 1-min+daily bars from the project's CME-entitled paper IB Gateway (4004) into the cache (ET-converted).
+`forward_driver.py` (+ `run_forward_mnq.sh`, cronned) is the daily forward MNQ paper logger.
 
 ## Status
 **VALIDATED (narrow, modest).** Reproduces from cache. Not deployed.
@@ -106,9 +107,13 @@ Re-costing the validated SPY/QQQ/IWM Variant B edge into MES/MNQ/M2K (`run.py fu
       entitled. Re-cost confirmed as a valid proxy (25/26 matched-date agreement on real MNQ).
 - [x] **Roll-stitched real-futures backtest** — DONE (`gateway_backtest.py`): 211 trades over ~2yr,
       39% win, +$1,887/contract central, both chronological halves positive. Real-bar confirmation.
-- [ ] **Forward paper on MNQ** — the last true-OOS check (live fills, no look-back), now fully unblocked:
-      `gateway_pull.py` feeds `paper_forward.py`. Needs a daily driver (cron each session ~11:15 ET:
-      pull the morning, build/sim the setup, append to `forward_paper_log.csv`).
+- [x] **Forward paper on MNQ — BUILT + CRONNED** (`forward_driver.py` + `run_forward_mnq.sh`,
+      `10 16 * * 1-5` UTC in `ops/crontab.txt`). Logs one row/day to `forward_paper_log.csv` with an
+      explicit status (no_session / doji_or_thin / below_atr_floor / NEVER_FILLED / WIN|LOSS|TIMEOUT /
+      fetch_error), idempotent per ET date, fetch_error is NON-terminal (retries next tick). Replay-
+      verified. ⚠️ BLOCKED ON DATA: after the 08:00-UTC paper-gateway restart the account's market-data
+      line returns Error 162 "connected from a different IP address" (account-wide — equity fails too,
+      NOT a wedge the watchdog catches). Worked pre-restart. Forward capture needs that resolved.
 - [ ] **Extend to MES + M2K** roll-stitched (same harness, change root) for ~3× throughput on a $4k acct.
 - [ ] **Probe the 2024Q4 / 2026Q1 losers** — what regime made the fade fail those quarters? (trend tape?)
 - [ ] A third year, if AV history allows, on QQQ/IWM.

@@ -49,13 +49,17 @@ def _write_cache(root, bars_1m):
 
 
 def _write_daily(root, bars_d):
+    if not bars_d:
+        return 0          # never clobber a good ATR cache with an empty/failed fetch
     series = {}
     for b in bars_d:
         d = b.date.strftime("%Y-%m-%d") if hasattr(b.date, "strftime") else str(b.date)
         series[d] = {"2. high": f"{b.high}", "3. low": f"{b.low}", "4. close": f"{b.close}"}
     p = os.path.join(C.PRIMARY_CACHE_DIR, f"{root}_DAILY.json")
-    json.dump({"Time Series (Daily)": series}, open(p, "w"))
-    return len(series)
+    prior = json.load(open(p)).get("Time Series (Daily)", {}) if os.path.exists(p) else {}
+    prior.update(series)  # merge, so a short refresh never drops older ATR-warmup history
+    json.dump({"Time Series (Daily)": prior}, open(p, "w"))
+    return len(prior)
 
 
 def pull(root, days):
@@ -87,6 +91,7 @@ def pull(root, days):
     nd = _write_daily(root, daily)
     print(f"daily: {nd} bars -> {root}_DAILY.json (for ATR_14 filter)")
     ib.disconnect()
+    return {"contract": con.localSymbol, "n_1m": len(all_1m), "n_daily": nd}
 
 
 if __name__ == "__main__":
