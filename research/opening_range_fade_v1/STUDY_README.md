@@ -108,10 +108,11 @@ Re-costing the validated SPY/QQQ/IWM Variant B edge into MES/MNQ/M2K (`run.py fu
       entitled. Re-cost confirmed as a valid proxy (25/26 matched-date agreement on real MNQ).
 - [x] **Roll-stitched real-futures backtest** — DONE (`gateway_backtest.py`): 211 trades over ~2yr,
       39% win, +$1,887/contract central, both chronological halves positive. Real-bar confirmation.
-- [x] **Forward paper on MNQ — BUILT + CRONNED** (`forward_driver.py` + `run_forward_mnq.sh`,
-      `10 16 * * 1-5` UTC in `ops/crontab.txt`). Logs one row/day to `forward_paper_log.csv` with an
+- [x] **Forward paper on MNQ+MES+M2K — BUILT + CRONNED** (`forward_driver.py` + `run_forward_mnq.sh`,
+      `10 16 * * 1-5` UTC in `ops/crontab.txt`; loops all 3 micros, `--root X` for one). Logs one row per
+      instrument per day to `forward_paper_log.csv` with an
       explicit status (no_session / pre_market / doji_or_thin / below_atr_floor / NEVER_FILLED /
-      WIN|LOSS|TIMEOUT / fetch_error), idempotent per ET date; fetch_error AND pre_market are NON-terminal
+      WIN|LOSS|TIMEOUT / fetch_error), idempotent per (ET date, instrument); fetch_error AND pre_market are NON-terminal
       (retry next tick — a pre-window manual run can't poison the day's real capture). Replay- and live-
       verified. NOTE: Error 162 "connected from a different IP address" (account-wide — equity fails too)
       just means ANOTHER session is using the IBKR account's single data line; IBKR allows one at a time.

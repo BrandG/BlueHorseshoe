@@ -106,10 +106,11 @@
 # Reap orphaned mongodb-mcp-server processes leaked by ended Claude sessions (~110MB each)
 */30 * * * *  /root/BlueHorseshoe/run_mongodb_mcp_reaper.sh
 
-# Opening-range fade — forward MNQ paper driver (research/opening_range_fade_v1). 16:10 UTC =
-# 11:10 ET (EST) / 12:10 ET (EDT), always after the 11:00-ET window close -> DST-safe single entry;
-# driver is idempotent per ET date. Reads front-month MNQ morning from paper gateway (4004) and logs
-# one row/day to forward_paper_log.csv. The last true-OOS check (live fills). Added 2026-06-29.
+# Opening-range fade — forward paper driver, MNQ+MES+M2K (research/opening_range_fade_v1). 16:10 UTC
+# = 11:10 ET (EST) / 12:10 ET (EDT), always after the 11:00-ET window close -> DST-safe single entry;
+# idempotent per (ET date, instrument). Reads each front-month morning from paper gateway (4004) and
+# logs one row/instrument/day to forward_paper_log.csv. Last true-OOS check (live fills). 2026-06-29.
+# (Script name run_forward_mnq.sh retained for cron stability; it drives all three instruments.)
 10 16 * * 1-5  /root/BlueHorseshoe/run_forward_mnq.sh
 
 # Warn when live crontab drifts from version-controlled ops/crontab.txt

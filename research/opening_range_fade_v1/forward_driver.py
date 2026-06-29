@@ -1,16 +1,19 @@
-"""Forward MNQ paper driver — the last true out-of-sample check for the opening-range fade.
+"""Forward micro-futures paper driver — the last true out-of-sample check for the opening-range fade.
 
-Runs once per US session (cron ~16:10 UTC = after the 11:00-ET window closes, DST-safe). Each run:
-  1. refreshes the current front-month MNQ 1-min + daily cache from the project's paper IB Gateway,
+Runs once per US session (cron ~16:10 UTC = after the 11:00-ET window closes, DST-safe). For EACH of
+MNQ / MES / M2K (the validated 3-instrument book) each run:
+  1. refreshes that front-month's 1-min + daily cache from the project's paper IB Gateway,
   2. builds today's Variant B setup (09:30-11:00 ET, ATR-filtered) and simulates the paper fill,
   3. appends ONE row to forward_paper_log.csv — every run, with an explicit status, so the log
      doubles as a liveness record (a quiet day is distinguishable from a broken driver).
 
-Idempotent: re-running on the same ET date is a no-op. Live fills with no look-back are the only
-test left that hindsight can't game; this accumulates them day by day.
+Idempotent per (ET date, instrument): re-running is a no-op for instruments already logged terminal,
+and one instrument's fetch_error never blocks the others. Live fills with no look-back are the only
+test left that hindsight can't game; this accumulates them day by day across all three.
 
-    ./run.sh python research/opening_range_fade_v1/forward_driver.py            # live, today
-    ./run.sh python research/opening_range_fade_v1/forward_driver.py --day 2026-06-24 --no-fetch  # replay a cached day
+    ./run.sh python research/opening_range_fade_v1/forward_driver.py                 # live, today, all 3
+    ./run.sh python research/opening_range_fade_v1/forward_driver.py --root MES       # just one
+    ./run.sh python research/opening_range_fade_v1/forward_driver.py --day 2026-06-24 --no-fetch  # replay cached
 """
 import os, sys, csv, time
 from datetime import datetime
@@ -22,7 +25,7 @@ from strategy import build_setup, simulate
 from paper_forward import rt_cost, FUT
 
 ET = ZoneInfo("America/New_York")
-ROOT = "MNQ"
+ROOTS = ["MNQ", "MES", "M2K"]
 LOG = os.path.join(C.STUDY_DIR, "forward_paper_log.csv")
 FIELDS = ["run_ts_utc", "trade_date_et", "root", "contract", "status", "side",
           "n_morning_bars", "R", "entry", "tp", "stop", "U_dollars",
@@ -32,11 +35,12 @@ FIELDS = ["run_ts_utc", "trade_date_et", "root", "contract", "status", "side",
 TERMINAL = {"WIN", "LOSS", "TIMEOUT", "NEVER_FILLED", "no_session", "below_atr_floor", "doji_or_thin"}
 
 
-def _already_logged(day):
+def _already_logged(day, root):
     if not os.path.exists(LOG):
         return False
     with open(LOG, newline="") as f:
-        return any(r["trade_date_et"] == day and r["status"] in TERMINAL for r in csv.DictReader(f))
+        return any(r["trade_date_et"] == day and r["root"] == root and r["status"] in TERMINAL
+                   for r in csv.DictReader(f))
 
 
 def _append(row):
@@ -87,48 +91,52 @@ def assess(root, day, contract=""):
     return row
 
 
-def _fetch(retries=2):
-    """Refresh the front-month cache. Returns the pull dict, or None on failure.
+def _fetch(root, retries=2):
+    """Refresh `root`'s front-month cache. Returns the pull dict, or None on failure.
     A failed fetch returns n_daily==0 (the daily series always has history when the farm answers)."""
     import gateway_pull
     for i in range(retries):
         try:
-            res = gateway_pull.pull(ROOT, days=5)
+            res = gateway_pull.pull(root, days=5)
             if res and res.get("n_daily", 0) > 0:
                 return res
         except Exception as e:  # noqa: BLE001
-            print(f"  fetch attempt {i+1} raised: {e!r}")
+            print(f"  {root} fetch attempt {i+1} raised: {e!r}")
         time.sleep(20)
     return None
 
 
-def run(day=None, fetch=True):
-    day = day or datetime.now(ET).date().isoformat()
-    if _already_logged(day):
-        print(f"{ROOT} {day}: already logged (terminal) — no-op")
+def run_one(root, day, fetch=True):
+    if _already_logged(day, root):
+        print(f"{root} {day}: already logged (terminal) — no-op")
         return
     contract = ""
     if fetch:
-        res = _fetch()
+        res = _fetch(root)
         if not res:                       # gateway/data-farm failure -> NON-terminal, retry later
             row = {k: "" for k in FIELDS}
             row.update(run_ts_utc=datetime.now(tz=ZoneInfo("UTC")).strftime("%Y-%m-%d %H:%M:%S"),
-                       trade_date_et=day, root=ROOT, status="fetch_error",
+                       trade_date_et=day, root=root, status="fetch_error",
                        n_morning_bars=0, gross=0.0, cost=0.0, net=0.0)
             _append(row)
-            print(f"{ROOT} {day}: fetch_error (gateway/data farm unavailable) — will retry next tick")
+            print(f"{root} {day}: fetch_error (gateway/data farm unavailable) — will retry next tick")
             return
         contract = res["contract"]
-    row = assess(ROOT, day, contract)
+    row = assess(root, day, contract)
     _append(row)
-    print(f"{ROOT} {day} [{contract or 'cache'}]: {row['status']}"
+    print(f"{root} {day} [{contract or 'cache'}]: {row['status']}"
           + (f"  {row['side']} -> net ${row['net']:+.2f}/contract" if row.get("outcome") else "")
           + f"  (logged to {os.path.basename(LOG)})")
 
 
+def run(day=None, fetch=True, roots=None):
+    day = day or datetime.now(ET).date().isoformat()
+    for root in (roots or ROOTS):         # each instrument independent: one failure won't block others
+        run_one(root, day, fetch)
+
+
 if __name__ == "__main__":
     a = sys.argv[1:]
-    day = None
-    if "--day" in a:
-        day = a[a.index("--day") + 1]
-    run(day=day, fetch="--no-fetch" not in a)
+    day = a[a.index("--day") + 1] if "--day" in a else None
+    roots = [a[a.index("--root") + 1]] if "--root" in a else None
+    run(day=day, fetch="--no-fetch" not in a, roots=roots)
