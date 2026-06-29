@@ -60,7 +60,12 @@ def assess(root, day, contract=""):
     bars = D.load_intraday(root).get(day)
     row["n_morning_bars"] = len(bars) if bars else 0
     if not bars:
-        row["status"] = "no_session"
+        now = datetime.now(ET)
+        # If we're asking about TODAY before the 11:00-ET window has closed, the morning simply
+        # isn't in yet -> pre_market (NON-terminal, retries later). A weekday/holiday with no
+        # session after the window, or any past date with no bars, is a terminal no_session.
+        pre = (day == now.date().isoformat() and now.strftime("%H:%M:%S") < C.SIM_END)
+        row["status"] = "pre_market" if pre else "no_session"
         return row
     s = build_setup(bars)
     if not s:
