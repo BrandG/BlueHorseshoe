@@ -34,7 +34,11 @@ Units: `U` = the 1× stop distance (0.191·R_open). Target = +2U. All P&L net of
 
 ## Runners
 `./run.sh python research/opening_range_fade_v1/run.py <cmd>` — `pull | backtest | validate | etf |
-holdout | charts`. (`pull` first to populate `.cache/`; ~520 AV calls for `all`.)
+holdout | futures | charts`. (`pull` first to populate `.cache/`; ~520 AV calls for `all`.)
+`futures` re-costs the validated SPY/QQQ/IWM edge in MES/MNQ/M2K terms (see `futures.py`).
+`chart_futures.py` renders+emails the cushion chart. `paper_forward.py` is the forward MNQ
+paper harness (`run_day` logs to `forward_paper_log.csv`). `gateway_pull.py` pulls REAL micro-futures
+1-min+daily bars from the project's CME-entitled paper IB Gateway (4004) into the cache (ET-converted).
 
 ## Status
 **VALIDATED (narrow, modest).** Reproduces from cache. Not deployed.
@@ -59,9 +63,54 @@ holdout | charts`. (`pull` first to populate `.cache/`; ~520 AV calls for `all`.
 risk control, not edge). The next door is the instrument the cost mechanism points to — **micro index
 futures (MES/MNQ/M2K)**, which also fits a small ($4k) automated account (no PDT, built-in leverage).
 
+## Micro-futures cost translation (2026-06-28, `futures.py`)
+The README's futures rationale was the **cost mechanism**, so the first question — does the
+edge clear *futures* costs? — needs no futures bars (edge is fixed in U; only cost-in-U changes).
+Re-costing the validated SPY/QQQ/IWM Variant B edge into MES/MNQ/M2K (`run.py futures`):
+- **Clears costs with margin in BOTH periods, all 3 instruments, all 3 cost scenarios.** The
+  penny-spread problem that killed the broad-ETF version does NOT recur: per-contract round-trip
+  ($1.24–2.50) is tiny vs the median 1U ($13–48/contract).
+- **MNQ (QQQ analog) is the clear winner** — cushion 7–15× (P1), 4–9× (P2); exp ~$7–16/contract/trade.
+- **MES (SPY analog)** solid — cushion 2.7–8.7× (P1), 1.8–5.9× (P2). SPY's weak P2 still nets positive.
+- **M2K (IWM analog)** thinnest — cushion 1.5–3.7×; conservative P2 ≈ break-even (+$0.08/trade).
+- **Caveat — this is a re-cost, not a fresh test.** It reuses the *ETF* price path. It does NOT test
+  the one thing futures change: the 09:30-ET opening range on an instrument that traded all night
+  (no gap/auction at the cash open). That still needs real futures 1-min bars.
+- **Data source (resolved):** the claude.ai IBKR **MCP** has no CME data (controlled test: Sun 20:54 ET
+  with CME open, equity 1-min served, MES/MNQ/M2K failed → entitlement gap, not the weekend). BUT the
+  **project's own paper IB Gateway (127.0.0.1:4004) IS CME-entitled** — `gateway_pull.py` pulled 15,750
+  real MNQU6 1-min bars + 62 daily (read-only, client_id=77). Gateway timestamps are Central; the
+  ingest converts to ET. So real micro-futures bars are available in-house; no Databento needed.
+
+- **Real-data corroboration (2026-05-08 .. 2026-06-26, front month MNQU6):** ran the validated Variant B
+  on REAL MNQ bars (ATR-filtered). 14 fills, +$664/contract net (exp +$47/trade) — TINY sample. The signal
+  is the **matched-date check: real MNQ vs the QQQ-path agree on side AND outcome 25/26 days.** The one
+  divergence (2026-05-15) is a genuine intraday stop-vs-target ordering difference (QQQ hit stop first;
+  MNQ filled-and-ran), not a bug — TZ/contract handling verified correct. **The re-cost is a valid proxy**;
+  the "futures trade 24h, no opening auction" concern is largely immaterial for this strategy.
+
+- **Roll-stitched REAL backtest (`gateway_backtest.py`, ~2yr, 9 quarterly contracts):** stitches the
+  liquid front month per date (roll ~8d before expiry), ATR computed within each contract. Result over
+  **211 real trade-days (2024Q3–2026Q2, all 8 quarters): 39.1% win — matches/exceeds the validated OOS
+  (36%), now on REAL bars.** Net **+$1,887/contract central** (+$8.94/trade), conservative **+$1,682**
+  (+$7.97/trade). **Chronological split both halves positive: first 60% +$1,347, holdout 40% +$540**
+  (edge not stationary — holdout weaker — but stays positive OOS). **6/8 quarters positive** (losers:
+  2024Q4 win 24%, 2026Q1 win 31%). The earlier +$47/trade taste was just the favorable May–Jun window;
+  +$8.94/trade is the honest de-cherry-picked number. ~105 trades/yr × ~$9 ≈ ~$940/contract/yr on MNQ
+  alone (intraday-only, flat ~11:00 ET → a $4k account margins 1 MNQ easily; MES+M2K would ~3× throughput).
+  Pull notes: HMDS 1-min serves expired contracts back to ~Sept 2024 (MNQU4); MNQM5/MNQU5 needed
+  retry+small-chunk fallback (`timeout=180`) — they time out on a single "2 M" request.
+
 ## Doors still open
-- [ ] Test on micro index futures (needs 1-min futures history — IBKR, not AlphaVantage).
-- [ ] Small forward paper test on QQQ/IWM (the only true OOS left).
+- [x] **Real futures 1-min bars** — DONE via the project's paper IB Gateway (`gateway_pull.py`); CME
+      entitled. Re-cost confirmed as a valid proxy (25/26 matched-date agreement on real MNQ).
+- [x] **Roll-stitched real-futures backtest** — DONE (`gateway_backtest.py`): 211 trades over ~2yr,
+      39% win, +$1,887/contract central, both chronological halves positive. Real-bar confirmation.
+- [ ] **Forward paper on MNQ** — the last true-OOS check (live fills, no look-back), now fully unblocked:
+      `gateway_pull.py` feeds `paper_forward.py`. Needs a daily driver (cron each session ~11:15 ET:
+      pull the morning, build/sim the setup, append to `forward_paper_log.csv`).
+- [ ] **Extend to MES + M2K** roll-stitched (same harness, change root) for ~3× throughput on a $4k acct.
+- [ ] **Probe the 2024Q4 / 2026Q1 losers** — what regime made the fade fail those quarters? (trend tape?)
 - [ ] A third year, if AV history allows, on QQQ/IWM.
 
 ## Eject note

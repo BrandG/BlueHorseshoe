@@ -142,7 +142,7 @@ def main():
     sub.add_parser("pull").add_argument("which", nargs="?", default="all",
                                         choices=["primary", "index", "holdout", "all"])
     sub.add_parser("backtest"); sub.add_parser("validate")
-    sub.add_parser("etf"); sub.add_parser("holdout")
+    sub.add_parser("etf"); sub.add_parser("holdout"); sub.add_parser("futures")
     sub.add_parser("charts").add_argument("which", nargs="?", default="equity",
                                           choices=["equity", "scatter", "failures"])
     a = p.parse_args()
@@ -151,6 +151,8 @@ def main():
     elif a.cmd == "validate": cmd_validate()
     elif a.cmd == "etf": cmd_etf()
     elif a.cmd == "holdout": cmd_holdout()
+    elif a.cmd == "futures":
+        from futures import cmd_futures; cmd_futures()
     elif a.cmd == "charts": cmd_charts(a.which)
 
 
