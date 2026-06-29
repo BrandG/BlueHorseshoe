@@ -40,6 +40,7 @@ holdout | futures | charts`. (`pull` first to populate `.cache/`; ~520 AV calls 
 paper harness (`run_day` logs to `forward_paper_log.csv`). `gateway_pull.py` pulls REAL micro-futures
 1-min+daily bars from the project's CME-entitled paper IB Gateway (4004) into the cache (ET-converted).
 `forward_driver.py` (+ `run_forward_mnq.sh`, cronned) is the daily forward MNQ paper logger.
+`analyze_losers.py` diagnoses losing quarters; `combine_portfolio.py` pools MNQ+MES+M2K (diversification).
 
 ## Status
 **VALIDATED (narrow, modest).** Reproduces from cache. Not deployed.
@@ -116,7 +117,15 @@ Re-costing the validated SPY/QQQ/IWM Variant B edge into MES/MNQ/M2K (`run.py fu
       just means ANOTHER session is using the IBKR account's single data line; IBKR allows one at a time.
       Not an infra bug, not a wedge — clears when the other session disconnects. Driver logs fetch_error
       (non-terminal, retries) meanwhile, so no harm.
-- [ ] **Extend to MES + M2K** roll-stitched (same harness, change root) for ~3× throughput on a $4k acct.
+- [x] **Extended to MES + M2K** roll-stitched (`gateway_backtest.py MES|M2K`, `combine_portfolio.py`).
+      MES (↔SPY): 140 trades, 43.6% win, +$962/contract, exp $6.87, both halves +. M2K (↔IWM): 259
+      trades, 38.6% win, +$401, exp $1.55 (conservative just +$0.58 — thin). **Combined 3-instrument
+      (1 contract each): +$3,250/contract/2yr, 610 trades, 39.7% win, 6/8 quarters +.** Diversification
+      CONFIRMED: combined quarterly CV 1.02 < every single instrument (MNQ 1.42, MES 1.05, M2K 2.28);
+      worst combined quarter −0.83× mean vs MNQ −1.53×. Losers don't align (MNQ −192 in 2026Q1 → −49
+      combined). Only 2024Q4 stayed red (MNQ+M2K both lost; MES cushioned). Read: **MNQ+MES are the core
+      (~$7–9/trade); M2K is an optional diversifier/throughput leg, thin standalone — include only if
+      execution is cheap.**
 - [x] **Probed the 2024Q4 / 2026Q1 losers** (`analyze_losers.py`): NO diagnosable regime. Trend-tape
       rejected (efficiency ratio identical, ~0.11, winners vs losers); direction rejected (winning side
       rotates quarter-to-quarter). It's variance on a modest edge — 2024Q4 z=-1.48 (p=0.07), 2026Q1
