@@ -1041,11 +1041,19 @@ class HTMLReporter:
                 'stop_loss': float(c.get('stop_loss', 0)),
                 't1_target': float(c.get('t1_target', 0)),
                 'target': float(c.get('target', 0)),
+                # No-take-profit sleeve (range_support): take_profit <= 0 is the explicit
+                # "stop-only exit, no T1/T2 targets" signal (see paper_trader._build_*).
+                # Without this flag the renderer treats 0 as a real price and computes a
+                # nonsensical T2 (target_offset = 0 - close = -close, negative R:R).
+                'no_take_profit': float(c.get('target', 0)) <= 0,
                 'risk_per_share': float(c.get('close', 0)) - float(c.get('stop_loss', 0)),
-                'target_offset': float(c.get('target', 0)) - float(c.get('close', 0)),
+                'target_offset': (
+                    0.0 if float(c.get('target', 0)) <= 0
+                    else float(c.get('target', 0)) - float(c.get('close', 0))
+                ),
                 't1_offset': (
                     float(c.get('t1_target', 0)) - float(c.get('close', 0))
-                    if c.get('t1_target') else 0.0
+                    if c.get('t1_target') and float(c.get('target', 0)) > 0 else 0.0
                 ),
                 'ml_prob': float(c.get('ml_prob', 0)),
                 'sentiment': float(c.get('sentiment', 0)),
@@ -1277,7 +1285,7 @@ body::after {
   box-shadow: 0 0 15px rgba(255,170,0,0.1); margin-bottom: 16px;
 }
 .leaderboard-header {
-  display: grid; grid-template-columns: 28px 40px 130px 1fr 60px 92px 92px 92px 92px 70px 78px;
+  display: grid; grid-template-columns: 28px 40px 130px 1fr 60px 92px 92px 70px 78px;
   padding: 10px 12px; border-bottom: 2px solid var(--neon-amber);
   font-size: 0.8rem; color: var(--neon-amber); text-shadow: 0 0 4px var(--neon-amber);
   letter-spacing: 1px; background: rgba(255,170,0,0.05);
@@ -1298,7 +1306,7 @@ body::after {
 .leaderboard-body::-webkit-scrollbar-thumb { background: var(--neon-amber-dim); border: 1px solid var(--neon-amber); }
 @keyframes row-enter { from { opacity: 0; transform: translateX(-20px); } to { opacity: 1; transform: translateX(0); } }
 .leaderboard-row {
-  display: grid; grid-template-columns: 28px 40px 130px 1fr 60px 92px 92px 92px 92px 70px 78px;
+  display: grid; grid-template-columns: 28px 40px 130px 1fr 60px 92px 92px 70px 78px;
   padding: 10px 12px; border-bottom: 1px solid rgba(85,85,112,0.3);
   font-size: 0.9rem; cursor: pointer; transition: background 0.1s;
   animation: row-enter 0.3s ease-out both;
@@ -1470,7 +1478,7 @@ body::after {
 /* Calc button in toolbar */
 .toolbar { display: flex; gap: 8px; margin-bottom: 12px; justify-content: flex-end; }
 @media (max-width: 900px) {
-  .leaderboard-header, .leaderboard-row { grid-template-columns: 24px 30px 100px 1fr 50px 76px 76px 76px 76px 60px 64px; font-size: 0.7rem; padding: 8px 6px; }
+  .leaderboard-header, .leaderboard-row { grid-template-columns: 24px 30px 100px 1fr 50px 76px 76px 60px 64px; font-size: 0.7rem; padding: 8px 6px; }
   .marquee-title { font-size: 1rem; }
   .detail-grid { grid-template-columns: 1fr; }
   .status-bar { grid-template-columns: 1fr; }
@@ -1481,7 +1489,7 @@ body::after {
 }
 @media (max-width: 600px) {
   .leaderboard-header, .leaderboard-row { grid-template-columns: 24px 30px 1fr 60px 64px 64px; }
-  .col-stop, .col-t1, .col-target, .col-rr, .col-sent { display: none; }
+  .col-stop, .col-rr, .col-sent { display: none; }
   .marquee-title { font-size: 0.7rem; letter-spacing: 2px; }
   .portfolio-table-header, .portfolio-table-row { grid-template-columns: 30px 1fr 60px 60px 60px 60px; }
   .portfolio-col-stop, .portfolio-col-t1, .portfolio-col-target { display: none; }
@@ -1647,7 +1655,9 @@ function renderLeaderboard() {
   state.filtered.forEach((c, i) => {
     const rank = i + 1;
     const score = c.score;
-    const rr = c.stop_loss > 0 ? ((c.target - c.close) / (c.close - c.stop_loss)).toFixed(1) : '---';
+    // range_support is a stop-only sleeve (no take-profit): T1/T2/R:R are undefined.
+    const noTP = c.no_take_profit;
+    const rr = noTP ? '—' : (c.stop_loss > 0 ? ((c.target - c.close) / (c.close - c.stop_loss)).toFixed(1) : '---');
     const scoreClass = score >= 50 ? 'high' : score >= 30 ? 'mid' : 'low';
     const scoreTextClass = score >= 50 ? 'score-high' : score >= 30 ? 'score-mid' : 'score-low';
     const rankClass = rank <= 3 ? 'rank-' + rank : '';
@@ -1683,9 +1693,7 @@ function renderLeaderboard() {
       '<div class="col-sent ' + sentClass + '">' + sentLabel + '</div>' +
       '<div class="col-price">$' + c.close.toFixed(2) + '</div>' +
       '<div class="col-stop">$' + c.stop_loss.toFixed(2) + '</div>' +
-      '<div class="col-t1" style="color:var(--neon-amber);text-shadow:0 0 4px var(--neon-amber)">$' + (c.t1_target ? c.t1_target.toFixed(2) : '---') + '</div>' +
-      '<div class="col-target" style="color:var(--neon-green)">$' + c.target.toFixed(2) + '</div>' +
-      '<div class="col-rr">' + rr + 'x</div>' +
+      '<div class="col-rr">' + (noTP ? '—' : rr + 'x') + '</div>' +
       '<div class="col-qty" data-selkey="' + selKey + '"><span class="qty-empty">--</span></div>';
     body.appendChild(row);
     const detail = document.createElement('div');
@@ -1747,21 +1755,24 @@ function buildSentimentHTML(c) {
 }
 
 function buildDetailHTML(c) {
+  // range_support is a stop-only sleeve: no take-profit, exit is the bh_swing
+  // up-day ratchet + time cap. Treat T1/T2/reward/R:R as undefined here.
+  const noTP = c.no_take_profit;
   const entryDistHtml = (c.actual_close && c.actual_close > 0)
     ? ' <small style="color:var(--pixel-gray)">(' + ((c.actual_close - c.close) / c.actual_close * 100).toFixed(2) + '%)</small>' : '';
   const riskShare = c.risk_per_share || Math.max(0, c.close - c.stop_loss);
-  const targetOffset = c.target_offset || (c.target - c.close);
-  const t1Offset = c.t1_offset || (c.t1_target ? c.t1_target - c.close : 0);
+  const targetOffset = noTP ? 0 : (c.target_offset || (c.target - c.close));
+  const t1Offset = noTP ? 0 : (c.t1_offset || (c.t1_target ? c.t1_target - c.close : 0));
   const fillCalcHtml = '<div class="detail-section fill-calc-detail" data-r="' + riskShare.toFixed(2) +
     '" data-tpoff="' + targetOffset.toFixed(2) + '"' + (t1Offset > 0 ? ' data-t1off="' + t1Offset.toFixed(2) + '"' : '') + '>' +
     '<div class="detail-section-title">FILL CALCULATOR</div>' +
     '<div class="col-fillcalc">' +
-    '<div class="fill-static">risk/sh $' + riskShare.toFixed(2) + ' &middot; tgt +$' + targetOffset.toFixed(2) + '</div>' +
+    '<div class="fill-static">risk/sh $' + riskShare.toFixed(2) + (noTP ? ' &middot; stop-only (no target)' : ' &middot; tgt +$' + targetOffset.toFixed(2)) + '</div>' +
     '<div class="fill-input-row"><span class="fill-input-label">YOUR FILL $</span>' +
     '<input type="number" class="fill-input" step="0.01" min="0" placeholder="0.00" onclick="event.stopPropagation()"></div>' +
     '<div class="fill-result-row"><span class="fill-result-label">STOP</span><span class="calc-stop">---</span></div>' +
     (t1Offset > 0 ? '<div class="fill-result-row"><span class="fill-result-label">T1</span><span class="calc-t1">---</span></div>' : '') +
-    '<div class="fill-result-row"><span class="fill-result-label">T2</span><span class="calc-target">---</span></div>' +
+    (noTP ? '' : '<div class="fill-result-row"><span class="fill-result-label">T2</span><span class="calc-target">---</span></div>') +
     '</div></div>';
   const riskPct = c.close > 0 ? (((c.close - c.stop_loss) / c.close) * 100).toFixed(2) : 0;
   const rewardPct = c.close > 0 ? (((c.target - c.close) / c.close) * 100).toFixed(2) : 0;
@@ -1787,25 +1798,36 @@ function buildDetailHTML(c) {
       '<div class="indicator-bar"><div class="indicator-bar-fill ' + cls + '" style="width:' + pct + '%"></div></div>' +
       '<span class="indicator-val ' + valCls + '">' + sign + val.toFixed(1) + '</span></div>';
   }).join('');
-  var t1Html = (c.t1_target && t1Pos > 0) ?
+  var t1Html = (!noTP && c.t1_target && t1Pos > 0) ?
     '<div class="rr-t1-marker" style="left:' + t1Pos + '%"></div>' +
     '<span class="rr-label t1" style="left:' + t1Pos + '%">T1 $' + c.t1_target.toFixed(2) + ' (+2%)</span>' : '';
+  // Stop-only sleeve: full-width risk zone, entry at the right edge, no reward zone / T2.
+  var rrDiagram = noTP ?
+    ('<div class="rr-diagram"><div class="rr-zone-risk" style="width:100%"></div>' +
+     '<div class="rr-entry-marker" style="left:100%"></div>' +
+     '<span class="rr-label stop">STOP $' + c.stop_loss.toFixed(2) + '</span>' +
+     '<span class="rr-label entry" style="left:100%">ENTRY $' + c.close.toFixed(2) + entryDistHtml + '</span></div>') :
+    ('<div class="rr-diagram"><div class="rr-zone-risk" style="width:' + riskWidth + '%"></div>' +
+     '<div class="rr-zone-reward" style="width:' + rewardWidth + '%;left:' + riskWidth + '%"></div>' +
+     '<div class="rr-entry-marker" style="left:' + riskWidth + '%"></div>' +
+     t1Html +
+     '<span class="rr-label stop">STOP $' + c.stop_loss.toFixed(2) + '</span>' +
+     '<span class="rr-label entry" style="left:' + riskWidth + '%">ENTRY $' + c.close.toFixed(2) + entryDistHtml + '</span>' +
+     '<span class="rr-label target">T2 $' + c.target.toFixed(2) + '</span></div>');
+  var rrStats = noTP ?
+    ('<span style="color:var(--neon-red)">RISK: ' + riskPct + '%</span>' +
+     '<span style="color:var(--pixel-gray)">EXIT: stop-only ratchet (no take-profit)</span>') :
+    ('<span style="color:var(--neon-red)">RISK: ' + riskPct + '%</span>' +
+     '<span style="color:var(--neon-amber)">T1: +2.0%</span>' +
+     '<span style="color:var(--neon-green)">T2: ' + rewardPct + '%</span>' +
+     '<span style="color:var(--neon-blue)">R:R ' + (parseFloat(rewardPct) / Math.max(0.01, parseFloat(riskPct))).toFixed(2) + 'x</span>');
   return '<div class="detail-grid">' +
     '<div class="detail-section"><div class="detail-section-title">RISK / REWARD MAP</div>' +
-    '<div class="rr-diagram"><div class="rr-zone-risk" style="width:' + riskWidth + '%"></div>' +
-    '<div class="rr-zone-reward" style="width:' + rewardWidth + '%;left:' + riskWidth + '%"></div>' +
-    '<div class="rr-entry-marker" style="left:' + riskWidth + '%"></div>' +
-    t1Html +
-    '<span class="rr-label stop">STOP $' + c.stop_loss.toFixed(2) + '</span>' +
-    '<span class="rr-label entry" style="left:' + riskWidth + '%">ENTRY $' + c.close.toFixed(2) + entryDistHtml + '</span>' +
-    '<span class="rr-label target">T2 $' + c.target.toFixed(2) + '</span></div>' +
+    rrDiagram +
     '<div style="display:flex;gap:20px;margin-top:10px;font-size:0.7rem;">' +
-    '<span style="color:var(--neon-red)">RISK: ' + riskPct + '%</span>' +
-    '<span style="color:var(--neon-amber)">T1: +2.0%</span>' +
-    '<span style="color:var(--neon-green)">T2: ' + rewardPct + '%</span>' +
-    '<span style="color:var(--neon-blue)">R:R ' + (parseFloat(rewardPct) / Math.max(0.01, parseFloat(riskPct))).toFixed(2) + 'x</span></div>' +
+    rrStats + '</div>' +
     '<div style="margin-top:14px">' +
-    '<button class="arcade-btn btn-pink" style="font-size:0.7rem;padding:5px 10px" onclick="event.stopPropagation();openCalcForSymbol(\'' + c.symbol + '\',' + c.close + ',' + c.stop_loss + ',' + c.target + ')">CALC SHARES</button>' +
+    '<button class="arcade-btn btn-pink" style="font-size:0.7rem;padding:5px 10px" onclick="event.stopPropagation();openCalcForSymbol(\'' + c.symbol + '\',' + c.close + ',' + c.stop_loss + ',' + c.target + ',' + (noTP ? 'true' : 'false') + ')">CALC SHARES</button>' +
     '<a href="https://finance.yahoo.com/quote/' + c.symbol + '" target="_blank" rel="noopener" class="arcade-btn btn-blue" style="font-size:0.7rem;padding:5px 10px;text-decoration:none;display:inline-block;margin-left:4px">YAHOO</a></div></div>' +
     fillCalcHtml +
     buildSentimentHTML(c) +
@@ -1917,12 +1939,12 @@ function filterStrategy(filter, btn) {
 
 function openCalcModal() { document.getElementById('calcModal').classList.add('open'); }
 function closeCalcModal() { document.getElementById('calcModal').classList.remove('open'); }
-function openCalcForSymbol(symbol, entry, stop, target) {
-  state.calcCandidate = { symbol: symbol, entry: entry, stop: stop, target: target };
+function openCalcForSymbol(symbol, entry, stop, target, noTP) {
+  state.calcCandidate = { symbol: symbol, entry: entry, stop: stop, target: target, noTP: !!noTP };
   document.getElementById('calcSymbol').textContent = symbol;
   document.getElementById('calcEntry').textContent = '$' + entry.toFixed(2);
   document.getElementById('calcStop').textContent = '$' + stop.toFixed(2);
-  document.getElementById('calcTarget').textContent = '$' + target.toFixed(2);
+  document.getElementById('calcTarget').textContent = noTP ? 'stop-only' : '$' + target.toFixed(2);
   updateCalc();
   openCalcModal();
 }
@@ -1933,11 +1955,10 @@ function updateCalc() {
   const fractional = invest / c.entry;
   const costFrac = (fractional * c.entry).toFixed(2);
   const riskFrac = (fractional * (c.entry - c.stop)).toFixed(2);
-  const rewardFrac = (fractional * (c.target - c.entry)).toFixed(2);
   document.getElementById('calcSharesFrac').textContent = fractional.toFixed(3);
   document.getElementById('calcCostFrac').textContent = '$' + costFrac;
   document.getElementById('calcRiskFrac').textContent = '-$' + riskFrac;
-  document.getElementById('calcRewardFrac').textContent = '+$' + rewardFrac;
+  document.getElementById('calcRewardFrac').textContent = c.noTP ? 'stop-only' : '+$' + (fractional * (c.target - c.entry)).toFixed(2);
 }
 // Portfolio Allocator
 function normalizeScore(score) {
@@ -1974,7 +1995,7 @@ function updatePortfolioBadge() {
 }
 function selectAllSymbols() {
   state.candidates.forEach(function(c) {
-    if (c.close > 0 && c.stop_loss < c.close && c.target > c.close) {
+    if (c.close > 0 && c.stop_loss < c.close && (c.no_take_profit || c.target > c.close)) {
       state.selected[c.symbol + '|' + c.strategy] = true;
     }
   });
@@ -1997,7 +2018,7 @@ function getValidPortfolioCandidates() {
   var selectedKeys = Object.keys(state.selected);
   return state.candidates.filter(function(c) {
     var key = c.symbol + '|' + c.strategy;
-    return selectedKeys.indexOf(key) >= 0 && c.close > 0 && c.stop_loss < c.close && c.target > c.close;
+    return selectedKeys.indexOf(key) >= 0 && c.close > 0 && c.stop_loss < c.close && (c.no_take_profit || c.target > c.close);
   }).map(function(c) {
     var copy = {};
     for (var k in c) copy[k] = c[k];
@@ -2016,12 +2037,13 @@ function allocatePortfolio(candidates, totalInvest, topN) {
     var shares = alloc / c.close;
     var wholeShares = Math.floor(shares);
     var risk = shares * (c.close - c.stop_loss);
-    var t1Gain = c.t1_target ? (c.t1_target - c.close) : 0;
-    var t2Gain = c.target - c.close;
+    // Stop-only sleeve has no take-profit: reward is undefined, leave it at 0.
+    var t1Gain = (c.no_take_profit || !c.t1_target) ? 0 : (c.t1_target - c.close);
+    var t2Gain = c.no_take_profit ? 0 : (c.target - c.close);
     var blendedRewardPerShare = 0.5 * t1Gain + 0.5 * t2Gain;
     var reward = shares * blendedRewardPerShare;
     var rr = risk > 0 ? reward / risk : 0;
-    return { symbol: c.symbol, strategy: c.strategy, close: c.close, stop_loss: c.stop_loss, t1_target: c.t1_target || 0, target: c.target, alloc: alloc, pct: pct, shares: shares, risk: risk, reward: reward };
+    return { symbol: c.symbol, strategy: c.strategy, close: c.close, stop_loss: c.stop_loss, t1_target: c.t1_target || 0, target: c.target, no_take_profit: !!c.no_take_profit, alloc: alloc, pct: pct, shares: shares, risk: risk, reward: reward };
   });
 }
 function getInlineInvest() {
@@ -2058,10 +2080,18 @@ function recomputeInlineQtys() {
     var key = cell.getAttribute('data-selkey');
     var r = bySel[key];
     if (r && r.shares > 0) {
-      var perLeg = r.shares / 2;
-      cell.innerHTML = '<span class="qty-val">' + perLeg.toFixed(2) + '</span><span class="qty-sub">x2</span>';
-      cell.title = key.split('|')[0] + ': $' + Math.round(r.alloc).toLocaleString() +
-        ' → ' + r.shares.toFixed(2) + ' sh total = ' + perLeg.toFixed(2) + ' per order × 2';
+      // Stop-only sleeve (range_support) is a single entry order, not a 2-tranche
+      // bracket — show the full share count with no "x2" split.
+      if (r.no_take_profit) {
+        cell.innerHTML = '<span class="qty-val">' + r.shares.toFixed(2) + '</span><span class="qty-sub">x1</span>';
+        cell.title = key.split('|')[0] + ': $' + Math.round(r.alloc).toLocaleString() +
+          ' → ' + r.shares.toFixed(2) + ' sh (single order, stop-only)';
+      } else {
+        var perLeg = r.shares / 2;
+        cell.innerHTML = '<span class="qty-val">' + perLeg.toFixed(2) + '</span><span class="qty-sub">x2</span>';
+        cell.title = key.split('|')[0] + ': $' + Math.round(r.alloc).toLocaleString() +
+          ' → ' + r.shares.toFixed(2) + ' sh total = ' + perLeg.toFixed(2) + ' per order × 2';
+      }
     } else {
       cell.innerHTML = '<span class="qty-empty">--</span>';
       cell.title = total > 0 ? 'Check the box to size this name' : 'Enter an INVESTMENT $ amount';
@@ -2113,17 +2143,19 @@ function renderPortfolioTable(results) {
     var _chip = strategyChip(r.strategy);
     var stratClass = _chip[0];
     var stratLabel = _chip[1];
-    var t1Val = r.t1_target ? '$' + r.t1_target.toFixed(2) : '---';
+    var t1Val = r.no_take_profit ? '—' : (r.t1_target ? '$' + r.t1_target.toFixed(2) : '---');
+    var t2Val = r.no_take_profit ? 'STOP-ONLY' : '$' + r.target.toFixed(2);
+    var rewardVal = r.no_take_profit ? '—' : '+$' + r.reward.toFixed(0);
     return '<div class="portfolio-table-row">' +
       '<div class="portfolio-col-rank">' + String(i + 1).padStart(2, '0') + '</div>' +
       '<div class="portfolio-col-symbol">' + r.symbol + '</div>' +
-      '<div class="portfolio-col-shares">' + (r.shares / 2).toFixed(2) + '</div>' +
+      '<div class="portfolio-col-shares">' + (r.no_take_profit ? r.shares.toFixed(2) : (r.shares / 2).toFixed(2)) + '</div>' +
       '<div class="portfolio-col-price">$' + r.close.toFixed(2) + '</div>' +
       '<div class="portfolio-col-stop">$' + r.stop_loss.toFixed(2) + '</div>' +
       '<div class="portfolio-col-t1" style="color:var(--neon-amber);text-shadow:0 0 4px var(--neon-amber)">' + t1Val + '</div>' +
-      '<div class="portfolio-col-target" style="color:var(--neon-green)">$' + r.target.toFixed(2) + '</div>' +
+      '<div class="portfolio-col-target" style="color:var(--neon-green)">' + t2Val + '</div>' +
       '<div class="portfolio-col-risk">-$' + r.risk.toFixed(0) + '</div>' +
-      '<div class="portfolio-col-reward">+$' + r.reward.toFixed(0) + '</div></div>';
+      '<div class="portfolio-col-reward">' + rewardVal + '</div></div>';
   }).join('');
 }
 
@@ -2148,6 +2180,7 @@ document.addEventListener('DOMContentLoaded', function() {
       target: c.target || 0,
       risk_per_share: c.risk_per_share || 0,
       edge_weight: c.edge_weight || 0,
+      no_take_profit: !!c.no_take_profit,
       target_offset: c.target_offset || 0,
       t1_offset: c.t1_offset || 0,
       ml_prob: c.ml_prob || 0,
@@ -2240,8 +2273,6 @@ document.addEventListener('DOMContentLoaded', function() {
             '<div class="sortable" data-sort="sentiment_composite" onclick="sortBy(\'sentiment_composite\')" title="Sort by Z-score normalized composite sentiment">SENT<span class="sort-arrow"></span></div>',
             '<div class="sortable" data-sort="close" onclick="sortBy(\'close\')" title="Sort by entry price">ENTRY<span class="sort-arrow"></span></div>',
             '<div class="sortable" data-sort="stop_loss" onclick="sortBy(\'stop_loss\')" title="Sort by stop">STOP<span class="sort-arrow"></span></div>',
-            '<div class="sortable" data-sort="t1_target" onclick="sortBy(\'t1_target\')" title="Sort by T1 target">T1<span class="sort-arrow"></span></div>',
-            '<div class="sortable" data-sort="target" onclick="sortBy(\'target\')" title="Sort by T2 target">T2<span class="sort-arrow"></span></div>',
             '<div class="sortable" data-sort="rr" onclick="sortBy(\'rr\')" title="Sort by risk/reward ratio">R:R<span class="sort-arrow"></span></div>',
             '<div title="Per-order share count for checked names: total INVESTMENT $ split by conviction, then halved (you place 2 buy orders per name).">QTY x2</div>',
             '</div>',
