@@ -1285,7 +1285,7 @@ body::after {
   box-shadow: 0 0 15px rgba(255,170,0,0.1); margin-bottom: 16px;
 }
 .leaderboard-header {
-  display: grid; grid-template-columns: 28px 40px 130px 1fr 60px 92px 92px 70px 78px;
+  display: grid; grid-template-columns: 28px 40px 1fr 60px 92px 92px 78px;
   padding: 10px 12px; border-bottom: 2px solid var(--neon-amber);
   font-size: 0.8rem; color: var(--neon-amber); text-shadow: 0 0 4px var(--neon-amber);
   letter-spacing: 1px; background: rgba(255,170,0,0.05);
@@ -1306,7 +1306,7 @@ body::after {
 .leaderboard-body::-webkit-scrollbar-thumb { background: var(--neon-amber-dim); border: 1px solid var(--neon-amber); }
 @keyframes row-enter { from { opacity: 0; transform: translateX(-20px); } to { opacity: 1; transform: translateX(0); } }
 .leaderboard-row {
-  display: grid; grid-template-columns: 28px 40px 130px 1fr 60px 92px 92px 70px 78px;
+  display: grid; grid-template-columns: 28px 40px 1fr 60px 92px 92px 78px;
   padding: 10px 12px; border-bottom: 1px solid rgba(85,85,112,0.3);
   font-size: 0.9rem; cursor: pointer; transition: background 0.1s;
   animation: row-enter 0.3s ease-out both;
@@ -1478,7 +1478,7 @@ body::after {
 /* Calc button in toolbar */
 .toolbar { display: flex; gap: 8px; margin-bottom: 12px; justify-content: flex-end; }
 @media (max-width: 900px) {
-  .leaderboard-header, .leaderboard-row { grid-template-columns: 24px 30px 100px 1fr 50px 76px 76px 60px 64px; font-size: 0.7rem; padding: 8px 6px; }
+  .leaderboard-header, .leaderboard-row { grid-template-columns: 24px 30px 1fr 50px 76px 76px 64px; font-size: 0.7rem; padding: 8px 6px; }
   .marquee-title { font-size: 1rem; }
   .detail-grid { grid-template-columns: 1fr; }
   .status-bar { grid-template-columns: 1fr; }
@@ -1488,8 +1488,8 @@ body::after {
   .portfolio-summary { grid-template-columns: repeat(2, 1fr); }
 }
 @media (max-width: 600px) {
-  .leaderboard-header, .leaderboard-row { grid-template-columns: 24px 30px 1fr 60px 64px 64px; }
-  .col-stop, .col-rr, .col-sent { display: none; }
+  .leaderboard-header, .leaderboard-row { grid-template-columns: 24px 30px 1fr 64px 80px 64px; }
+  .col-sent { display: none; }
   .marquee-title { font-size: 0.7rem; letter-spacing: 2px; }
   .portfolio-table-header, .portfolio-table-row { grid-template-columns: 30px 1fr 60px 60px 60px 60px; }
   .portfolio-col-stop, .portfolio-col-t1, .portfolio-col-target { display: none; }
@@ -1689,11 +1689,9 @@ function renderLeaderboard() {
       '<div class="col-check"><input type="checkbox" class="portfolio-check"' + (state.selected[selKey] ? ' checked' : '') + ' onclick="toggleSelection(\'' + selKey + '\', event)"></div>' +
       '<div class="col-rank"><span class="rank-num">' + String(rank).padStart(2, '0') + '</span></div>' +
       '<div class="col-symbol"><span class="symbol-name">' + c.symbol + '</span><span class="strategy-badge ' + stratClass + '">' + stratLabel + '</span>' + cloudBadge + planBadge + '</div>' +
-      '<div class="col-score"><div class="health-bar"><div class="health-bar-fill ' + scoreClass + '" style="width:' + scoreWidth + '%"></div></div><span class="score-value ' + scoreTextClass + '">' + score.toFixed(1) + '</span></div>' +
       '<div class="col-sent ' + sentClass + '">' + sentLabel + '</div>' +
       '<div class="col-price">$' + c.close.toFixed(2) + '</div>' +
-      '<div class="col-stop">$' + c.stop_loss.toFixed(2) + '</div>' +
-      '<div class="col-rr">' + (noTP ? '—' : rr + 'x') + '</div>' +
+      '<div class="col-stop">$' + c.stop_loss.toFixed(2) + (noTP ? '<div style="font-size:0.62rem;color:#7bdcb5;margin-top:1px" title="Hands-off exit (validated): place an IBKR TRAILING stop with this $ distance (2&times;ATR) instead of the fixed stop. It ratchets up automatically — no babysitting. Initial stop sits ~2&times;ATR out, wider than the fixed stop.">trail $' + (2 * (c.risk_per_share || Math.max(0, c.close - c.stop_loss))).toFixed(2) + '</div>' : '') + '</div>' +
       '<div class="col-qty" data-selkey="' + selKey + '"><span class="qty-empty">--</span></div>';
     body.appendChild(row);
     const detail = document.createElement('div');
@@ -1767,7 +1765,7 @@ function buildDetailHTML(c) {
     '" data-tpoff="' + targetOffset.toFixed(2) + '"' + (t1Offset > 0 ? ' data-t1off="' + t1Offset.toFixed(2) + '"' : '') + '>' +
     '<div class="detail-section-title">FILL CALCULATOR</div>' +
     '<div class="col-fillcalc">' +
-    '<div class="fill-static">risk/sh $' + riskShare.toFixed(2) + (noTP ? ' &middot; stop-only (no target)' : ' &middot; tgt +$' + targetOffset.toFixed(2)) + '</div>' +
+    '<div class="fill-static">risk/sh $' + riskShare.toFixed(2) + (noTP ? ' &middot; stop-only &middot; trail 2&times;ATR $' + (2 * riskShare).toFixed(2) + ' (&approx;start $' + Math.max(0, c.close - 2 * riskShare).toFixed(2) + ')' : ' &middot; tgt +$' + targetOffset.toFixed(2)) + '</div>' +
     '<div class="fill-input-row"><span class="fill-input-label">YOUR FILL $</span>' +
     '<input type="number" class="fill-input" step="0.01" min="0" placeholder="0.00" onclick="event.stopPropagation()"></div>' +
     '<div class="fill-result-row"><span class="fill-result-label">STOP</span><span class="calc-stop">---</span></div>' +
@@ -2083,7 +2081,7 @@ function recomputeInlineQtys() {
       // Stop-only sleeve (range_support) is a single entry order, not a 2-tranche
       // bracket — show the full share count with no "x2" split.
       if (r.no_take_profit) {
-        cell.innerHTML = '<span class="qty-val">' + r.shares.toFixed(2) + '</span><span class="qty-sub">x1</span>';
+        cell.innerHTML = '<span class="qty-val">' + r.shares.toFixed(2) + '</span>';
         cell.title = key.split('|')[0] + ': $' + Math.round(r.alloc).toLocaleString() +
           ' → ' + r.shares.toFixed(2) + ' sh (single order, stop-only)';
       } else {
@@ -2269,12 +2267,10 @@ document.addEventListener('DOMContentLoaded', function() {
             '<div class="leaderboard-header">',
             '<div></div><div>#</div>',
             '<div class="sortable" data-sort="symbol" onclick="sortBy(\'symbol\')" title="Sort by symbol">SYMBOL<span class="sort-arrow"></span></div>',
-            '<div class="sortable" data-sort="score" onclick="sortBy(\'score\')" title="Sort by score">SCORE<span class="sort-arrow"></span></div>',
             '<div class="sortable" data-sort="sentiment_composite" onclick="sortBy(\'sentiment_composite\')" title="Sort by Z-score normalized composite sentiment">SENT<span class="sort-arrow"></span></div>',
             '<div class="sortable" data-sort="close" onclick="sortBy(\'close\')" title="Sort by entry price">ENTRY<span class="sort-arrow"></span></div>',
             '<div class="sortable" data-sort="stop_loss" onclick="sortBy(\'stop_loss\')" title="Sort by stop">STOP<span class="sort-arrow"></span></div>',
-            '<div class="sortable" data-sort="rr" onclick="sortBy(\'rr\')" title="Sort by risk/reward ratio">R:R<span class="sort-arrow"></span></div>',
-            '<div title="Per-order share count for checked names: total INVESTMENT $ split by conviction, then halved (you place 2 buy orders per name).">QTY x2</div>',
+            '<div title="Per-order share count for checked names: total INVESTMENT $ split by conviction. RangeSupport = one order; Connors splits into two (marked x2).">QTY</div>',
             '</div>',
             '<div class="leaderboard-body" id="leaderboardBody"></div>',
             '</div>',
