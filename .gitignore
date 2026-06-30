@@ -52,3 +52,4 @@ docs/IBKR_journal.csv
 .gstack/
 # Generated knowledge graph (rebuild with `graphify update .`)
 graphify-out/
+.halt_mailbox.lock
