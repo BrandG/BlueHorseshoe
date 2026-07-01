@@ -1,11 +1,7 @@
 #!/usr/bin/env python3
 """Send journal CSV templates via email."""
 import os
-import smtplib
 import logging
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
-from email.mime.application import MIMEApplication
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
@@ -20,18 +16,15 @@ TEMPLATES = [
 
 
 def main():
-    smtp_user = os.environ.get("SMTP_USER")
-    smtp_password = os.environ.get("SMTP_PASSWORD")
-    recipient = os.environ.get("EMAIL_RECIPIENT")
+    from bluehorseshoe.core.email_service import EmailService  # pylint: disable=import-outside-toplevel
 
-    if not all([smtp_user, smtp_password, recipient]):
-        logger.error("Missing SMTP_USER, SMTP_PASSWORD, or EMAIL_RECIPIENT")
-        return
-
-    msg = MIMEMultipart()
-    msg["From"] = os.environ.get("EMAIL_SENDER", smtp_user)
-    msg["To"] = recipient
-    msg["Subject"] = "BlueHorseshoe - Trade Journal Templates"
+    attachments = []
+    for filename in TEMPLATES:
+        path = os.path.join(LOGS_DIR, filename)
+        if not os.path.exists(path):
+            logger.error("Template not found: %s", path)
+            return
+        attachments.append((path, filename))
 
     body = (
         "Attached are 3 CSV templates for the Layer C trade journal:\n\n"
@@ -42,27 +35,16 @@ def main():
         "  batch_date, symbol, strategy, entry/exit price, shares, dollar_pnl\n\n"
         "Everything else is nice-to-have for deeper analysis later."
     )
-    msg.attach(MIMEText(body, "plain"))
 
-    for filename in TEMPLATES:
-        path = os.path.join(LOGS_DIR, filename)
-        if not os.path.exists(path):
-            logger.error(f"Template not found: {path}")
-            return
-        with open(path, "rb") as f:
-            part = MIMEApplication(f.read(), Name=filename)
-            part["Content-Disposition"] = f'attachment; filename="{filename}"'
-            msg.attach(part)
-        logger.info(f"Attached {filename}")
-
-    smtp_server = os.environ.get("SMTP_SERVER", "smtp.gmail.com")
-    smtp_port = int(os.environ.get("SMTP_PORT", 587))
-    with smtplib.SMTP(smtp_server, smtp_port, timeout=120) as server:
-        server.starttls()
-        server.login(smtp_user, smtp_password)
-        server.send_message(msg)
-
-    logger.info(f"Journal templates sent to {recipient}")
+    guid = EmailService().send(
+        subject="BlueHorseshoe - Trade Journal Templates",
+        text_body=body,
+        attachments=attachments,
+    )
+    if guid:
+        logger.info("Journal templates sent (id=%s)", guid)
+    else:
+        logger.error("Journal templates not sent (email unconfigured or send failed)")
 
 
 if __name__ == "__main__":

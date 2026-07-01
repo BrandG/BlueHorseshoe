@@ -20,15 +20,11 @@ Exit codes:
 from __future__ import annotations
 
 import argparse
-import json
 import logging
-import os
-import smtplib
 import socket
 import sys
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
-from email.mime.text import MIMEText
 from pathlib import Path
 from typing import Optional
 
@@ -197,43 +193,23 @@ def _format_failure_body(summary: RunSummary, results: list[PairResult]) -> str:
     return "\n".join(lines)
 
 
-def send_failure_email(
-    subject: str,
-    body: str,
-    *,
-    smtp_module=smtplib,
-) -> bool:
-    """Send an alert email via SMTP_* env vars. Returns True on success, False otherwise.
+def send_failure_email(subject: str, body: str) -> bool:
+    """Send an alert email via EmailService (Fastmail JMAP, or Brevo SMTP fallback).
 
-    Mirrors the convention used by backup.sh: silently no-op if SMTP isn't
-    configured, log a warning if the send itself fails (don't crash).
+    Silently no-ops if email isn't configured; logs a warning if the send fails
+    (never crashes).
     """
-    server = os.environ.get("SMTP_SERVER")
-    user = os.environ.get("SMTP_USER")
-    password = os.environ.get("SMTP_PASSWORD")
-    recipient = os.environ.get("EMAIL_RECIPIENT")
-    sender = os.environ.get("EMAIL_SENDER", user or "bh-ftmo@localhost")
-    port = int(os.environ.get("SMTP_PORT", "587"))
-
-    if not (server and user and password and recipient):
-        log.warning("SMTP not fully configured (need SMTP_SERVER/USER/PASSWORD + EMAIL_RECIPIENT) — skipping alert")
-        return False
-
-    msg = MIMEText(body)
-    msg["Subject"] = f"[BH FTMO] {subject}"
-    msg["From"] = sender
-    msg["To"] = recipient
-
+    from bluehorseshoe.core.email_service import EmailService  # pylint: disable=import-outside-toplevel
     try:
-        with smtp_module.SMTP(server, port, timeout=30) as s:
-            s.starttls()
-            s.login(user, password)
-            s.sendmail(sender, [recipient], msg.as_string())
-        log.info("alert email sent to %s", recipient)
-        return True
-    except Exception as exc:  # noqa: BLE001
+        guid = EmailService().send(subject=f"[BH FTMO] {subject}", text_body=body)
+    except Exception as exc:  # noqa: BLE001 — a failed alert must not crash the update
         log.warning("alert email failed (%s): %s", type(exc).__name__, exc)
         return False
+    if guid:
+        log.info("alert email sent (id=%s)", guid)
+        return True
+    log.warning("alert email not sent (unconfigured or send failed)")
+    return False
 
 
 # ---- CLI ---------------------------------------------------------------

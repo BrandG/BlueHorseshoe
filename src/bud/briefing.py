@@ -17,15 +17,10 @@ from __future__ import annotations
 
 import argparse
 import html
-import json
 import logging
-import os
-import smtplib
 import sys
-import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from email.mime.text import MIMEText
 from pathlib import Path
 from typing import Any, Optional
 
@@ -823,37 +818,19 @@ def render_html_report(
 
 
 def _send_html_email(subject: str, html_body: str) -> bool:
-    """Send HTML email via SMTP_* env vars. Mirrors send_failure_email but with
-    text/html mime subtype.
+    """Send the HTML briefing via EmailService (Fastmail JMAP, or Brevo SMTP fallback).
+
+    EmailService appends a unique ``[id:<guid>]`` to the subject, which also defeats
+    Gmail's subject-based threading (previously handled here with a ``[#<token>]`` tag),
+    and picks the backend from EMAIL_BACKEND. Returns True on acceptance, else False.
     """
-    server = os.environ.get("SMTP_SERVER")
-    user = os.environ.get("SMTP_USER")
-    password = os.environ.get("SMTP_PASSWORD")
-    recipient = os.environ.get("EMAIL_RECIPIENT")
-    sender = os.environ.get("EMAIL_SENDER", user or "bh-ftmo@localhost")
-    port = int(os.environ.get("SMTP_PORT", "587"))
-
-    if not (server and user and password and recipient):
-        LOG.warning("SMTP not fully configured; skipping email")
-        return False
-
-    # Append a unique token so Gmail (which threads on identical normalized
-    # subjects) treats each report as its own conversation, not a reply.
-    msg = MIMEText(html_body, "html", "utf-8")
-    msg["Subject"] = f"{subject} [#{uuid.uuid4().hex[:8]}]"
-    msg["From"] = sender
-    msg["To"] = recipient
-
-    try:
-        with smtplib.SMTP(server, port, timeout=30) as s:
-            s.starttls()
-            s.login(user, password)
-            s.sendmail(sender, [recipient], msg.as_string())
-        LOG.info("briefing email sent to %s", recipient)
-        return True
-    except Exception as exc:  # noqa: BLE001
-        LOG.warning("briefing email failed (%s): %s", type(exc).__name__, exc)
-        return False
+    from bluehorseshoe.core.email_service import EmailService  # pylint: disable=import-outside-toplevel
+    guid = EmailService().send(subject=subject, html_body=html_body)
+    if guid:
+        LOG.info("briefing email sent (id=%s)", guid)
+    else:
+        LOG.warning("briefing email not sent (unconfigured or send failed)")
+    return bool(guid)
 
 
 def evaluate_fires() -> tuple[list[dict], list[Cell], dict[str, pd.Timestamp]]:

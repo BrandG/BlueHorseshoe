@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta
-from pathlib import Path
+from datetime import datetime
 from typing import Any, Iterator, Optional
 from unittest.mock import MagicMock
 
@@ -246,44 +245,26 @@ def test_format_failure_body_flags_auth_failure():
 # ---- send_failure_email ------------------------------------------------
 
 
-def test_send_failure_email_returns_false_when_smtp_unconfigured(monkeypatch):
-    for k in ("SMTP_SERVER", "SMTP_USER", "SMTP_PASSWORD", "EMAIL_RECIPIENT"):
-        monkeypatch.delenv(k, raising=False)
+def test_send_failure_email_returns_false_when_unconfigured(monkeypatch):
+    import bluehorseshoe.core.email_service as es
+    monkeypatch.setattr(es, "EmailService", lambda: MagicMock(**{"send.return_value": None}))
     assert send_failure_email("subj", "body") is False
 
 
 def test_send_failure_email_happy_path(monkeypatch):
-    monkeypatch.setenv("SMTP_SERVER", "smtp.test")
-    monkeypatch.setenv("SMTP_USER", "user")
-    monkeypatch.setenv("SMTP_PASSWORD", "pw")
-    monkeypatch.setenv("EMAIL_RECIPIENT", "to@example.com")
-    monkeypatch.setenv("SMTP_PORT", "2525")
+    import bluehorseshoe.core.email_service as es
+    fake = MagicMock(**{"send.return_value": "guid-123"})
+    monkeypatch.setattr(es, "EmailService", lambda: fake)
 
-    fake_smtp = MagicMock()
-    fake_conn = MagicMock()
-    # Context manager protocol
-    fake_smtp.SMTP.return_value.__enter__.return_value = fake_conn
-    fake_smtp.SMTP.return_value.__exit__.return_value = False
-
-    ok = send_failure_email("my subject", "my body", smtp_module=fake_smtp)
+    ok = send_failure_email("my subject", "my body")
     assert ok is True
-    fake_smtp.SMTP.assert_called_once_with("smtp.test", 2525, timeout=30)
-    fake_conn.starttls.assert_called_once()
-    fake_conn.login.assert_called_once_with("user", "pw")
-    fake_conn.sendmail.assert_called_once()
-    args = fake_conn.sendmail.call_args[0]
-    assert args[1] == ["to@example.com"]
-    assert "my subject" in args[2]
-    assert "my body" in args[2]
+    kwargs = fake.send.call_args.kwargs
+    assert "my subject" in kwargs["subject"] and kwargs["text_body"] == "my body"
 
 
-def test_send_failure_email_swallows_smtp_error(monkeypatch):
-    monkeypatch.setenv("SMTP_SERVER", "smtp.test")
-    monkeypatch.setenv("SMTP_USER", "user")
-    monkeypatch.setenv("SMTP_PASSWORD", "pw")
-    monkeypatch.setenv("EMAIL_RECIPIENT", "to@example.com")
-
-    fake_smtp = MagicMock()
-    fake_smtp.SMTP.side_effect = ConnectionError("relay refused")
-    ok = send_failure_email("subj", "body", smtp_module=fake_smtp)
-    assert ok is False  # doesn't crash
+def test_send_failure_email_swallows_errors(monkeypatch):
+    import bluehorseshoe.core.email_service as es
+    fake = MagicMock()
+    fake.send.side_effect = ConnectionError("relay refused")
+    monkeypatch.setattr(es, "EmailService", lambda: fake)
+    assert send_failure_email("subj", "body") is False  # doesn't crash

@@ -1,5 +1,5 @@
 """JMAP backend tests — mock the Fastmail API; guard the dual-'s' response parsing."""
-# pylint: disable=protected-access,redefined-outer-name
+# pylint: disable=protected-access,redefined-outer-name,unused-argument
 from types import SimpleNamespace
 
 import pytest

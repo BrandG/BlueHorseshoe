@@ -2,7 +2,6 @@ import smtplib
 import os
 import re
 import uuid
-import json
 import mimetypes
 import logging
 from email.mime.text import MIMEText
