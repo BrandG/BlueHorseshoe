@@ -2,13 +2,21 @@ import smtplib
 import os
 import re
 import uuid
+import json
+import mimetypes
 import logging
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from email.mime.application import MIMEApplication
 from pathlib import Path
 
+import requests
+
 logger = logging.getLogger(__name__)
+
+JMAP_SESSION_URL = "https://api.fastmail.com/jmap/session"
+_JMAP_USING = ["urn:ietf:params:jmap:core", "urn:ietf:params:jmap:mail",
+               "urn:ietf:params:jmap:submission"]
 
 
 class EmailService:
@@ -20,17 +28,31 @@ class EmailService:
     """
 
     def __init__(self):
+        # Backend: 'jmap' sends via the Fastmail JMAP API over 443 (DO blocks
+        # outbound SMTP 25/465/587); 'smtp' (default) uses the Brevo relay on 2525.
+        self.backend = os.environ.get('EMAIL_BACKEND', 'smtp').lower()
         self.smtp_server = os.environ.get('SMTP_SERVER', 'smtp.gmail.com')
         self.smtp_port = int(os.environ.get('SMTP_PORT', 587))
         self.smtp_user = os.environ.get('SMTP_USER')
         self.smtp_password = os.environ.get('SMTP_PASSWORD')
         self.recipient = os.environ.get('EMAIL_RECIPIENT')
-        self.sender = os.environ.get('EMAIL_SENDER', self.smtp_user)
+        self.jmap_token = os.environ.get('FASTMAIL_JMAP_TOKEN')
+        self.jmap_from = os.environ.get('FASTMAIL_JMAP_FROM')
+        # For JMAP the From is the Fastmail identity; for SMTP it's EMAIL_SENDER.
+        if self.backend == 'jmap':
+            self.sender = self.jmap_from or os.environ.get('EMAIL_SENDER')
+        else:
+            self.sender = os.environ.get('EMAIL_SENDER', self.smtp_user)
 
     def is_configured(self) -> bool:
         if not self.recipient or not self.sender:
             logger.warning("Email configuration missing (EMAIL_RECIPIENT or EMAIL_SENDER). Skipping email.")
             return False
+        if self.backend == 'jmap':
+            if not self.jmap_token:
+                logger.warning("JMAP configuration missing (FASTMAIL_JMAP_TOKEN). Skipping email.")
+                return False
+            return True
         if not self.smtp_user or not self.smtp_password:
             logger.warning("SMTP configuration missing (SMTP_USER or SMTP_PASSWORD). Skipping email.")
             return False
@@ -62,11 +84,16 @@ class EmailService:
             return None
 
         guid = str(uuid.uuid4())
+        subject_tagged = f"{subject} [id:{guid}]"
+
+        if self.backend == 'jmap':
+            return self._send_jmap(subject_tagged, guid, html_body, text_body, attachments)
+
         try:
             msg = MIMEMultipart('mixed')
             msg['From'] = self.sender
             msg['To'] = self.recipient
-            msg['Subject'] = f"{subject} [id:{guid}]"
+            msg['Subject'] = subject_tagged
             msg['X-BH-Message-Id'] = guid
 
             msg_alternative = MIMEMultipart('alternative')
@@ -95,6 +122,111 @@ class EmailService:
 
         except Exception as e:
             logger.error(f"Failed to submit email (id={guid}): {e}", exc_info=True)
+            return None
+
+    # ---- JMAP backend (Fastmail over 443; DO blocks outbound SMTP) ---------
+
+    def _jmap_headers(self) -> dict:
+        return {"Authorization": f"Bearer {self.jmap_token}", "Content-Type": "application/json"}
+
+    def _jmap_upload(self, upload_url: str, account_id: str, path: str, filename: str) -> dict:
+        """Upload one attachment blob; return its Email bodyStructure part."""
+        mime_type = mimetypes.guess_type(filename)[0] or "application/octet-stream"
+        with open(path, "rb") as f:
+            data = f.read()
+        url = upload_url.replace("{accountId}", account_id)
+        resp = requests.post(url, headers={"Authorization": f"Bearer {self.jmap_token}",
+                                           "Content-Type": mime_type}, data=data, timeout=120)
+        resp.raise_for_status()
+        blob = resp.json()
+        return {"blobId": blob["blobId"], "type": blob.get("type", mime_type),
+                "disposition": "attachment", "name": filename}
+
+    @staticmethod
+    def _jmap_body(html_body, text_body, attachment_parts):
+        """Build (bodyStructure, bodyValues) for text, text+html, and attachments."""
+        body_values = {"text": {"value": text_body or ""}}
+        body = {"type": "text/plain", "partId": "text"}
+        if html_body is not None:
+            body_values["html"] = {"value": html_body}
+            body = {"type": "multipart/alternative", "subParts": [
+                {"type": "text/plain", "partId": "text"},
+                {"type": "text/html", "partId": "html"},
+            ]}
+        if attachment_parts:
+            return {"type": "multipart/mixed", "subParts": [body] + attachment_parts}, body_values
+        return body, body_values
+
+    def _send_jmap(self, subject, guid, html_body, text_body, attachments) -> str | None:
+        """Send via the Fastmail JMAP API over HTTPS. Returns guid on acceptance, else None."""
+        try:
+            sess = requests.get(JMAP_SESSION_URL, headers=self._jmap_headers(), timeout=30)
+            sess.raise_for_status()
+            session = sess.json()
+            api_url = session["apiUrl"]
+            account_id = session["primaryAccounts"]["urn:ietf:params:jmap:mail"]
+
+            meta = requests.post(api_url, headers=self._jmap_headers(), timeout=30, json={
+                "using": _JMAP_USING, "methodCalls": [
+                    ["Mailbox/get", {"accountId": account_id, "properties": ["role"]}, "m"],
+                    ["Identity/get", {"accountId": account_id}, "i"],
+                ]}).json()
+            mboxes = meta["methodResponses"][0][1]["list"]
+            drafts = next((m["id"] for m in mboxes if m.get("role") == "drafts"), None)
+            sent = next((m["id"] for m in mboxes if m.get("role") == "sent"), None)
+            identities = meta["methodResponses"][1][1]["list"]
+            ident = next((i for i in identities
+                          if i.get("email", "").lower() == (self.sender or "").lower()),
+                         identities[0] if identities else None)
+            if drafts is None or ident is None:
+                logger.error("JMAP: missing Drafts mailbox or identity (id=%s)", guid)
+                return None
+
+            attachment_parts = []
+            for item in attachments or []:
+                path, filename = item if isinstance(item, tuple) else (item, None)
+                attachment_parts.append(
+                    self._jmap_upload(session["uploadUrl"], account_id, path,
+                                      filename or os.path.basename(path)))
+
+            structure, body_values = self._jmap_body(html_body, text_body, attachment_parts)
+            on_success = {"mailboxIds/" + drafts: None, "keywords/$draft": None}
+            if sent:
+                on_success["mailboxIds/" + sent] = True
+
+            logger.info("Submitting email via JMAP: %r id=%s", subject, guid)
+            r = requests.post(api_url, headers=self._jmap_headers(), timeout=120, json={
+                "using": _JMAP_USING, "methodCalls": [
+                    ["Email/set", {"accountId": account_id, "create": {"d": {
+                        "mailboxIds": {drafts: True},
+                        "keywords": {"$draft": True},
+                        "from": [{"email": self.sender}],
+                        "to": [{"email": self.recipient}],
+                        "subject": subject,
+                        "header:X-BH-Message-Id:asText": guid,
+                        "bodyStructure": structure,
+                        "bodyValues": body_values,
+                    }}}, "c"],
+                    ["EmailSubmission/set", {"accountId": account_id,
+                        "onSuccessUpdateEmail": {"#s": on_success},
+                        "create": {"s": {"emailId": "#d", "identityId": ident["id"]}}}, "s"],
+                ]}).json()
+
+            # onSuccessUpdateEmail appends an implicit Email/set response that shares the
+            # EmailSubmission call-id ("s"), so match by (method, cid), not a cid dict.
+            mr = r["methodResponses"]
+            draft_res = next((res for n, res, c in mr if n == "Email/set" and c == "c"), None) or {}
+            sub_res = next((res for n, res, c in mr if n == "EmailSubmission/set" and c == "s"), None) or {}
+            if not (draft_res.get("created") or {}).get("d"):
+                logger.error("JMAP Email/set failed id=%s: %s", guid, draft_res.get("notCreated") or draft_res)
+                return None
+            if not (sub_res.get("created") or {}).get("s"):
+                logger.error("JMAP EmailSubmission failed id=%s: %s", guid, sub_res.get("notCreated") or sub_res)
+                return None
+            logger.info("Email SENT via Fastmail JMAP to %s id=%s", self.recipient, guid)
+            return guid
+        except Exception as e:  # noqa: BLE001
+            logger.error("Failed to send via JMAP (id=%s): %s", guid, e, exc_info=True)
             return None
 
     @staticmethod

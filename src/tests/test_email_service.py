@@ -30,6 +30,7 @@ class CapturingSMTP:
 
 
 def configured_service(monkeypatch):
+    monkeypatch.setenv("EMAIL_BACKEND", "smtp")   # deterministic: these test the SMTP path
     monkeypatch.setenv("SMTP_USER", "smtp-user")
     monkeypatch.setenv("SMTP_PASSWORD", "smtp-pass")
     monkeypatch.setenv("EMAIL_RECIPIENT", "to@example.com")
