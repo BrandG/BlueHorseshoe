@@ -1285,7 +1285,7 @@ body::after {
   box-shadow: 0 0 15px rgba(255,170,0,0.1); margin-bottom: 16px;
 }
 .leaderboard-header {
-  display: grid; grid-template-columns: 28px 40px 1fr 60px 92px 92px 78px;
+  display: grid; grid-template-columns: 28px 40px 2fr 0.9fr 1fr 1.1fr 1fr;
   padding: 10px 12px; border-bottom: 2px solid var(--neon-amber);
   font-size: 0.8rem; color: var(--neon-amber); text-shadow: 0 0 4px var(--neon-amber);
   letter-spacing: 1px; background: rgba(255,170,0,0.05);
@@ -1306,7 +1306,7 @@ body::after {
 .leaderboard-body::-webkit-scrollbar-thumb { background: var(--neon-amber-dim); border: 1px solid var(--neon-amber); }
 @keyframes row-enter { from { opacity: 0; transform: translateX(-20px); } to { opacity: 1; transform: translateX(0); } }
 .leaderboard-row {
-  display: grid; grid-template-columns: 28px 40px 1fr 60px 92px 92px 78px;
+  display: grid; grid-template-columns: 28px 40px 2fr 0.9fr 1fr 1.1fr 1fr;
   padding: 10px 12px; border-bottom: 1px solid rgba(85,85,112,0.3);
   font-size: 0.9rem; cursor: pointer; transition: background 0.1s;
   animation: row-enter 0.3s ease-out both;
