@@ -44,6 +44,21 @@ def message_parts(msg):
     return list(msg.walk())
 
 
+def test_send_file_attachment_only_omits_inline_html(tmp_path, monkeypatch):
+    service = configured_service(monkeypatch)
+    html_file = tmp_path / "report.html"
+    html_file.write_text("<html><body><script>x()</script></body></html>", encoding="utf-8")
+
+    assert service.send_file(str(html_file), inline_html=False)
+
+    msg = CapturingSMTP.messages[0]
+    inline_html = [p for p in message_parts(msg)
+                   if p.get_content_type() == "text/html" and p.get_filename() is None]
+    assert not inline_html                       # HTML not inlined into the body
+    attached = [p for p in message_parts(msg) if p.get_filename() == "report.html"]
+    assert attached                              # ...still attached as a file
+
+
 def test_send_file_inlines_utf8_text_and_attaches_file(tmp_path, monkeypatch):
     service = configured_service(monkeypatch)
     text_file = tmp_path / "note.txt"

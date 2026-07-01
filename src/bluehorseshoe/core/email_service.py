@@ -236,12 +236,16 @@ class EmailService:
             logger.info(f"File is not UTF-8 text; using attachment-only body: {file_path}")
             return None
 
-    def send_file(self, file_path: str, subject: str | None = None, body: str | None = None) -> bool:
+    def send_file(self, file_path: str, subject: str | None = None, body: str | None = None,
+                  inline_html: bool = True) -> bool:
         """Email any local file as an attachment.
 
-        UTF-8 text files are used as the plain-text body by default. HTML files
-        are additionally inlined as HTML so they render in the client. The
-        source file is always attached.
+        UTF-8 text files are used as the plain-text body by default. HTML files are
+        additionally inlined as HTML so they render in the client — UNLESS
+        ``inline_html=False``, in which case the file is attachment-only (needed for
+        interactive/JS reports like the arcade report, whose scripts are stripped from
+        an email body but run when the attachment is opened in a browser). The source
+        file is always attached.
         """
         if not os.path.exists(file_path):
             logger.error(f"File not found: {file_path}")
@@ -253,11 +257,15 @@ class EmailService:
         html_body = None
         text_body = body
         if file_path.lower().endswith(('.html', '.htm')):
-            with open(file_path, 'r', encoding='utf-8') as f:
-                html_body = f.read()
-            if text_body is None:
-                text_body = (f"This email contains the HTML file {filename}. "
-                             "Please use an HTML-compatible email client to view it.")
+            if inline_html:
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    html_body = f.read()
+                if text_body is None:
+                    text_body = (f"This email contains the HTML file {filename}. "
+                                 "Please use an HTML-compatible email client to view it.")
+            elif text_body is None:
+                text_body = (f"{filename} is attached — open it in a browser to view. "
+                             "(Interactive reports don't render in the email body.)")
         elif text_body is None:
             text_body = self._read_text_file(file_path) or f"Attached: {filename}"
 

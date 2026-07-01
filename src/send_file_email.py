@@ -24,6 +24,9 @@ def main():
     parser.add_argument("paths", nargs="+", help="File(s) to send")
     parser.add_argument("--subject", default=None, help="Email subject (default derives from filename)")
     parser.add_argument("--body", default=None, help="Plain-text body (default derives from filenames)")
+    parser.add_argument("--no-inline", action="store_true",
+                        help="Attach HTML instead of inlining it in the body (needed for "
+                             "interactive/JS reports like the arcade report).")
     args = parser.parse_args()
 
     missing = [p for p in args.paths if not os.path.exists(p)]
@@ -36,7 +39,8 @@ def main():
     service = EmailService()
 
     if len(args.paths) == 1:
-        success = service.send_file(args.paths[0], subject=args.subject, body=args.body)
+        success = service.send_file(args.paths[0], subject=args.subject, body=args.body,
+                                    inline_html=not args.no_inline)
     else:
         names = ", ".join(os.path.basename(p) for p in args.paths)
         success = service.send(
