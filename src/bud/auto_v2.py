@@ -64,7 +64,9 @@ from bud.briefing import (
     evaluate_cell,
     ranked_cells,
 )
-from bud.entry_location import atr_pct_w252, is_high_ny_skip
+# Mirror auto_rising3bar helpers we want directly
+from bud.auto_rising3bar import _split, latest_mid_close, quote_to_account_rate
+from bud.entry_location import HIGH_NY_SKIP_ENABLED, atr_pct_w252, is_high_ny_skip
 from bh_ftmo.data.fx_store import FxStore
 from bh_ftmo.indicators import ohlc_mid
 from bh_ftmo.trading.oanda_trader import (
@@ -78,9 +80,6 @@ from bh_ftmo.trading.safety import (
     margin_gate_allows,
 )
 
-# Mirror auto_rising3bar helpers we want directly
-from bud.auto_rising3bar import _split, latest_mid_close, quote_to_account_rate
-
 REPO_ROOT = Path(__file__).resolve().parents[2]  # src/bud/<this> -> repo root
 CONFIG_PATH = REPO_ROOT / "src" / "bh_ftmo_config.json"
 JOURNAL_PATH = REPO_ROOT / "src" / "logs" / "bh_ftmo_v2_paper_journal.csv"
@@ -93,13 +92,6 @@ RISK_PER_TRADE_PCT = 0.005   # 0.5% — chosen 2026-05-06 after the gated-ledger
                               # but median time-to-pass drops 322d -> 145d.
                               # See research/v2_deploy_backtest/sweep_gated_results.json
 MAX_NEW_ORDERS_PER_RUN = 5
-
-# Entry-location: skip high-ATR ∩ NY entries on the strong-4 long-MR sleeve
-# (research/entry_location_v1/: −0.07R/trade, holdout-passed, +17% of the strong-4
-# long book). PHASE 1 = dark: journal `would_skip_high_atr_ny` but STILL PLACE the
-# trade — confirms the flag fires at the expected rate with zero behavior change.
-# Flip to True for Phase 3 (hard skip). The predicate lives in bud.entry_location.
-HIGH_NY_SKIP_ENABLED = False
 
 # Which cells are in the V2 autonomous deployment universe.
 # Keep this conservative — only cells with FTMO-sim conservative-model

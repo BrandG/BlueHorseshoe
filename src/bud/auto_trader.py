@@ -42,6 +42,7 @@ from bud.auto_rising3bar import (
     load_pair_specs,
     quote_to_account_rate,
 )
+from bud.entry_location import HIGH_NY_SKIP_ENABLED, atr_pct_w252, is_high_ny_skip
 from bud.reconcile import reconcile_outcomes
 from bh_ftmo.data.fx_store import FxStore
 from bh_ftmo.indicators import ohlc_mid
@@ -257,6 +258,15 @@ class V2CellSource:
             signal_open_ts = pd.Timestamp(df["timestamp"].iloc[-1])
             signal_close_ts = signal_open_ts + pd.Timedelta(hours=H4_BAR_HOURS)
             gtd = _next_bar_close(signal_open_ts)
+            meta = {
+                "strategy": cell.strategy,
+                "trigger_bar_ts": "",
+                "trigger_bar_close_ts": signal_close_ts.isoformat(),
+            }
+            bar_open_ts = signal_open_ts  # df["timestamp"].iloc[-1] is the H4 bar open
+            if is_high_ny_skip(cell.strategy, cell.direction, bar_open_ts, mid):
+                meta["high_ny_skip"] = True
+                meta["atr_pct"] = atr_pct_w252(mid)
             out.append(OrderCandidate(
                 source=self.name,
                 pair=cell.pair,
@@ -270,11 +280,7 @@ class V2CellSource:
                             f"{signal_close_ts.strftime('%Y%m%d%H%M')}"),
                 price_precision=_price_precision(cell.pair),
                 gtd=gtd if cell.entry_mode == "limit" else None,
-                meta={
-                    "strategy": cell.strategy,
-                    "trigger_bar_ts": "",
-                    "trigger_bar_close_ts": signal_close_ts.isoformat(),
-                },
+                meta=meta,
             ))
         return out
 
@@ -407,6 +413,17 @@ def place_candidates(
 
     for candidate in candidates:
         base = _base_fields(candidate, dry_run=dry_run, equity=equity)
+        if candidate.meta.get("high_ny_skip"):
+            loc_note = f"atr_pct={candidate.meta['atr_pct']:.2f} session=ny"
+            if HIGH_NY_SKIP_ENABLED:
+                LOG.info("%s/%s: high∩NY skip — %s",
+                         candidate.meta.get("strategy", ""), candidate.pair, loc_note)
+                journal({**base, "event": "skip_high_atr_ny", "note": loc_note})
+                continue
+            LOG.info("%s/%s: high∩NY would-skip (Phase 1 dark) — %s",
+                     candidate.meta.get("strategy", ""), candidate.pair, loc_note)
+            journal({**base, "event": "would_skip_high_atr_ny", "note": loc_note})
+
         if candidate.pair in open_pair_set:
             journal({**base, "event": "skip_already_open"})
             continue
