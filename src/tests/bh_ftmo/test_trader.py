@@ -6,9 +6,10 @@ import pandas as pd
 import pytest
 
 from bud import auto_trader as trader
+from bud import entry_location
+from bud.auto_rising3bar import PairSpec
 from bud.briefing import Cell
 from bh_ftmo.trading import safety
-from bud.auto_rising3bar import PairSpec
 
 
 class FakeTrader:
@@ -41,7 +42,11 @@ def candidate(
     direction: str = "long",
     entry_mode: str = "market",
     risk_pct: float = 0.01,
+    meta: dict | None = None,
 ) -> trader.OrderCandidate:
+    default_meta = {"strategy": "stoch"} if source == trader.V2_SOURCE else {}
+    if meta is not None:
+        default_meta.update(meta)
     return trader.OrderCandidate(
         source=source,
         pair=pair,
@@ -54,7 +59,7 @@ def candidate(
         client_tag=f"{source}:tag",
         price_precision=5,
         gtd=None,
-        meta={"strategy": "stoch"} if source == trader.V2_SOURCE else {},
+        meta=default_meta,
     )
 
 
@@ -121,6 +126,44 @@ def test_same_tick_conflict_v2_wins_over_rising3bar():
     assert [r["event"] for r in rows] == ["skip_conflict", "would_open"]
     assert rows[0]["source"] == trader.R3B_SOURCE
     assert rows[1]["source"] == trader.V2_SOURCE
+
+
+def test_high_ny_skip_dark_mode_journals_and_still_places(monkeypatch):
+    monkeypatch.setattr(entry_location, "HIGH_NY_SKIP_ENABLED", False)
+    monkeypatch.setattr(trader, "HIGH_NY_SKIP_ENABLED", False)
+    rows = run_place([
+        candidate(
+            "EUR_USD",
+            source=trader.V2_SOURCE,
+            meta={"high_ny_skip": True, "atr_pct": 0.8},
+        )
+    ])
+
+    assert [r["event"] for r in rows] == ["would_skip_high_atr_ny", "would_open"]
+    assert rows[0]["note"] == "atr_pct=0.80 session=ny"
+
+
+def test_high_ny_skip_enabled_journals_and_blocks_open(monkeypatch):
+    monkeypatch.setattr(entry_location, "HIGH_NY_SKIP_ENABLED", True)
+    monkeypatch.setattr(trader, "HIGH_NY_SKIP_ENABLED", True)
+    rows = run_place([
+        candidate(
+            "EUR_USD",
+            source=trader.V2_SOURCE,
+            meta={"high_ny_skip": True, "atr_pct": 0.8},
+        )
+    ])
+
+    assert [r["event"] for r in rows] == ["skip_high_atr_ny"]
+    assert rows[0]["note"] == "atr_pct=0.80 session=ny"
+
+
+def test_high_ny_skip_absent_meta_does_not_journal_location_row(monkeypatch):
+    monkeypatch.setattr(entry_location, "HIGH_NY_SKIP_ENABLED", False)
+    monkeypatch.setattr(trader, "HIGH_NY_SKIP_ENABLED", False)
+    rows = run_place([candidate("EUR_USD", source=trader.V2_SOURCE)])
+
+    assert [r["event"] for r in rows] == ["would_open"]
 
 
 def test_direction_gate_uses_shared_mutating_counts():
@@ -208,6 +251,36 @@ def test_both_sources_emit_candidates_from_synthetic_bars(monkeypatch):
         bars_by_pair=bars_by_pair, mid_by_pair=mid_by_pair,
         account_ccy="USD", equity=10000,
     )) == 1
+
+
+def test_v2_source_sets_high_ny_skip_candidate_meta(monkeypatch):
+    bars = pd.DataFrame({
+        "timestamp": pd.date_range("2026-05-01", periods=80, freq="4h", tz=UTC),
+        "open_bid": [0.99] * 80,
+        "high_bid": [1.01] * 80,
+        "low_bid": [0.98] * 80,
+        "close_bid": [1.0] * 80,
+        "open_ask": [1.0] * 80,
+        "high_ask": [1.02] * 80,
+        "low_ask": [0.99] * 80,
+        "close_ask": [1.01] * 80,
+    })
+    monkeypatch.setattr(trader, "evaluate_cell", lambda cell, mid: True)
+    monkeypatch.setattr(trader, "compute_entry_stop_target", lambda cell, mid: (1.0, 0.99, 1.005))
+    monkeypatch.setattr(trader, "is_high_ny_skip", lambda strategy, direction, bar_ts, mid: True)
+    monkeypatch.setattr(trader, "atr_pct_w252", lambda mid: 0.8)
+
+    v2 = trader.V2CellSource([Cell("stoch", "GBP_USD", "long", "mid", {})])
+    candidates = v2.candidates(
+        bars_by_pair={"GBP_USD": bars},
+        mid_by_pair={"GBP_USD": 1.005},
+        account_ccy="USD",
+        equity=10000,
+    )
+
+    assert len(candidates) == 1
+    assert candidates[0].meta["high_ny_skip"] is True
+    assert candidates[0].meta["atr_pct"] == pytest.approx(0.8)
 
 
 def test_safety_margin_helpers():
