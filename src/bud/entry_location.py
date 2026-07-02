@@ -33,6 +33,13 @@ ATR_HIGH_PCT = 2.0 / 3.0                       # "high" bucket = 67th–100th pe
 MIN_BARS_REQUIRED = ATR_PCT_WINDOW + ATR_PERIOD  # 266; briefing/auto load 300 → satisfied
 NY_SESSION = Session.NY.value                  # "ny"
 
+# Entry-location: skip high-ATR ∩ NY entries on the strong-4 long-MR sleeve
+# (research/entry_location_v1/: −0.07R/trade, holdout-passed, +17% of the strong-4
+# long book). PHASE 1 = dark: journal `would_skip_high_atr_ny` but STILL PLACE the
+# trade — confirms the flag fires at the expected rate with zero behavior change.
+# Flip to True for Phase 3 (hard skip). The predicate lives in bud.entry_location.
+HIGH_NY_SKIP_ENABLED = True  # Phase 3 LIVE 2026-07-02 — hard skip (evidence: git 2b47da6)
+
 
 def atr_pct_w252(mid: pd.DataFrame) -> float:
     """Trailing-252 percentile rank of ATR(14)'s latest value (causal / point-in-time).
