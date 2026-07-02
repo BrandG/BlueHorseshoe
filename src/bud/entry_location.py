@@ -38,7 +38,7 @@ NY_SESSION = Session.NY.value                  # "ny"
 # long book). PHASE 1 = dark: journal `would_skip_high_atr_ny` but STILL PLACE the
 # trade — confirms the flag fires at the expected rate with zero behavior change.
 # Flip to True for Phase 3 (hard skip). The predicate lives in bud.entry_location.
-HIGH_NY_SKIP_ENABLED = False
+HIGH_NY_SKIP_ENABLED = True  # Phase 3 LIVE 2026-07-02 — hard skip (evidence: git 2b47da6)
 
 
 def atr_pct_w252(mid: pd.DataFrame) -> float:
