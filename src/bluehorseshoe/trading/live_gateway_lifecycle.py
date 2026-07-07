@@ -15,6 +15,7 @@ from __future__ import annotations
 import os
 import subprocess
 import sys
+import threading
 import time
 from pathlib import Path
 
@@ -62,11 +63,21 @@ def _api_handshake_ok(host: str, port: int) -> bool:
         return False
 
 
-def _wait_for_api(host: str, port: int, timeout_s: int) -> bool:
-    """Poll until a real ib_async handshake succeeds, up to timeout_s."""
+def _wait_for_api(host: str, port: int, timeout_s: int,
+                  cancel: threading.Event | None = None) -> bool:
+    """Poll until a real ib_async handshake succeeds, up to timeout_s.
+
+    If ``cancel`` is provided and gets set — an operator pressed
+    "Abandon & restart" on the phone page — bail out promptly. The cancel
+    is checked *before* each handshake so the superseding refresh isn't left
+    fighting this one over probe clientId 99 while it does its own polling.
+    """
     deadline = time.monotonic() + timeout_s
     last_dot = 0.0
     while time.monotonic() < deadline:
+        if cancel is not None and cancel.is_set():
+            print(" (abandoned)")
+            return False
         if _api_handshake_ok(host, port):
             print()
             return True
@@ -129,7 +140,7 @@ def snapshot_live_account() -> int:
     return snapshot_main([])
 
 
-def refresh_token() -> int:
+def refresh_token(cancel: threading.Event | None = None) -> int:
     """Force a fresh 2FA login to roll the auto-restart token's 7-day
     window. Restarts the container, waits for IBC to authenticate (you
     approve the 2FA push on your phone), then verifies the API is live.
@@ -137,6 +148,11 @@ def refresh_token() -> int:
     Run this while your phone is in hand — typically right after using
     the IBKR Mobile app, so the 2FA push lands on a phone you're
     already looking at.
+
+    ``cancel`` lets a caller abandon the wait early (the phone page's
+    "Abandon & restart" button). When it's set mid-poll this returns 2
+    ("abandoned") rather than 1 ("timed out"), so the caller can tell an
+    operator-superseded refresh apart from a real 2FA failure.
     """
     host = os.environ.get("IBKR_HOST_LIVE", "127.0.0.1")
     port = int(os.environ.get("IBKR_PORT_LIVE", "4011"))
@@ -163,7 +179,11 @@ def refresh_token() -> int:
           f"IBKR Mobile will push a 2FA prompt — approve it on your "
           f"phone. Polling up to {READY_TIMEOUT_S}s ",
           end="", flush=True)
-    if not _wait_for_api(host, port, READY_TIMEOUT_S):
+    if not _wait_for_api(host, port, READY_TIMEOUT_S, cancel=cancel):
+        if cancel is not None and cancel.is_set():
+            print(f"Abandoned {SERVICE} refresh in favour of a newer request.",
+                  file=sys.stderr)
+            return 2
         print(f"ERROR: {SERVICE} did not authenticate within "
               f"{READY_TIMEOUT_S}s. Did the 2FA push arrive? "
               f"Logs: cd docker && docker compose logs --tail=50 "
