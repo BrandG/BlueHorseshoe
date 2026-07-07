@@ -193,15 +193,18 @@ def _format_failure_body(summary: RunSummary, results: list[PairResult]) -> str:
     return "\n".join(lines)
 
 
-def send_failure_email(subject: str, body: str) -> bool:
+def send_failure_email(subject: str, body: str, *, html_body: str | None = None) -> bool:
     """Send an alert email via EmailService (Fastmail JMAP, or Brevo SMTP fallback).
+
+    ``body`` is the plain-text part; pass ``html_body`` to also include a rendered
+    HTML alternative (so clients like Outlook render it instead of showing raw tags).
 
     Silently no-ops if email isn't configured; logs a warning if the send fails
     (never crashes).
     """
     from bluehorseshoe.core.email_service import EmailService  # pylint: disable=import-outside-toplevel
     try:
-        guid = EmailService().send(subject=f"[BH FTMO] {subject}", text_body=body)
+        guid = EmailService().send(subject=f"[BH FTMO] {subject}", text_body=body, html_body=html_body)
     except Exception as exc:  # noqa: BLE001 — a failed alert must not crash the update
         log.warning("alert email failed (%s): %s", type(exc).__name__, exc)
         return False

@@ -299,7 +299,11 @@ def run_prediction(
     html_path.parent.mkdir(parents=True, exist_ok=True)
     html_path.write_text(html_report, encoding="utf-8")
     if email:
-        send_failure_email(f"BH FTMO Signals - {signal_ts.date().isoformat()}", html_report)
+        send_failure_email(
+            f"BH FTMO Signals - {signal_ts.date().isoformat()}",
+            console,  # plain-text fallback (clean ASCII table for Outlook/text clients)
+            html_body=html_report,  # rich HTML alternative
+        )
     return console, html_path, live_signals, signal_ts, entry_ts, len(filtered_symbols), len(symbols)
 
 
