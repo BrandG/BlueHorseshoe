@@ -96,7 +96,18 @@ def _send_down_email(down_for: float) -> bool:
         f'<p>This is detect-and-notify only; nothing was restarted automatically '
         f'(a restart with no one to approve the 2FA just re-sticks).</p>'
     )
-    return bool(EmailService().send(subject, html_body=body))
+    text = (
+        f"The live IBKR gateway ({CONTAINER}) API listener has been unreachable "
+        f"for {_fmt_duration(down_for)}. Its 7-day 2FA session has likely lapsed "
+        f"(or it restarted and is waiting on Second Factor Authentication).\n\n"
+        f"To fix: with IBKR Mobile in hand, open your refresh bookmark "
+        f"({REFRESH_URL} — use the version with your ?token=…), press the button, "
+        f"and approve the push. It rolls a fresh 7-day session (~240s to confirm "
+        f"the handshake).\n\n"
+        f"This is detect-and-notify only; nothing was restarted automatically "
+        f"(a restart with no one to approve the 2FA just re-sticks)."
+    )
+    return bool(EmailService().send(subject, html_body=body, text_body=text))
 
 
 def _send_recovered_email(down_for: float) -> bool:
@@ -106,7 +117,11 @@ def _send_recovered_email(down_for: float) -> bool:
         f'answering again after ~{_fmt_duration(down_for)} down. No action '
         f'needed.</p>'
     )
-    return bool(EmailService().send(subject, html_body=body))
+    text = (
+        f"The live IBKR gateway ({CONTAINER}) API listener is answering again "
+        f"after ~{_fmt_duration(down_for)} down. No action needed."
+    )
+    return bool(EmailService().send(subject, html_body=body, text_body=text))
 
 
 def main() -> int:
