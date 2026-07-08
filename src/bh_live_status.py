@@ -200,7 +200,7 @@ def _print_open_orders(open_trades: list) -> None:
             oid = getattr(t.order, "orderId", "")
             lmt_s = f"{lmt:,.2f}" if lmt else "—"
             aux_s = f"{aux:,.2f}" if aux else "—"
-            print(f"  {sym:<8}{action:<5}{int(qty):>8}  "
+            print(f"  {sym:<8}{action:<5}{qty:>8g}  "
                   f"{otype:<5}{lmt_s:>12}  {aux_s:>10}  "
                   f"{status:<14}{oid}")
         except Exception as e:  # noqa: BLE001

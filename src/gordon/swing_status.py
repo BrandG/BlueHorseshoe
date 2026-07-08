@@ -33,6 +33,22 @@ def _money(v) -> str:
         return str(v)
 
 
+def _qty(v) -> str:
+    """Format a share/contract quantity, preserving fractional values.
+
+    IBKR supports fractional shares, so a hard int cast (or ``.0f``) silently
+    truncates partial positions. Show whole numbers without a decimal point and
+    fractional quantities with up to 4 decimals (trailing zeros stripped).
+    """
+    try:
+        f = float(v)
+    except (TypeError, ValueError):
+        return str(v)
+    if f == int(f):
+        return str(int(f))
+    return f"{f:.4f}".rstrip("0").rstrip(".")
+
+
 def _print_account(account: dict) -> None:
     print("=== Account ===")
     print(f"  ID                 {account.get('account_id', '') or '(unknown)'}")
@@ -53,7 +69,7 @@ def _print_positions(positions: list[dict]) -> None:
     for p in rows:
         print(
             f"  {str(p.get('symbol', '')):<10}"
-            f"{float(p.get('position', 0)):>10.0f}"
+            f"{_qty(p.get('position', 0)):>10}"
             f"{_money(p.get('avg_cost', 0)):>14}  "
             f"{p.get('contract_type', '')}   "
             f"{p.get('currency', '')}"
@@ -78,7 +94,7 @@ def _print_open_orders(open_trades: list) -> None:
             status = getattr(t.orderStatus, "status", "") or ""
             oid = getattr(t.order, "orderId", "")
             print(
-                f"  {sym:<8}{action:<6}{int(qty):>8}  "
+                f"  {sym:<8}{action:<6}{_qty(qty):>8}  "
                 f"{otype:<5}{_money(price) if price else '—':>12}  "
                 f"{status:<14}{oid}"
             )
