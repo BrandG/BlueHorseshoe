@@ -22,8 +22,6 @@
 # matches 9 hours × 12 fires/hour).
 */5 13-21 * * 1-5  /root/BlueHorseshoe/run_bh_swing_monitor.sh --manage
 
-# BH Swing Friday-flatten — 19:55 UTC Fri (15:55 ET), MKT-close book before weekend (WEEKEND_FLATTEN_EQUITIES_v1). Kill: touch .bh_swing_pause_friday_flatten
-55 19 * * 5  /root/BlueHorseshoe/run_bh_swing_friday_flatten.sh
 
 # IBGW live-account keepalive — 48 fires/full-day on Thursday in journal,
 # 2 fires Wednesday evening (started Wed late). Inferred every 30 min daily.
@@ -115,3 +113,5 @@
 
 # Warn when live crontab drifts from version-controlled ops/crontab.txt
 0 4 * * *  /root/BlueHorseshoe/run_crontab_drift_check.sh
+# HALT mailbox — out-of-band kill switch, polled every minute (independent of trader)
+* * * * *  /root/BlueHorseshoe/run_bh_swing_halt_mailbox.sh
