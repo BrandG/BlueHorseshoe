@@ -1,5 +1,6 @@
 """Tests for IBKR client — all mocked, no live gateway needed."""
 import math
+from types import SimpleNamespace
 from unittest.mock import patch, MagicMock
 import pytest
 
@@ -7,6 +8,7 @@ from bluehorseshoe.data.ibkr_client import (
     IBKRClient,
     IBKRConfig,
     QuoteData,
+    _modify_rejection,
     _safe_float,
     _safe_int,
 )
@@ -497,3 +499,135 @@ class TestPlaceBracketOrder:
         assert parent.tif == "DAY"
         assert take_profit.tif == "GTC"
         assert stop_loss.tif == "GTC"
+
+
+class TestEntryStopBracketTrailing:
+    """range_support: place_entry_stop_bracket with trail_amount>0 attaches a native TRAIL
+    child (trails at trail_amount, initial trigger pinned to stop via trailStopPrice)."""
+
+    @patch("bluehorseshoe.data.ibkr_client.ib_async", create=True)
+    def test_trail_child_built_when_trail_amount_positive(self, mock_ib_async):
+        mock_ib = MagicMock()
+        mock_ib.isConnected.return_value = True
+        parent_t, stop_t = MagicMock(), MagicMock()
+        parent_t.order.orderId = 201
+        stop_t.order.orderId = 202
+        mock_ib.placeOrder.side_effect = [parent_t, stop_t]
+        mock_ib_async.IB.return_value = mock_ib
+
+        with patch.dict("sys.modules", {"ib_async": mock_ib_async}):
+            client = IBKRClient()
+            client._ib = mock_ib
+            result = client.place_entry_stop_bracket(
+                symbol="AAPL", quantity=10, limit_price=100.0,
+                stop_loss_price=97.0, trail_amount=6.0,
+            )
+
+        # The child exit is a native TRAIL: 2xATR trailing distance, initial trigger at the 1xATR stop.
+        mock_ib_async.Order.assert_called_once_with(
+            action="SELL", totalQuantity=10, orderType="TRAIL",
+            auxPrice=6.0, trailStopPrice=97.0,
+        )
+        mock_ib_async.StopOrder.assert_not_called()   # no fixed stop when trailing
+        assert result["status"] == "submitted"
+        assert result["order_ids"] == [201, 202]
+
+    @patch("bluehorseshoe.data.ibkr_client.ib_async", create=True)
+    def test_fixed_stop_when_no_trail(self, mock_ib_async):
+        mock_ib = MagicMock()
+        mock_ib.isConnected.return_value = True
+        parent_t, stop_t = MagicMock(), MagicMock()
+        parent_t.order.orderId = 301
+        stop_t.order.orderId = 302
+        mock_ib.placeOrder.side_effect = [parent_t, stop_t]
+        mock_ib_async.IB.return_value = mock_ib
+
+        with patch.dict("sys.modules", {"ib_async": mock_ib_async}):
+            client = IBKRClient()
+            client._ib = mock_ib
+            result = client.place_entry_stop_bracket(
+                symbol="AAPL", quantity=10, limit_price=100.0, stop_loss_price=97.0,
+            )
+
+        mock_ib_async.StopOrder.assert_called_once_with("SELL", 10, 97.0)
+        mock_ib_async.Order.assert_not_called()
+        assert result["order_ids"] == [301, 302]
+
+
+class TestOcaTrailLeg:
+    """place_oca_exits builds a native TRAIL leg from order_type='TRAIL' + trail_amount."""
+
+    @patch("bluehorseshoe.data.ibkr_client.ib_async", create=True)
+    def test_trail_leg(self, mock_ib_async):
+        mock_ib = MagicMock()
+        mock_ib.isConnected.return_value = True
+        placed = MagicMock()
+        placed.order.orderId = 501
+        mock_ib.placeOrder.return_value = placed
+        mock_ib_async.IB.return_value = mock_ib
+
+        with patch.dict("sys.modules", {"ib_async": mock_ib_async}):
+            client = IBKRClient()
+            client._ib = mock_ib
+            result = client.place_oca_exits(
+                "AAPL", "grp1",
+                [{"leg": "STOP_B", "order_type": "TRAIL", "quantity": 10,
+                  "price": 97.0, "trail_amount": 6.0}],
+            )
+
+        mock_ib_async.Order.assert_called_once_with(
+            action="SELL", totalQuantity=10, orderType="TRAIL",
+            auxPrice=6.0, trailStopPrice=97.0,
+        )
+        assert result["status"] == "submitted"
+        assert result["order_ids"] == {"STOP_B": 501}
+
+
+class TestModifyRejection:
+    """_modify_rejection turns an async broker refusal (e.g. Error 103 Duplicate order id) into a
+    real failure, so modify_order_stop can no longer report phantom 'submitted'."""
+
+    def test_errorcode_in_log_is_rejection(self):
+        trade = SimpleNamespace(
+            orderStatus=SimpleNamespace(status="Cancelled"),
+            log=[SimpleNamespace(errorCode=103,
+                                 message="Error 103, reqId 1057: Duplicate order id")],
+        )
+        msg = _modify_rejection(trade)
+        assert msg is not None and "Duplicate order id" in msg
+
+    def test_cancelled_status_is_rejection(self):
+        trade = SimpleNamespace(orderStatus=SimpleNamespace(status="Cancelled"), log=[])
+        assert _modify_rejection(trade) == "order Cancelled"
+
+    def test_healthy_submit_is_not_rejection(self):
+        trade = SimpleNamespace(
+            orderStatus=SimpleNamespace(status="PreSubmitted"),
+            log=[SimpleNamespace(errorCode=0, message="")],
+        )
+        assert _modify_rejection(trade) is None
+
+    @patch("bluehorseshoe.data.ibkr_client.ib_async", create=True)
+    def test_modify_order_stop_reports_rejection(self, mock_ib_async):
+        mock_ib = MagicMock()
+        mock_ib.isConnected.return_value = True
+        target = MagicMock()
+        target.order.orderId = 1057
+        target.order.orderType = "STP"
+        mock_ib.reqAllOpenOrders.return_value = [target]
+        # placeOrder returns a trade that the broker then cancels with Error 103.
+        mtrade = SimpleNamespace(
+            orderStatus=SimpleNamespace(status="Cancelled"),
+            log=[SimpleNamespace(errorCode=103,
+                                 message="Error 103, reqId 1057: Duplicate order id")],
+        )
+        mock_ib.placeOrder.return_value = mtrade
+        mock_ib_async.IB.return_value = mock_ib
+
+        with patch.dict("sys.modules", {"ib_async": mock_ib_async}):
+            client = IBKRClient()
+            client._ib = mock_ib
+            result = client.modify_order_stop(1057, 26.95)
+
+        assert result["status"] == "error"
+        assert "Duplicate order id" in result["error"]

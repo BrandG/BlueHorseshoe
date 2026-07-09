@@ -109,10 +109,24 @@ class TestTimeFlattenRule:
 # ── manager wiring ────────────────────────────────────────────────────
 
 class TestManagerRatchet:
+    # The monitor ratchet is RETIRED (off by default): it could not modify the PaperTrader-placed
+    # stop cross-session (IBKR Error 103), so range_support now exits via a native broker trailing
+    # stop placed at entry. These tests pin the still-present opt-in code path by enabling the flag
+    # explicitly; test_default_off_no_ratchet pins the new default.
+    def test_default_off_no_ratchet(self, temp_journal, monkeypatch):
+        client = MagicMock()
+        _patch_feats(monkeypatch, last_close=55.0, prior_close=54.0, atr=1.0)
+        ms = _run(client, [_range_support_position(stop=48.0)], monkeypatch, dry_run=False)
+        client.modify_order_stop.assert_not_called()
+        events = [r["event"] for r in journal.read_recent()]
+        assert "stop_ratcheted" not in events and "would_ratchet" not in events
+        assert ms.taken == 0
+
     def test_dry_run_emits_would_ratchet(self, temp_journal, monkeypatch):
         client = MagicMock()
         _patch_feats(monkeypatch, last_close=55.0, prior_close=54.0, atr=1.0)
-        ms = _run(client, [_range_support_position(stop=48.0)], monkeypatch, dry_run=True)
+        ms = _run(client, [_range_support_position(stop=48.0)], monkeypatch, dry_run=True,
+                  range_support_ratchet_enabled=True)
         assert ms.taken == 1
         client.modify_order_stop.assert_not_called()
         events = [r["event"] for r in journal.read_recent()]
@@ -122,7 +136,8 @@ class TestManagerRatchet:
         client = MagicMock()
         client.modify_order_stop.return_value = {"status": "submitted"}
         _patch_feats(monkeypatch, last_close=55.0, prior_close=54.0, atr=1.0)
-        ms = _run(client, [_range_support_position(stop=48.0)], monkeypatch, dry_run=False)
+        ms = _run(client, [_range_support_position(stop=48.0)], monkeypatch, dry_run=False,
+                  range_support_ratchet_enabled=True)
         assert ms.taken == 1
         client.modify_order_stop.assert_called_once_with(99, 53.0)
         assert "stop_ratcheted" in [r["event"] for r in journal.read_recent()]

@@ -31,10 +31,13 @@ class ManageConfig:
     kill_switch_path: str = safety.KILL_SWITCH_PATH
     rule: stop_rules.StopRule = stop_rules.StopRule.BREAKEVEN
     early_exit_enabled: bool = False
-    # range_support sleeve exit (Phase C). The ratchet is a stop-tightening move (safe; on by
-    # default once the sleeve is live). The time-flatten is an autonomous market-sell, so it is
-    # OFF by default and gated behind the monitor's --enable-time-flatten.
-    range_support_ratchet_enabled: bool = True
+    # range_support sleeve exit (Phase C). RETIRED 2026-07-08: the monitor cannot modify the
+    # PaperTrader-placed stop cross-session — every attempt was rejected by IBKR Error 103
+    # ("Duplicate order id") and cancelled, so the stop never actually moved (and modify_order_stop
+    # reported phantom success, re-firing every tick). Superseded by a native broker-managed
+    # trailing stop placed at entry by PaperTrader (initial trigger 1xATR, trail 2xATR); the broker
+    # ratchets it server-side, so the monitor no longer touches range_support stops. OFF by default.
+    range_support_ratchet_enabled: bool = False
     range_support_ratchet_atr: float = 2.0     # stop -> close - this*ATR on up-close days
     range_support_hold_days: int = 25          # bar cap for the time-flatten
     time_flatten_enabled: bool = False

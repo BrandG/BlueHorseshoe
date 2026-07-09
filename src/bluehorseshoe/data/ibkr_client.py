@@ -12,6 +12,25 @@ from typing import List, Optional
 
 logger = logging.getLogger(__name__)
 
+# Order statuses that mean the broker refused (never a live/working order).
+_DEAD_ORDER_STATUSES = ("Cancelled", "ApiCancelled", "Inactive")
+
+
+def _modify_rejection(trade) -> Optional[str]:
+    """Return a human string if ``trade`` (an ib_async Trade from a modify placeOrder) was
+    rejected/cancelled by the broker, else None. Inspects both the terminal orderStatus and the
+    trade log for any non-zero errorCode (e.g. 103 "Duplicate order id")."""
+    if trade is None:
+        return None
+    status = getattr(getattr(trade, "orderStatus", None), "status", "")
+    for entry in getattr(trade, "log", []) or []:
+        code = getattr(entry, "errorCode", 0) or 0
+        if code:
+            return f"{getattr(entry, 'message', '') or f'errorCode {code}'} (status={status})"
+    if status in _DEAD_ORDER_STATUSES:
+        return f"order {status}"
+    return None
+
 
 @dataclass
 class IBKRConfig:
@@ -307,14 +326,23 @@ class IBKRClient:
         quantity: float,
         limit_price: float,
         stop_loss_price: float,
+        trail_amount: float = 0.0,
     ) -> dict:
         """Place a 2-leg bracket: limit entry + stop-loss, with NO take-profit.
 
-        For the range_support sleeve, whose exit is the bh_swing up-day ratchet + time cap
+        For the range_support sleeve, whose exit is a hands-off broker-managed trailing stop
         rather than a fixed target. ``ib_async.bracketOrder`` always builds three legs, so this
         constructs the parent/child manually: parent BUY-LMT (DAY, transmit=False) and a child
-        SELL-STP (GTC, parentId=parent, transmit=True) so the pair transmits atomically and IBKR
-        auto-cancels the stop if the entry expires unfilled.
+        SELL exit (GTC, parentId=parent, transmit=True) so the pair transmits atomically and IBKR
+        auto-cancels the exit if the entry expires unfilled.
+
+        ``trail_amount`` (dollars) selects the child exit type:
+          * ``> 0`` -> a native TRAIL stop whose trailing distance is ``trail_amount`` and whose
+            initial trigger is ``stop_loss_price`` (set as ``trailStopPrice``). The stop holds at
+            the initial trigger until price rises enough that ``price - trail_amount`` exceeds it,
+            then ratchets up server-side (up-only). This replaces the retired monitor ratchet,
+            which could not modify PaperTrader-placed stops cross-session (IBKR Error 103).
+          * ``0`` (default) -> a plain fixed SELL-STP at ``stop_loss_price`` (legacy behaviour).
 
         Returns dict with keys: order_ids ([entry_id, stop_id]), status, error.
         """
@@ -335,7 +363,16 @@ class IBKRClient:
             parent_trade = self._ib.placeOrder(contract, parent)
             parent_id = parent_trade.order.orderId
 
-            stop = ib_async.StopOrder("SELL", quantity, round(stop_loss_price, 2))
+            if trail_amount and trail_amount > 0:
+                # Native trailing stop: trails at ``trail_amount`` below the high-water mark,
+                # initial trigger pinned to ``stop_loss_price`` via trailStopPrice.
+                stop = ib_async.Order(
+                    action="SELL", totalQuantity=quantity, orderType="TRAIL",
+                    auxPrice=round(float(trail_amount), 2),
+                    trailStopPrice=round(stop_loss_price, 2),
+                )
+            else:
+                stop = ib_async.StopOrder("SELL", quantity, round(stop_loss_price, 2))
             stop.tif = "GTC"
             stop.parentId = parent_id
             stop.transmit = True                  # transmits the whole 2-leg group
@@ -343,8 +380,10 @@ class IBKRClient:
 
             order_ids = [parent_id, stop_trade.order.orderId]
             logger.info(
-                "Entry+stop (no-TP) order placed for %s: qty=%s entry=%.2f sl=%.2f ids=%s",
-                symbol, quantity, limit_price, stop_loss_price, order_ids,
+                "Entry+%s (no-TP) order placed for %s: qty=%s entry=%.2f sl=%.2f trail=%.2f ids=%s",
+                "trail" if (trail_amount and trail_amount > 0) else "stop",
+                symbol, quantity, limit_price, stop_loss_price, float(trail_amount or 0.0),
+                order_ids,
             )
             return {"order_ids": order_ids, "status": "submitted", "error": None}
 
@@ -388,7 +427,10 @@ class IBKRClient:
         Place SELL exit legs sharing one OCA group.
 
         ``legs`` items must contain: leg ("STOP", "T1", "T2"), order_type
-        ("STP" or "LMT"), quantity, price.
+        ("STP", "LMT", or "TRAIL"), quantity, price. A "TRAIL" leg additionally
+        carries ``trail_amount`` (dollars): it becomes a native trailing stop whose
+        trailing distance is ``trail_amount`` and whose initial trigger is ``price``
+        (set as trailStopPrice), ratcheting up server-side.
         """
         try:
             self._ensure_connected()
@@ -410,6 +452,12 @@ class IBKRClient:
                     order = ib_async.StopOrder("SELL", qty, price)
                 elif leg["order_type"] == "LMT":
                     order = ib_async.LimitOrder("SELL", qty, price)
+                elif leg["order_type"] == "TRAIL":
+                    trail_amount = round(float(leg["trail_amount"]), 2)
+                    order = ib_async.Order(
+                        action="SELL", totalQuantity=qty, orderType="TRAIL",
+                        auxPrice=trail_amount, trailStopPrice=price,
+                    )
                 else:
                     raise ValueError(f"unsupported OCA leg order_type: {leg['order_type']!r}")
                 order.tif = "GTC"
@@ -601,12 +649,22 @@ class IBKRClient:
                         "error": f"order {order_id} is {order_type!r}, not STP"}
 
             target.order.auxPrice = round(float(new_stop_price), 2)
-            self._ib.placeOrder(target.contract, target.order)
+            mtrade = self._ib.placeOrder(target.contract, target.order)
             logger.info(
                 "modify_order_stop: order_id=%s new_stop=%.2f symbol=%s",
                 order_id, new_stop_price,
                 getattr(target.contract, "symbol", "?"),
             )
+            # placeOrder() returns before the broker accepts/rejects. The rejection (notably
+            # Error 103 "Duplicate order id" when a reconnecting client tries to modify an order
+            # it did not originate this session) arrives asynchronously ~0.5s later. Without this
+            # wait we would report phantom success and re-fire the same modify every tick. Confirm
+            # the modify was not cancelled/rejected before claiming it landed.
+            self._ib.sleep(1.0)
+            reject = _modify_rejection(mtrade)
+            if reject is not None:
+                logger.warning("modify_order_stop rejected for order %s: %s", order_id, reject)
+                return {"order_id": order_id, "status": "error", "error": reject}
             return {"order_id": order_id, "status": "submitted", "error": None}
         except Exception as e:
             logger.error("Error modifying stop on order %s: %s", order_id, e)

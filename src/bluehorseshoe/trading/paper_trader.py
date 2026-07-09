@@ -12,9 +12,15 @@ from typing import Dict, List, Optional, Set, Tuple
 
 from pymongo.database import Database
 
+from bluehorseshoe.analysis.constants import RANGE_SUPPORT_RATCHET_ATR, RANGE_SUPPORT_STOP_MULT
 from bluehorseshoe.core.config import REPO_ROOT
 from bluehorseshoe.data.ibkr_client import IBKRClient
 from bluehorseshoe.trading.trade_models import make_idea_id, make_order_ref, normalize_strategy
+
+# range_support exit is a native, broker-managed trailing stop: initial trigger at the 1xATR entry
+# stop, trailing distance at RANGE_SUPPORT_RATCHET_ATR (2xATR). The trail distance is this ratio
+# times the initial 1xATR stop distance, so both track the same ATR the strategy priced the stop on.
+_RANGE_SUPPORT_TRAIL_OVER_STOP = RANGE_SUPPORT_RATCHET_ATR / RANGE_SUPPORT_STOP_MULT
 
 logger = logging.getLogger(__name__)
 
@@ -416,10 +422,14 @@ class PaperTrader:
             t1_qty, t2_qty = 0, filled_qty      # single full-position leg, recorded as T2
         exit_pairs = []
         if no_take_profit:
-            # range_support: one stop on the full filled qty, no take-profit legs.
+            # range_support: one native trailing stop on the full filled qty, no take-profit legs.
+            # Initial trigger at the 1xATR stop (stop_fill); trails at 2xATR (2*r_offset), up-only,
+            # broker-managed — replaces the retired monitor ratchet (blocked by IBKR Error 103).
             exit_pairs.append((
                 "B",
-                [{"leg": "STOP_B", "order_type": "STP", "quantity": filled_qty, "price": stop_fill}],
+                [{"leg": "STOP_B", "order_type": "TRAIL", "quantity": filled_qty,
+                  "price": stop_fill,
+                  "trail_amount": round(_RANGE_SUPPORT_TRAIL_OVER_STOP * r_offset, 2)}],
             ))
         else:
             if t1_qty > 0:
@@ -667,12 +677,17 @@ class PaperTrader:
                 continue
 
             # No-take-profit sleeve (range_support): one entry + 1-ATR stop, NO target.
-            # The exit is bh_swing's up-day ratchet + ~25-bar time cap. Place the full
-            # position as a single 2-leg bracket (no T1/T2 scale-out — there is no T1 target).
+            # The exit is a native broker-managed trailing stop (initial trigger at the 1xATR
+            # stop, trailing at 2xATR) — replaces the retired monitor ratchet (IBKR Error 103
+            # blocked cross-session stop modifies). Single 2-leg bracket, no T1/T2 scale-out.
             if take_profit <= 0:
+                trail_amount = round(
+                    _RANGE_SUPPORT_TRAIL_OVER_STOP * (entry_price - stop_loss), 2
+                )
                 es = self._client.place_entry_stop_bracket(
                     symbol=symbol, quantity=total_quantity,
                     limit_price=entry_price, stop_loss_price=stop_loss,
+                    trail_amount=trail_amount,
                 )
                 es_ids = es.get("order_ids", [])
                 # Persist as the T2 leg with broker_order_ids laid out [entry, tp=None, stop]
