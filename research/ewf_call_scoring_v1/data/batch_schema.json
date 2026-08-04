@@ -1,0 +1,125 @@
+{
+  "type": "object",
+  "properties": {
+    "calls": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "post_id": {
+            "type": "integer"
+          },
+          "instrument": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "call_type": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "directional",
+              "zone_reaction",
+              null
+            ]
+          },
+          "direction": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "long",
+              "short",
+              null
+            ]
+          },
+          "targets": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            }
+          },
+          "zone": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "number"
+            }
+          },
+          "invalidation": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string"
+                  },
+                  "date": {
+                    "type": "string"
+                  },
+                  "side": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "type",
+                  "date",
+                  "side"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "horizon_text": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "is_forecast": {
+            "type": "boolean"
+          },
+          "multi_scenario": {
+            "type": "boolean"
+          },
+          "confidence": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "post_id",
+          "instrument",
+          "call_type",
+          "direction",
+          "targets",
+          "zone",
+          "invalidation",
+          "horizon_text",
+          "is_forecast",
+          "multi_scenario",
+          "confidence"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "calls"
+  ],
+  "additionalProperties": false
+}

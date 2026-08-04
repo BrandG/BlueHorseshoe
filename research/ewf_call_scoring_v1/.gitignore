@@ -1,0 +1,20 @@
+__pycache__/
+*.pyc
+
+# Bulk regenerable inputs — rebuild with scrape_posts.py + compile_posts.py, and
+# `score_calls.py --fetch-all` for the price cache. ~230MB, not worth versioning.
+data/raw_pages/
+data/oanda_cache/
+data/ewf_posts.parquet
+
+# Incident + superseded artifacts. The poisoning incident and the v1 pilot are
+# described in STUDY_README.md; the raw rows add 1.3MB of billing-error strings.
+data/calls_poisoned_backup_*.jsonl
+data/calls_pilot_v1.jsonl
+
+# DELIBERATELY TRACKED (the evidence behind the verdict, ~3MB total):
+#   data/calls.jsonl                  final codex+v3 corpus, 7,540 rows
+#   data/scored.parquet               per-post funnel stage + all R columns
+#   data/calls_v2_haiku_archive.jsonl v2 corpus — evidence for the SPEC §7b amendment
+#   data/batch_schema.json            output schema handed to codex
+# Re-extracting calls.jsonl costs real money, so it is versioned on purpose.
