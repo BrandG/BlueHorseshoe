@@ -8,64 +8,80 @@
 #
 # History (2026-05-22): reconstructed from journalctl after an accidental
 # clobber. If schedules feel off, cross-check against the live journal.
+#
+# ============================================================================
+# 2026-08-07 — AUTOMATED TRADING STAND-DOWN.
+# All trading, signal-generation, briefing, and report-email jobs are disabled
+# (commented with STOOD DOWN below). What remains running, by design:
+#   * Gordon OHLCV downloads + indicator/score calculation (no orders, no email)
+#   * Bud/FTMO OHLCV downloads only (no predict, no trader, no briefings)
+#   * Backups, log rotation, crontab drift check, mongo-MCP reaper
+#   * dailyLitBits (separate project, untouched)
+# Rationale: FTMO paper test ran ~-10% over several months; accounts stay open
+# for later use. Restore by re-enabling the commented lines.
+# ============================================================================
 
 # ====================
 # Time-critical (every-N-minutes)
 # ====================
-# IBGW watchdog — probes Java listener inside the container; force-recreates
-# on confirmed wedge with 15-min cooldown. Confirmed `1-59/5 * * * *` from
-# memory + journal (1780 fires / 7 days, every 5 min from :01).
+# KEPT — IBGW watchdog. Retained solely to keep paper gateway 4004 healthy for
+# the opening-range-fade forward paper driver (see bottom of file). Probes the
+# Java listener inside the container; force-recreates on confirmed wedge.
 1-59/5 * * * *  /root/BlueHorseshoe/run_ibgw_watchdog.sh
 
-# BH Swing monitor — 5-min cadence during US market hours, Mon-Fri.
-# Reconstructed window 13:00-21:00 UTC = 09:00-17:00 ET (108 fires/weekday,
-# matches 9 hours × 12 fires/hour).
-*/5 13-21 * * 1-5  /root/BlueHorseshoe/run_bh_swing_monitor.sh --manage
+# STOOD DOWN 2026-08-07 — BH Swing monitor (--manage). Resting broker-side
+# TRAIL stops on open equity positions remain live at IBKR and keep working;
+# what stops is BREAKEVEN stop advancement and fill reconciliation.
+# */5 13-21 * * 1-5  /root/BlueHorseshoe/run_bh_swing_monitor.sh --manage
 
 
-# IBGW live-account keepalive — 48 fires/full-day on Thursday in journal,
-# 2 fires Wednesday evening (started Wed late). Inferred every 30 min daily.
-0,30 * * * *  /root/BlueHorseshoe/run_ibgw_live_keepalive.sh
+# STOOD DOWN 2026-08-07 — IBGW live-account keepalive. No live trading.
+# 0,30 * * * *  /root/BlueHorseshoe/run_ibgw_live_keepalive.sh
 
 # ====================
 # BH FTMO session loop — every 4h, staggered by minute within session
 # ====================
 # Sessions: 01,05,09,13,17,21 UTC. Each session runs in order
 # 05→10→16→20→25 minutes past the hour. All 7-day patterns clean.
+#
+# KEPT: data download only. This is the Bud OHLCV incremental update.
 5  1,5,9,13,17,21 * * *  cd /root/BlueHorseshoe && ./run.sh python -m bh_ftmo.data.incremental_update >> /root/BlueHorseshoe/src/logs/bh_ftmo_incremental.log 2>&1
-10 1,5,9,13,17,21 * * *  cd /root/BlueHorseshoe && ./run.sh python -m bh_ftmo.predict --equity 10000 >> /root/BlueHorseshoe/src/logs/bh_ftmo_signals.log 2>&1
-16 1,5,9,13,17,21 * * *  /root/BlueHorseshoe/run_bh_ftmo_trader.sh
-20 1,5,9,13,17,21 * * *  /root/BlueHorseshoe/run_bh_briefing.sh
-25 1,5,9,13,17,21 * * *  /root/BlueHorseshoe/run_bh_briefing_ftmo.sh
+# STOOD DOWN 2026-08-07 — signal generation, trading, and both briefings.
+# 10 1,5,9,13,17,21 * * *  cd /root/BlueHorseshoe && ./run.sh python -m bh_ftmo.predict --equity 10000 >> /root/BlueHorseshoe/src/logs/bh_ftmo_signals.log 2>&1
+# 16 1,5,9,13,17,21 * * *  /root/BlueHorseshoe/run_bh_ftmo_trader.sh
+# 20 1,5,9,13,17,21 * * *  /root/BlueHorseshoe/run_bh_briefing.sh
+# 25 1,5,9,13,17,21 * * *  /root/BlueHorseshoe/run_bh_briefing_ftmo.sh
 
-# Extra weekday briefing at 22:30 — saw 5 fires Mon-Fri this week, no Sat/Sun.
-30 22 * * 1-5  /root/BlueHorseshoe/run_bh_briefing_ftmo.sh
+# STOOD DOWN 2026-08-07 — extra weekday FTMO briefing at 22:30.
+# 30 22 * * 1-5  /root/BlueHorseshoe/run_bh_briefing_ftmo.sh
 
 # ====================
 # Daily / weekly maintenance
 # ====================
-# Daily pipeline — Tue-Sat 01:00 UTC. Per script comment: "Mon-Fri: Update
-# -> Predict -> Journal -> Report -> Email; Saturday: Full symbol update".
-0 1 * * 2-6  /root/BlueHorseshoe/run_daily_pipeline.sh
+# CHANGED 2026-08-07 — data-only variant of the daily pipeline: OHLCV update +
+# indicator/score calculation, with --no-paper. No journal, no report email,
+# no hypothesis evaluation. Original trading pipeline preserved below.
+0 1 * * 2-6  /root/BlueHorseshoe/run_daily_data_only.sh
+# 0 1 * * 2-6  /root/BlueHorseshoe/run_daily_pipeline.sh
 
-# IBGW paper-gateway daily restart — added recently (only 2 fires journaled
-# Thu/Fri this week). Per memory commit 938d59c, this is daily 08:00 UTC.
+# KEPT — IBGW paper-gateway daily restart, 08:00 UTC. Pre-empts the daily
+# disconnect wedge well before the 16:10 forward-paper read on 4004.
 0 8 * * *  /root/BlueHorseshoe/run_ibgw_paper_restart.sh
 
-# BlueHorseshoe daily backup — 05:00 UTC.
+# KEPT — BlueHorseshoe daily backup, 05:00 UTC.
 0 5 * * *  /root/BlueHorseshoe/backup.sh >> /root/BlueHorseshoe/src/logs/backup.log 2>&1
 
-# Weekly model retrain — Sunday 02:00 UTC.
-0 2 * * 0  /root/BlueHorseshoe/src/cron_weekly_retrain.sh >> /root/BlueHorseshoe/src/logs/cron_retrain.log 2>&1
+# STOOD DOWN 2026-08-07 — weekly model retrain. Nothing consumes new models
+# while trading is off; re-enable alongside the trading pipeline.
+# 0 2 * * 0  /root/BlueHorseshoe/src/cron_weekly_retrain.sh >> /root/BlueHorseshoe/src/logs/cron_retrain.log 2>&1
 
-# Weekly fundamentals refresh — Sunday 23:00 UTC. Keeps the PIT solvency feed
-# (Altman-Z'') fresh for the LIVE solvency-gated deep_oversold sleeve. 23:00 is
-# an empty slot (no pipeline / score-backfill / FTMO jobs); script also flocks
-# + skips if main.py is active (OOM guard). Added 2026-06-17.
+# KEPT — weekly fundamentals refresh, Sunday 23:00 UTC. This is a data pull
+# (PIT solvency / Altman-Z'' feed); keeping it means the feed has no gap when
+# strategy work resumes. Script flocks + skips if main.py is active (OOM guard).
 0 23 * * 0  /root/BlueHorseshoe/src/cron_quarterly_fundamentals.sh >> /root/BlueHorseshoe/src/logs/cron_quarterly_fundamentals.log 2>&1
 
 # ====================
-# dailyLitBits (separate project, parallel to BH)
+# dailyLitBits (separate project, parallel to BH) — UNTOUCHED
 # ====================
 # Hourly content dispatch.
 0 * * * *  docker exec dailylitbits python dispatch.py >> /var/log/dailylitbits.log 2>&1
@@ -76,42 +92,52 @@
 
 # ====================
 # Contrarian thread reminder — added by Claude 2026-05-22.
-# Fires once on 2026-05-29 at 13:00 UTC (= 09:00 ET) and no-ops in
-# subsequent years. Safe to delete after firing.
+# Fired 2026-05-29 and no-ops in subsequent years. REMOVED 2026-08-07 (spent).
 # ====================
-0 13 29 5 * cd /root/BlueHorseshoe && [ "$(date +\%Y)" = "2026" ] && ./run.sh python scripts/send_handoff_reminder.py --subject "Reminder: resume contrarian thread (session 9a48c5c7)" --doc docs/handoff/CONTRARIAN_NEXT.md --note "Resume with: claude --resume 9a48c5c7-fb77-4623-8bcd-20611dd14520" >> src/logs/reminder.log 2>&1
 
 # ====================
 # Score backfill — polite background scorer (added 2026-05-28)
 # ====================
-# Walks trade_scores backwards from earliest date, scoring one unscored
-# trading day per tick via main.py -p DATE --no-paper. nice/ionice'd; skips
-# ticks during the daily-pipeline blackout (00:30-03:30) or when another
-# main.py is running. Even hours 04-22 only: avoids the 00:00 slot whose
-# ~60min run would overlap the 01:00 daily pipeline (OOM risk). Pause with
-# touch .score_backfill_pause. Log: src/logs/score_backfill.log
-0 4-22/2 * * *  /root/BlueHorseshoe/run_score_backfill.sh
+# STOOD DOWN 2026-08-07 — was already paused via the .score_backfill_pause
+# sentinel; now also off in cron. Historical score backfill, not daily data.
+# 0 4-22/2 * * *  /root/BlueHorseshoe/run_score_backfill.sh
 
 # ====================
 # Log rotation — caps src/logs/*.log at 20k-line tails (one .1 backup),
 # prunes report HTML + graph dumps >21d. Added 2026-05-30 after src/logs
 # hit 558M (daily_pipeline.log alone was 236M, nothing was rotating it).
-# Runs 03:30 UTC, after the 01:00 daily pipeline finishes. Script: scripts/rotate_logs.sh
+# Runs 03:30 UTC. Script: scripts/rotate_logs.sh
 # ====================
+# KEPT.
 30 3 * * *  /root/BlueHorseshoe/scripts/rotate_logs.sh >> /root/BlueHorseshoe/src/logs/rotate_logs.log 2>&1
-# rising_3bar retirement flatten — self-removing one-shot, fires hourly at :17 until market open closes the 7 positions (installed 2026-05-31)
+
+# KEPT — index ETF (SPY/QQQ) refresh. These are NOT in the daily `-u` universe,
+# so this is the only thing keeping them fresh in the OHLCV store.
 15 3 * * *  /root/BlueHorseshoe/run_index_etf_refresh.sh
-# Reap orphaned mongodb-mcp-server processes leaked by ended Claude sessions (~110MB each)
+
+# KEPT — reap orphaned mongodb-mcp-server processes leaked by ended Claude
+# sessions (~110MB each). Pure box hygiene, same class as log rotation.
 */30 * * * *  /root/BlueHorseshoe/run_mongodb_mcp_reaper.sh
 
-# Opening-range fade — forward paper driver, MNQ+MES+M2K (research/opening_range_fade_v1). 16:10 UTC
-# = 11:10 ET (EST) / 12:10 ET (EDT), always after the 11:00-ET window close -> DST-safe single entry;
-# idempotent per (ET date, instrument). Reads each front-month morning from paper gateway (4004) and
-# logs one row/instrument/day to forward_paper_log.csv. Last true-OOS check (live fills). 2026-06-29.
+# ====================
+# Opening-range fade — forward paper driver, MNQ+MES+M2K (research/opening_range_fade_v1).
+# 16:10 UTC = 11:10 ET (EST) / 12:10 ET (EDT), always after the 11:00-ET window close ->
+# DST-safe single entry; idempotent per (ET date, instrument). Reads each front-month
+# morning from paper gateway (4004) and logs one row/instrument/day to forward_paper_log.csv.
+# Last true-OOS check (live fills). 2026-06-29.
 # (Script name run_forward_mnq.sh retained for cron stability; it drives all three instruments.)
+# ====================
+# KEPT 2026-08-07 — deliberately retained through the trading stand-down. This
+# is research DATA COLLECTION, not trading: it places no orders, only records
+# the daily forward-test row. Missed days cannot be backfilled, so OOS
+# continuity is preserved. Depends on the IBGW watchdog + paper restart above.
 10 16 * * 1-5  /root/BlueHorseshoe/run_forward_mnq.sh
 
-# Warn when live crontab drifts from version-controlled ops/crontab.txt
+# KEPT — warn when live crontab drifts from version-controlled ops/crontab.txt.
 0 4 * * *  /root/BlueHorseshoe/run_crontab_drift_check.sh
-# HALT mailbox — out-of-band kill switch, polled every minute (independent of trader)
-* * * * *  /root/BlueHorseshoe/run_bh_swing_halt_mailbox.sh
+
+# STOOD DOWN 2026-08-07 — HALT mailbox. This is the out-of-band kill switch for
+# the BH Swing trader (IMAP poller; HALT/RESUME/FLATTEN/STATUS by email). With
+# the trader itself off there is nothing for it to halt. MUST be re-enabled at
+# the same time as run_bh_swing_monitor.sh --manage.
+# * * * * *  /root/BlueHorseshoe/run_bh_swing_halt_mailbox.sh
