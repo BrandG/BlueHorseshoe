@@ -28,7 +28,6 @@ import argparse
 import html
 import json
 import logging
-import math
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
@@ -50,6 +49,9 @@ from bud.envelope import (
     symbol_to_clusters_map,
 )
 from bud.positions import validate_positions
+# Sizing math lives in bud.size so the operator CLI and this briefing can never
+# drift apart (bud.size also owns round_down_to_lot).
+from bud.size import compute_lots
 
 REPO_ROOT = Path(__file__).resolve().parents[2]  # src/bud/<this> -> repo root
 ORDERS_JSON_PATH = REPO_ROOT / "src" / "bh_briefing_ftmo_orders.json"
@@ -231,30 +233,6 @@ def compute_position_health(
 def build_instrument_map(config: dict) -> dict[str, dict]:
     """Index instruments by their .ftmo symbol for quick lookup."""
     return {inst["ftmo"]: inst for inst in config["instruments"]}
-
-
-def round_down_to_lot(lots: float, min_lot: float) -> float:
-    """Round lots down to the broker's min-lot increment."""
-    if min_lot <= 0 or lots <= 0:
-        return 0.0
-    return math.floor(lots / min_lot) * min_lot
-
-
-def compute_lots(entry: float, stop: float, risk_usd: float,
-                 instrument: dict) -> tuple[float, float]:
-    """Returns (lots, actual_risk_usd). 0.0 if anything degenerate."""
-    risk_per_unit = abs(entry - stop)
-    if risk_per_unit <= 0:
-        return 0.0, 0.0
-    pip_size = float(instrument["pip_size"])
-    dpp = float(instrument["dollar_per_pip_per_lot"])
-    risk_in_pips = risk_per_unit / pip_size
-    if risk_in_pips <= 0 or dpp <= 0:
-        return 0.0, 0.0
-    raw_lots = risk_usd / (risk_in_pips * dpp)
-    lots = round_down_to_lot(raw_lots, float(instrument["min_lot"]))
-    actual_risk = lots * risk_in_pips * dpp
-    return lots, actual_risk
 
 
 def apply_position_skip(fires: list[dict], positions: list[dict]) -> tuple[list[dict], list[dict]]:
