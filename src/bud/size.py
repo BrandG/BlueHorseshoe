@@ -26,8 +26,21 @@ Examples:
   ./run.sh python src/bud/size.py GBPCAD 1.7400 1.7460 --lots 0.17
         # reverse: what does 0.17 lots actually risk here?
 
+  ./run.sh python src/bud/size.py EURGBP 0.8400 0.8350 --risk 80 --live
+        # size off the CURRENT quote->USD rate rather than the frozen table
+
   ./run.sh python src/bud/size.py --list
         # dump the instrument table (symbol, pip size, $/pip/lot, min lot)
+
+  ./run.sh python src/bud/size.py --list --live
+        # drift audit: static vs live $/pip for all 40, worst offender first
+
+The static dollar_per_pip_per_lot values in bud/config.json freeze the
+quote->USD leg, so only USD-quoted pairs stay exact — every other pair drifts
+with the conversion rate. --live recomputes that leg from the most recent
+complete H4 close in FxStore and sizes off it, reporting how far the static
+table had strayed. It never hard-fails: if rates are unavailable it says so and
+falls back to static, because an operator holding a ticket needs a number.
 """
 from __future__ import annotations
 
@@ -38,6 +51,18 @@ import sys
 from typing import Optional
 
 from bud.envelope import DEFAULT_CONFIG_PATH, load_config
+
+# Every FX instrument in the envelope table is a standard lot. The static
+# dollar_per_pip_per_lot values are exactly pip_size x CONTRACT_SIZE x (the
+# quote->USD rate that was current when the table was written) — which is why
+# they drift: only the last term is frozen.
+CONTRACT_SIZE = 100_000
+
+# Enough USD legs for the BFS resolver to reach any quote currency in the table
+# in at most two hops, when no direct USD bridge exists for a quote.
+_BRIDGE_BASKET = ("EUR_USD", "GBP_USD", "AUD_USD", "NZD_USD",
+                  "USD_JPY", "USD_CAD", "USD_CHF")
+
 
 # --- pure sizing math (shared with bud.briefing_ftmo) ---------------------
 
@@ -103,15 +128,141 @@ def price_decimals(pip_size: float) -> int:
     return int(round(-math.log10(pip_size))) + 1
 
 
+def ftmo_to_oanda_pair(ftmo_symbol: str) -> str:
+    """EURUSD.sim -> EUR_USD (the FxStore / pip_value symbol convention)."""
+    stem = ftmo_symbol.replace(".sim", "")
+    return f"{stem[:3]}_{stem[3:]}"
+
+
+def quote_currency(ftmo_symbol: str) -> str:
+    """EURUSD.sim -> USD. The currency the pair's P&L lands in."""
+    return ftmo_symbol.replace(".sim", "")[3:6]
+
+
+# --- live pip value -------------------------------------------------------
+#
+# The static table freezes the quote->USD leg, so every non-USD-quoted pair
+# drifts with that rate. These helpers recompute it from the most recent
+# complete H4 close in FxStore. Imports are deliberately function-local: they
+# pull pandas (~1s), and the default static path must stay instant.
+
+
+def _load_spot_rates(quotes: set[str]) -> tuple[dict[str, float], object, list[str]]:
+    """Spot mids sufficient to convert each quote currency into USD.
+
+    Returns (rates, as_of, warnings). ``rates`` is keyed by OANDA pair symbol
+    and consumed by pip_value.quote_to_account_rate's currency graph. ``as_of``
+    is the OLDEST bar timestamp used, so staleness is reported honestly rather
+    than from whichever pair happens to be freshest.
+    """
+    from bh_ftmo.data.fx_store import FxStore  # pylint: disable=import-outside-toplevel
+
+    wanted: list[str] = []
+    for quote in sorted(quotes):
+        if quote == "USD":
+            continue
+        wanted += [f"USD_{quote}", f"{quote}_USD"]
+    wanted += list(_BRIDGE_BASKET)
+
+    rates: dict[str, float] = {}
+    warnings: list[str] = []
+    as_of = None
+    store = FxStore()
+    try:
+        available = set(store.symbols(granularity="H4"))
+        for pair in dict.fromkeys(wanted):          # de-dup, keep order
+            if pair not in available or pair in rates:
+                continue
+            try:
+                df = store.load(pair, granularity="H4", include_incomplete=False)
+            except Exception as exc:                # noqa: BLE001 — any load failure
+                warnings.append(f"{pair}: {type(exc).__name__}")
+                continue
+            if df is None or df.empty:
+                continue
+            last = df.iloc[-1]
+            mid = float(last["close_bid"] + last["close_ask"]) / 2.0
+            if mid <= 0:
+                continue
+            rates[pair] = mid
+            ts = last["timestamp"]
+            if as_of is None or ts < as_of:
+                as_of = ts
+    finally:
+        store.close()
+    return rates, as_of, warnings
+
+
+def resolve_live_dpp(instruments: list[dict]) -> dict[str, dict]:
+    """Live dollar_per_pip_per_lot for each instrument, keyed by .sim symbol.
+
+    Never raises: any instrument that cannot be resolved simply gets an
+    ``error`` and the caller falls back to its static value. An operator with a
+    ticket in hand needs a number, not a traceback.
+    """
+    from bh_ftmo.backtest.pip_value import (  # pylint: disable=import-outside-toplevel
+        quote_to_account_rate,
+    )
+
+    quotes = {quote_currency(i["ftmo"]) for i in instruments}
+    rates, as_of, warnings = _load_spot_rates(quotes)
+
+    out: dict[str, dict] = {}
+    for inst in instruments:
+        sym = inst["ftmo"]
+        entry: dict = {"as_of": as_of, "warnings": warnings}
+        try:
+            rate = quote_to_account_rate(ftmo_to_oanda_pair(sym), "USD", rates)
+            entry["rate"] = rate
+            entry["dpp"] = float(inst["pip_size"]) * CONTRACT_SIZE * rate
+            entry["exact"] = quote_currency(sym) == "USD"
+        except Exception as exc:                    # noqa: BLE001 — degrade, don't die
+            entry["error"] = f"{type(exc).__name__}: {exc}"
+        out[sym] = entry
+    return out
+
+
 # --- reporting ------------------------------------------------------------
 
 
 def build_result(inst: dict, entry: float, stop: float, risk_usd: float,
-                 target: Optional[float], forced_lots: Optional[float]) -> dict:
-    """All the numbers the CLI prints, as a plain dict (also the --json body)."""
+                 target: Optional[float], forced_lots: Optional[float],
+                 live: Optional[dict] = None) -> dict:
+    """All the numbers the CLI prints, as a plain dict (also the --json body).
+
+    ``live`` is one entry from resolve_live_dpp(); when it carries a usable
+    ``dpp`` that value replaces the static one for ALL downstream arithmetic.
+    """
     pip_size = float(inst["pip_size"])
-    dpp = float(inst["dollar_per_pip_per_lot"])
+    static_dpp = float(inst["dollar_per_pip_per_lot"])
+    dpp = static_dpp
     min_lot = float(inst["min_lot"])
+
+    live_info: Optional[dict] = None
+    if live is not None:
+        live_info = {"requested": True, "as_of": None, "error": live.get("error")}
+        if live.get("as_of") is not None:
+            live_info["as_of"] = str(live["as_of"])
+        if live.get("dpp"):
+            dpp = float(live["dpp"])
+            live_info.update({
+                "used": True,
+                "rate": round(float(live["rate"]), 6),
+                "exact": bool(live.get("exact")),
+                # >0 means the static table OVERSTATES $/pip, which makes
+                # static sizing risk LESS than the slot (conservative). <0 is
+                # the dangerous direction: static sizing overshoots the slot.
+                "static_error_pct": round((static_dpp - dpp) / dpp * 100.0, 2),
+            })
+        else:
+            live_info["used"] = False
+        if live.get("warnings"):
+            live_info["warnings"] = live["warnings"]
+
+    # compute_lots reads $/pip off the instrument dict, so the live value is
+    # applied by sizing against a shadow copy — one code path, no duplicated
+    # arithmetic, and the briefing's implementation stays authoritative.
+    sizing_inst = inst if dpp == static_dpp else {**inst, "dollar_per_pip_per_lot": dpp}
 
     stop_pips = abs(entry - stop) / pip_size
     side = "LONG" if stop < entry else "SHORT"
@@ -121,7 +272,7 @@ def build_result(inst: dict, entry: float, stop: float, risk_usd: float,
         lots = forced_lots
         actual_risk = lots * stop_pips * dpp
     else:
-        lots, actual_risk = compute_lots(entry, stop, risk_usd, inst)
+        lots, actual_risk = compute_lots(entry, stop, risk_usd, sizing_inst)
 
     res = {
         "ftmo_symbol": inst["ftmo"],
@@ -131,7 +282,9 @@ def build_result(inst: dict, entry: float, stop: float, risk_usd: float,
         "stop": stop,
         "stop_pips": round(stop_pips, 1),
         "pip_size": pip_size,
-        "dollar_per_pip_per_lot": dpp,
+        "dollar_per_pip_per_lot": round(dpp, 4),
+        "dollar_per_pip_per_lot_static": static_dpp,
+        "live": live_info,
         "min_lot": min_lot,
         "lots": round(lots, 2),
         "reverse": reverse,
@@ -157,6 +310,25 @@ def build_result(inst: dict, entry: float, stop: float, risk_usd: float,
     return res
 
 
+def _render_live_note(res: dict) -> str:
+    """One line naming the pip-value provenance. Empty unless --live was used."""
+    live = res.get("live")
+    if not live:
+        return ""
+    if not live.get("used"):
+        return (f"  !! --live FAILED ({live.get('error') or 'no rate'}) — "
+                f"fell back to the static table.")
+    if live.get("exact"):
+        return "  live: USD-quoted, so $/pip is exact and never drifts."
+
+    err = live["static_error_pct"]
+    stale = f" as of {live['as_of']} UTC" if live.get("as_of") else ""
+    direction = ("static would UNDER-risk" if err > 0 else "static would OVER-risk")
+    return (f"  live: quote->USD {live['rate']:.5f}{stale}"
+            f"   (static table ${res['dollar_per_pip_per_lot_static']:.2f}, "
+            f"off {err:+.1f}% — {direction})")
+
+
 def render(res: dict) -> str:
     """Human-readable block. Loud about anything that would misfire live."""
     dec = price_decimals(res["pip_size"])
@@ -168,6 +340,9 @@ def render(res: dict) -> str:
       f"   ->  {res['stop_pips']:.1f} pips")
     a(f"  ${res['dollar_per_pip_per_lot']:.2f} per pip per lot"
       f"   (min lot {res['min_lot']:g})")
+    live_note = _render_live_note(res)
+    if live_note:
+        a(live_note)
     a("")
 
     budget = res["risk_target_usd"]
@@ -204,20 +379,64 @@ def render(res: dict) -> str:
     return "\n".join(out)
 
 
-def render_table(config: dict) -> str:
-    """The instrument table, so the operator can audit V without reading JSON."""
+def render_table(config: dict, live: Optional[dict[str, dict]] = None) -> str:
+    """The instrument table, so the operator can audit V without reading JSON.
+
+    With ``live``, becomes a drift audit: static vs live $/pip and the error,
+    sorted worst-first so the pairs that mis-size most are at the top.
+    """
     rows = sorted(config["instruments"], key=lambda i: (i.get("tier", 9), i["ftmo"]))
-    out = [f"{'SYMBOL':<12} {'NAME':<9} {'PIP':>8} {'$/PIP/LOT':>10} "
-           f"{'MIN LOT':>8} {'$/1.00 MOVE':>12} {'TIER':>5}",
-           "-" * 70]
+
+    if live is None:
+        out = [f"{'SYMBOL':<12} {'NAME':<9} {'PIP':>8} {'$/PIP/LOT':>10} "
+               f"{'MIN LOT':>8} {'$/1.00 MOVE':>12} {'TIER':>5}",
+               "-" * 70]
+        for i in rows:
+            pip, dpp = float(i["pip_size"]), float(i["dollar_per_pip_per_lot"])
+            out.append(f"{i['ftmo'].replace('.sim', ''):<12} {i['name']:<9} {pip:>8g} "
+                       f"{dpp:>10.2f} {float(i['min_lot']):>8g} {dpp / pip:>12,.0f} "
+                       f"{i.get('tier', ''):>5}")
+        out.append("")
+        out.append(f"{len(rows)} instruments.  $/1.00 MOVE = $/pip/lot / pip size — "
+                   f"the V in  lots = risk / (|entry-stop| x V).")
+        return "\n".join(out)
+
+    def _err(inst: dict) -> Optional[float]:
+        got = live.get(inst["ftmo"], {})
+        if not got.get("dpp"):
+            return None
+        return (float(inst["dollar_per_pip_per_lot"]) - got["dpp"]) / got["dpp"] * 100.0
+
+    rows.sort(key=lambda i: -abs(_err(i) or 0.0))
+    out = [f"{'SYMBOL':<10} {'NAME':<9} {'STATIC':>8} {'LIVE':>8} {'ERROR':>8}  NOTE",
+           "-" * 62]
+    as_of, exact, unresolved = None, 0, 0
     for i in rows:
-        pip, dpp = float(i["pip_size"]), float(i["dollar_per_pip_per_lot"])
-        out.append(f"{i['ftmo'].replace('.sim', ''):<12} {i['name']:<9} {pip:>8g} "
-                   f"{dpp:>10.2f} {float(i['min_lot']):>8g} {dpp / pip:>12,.0f} "
-                   f"{i.get('tier', ''):>5}")
+        got = live.get(i["ftmo"], {})
+        as_of = as_of or got.get("as_of")
+        static = float(i["dollar_per_pip_per_lot"])
+        sym = i["ftmo"].replace(".sim", "")
+        if not got.get("dpp"):
+            unresolved += 1
+            out.append(f"{sym:<10} {i['name']:<9} {static:>8.2f} {'-':>8} {'-':>8}  "
+                       f"UNRESOLVED ({got.get('error', 'no rate')})")
+            continue
+        err = _err(i) or 0.0
+        if got.get("exact"):
+            exact += 1
+            note = "exact (USD-quoted)"
+        else:
+            note = "static UNDER-risks" if err > 0 else "static OVER-risks"
+        out.append(f"{sym:<10} {i['name']:<9} {static:>8.2f} {got['dpp']:>8.2f} "
+                   f"{err:>7.1f}%  {note}")
+
     out.append("")
-    out.append(f"{len(rows)} instruments.  $/1.00 MOVE = $/pip/lot / pip size — "
-               f"the V in  lots = risk / (|entry-stop| x V).")
+    out.append(f"{len(rows)} instruments — {exact} exact (USD-quoted), "
+               f"{len(rows) - exact - unresolved} drifting, {unresolved} unresolved."
+               + (f"  Rates as of {as_of} UTC." if as_of else ""))
+    out.append("ERROR = how far the static table is from live. Negative is the "
+               "dangerous direction:")
+    out.append("static sizing puts MORE than the slot at risk.")
     return "\n".join(out)
 
 
@@ -246,6 +465,10 @@ def main(argv: Optional[list[str]] = None) -> int:
                    help="take-profit price; adds R:R and reward $")
     p.add_argument("--lots", type=float, default=None,
                    help="reverse mode: given this lot size, what is the real risk?")
+    p.add_argument("--live", action="store_true",
+                   help="recompute $/pip from the latest H4 close instead of the "
+                        "static table (slower: loads FX data). Falls back to "
+                        "static, loudly, if rates are unavailable.")
     p.add_argument("--list", action="store_true", help="print the instrument table and exit")
     p.add_argument("--json", action="store_true", help="emit JSON instead of the text block")
     p.add_argument("--config", default=DEFAULT_CONFIG_PATH, help="path to bud/config.json")
@@ -254,7 +477,8 @@ def main(argv: Optional[list[str]] = None) -> int:
     config = load_config(args.config)
 
     if args.list:
-        print(render_table(config))
+        live = resolve_live_dpp(config["instruments"]) if args.live else None
+        print(render_table(config, live))
         return 0
 
     if args.symbol is None or args.entry is None or args.stop is None:
@@ -280,7 +504,9 @@ def main(argv: Optional[list[str]] = None) -> int:
         sys.exit("ERROR: --lots must be positive.")
 
     inst = resolve_instrument(args.symbol, config)
-    res = build_result(inst, args.entry, args.stop, risk_usd, args.target, args.lots)
+    live = resolve_live_dpp([inst])[inst["ftmo"]] if args.live else None
+    res = build_result(inst, args.entry, args.stop, risk_usd, args.target,
+                       args.lots, live)
 
     if args.json:
         print(json.dumps(res, indent=2))
