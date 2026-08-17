@@ -64,7 +64,10 @@ The repo is **two products** named after *Wall Street* (1987). Full map:
 - **BUD** = forex/FTMO (OANDA). **Lab** = `bh_ftmo/` (research/backtest).
   **Auto** = `src/bud/auto_trader.py` (autonomous, unified trader; runs v2 cells —
   rising_3bar retired 2026-05-31 after failing the v2 cell-selection gate). **Briefing**
-  = `bh_briefing.py` + `bh_briefing_ftmo.py` (human-in-loop; supersedes bh_lite).
+  = `bh_briefing.py` (human-in-loop; supersedes bh_lite; the companion
+  `bud/briefing_ftmo.py` was DELETED 2026-08-17 — retired and unused since the
+  2026-08-07 stand-down, recover from git if ever needed). **Sizing** =
+  `src/bud/size.py` (FTMO lot calculator; live pip values by default).
   **Envelope** = `bh_lite_*.json` (engine retired; config files still load-bearing —
   don't delete).
 

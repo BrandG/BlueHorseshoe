@@ -837,8 +837,10 @@ def evaluate_fires() -> tuple[list[dict], list[Cell], dict[str, pd.Timestamp]]:
     """Load H4 bars, evaluate every cell on the most-recently-closed bar,
     return the (fires, ordered_cells, bar_ts_by_pair) tuple.
 
-    Extracted from run() so external tools (e.g. bh_briefing_ftmo.py) can
-    consume the v2 cell fire-evaluation without driving the rendering layer.
+    Extracted from run() so external tools can consume the v2 cell
+    fire-evaluation without driving the rendering layer. (Its original caller,
+    bud/briefing_ftmo.py, was deleted 2026-08-17; the seam is kept because it
+    is the clean entry point for any future consumer.)
     """
     pair_set = {c.pair for c in CELLS}
     LOG.info("evaluating %d cells across %d pairs", len(CELLS), len(pair_set))

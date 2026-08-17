@@ -77,35 +77,61 @@ def test_quote_to_account_rate_raises_without_path():
 
 
 
-@pytest.mark.parametrize(
-    ("pair", "pip_size", "rates", "expected", "known_deviation"),
-    [
-        ("EUR_USD", 0.0001, {"EUR_USD": 1.0820}, 10.0, False),
-        ("GBP_USD", 0.0001, {"GBP_USD": 1.2710}, 10.0, False),
-        ("USD_JPY", 0.01, {"USD_JPY": 150.00}, 6.67, False),
-        ("USD_CAD", 0.0001, {"USD_CAD": 1.3333}, 7.50, False),
-        ("EUR_GBP", 0.0001, {"EUR_GBP": 0.8560, "GBP_USD": 1.2500}, 12.50, False),
-        ("EUR_JPY", 0.01, {"EUR_JPY": 162.50, "USD_JPY": 150.00}, 6.67, False),
-        ("AUD_NZD", 0.0001, {"AUD_NZD": 1.0800, "NZD_USD": 0.6000}, 6.00, False),
-        ("USD_HUF", 0.01, {"USD_HUF": 370.00}, 0.27, True),
-    ],
-)
-def test_ftmo_spec_cross_check_against_bh_lite_values(pair, pip_size, rates, expected, known_deviation):
-    """Cross-check sample pip values against BH Lite FTMO-spec fixtures within tolerance.
+# Approximate value of one unit of each quote currency in USD. Only ever used
+# as an order-of-magnitude reference, so the band below is deliberately wide:
+# this test must NOT pin config.json to a point-in-time value, because
+# `size.py --refresh-config` legitimately rewrites those values from live
+# rates. What it must catch is a row wrong by a FACTOR — the failure that
+# actually loses money.
+_QUOTE_TO_USD = {
+    "USD": 1.0,
+    "JPY": 1 / 150.0,
+    "CAD": 1 / 1.33,
+    "GBP": 1.27,
+    "NZD": 0.60,
+    "HUF": 1 / 340.0,
+}
+_BAND = 0.35   # tolerates years of drift; still catches a 10x slip
 
-    The ``USD_HUF`` fixture is intentionally marked as a known deviation because
-    BH Lite's historical exotic-pair sizing carried the documented 10x error.
-    The implementation stays mathematically correct and leaves that discrepancy
-    visible for Brand to verify against FTMO's own pip-value page.
+# (pair, pip_size) samples spanning USD-quoted, JPY-quoted, crosses and exotics.
+_SAMPLES = [
+    ("EUR_USD", 0.0001), ("GBP_USD", 0.0001), ("USD_JPY", 0.01),
+    ("USD_CAD", 0.0001), ("EUR_GBP", 0.0001), ("EUR_JPY", 0.01),
+    ("AUD_NZD", 0.0001), ("USD_HUF", 0.01),
+]
+
+
+@pytest.mark.parametrize(("pair", "pip_size"), _SAMPLES)
+def test_config_dollar_per_pip_is_plausible_for_its_quote_currency(pair, pip_size):
+    """Each config row must satisfy dpp == pip_size * contract_size * quote->USD.
+
+    That identity is what makes a row correct, so checking it is the cheapest
+    possible guard on the table — and it is the guard that was missing.
+    EURHUF/USDHUF carried dpp 0.27 against pip_size 0.01, which implies
+    USD/HUF ~ 3,704 when it was ~314. That 11.8x error sized real positions at
+    13x their intended risk in May 2026 (fixed 2026-08-14, commit 1bf9dad).
+
+    Deliberately a band, not an equality: --refresh-config rewrites these from
+    live rates, so pinning them would make a supported workflow fail the suite.
+    A factor-of-ten error cannot hide inside 35%.
     """
+    ftmo_symbol = pair.replace("_", "") + ".sim"
+    config_dpp = _expected_value(ftmo_symbol)
+    quote_ccy = pair.split("_")[1]
+    expected_dpp = pip_size * 100_000 * _QUOTE_TO_USD[quote_ccy]
 
-    pair_spec = PairSpec(symbol=pair, pip_size=pip_size, contract_size=100_000)
-    rate = quote_to_account_rate(pair, "USD", rates)
-    got = pip_value_in_account_ccy(pair_spec, "USD", rate)
-    config_expected = _expected_value(pair.replace("_", "") + ".sim")
-    assert config_expected == pytest.approx(expected, rel=0.0001)
-    if known_deviation:
-        assert got != pytest.approx(config_expected, rel=0.05)
-        assert got == pytest.approx(2.70, rel=0.05)
-    else:
-        assert got == pytest.approx(config_expected, rel=0.05)
+    assert config_dpp == pytest.approx(expected_dpp, rel=_BAND), (
+        f"{ftmo_symbol}: config says ${config_dpp}/pip/lot, but pip_size "
+        f"{pip_size} x 100,000 x ({quote_ccy}->USD ~{_QUOTE_TO_USD[quote_ccy]:.4g}) "
+        f"= ${expected_dpp:.4g}. This is the HUF failure mode — a row wrong by "
+        f"a factor sizes positions by that same factor."
+    )
+
+
+def test_pip_value_matches_config_for_a_sampled_pair():
+    """The computed pip value and the config row agree at the same spot rate."""
+    spec = PairSpec(symbol="USD_CAD", pip_size=0.0001, contract_size=100_000)
+    config_dpp = _expected_value("USDCAD.sim")
+    implied_spot = 0.0001 * 100_000 / config_dpp
+    rate = quote_to_account_rate("USD_CAD", "USD", {"USD_CAD": implied_spot})
+    assert pip_value_in_account_ccy(spec, "USD", rate) == pytest.approx(config_dpp, rel=1e-6)

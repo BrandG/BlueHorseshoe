@@ -6,7 +6,8 @@
 > [`PROJECTS.md`](PROJECTS.md) for the canonical map. This guide is the detailed
 > *runbook*. Two known-stale spots below: **§2 `bh_lite` is retired** — its
 > engine is dormant (see [`planning/BH_LITE_SUNDOWN.md`](planning/BH_LITE_SUNDOWN.md))
-> and the live human-in-loop channel is now **`bh_briefing.py` / `bh_briefing_ftmo.py`**
+> and the live human-in-loop channel is now **`bh_briefing.py`**
+> (`bh_briefing_ftmo.py` was deleted 2026-08-17)
 > (Bud · Briefing); only `bh_lite_*.json` survives as the shared FTMO config
 > envelope. The flag/output references in each section remain accurate.
 

@@ -23,7 +23,9 @@ BlueHorseshoe (umbrella repo)
     ├── Lab        research + backtest        src/bh_ftmo/ (package)
     ├── Auto       autonomous paper trader     src/bud/auto_trader.py (live, unified)
     │              legacy single-strategy:     src/bud/auto_rising3bar.py, src/bud/auto_v2.py
-    ├── Briefing   human-in-loop signals      src/bud/briefing.py, src/bud/briefing_ftmo.py
+    ├── Briefing   human-in-loop signals      src/bud/briefing.py
+    │                                          (briefing_ftmo.py deleted 2026-08-17)
+    ├── Sizing     FTMO lot calculator        src/bud/size.py
     ├── Operator   dashboards + flatten        src/bud/status.py, src/bud/flatten.py
     ├── Envelope   shared config + loaders     src/bud/envelope.py
     │              live state                  src/bud/config.json, src/bud/positions.json,
@@ -109,7 +111,7 @@ all on the **H4** timeframe.
 
 ### Bud · Briefing — human-in-the-loop signals *(supersedes bh_lite)*
 
-- **Code:** `src/bh_briefing.py` + `src/bh_briefing_ftmo.py`
+- **Code:** `src/bh_briefing.py` (`bh_briefing_ftmo.py` deleted 2026-08-17)
 - **Does:** emails the firing H4 cells as **sized, placeable FTMO orders** with
   position-health on open trades — you read it and place trades manually. The
   human counterpart to Bud · Auto.
@@ -123,7 +125,7 @@ all on the **H4** timeframe.
   (dormant since 2026-05-12; see [`planning/BH_LITE_SUNDOWN.md`](planning/BH_LITE_SUNDOWN.md)).
 - **Why it still matters:** `bh_lite_config.json` (account, risk, instruments,
   12 clusters) and `bh_lite_positions.json` are **still load-bearing** — read
-  by `bh_briefing_ftmo` and `ftmo_envelope` to keep the FTMO trading envelope
+  by `ftmo_envelope` (and formerly `bh_briefing_ftmo`) to keep the FTMO envelope
   consistent. **Do not delete these files** even though the engine is gone.
 
 ---

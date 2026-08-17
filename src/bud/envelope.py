@@ -1,10 +1,12 @@
 """Shared FTMO trade-envelope config + position loaders.
 
 These small, pure helpers define the FTMO trading envelope (account/risk/
-instruments/clusters config and open-position state) consumed by the live
-briefing tools. They were extracted from the retired ``bh_lite.py`` so that
-``bud.briefing_ftmo`` no longer depends on the dormant bh_lite scoring module.
-See docs/planning/BH_LITE_SUNDOWN.md.
+instruments/clusters config and open-position state). They were extracted from
+the retired ``bh_lite.py`` so the briefing tools no longer depended on the
+dormant bh_lite scoring module. See docs/planning/BH_LITE_SUNDOWN.md.
+
+Remaining consumers after ``bud.briefing_ftmo`` was deleted (2026-08-17):
+``bud.size`` (lot calculator) and ``bud.positions`` (position CLI).
 
 State files live next to this module under ``src/bud/`` after Tier 3
 (2026-05-30): ``config.json`` (shared envelope) and ``positions.json``

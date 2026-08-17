@@ -50,9 +50,13 @@
 # 10 1,5,9,13,17,21 * * *  cd /root/BlueHorseshoe && ./run.sh python -m bh_ftmo.predict --equity 10000 >> /root/BlueHorseshoe/src/logs/bh_ftmo_signals.log 2>&1
 # 16 1,5,9,13,17,21 * * *  /root/BlueHorseshoe/run_bh_ftmo_trader.sh
 # 20 1,5,9,13,17,21 * * *  /root/BlueHorseshoe/run_bh_briefing.sh
+# GONE 2026-08-17 — run_bh_briefing_ftmo.sh and bud/briefing_ftmo.py were
+# deleted (retired, unused since the stand-down). Do NOT uncomment: the script
+# no longer exists. Recover from git history if the channel is ever revived.
 # 25 1,5,9,13,17,21 * * *  /root/BlueHorseshoe/run_bh_briefing_ftmo.sh
 
 # STOOD DOWN 2026-08-07 — extra weekday FTMO briefing at 22:30.
+# GONE 2026-08-17 — same as above; script deleted, do NOT uncomment.
 # 30 22 * * 1-5  /root/BlueHorseshoe/run_bh_briefing_ftmo.sh
 
 # ====================

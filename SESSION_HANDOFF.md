@@ -14,7 +14,7 @@
 - **Heavy research/pulls MUST run via `./run_research.sh` (memory-capped scope — see 2026-07-06 infra below).** On this 7.8GB box a bare pull OOM-kills the whole tmux/Claude session.
 
 **BUD (forex / FTMO / OANDA)**
-- Briefing (`src/bud/briefing.py` + `briefing_ftmo.py`): human-in-loop, emailed FTMO briefing on cron.
+- Briefing (`src/bud/briefing.py`): human-in-loop signals. `briefing_ftmo.py` deleted 2026-08-17.
 - Auto (`src/bud/auto_trader.py`): autonomous unified trader (V2 cells) on OANDA practice.
   Live cron = `run_bh_ftmo_trader.sh`, minute 16 every 4h session. **22 deployable cells** as of 2026-06-26.
 

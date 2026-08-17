@@ -88,7 +88,8 @@ stop-*widening* is structurally refused.
 ## BUD
 
 Bud = OANDA forex / FTMO. **Auto** (`src/bud/auto_trader.py`) is the autonomous trader running v2
-cells; **Briefing** (`src/bud/briefing.py` + `briefing_ftmo.py`) is the human-in-loop path; the
+cells; **Briefing** (`src/bud/briefing.py`) is the human-in-loop path (`briefing_ftmo.py`
+deleted 2026-08-17); the
 **Envelope** is `src/bud/config.json` + the `CELLS` table. The FTMO challenge book is **hand-maintained**
 in `src/bud/positions.json` (not auto-synced from the OANDA demo).
 
@@ -98,7 +99,7 @@ in `src/bud/positions.json` (not auto-synced from the OANDA demo).
 |---|---|---|
 | `auto_trader.py` | **`--dry-run`** | Autonomous run: evaluate v2 cells, place/close OANDA orders. `--dry-run` logs signals only. Cron'd every 4h. |
 | `briefing.py` | `--verbose`, `--email`, `--email-only-if-fires` | Human-readable v2-cell fire report (HTML, archived) |
-| `briefing_ftmo.py` | `--dry-run`, `--email`, `--email-only-if-activity`, `--trace` | Sized orders + position-health email; writes `bh_briefing_ftmo_orders.json` |
+| `size.py` | `SYM ENTRY STOP --risk N`, `--target`, `--lots`, `--static`, `--list`, `--refresh-config` | FTMO lot sizing; live pip values by default |
 | `positions.py` | `list` · `add SYM [--entry --stop --target --lots --side]` · `close SYM [--close-price --pnl]` · `sync [--dry-run --yes --only-untagged]` · `validate` | Maintain the hand-kept `positions.json` (FTMO challenge book) |
 | `reconcile.py` | `--dry-run` | Join OANDA closed trades → outcomes; auto-runs at end of each `auto_trader` run |
 | `status.py` | `--hours N` (48) | Account state + open positions (worst-first) + recent journal activity |
@@ -125,8 +126,8 @@ Data/research (Lab): `python -m bh_ftmo.data.incremental_update` (4h fetch) ·
 
 | Knob | Value | Where |
 |---|---|---|
-| Risk per trade | `0.005` (0.5%) | `auto_trader.py:67` `V2_RISK_PER_TRADE_PCT` · `briefing_ftmo.py:59` |
-| Max concurrent positions | `5` (envelope default 3) | `briefing_ftmo.py:60` |
+| Risk per trade | `0.005` (0.5%) | `auto_trader.py:67` `V2_RISK_PER_TRADE_PCT` |
+| Max concurrent positions | envelope default `3` | `bud/config.json` `risk.max_concurrent_positions` |
 | Max new orders per run | `5` | `auto_trader.py:68` `MAX_NEW_ORDERS_PER_RUN` |
 | Margin-utilization gate | `0.40` of NAV — aborts run if exceeded | `bh_ftmo/trading/safety.py:18` |
 | Net-direction gate | `12` max `|n_long − n_short|` | `bh_ftmo/trading/safety.py:19` |
@@ -154,7 +155,7 @@ These gates reject ~75% of fires; rejections are journaled (`skip_margin_budget`
 | :10 | `bh_ftmo.predict --equity 10000` | Legacy signal email |
 | :16 | `run_bh_ftmo_trader.sh` | **Auto trader** — place/close orders + reconcile |
 | :20 | `run_bh_briefing.sh` | v2-cell report (no email) |
-| :25 | `run_bh_briefing_ftmo.sh` | Sized FTMO orders + health email |
+| :25 | _(removed 2026-08-17)_ | was `run_bh_briefing_ftmo.sh` |
 
 Plus a weekday 22:30 UTC summary email. Logs: `src/logs/bh_ftmo_trader{.log,_journal.csv}`,
 `bh_ftmo_outcomes.csv`, `bh_briefing*.log`; HTML archives under `src/logs/briefings/`.
@@ -168,5 +169,5 @@ Plus a weekday 22:30 UTC summary email. Logs: `src/logs/bh_ftmo_trader{.log,_jou
 ./run.sh python src/bud/positions.py add EURJPY.sim --entry 162.45 --stop 164.07 --target 161.64 --lots 0.06 --side sell
 ./run.sh python src/bud/positions.py sync --dry-run   # preview vs live OANDA
 ./run.sh python src/bud/reconcile.py              # journal closed-trade outcomes
-./run.sh python src/bud/briefing_ftmo.py --trace  # sized orders + funnel trace
+./run.sh python src/bud/size.py EURUSD 1.0850 1.0800 --risk 80  # lot sizing
 ```

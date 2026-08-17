@@ -1,11 +1,7 @@
 """Manage open-position state for the FTMO trading envelope.
 
-``bud.briefing_ftmo`` (the H4 cron) reads ``src/bud/positions.json`` for:
-  - skip pairs already open
-  - cluster-suppression (an open NZDCAD blocks new CADCHF)
-  - daily-risk budget tracking
-
-This helper keeps that file honest. Four commands:
+``src/bud/positions.json`` is the hand-maintained book for the FTMO challenge
+account (no API). This helper keeps that file honest. Four commands:
 
   list                   — print current open positions
   add FTMO_SYMBOL        — read src/bh_briefing_ftmo_orders.json (or
@@ -13,6 +9,14 @@ This helper keeps that file honest. Four commands:
                            FTMO_SYMBOL, append it to positions with
                            today's date. Manual override via --entry
                            --stop --target --lots --side flags.
+                           NOTE: neither order file is live any more.
+                           bh_briefing_ftmo_orders.json was DELETED 2026-08-17
+                           along with the briefing that wrote it, and
+                           orders.json is a frozen bh_lite leftover. Both
+                           lookups miss cleanly (the reader skips absent
+                           files), so expect to pass the manual flags.
+                           Archived: /root/archives/
+                           briefing_ftmo_artifacts_2026-08-17.tar.gz
   close FTMO_SYMBOL      — remove from positions, append a record
                            to src/bud/positions_closed.json with close
                            timestamp + optional --close-price / --pnl
@@ -157,7 +161,7 @@ def validate_positions(
 
 
 def _ftmo_to_oanda(sym: str) -> str:
-    """USDJPY.sim -> USD_JPY (inline mirror to avoid importing briefing_ftmo)."""
+    """USDJPY.sim -> USD_JPY (local copy; briefing_ftmo deleted 2026-08-17)."""
     base = sym.replace(".sim", "")
     return f"{base[:3]}_{base[3:]}" if len(base) == 6 else base
 
@@ -376,9 +380,10 @@ UNITS_PER_LOT = 100_000
 def _trade_to_position(trade: dict) -> dict | None:
     """Map one OANDA open trade to a positions.json entry.
 
-    Returns None for a trade with no instrument or zero units. Mirrors
-    ``bud.briefing_ftmo.oanda_to_ftmo`` (EUR_USD -> EURUSD.sim) inline to avoid
-    importing the heavy briefing module just for a string transform.
+    Returns None for a trade with no instrument or zero units. Does the
+    EUR_USD -> EURUSD.sim transform locally; this used to mirror
+    ``bud.briefing_ftmo.oanda_to_ftmo``, which was deleted 2026-08-17.
+    ``bud.size`` carries an equivalent for its own symbol handling.
     """
     instrument = trade.get("instrument")
     try:
