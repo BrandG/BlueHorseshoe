@@ -26,8 +26,8 @@ Examples:
   ./run.sh python src/bud/size.py GBPCAD 1.7400 1.7460 --lots 0.17
         # reverse: what does 0.17 lots actually risk here?
 
-  ./run.sh python src/bud/size.py EURGBP 0.8400 0.8350 --risk 80 --live
-        # size off the CURRENT quote->USD rate rather than the frozen table
+  ./run.sh python src/bud/size.py EURUSD 1.0850 1.0800 --risk 80 --static
+        # skip the rate lookup and use the frozen table (~0.1s, may drift)
 
   ./run.sh python src/bud/size.py --list
         # dump the instrument table (symbol, pip size, $/pip/lot, min lot)
@@ -35,18 +35,28 @@ Examples:
   ./run.sh python src/bud/size.py --list --live
         # drift audit: static vs live $/pip for all 40, worst offender first
 
-The static dollar_per_pip_per_lot values in bud/config.json freeze the
-quote->USD leg, so only USD-quoted pairs stay exact — every other pair drifts
-with the conversion rate. --live recomputes that leg from the most recent
-complete H4 close in FxStore and sizes off it, reporting how far the static
-table had strayed. It never hard-fails: if rates are unavailable it says so and
-falls back to static, because an operator holding a ticket needs a number.
+  ./run.sh python src/bud/size.py --refresh-config [--execute]
+        # rewrite the whole static table from live rates (dry-run by default)
+
+Live rates are the DEFAULT. The dollar_per_pip_per_lot values in bud/config.json
+freeze the quote->USD leg, so only USD-quoted pairs stay exact — every other
+pair drifts with the conversion rate (the CHF block reached 12% before the
+2026-08-14 sweep, and a broken HUF row hid there for months). So sizing
+recomputes that leg from the most recent complete H4 close in FxStore and
+reports how far the frozen table had strayed.
+
+Pass --static to skip the lookup (~0.1s vs ~2s) when you want speed and can
+accept drift. Either way the output names which $/pip it used — provenance is
+never implicit. Live sizing never hard-fails: if rates are unavailable it says
+so and falls back to the table, because an operator holding a ticket needs a
+number, not a traceback.
 """
 from __future__ import annotations
 
 import argparse
 import json
 import math
+import re
 import sys
 from typing import Optional
 
@@ -222,6 +232,85 @@ def resolve_live_dpp(instruments: list[dict]) -> dict[str, dict]:
     return out
 
 
+# --- config refresh -------------------------------------------------------
+#
+# The static table is a point-in-time snapshot of the quote->USD leg, so it
+# goes stale continuously. This rewrites it from live rates in place, which is
+# why it is a repeatable command and not a hand edit.
+
+_DPP_LINE_RE = re.compile(
+    r'("ftmo":\s*"(?P<sym>[A-Z]{6}\.sim)".*?"dollar_per_pip_per_lot":\s*)'
+    r'(?P<dpp>[0-9]+(?:\.[0-9]+)?)'
+)
+
+
+def round_up_dpp(value: float) -> float:
+    """Round $/pip UP, at a precision fine enough that the bias is negligible.
+
+    Direction is deliberate and asymmetric: too-large dpp under-sizes (safe),
+    too-small over-sizes (blows the slot). Rounding up can only ever err
+    conservative. 2dp above 1.0, 4dp below, so granularity error stays <1%
+    even on the small exotic values (USDZAR ~0.62, USDCZK ~0.48).
+    """
+    quantum = 0.01 if value >= 1.0 else 0.0001
+    stepped = math.ceil(value / quantum - 1e-9) * quantum
+    return round(stepped, 2 if value >= 1.0 else 4)
+
+
+def refresh_config_text(text: str, live: dict[str, dict]) -> tuple[str, list[dict]]:
+    """Rewrite dollar_per_pip_per_lot values in config.json's raw text.
+
+    Deliberately line-surgical rather than json.load/json.dump: the file is
+    hand-formatted one instrument per line, and a round-trip through the json
+    module would reflow all 40 rows and bury the real change. Rows whose value
+    is already correct are left byte-identical so the diff shows only drift.
+    """
+    changes: list[dict] = []
+
+    def _sub(match: re.Match) -> str:
+        sym = match.group("sym")
+        old = float(match.group("dpp"))
+        got = live.get(sym, {})
+        if not got.get("dpp"):
+            changes.append({"symbol": sym, "old": old, "new": None,
+                            "error": got.get("error", "no rate")})
+            return match.group(0)
+        new = round_up_dpp(float(got["dpp"]))
+        if new == old:
+            return match.group(0)
+        changes.append({"symbol": sym, "old": old, "new": new,
+                        "pct": (new - old) / old * 100.0})
+        return f"{match.group(1)}{new:g}"
+
+    return _DPP_LINE_RE.sub(_sub, text), changes
+
+
+def render_refresh(changes: list[dict], path: str, wrote: bool) -> str:
+    """Summary of what the refresh changed (or would change)."""
+    failed = [c for c in changes if c.get("new") is None]
+    moved = [c for c in changes if c.get("new") is not None]
+    moved.sort(key=lambda c: -abs(c["pct"]))
+
+    out = [f"{'SYMBOL':<10} {'OLD':>8} {'NEW':>8} {'CHANGE':>8}  EFFECT", "-" * 54]
+    for c in moved:
+        # dpp UP means the old value was too small -> it had been over-risking.
+        effect = "was over-risking" if c["pct"] > 0 else "was under-risking"
+        out.append(f"{c['symbol'].replace('.sim', ''):<10} {c['old']:>8.4g} "
+                   f"{c['new']:>8.4g} {c['pct']:>7.1f}%  {effect}")
+    for c in failed:
+        out.append(f"{c['symbol'].replace('.sim', ''):<10} {c['old']:>8.4g} "
+                   f"{'-':>8} {'-':>8}  UNRESOLVED ({c['error']}) — left alone")
+
+    out.append("")
+    verb = "updated" if wrote else "would update"
+    out.append(f"{len(moved)} rows {verb}, {len(failed)} unresolved. "
+               f"Values rounded UP (too-large $/pip under-sizes; too-small "
+               f"over-sizes).")
+    out.append(f"{'Wrote' if wrote else 'DRY RUN — nothing written to'} {path}"
+               + ("" if wrote else ". Re-run with --execute to apply."))
+    return "\n".join(out)
+
+
 # --- reporting ------------------------------------------------------------
 
 
@@ -311,21 +400,31 @@ def build_result(inst: dict, entry: float, stop: float, risk_usd: float,
 
 
 def _render_live_note(res: dict) -> str:
-    """One line naming the pip-value provenance. Empty unless --live was used."""
+    """One line naming the pip-value provenance — always shown.
+
+    Which $/pip produced the lot count is never left implicit: live rates say
+    so and quantify the drift, and --static says so too, because a stale number
+    that looks authoritative is how the HUF row went unnoticed for months.
+    """
     live = res.get("live")
     if not live:
-        return ""
+        return ("  static table (--static): $/pip is frozen and may have drifted. "
+                "Drop --static for live rates.")
     if not live.get("used"):
-        return (f"  !! --live FAILED ({live.get('error') or 'no rate'}) — "
-                f"fell back to the static table.")
+        return (f"  !! LIVE RATES FAILED ({live.get('error') or 'no rate'}) — "
+                f"fell back to the frozen table, which may have drifted.")
     if live.get("exact"):
         return "  live: USD-quoted, so $/pip is exact and never drifts."
 
     err = live["static_error_pct"]
     stale = f" as of {live['as_of']} UTC" if live.get("as_of") else ""
-    direction = ("static would UNDER-risk" if err > 0 else "static would OVER-risk")
-    return (f"  live: quote->USD {live['rate']:.5f}{stale}"
-            f"   (static table ${res['dollar_per_pip_per_lot_static']:.2f}, "
+    head = f"  live: quote->USD {live['rate']:.5f}{stale}"
+    # Below half a percent the drift is not worth a direction claim — saying
+    # "would OVER-risk" at +0.0% reads as a warning and trains you to ignore it.
+    if abs(err) < 0.5:
+        return f"{head}   (frozen table agrees, {err:+.1f}%)"
+    direction = ("table would UNDER-risk" if err > 0 else "table would OVER-risk")
+    return (f"{head}   (frozen table ${res['dollar_per_pip_per_lot_static']:.2f}, "
             f"off {err:+.1f}% — {direction})")
 
 
@@ -453,6 +552,7 @@ def main(argv: Optional[list[str]] = None) -> int:
                "  size.py EURUSD 1.0850 1.0800 --risk 80\n"
                "  size.py USDJPY 147.20 146.50 --risk 80 --target 148.60\n"
                "  size.py GBPCAD 1.7400 1.7460 --lots 0.17\n"
+               "  size.py EURUSD 1.0850 1.0800 --risk 80 --static   (fast, may drift)\n"
                "  size.py --list\n")
     p.add_argument("symbol", nargs="?", help="EURUSD, EUR/USD, EUR_USD or EURUSD.sim")
     p.add_argument("entry", nargs="?", type=float, help="entry price")
@@ -465,19 +565,53 @@ def main(argv: Optional[list[str]] = None) -> int:
                    help="take-profit price; adds R:R and reward $")
     p.add_argument("--lots", type=float, default=None,
                    help="reverse mode: given this lot size, what is the real risk?")
-    p.add_argument("--live", action="store_true",
-                   help="recompute $/pip from the latest H4 close instead of the "
-                        "static table (slower: loads FX data). Falls back to "
-                        "static, loudly, if rates are unavailable.")
+    p.add_argument("--static", action="store_true",
+                   help="skip the live rate lookup and use the frozen table in "
+                        "bud/config.json. Fast (~0.1s vs ~2s) but the values drift; "
+                        "the output says so when you use it.")
+    # Live is the default now, so --live is a no-op kept for muscle memory and
+    # any saved invocation that still passes it.
+    p.add_argument("--live", action="store_true", help=argparse.SUPPRESS)
     p.add_argument("--list", action="store_true", help="print the instrument table and exit")
+    p.add_argument("--refresh-config", action="store_true",
+                   help="rewrite every dollar_per_pip_per_lot in bud/config.json "
+                        "from live rates. DRY RUN unless --execute is passed.")
+    p.add_argument("--execute", action="store_true",
+                   help="with --refresh-config: actually write the file")
     p.add_argument("--json", action="store_true", help="emit JSON instead of the text block")
     p.add_argument("--config", default=DEFAULT_CONFIG_PATH, help="path to bud/config.json")
     args = p.parse_args(argv)
 
     config = load_config(args.config)
 
+    # Live rates are the default; --static opts out. The frozen table exists as
+    # a fast fallback, not as the source of truth.
+    use_live = not args.static
+    if args.static and args.refresh_config:
+        sys.exit("ERROR: --refresh-config rewrites the table FROM live rates; "
+                 "--static is contradictory.")
+
+    if args.refresh_config:
+        live = resolve_live_dpp(config["instruments"])
+        with open(args.config, encoding="utf-8") as fh:
+            text = fh.read()
+        new_text, changes = refresh_config_text(text, live)
+
+        if args.execute and new_text != text:
+            # Validate the rewritten text parses AND still holds 40 instruments
+            # before touching the file — a bad regex must not be able to
+            # corrupt the trade envelope.
+            parsed = json.loads(new_text)
+            if len(parsed.get("instruments", [])) != len(config["instruments"]):
+                sys.exit("ERROR: refresh changed the instrument count — aborting.")
+            with open(args.config, "w", encoding="utf-8") as fh:
+                fh.write(new_text)
+
+        print(render_refresh(changes, args.config, args.execute and new_text != text))
+        return 0
+
     if args.list:
-        live = resolve_live_dpp(config["instruments"]) if args.live else None
+        live = resolve_live_dpp(config["instruments"]) if use_live else None
         print(render_table(config, live))
         return 0
 
@@ -504,7 +638,7 @@ def main(argv: Optional[list[str]] = None) -> int:
         sys.exit("ERROR: --lots must be positive.")
 
     inst = resolve_instrument(args.symbol, config)
-    live = resolve_live_dpp([inst])[inst["ftmo"]] if args.live else None
+    live = resolve_live_dpp([inst])[inst["ftmo"]] if use_live else None
     res = build_result(inst, args.entry, args.stop, risk_usd, args.target,
                        args.lots, live)
 
